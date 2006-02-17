@@ -1,0 +1,16 @@
+custom.obj +
+drawing.obj +
+subs.obj +
+subs2.obj +
+subs3.obj +
+mapsubs.obj +
+flexmenu.obj +
+menus.obj +
+compat.obj +
+nocom.obj +
+,
+customqb.exe,
+,
+allmodex.lib +
+bcom45.lib +
+
