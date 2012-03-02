@@ -20,7 +20,7 @@ constant false=0
 constant true=1
 
 constant COMPILER_VERSION=1
-constant COMPILER_SUB_VERSION=".2"
+constant COMPILER_SUB_VERSION=".3"
 constant COPYRIGHT_DATE="2011"
 
 --these constants are color-flags. May add more colors, up to 254
@@ -219,7 +219,7 @@ end procedure
 --prints out the copyright info, usage info, and command-line options
 procedure check_arg_count(sequence args)
   if length(args)=2 then
-    wrap_print("HamsterSpeak preprocessor v%d%s_timers (C)2011 Ralph Versteegen, James Paige\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
+    wrap_print("HamsterSpeak preprocessor v%d%s (C)2011 Ralph Versteegen, James Paige\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
     wrap_print("Please read LICENSE.txt for GPL License details and disclaimer of liability",{})
     wrap_print(COLYEL&"%s [-ckwx] source.hss"&COLWHI&"\n\n",{hs_upper(file_only(args[2]))})
     color_print("   -k do not wait for a keypress when finished\n",{})
@@ -274,7 +274,7 @@ end procedure
 ---------------------------------------------------------------------------
 
 --initializes global variables, and generally gets things ready to roll
-procedure init()
+function init()
   sequence args
   integer index
   integer key
@@ -297,7 +297,12 @@ procedure init()
 --  if equal(extension_only(source_file),"hspp")=0 then
 --    simple_error("Input file must have .hspp extension")
 --  end if
-  add_source(alter_extension(source_file,"hspp"))  --will throw an error later if doesn't exist
+  if file_exists(alter_extension(source_file,"hspp"))=0 then
+    dest_file=source_file
+    return false
+  end if
+
+  add_source(alter_extension(source_file,"hspp"))
 
   dest_file=normalize_filename(alter_extension(source_file,"hss"))
 
@@ -310,7 +315,8 @@ procedure init()
   end if
 
   init_lexer()
-end procedure
+  return true
+end function
 
 ---------------------------------------------------------------------------
 
@@ -1347,15 +1353,17 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-init()
-load_and_lex()
+if init() then
+  load_and_lex()
 
-run_time=time()-start_time
-color_print("done (%g seconds)\n",{run_time})
-if was_warnings = true then
-  abort(2)
+  run_time=time()-start_time
+  color_print("done (%g seconds)\n",{run_time})
+  if was_warnings = true then
+    abort(2)
+  end if
+else
+  color_print("No .hspp file found, passing through to HSpeak...\n",{})
 end if
-
 
 system(compiler_dir&"hspeak_true.exe -y " & dest_file, 2)
 --opt_wait_for_key()
