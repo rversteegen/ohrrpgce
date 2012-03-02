@@ -1,0 +1,6 @@
+# This has to go in a separate file due to stupidity
+
+define operator, begin
+  10 !+  add          # What? Can't remember...
+  15 %   globalindex  # Internal use
+end

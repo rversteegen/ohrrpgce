@@ -1,2 +1,2 @@
-eubind hspp.exw -out hspeak.exe
-#euc -gcc hspp.exw -o hspeak.exe
+eubind hspp.exw -out hspeak
+#euc -gcc hspp.exw -o hspeak

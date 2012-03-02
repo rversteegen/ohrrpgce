@@ -1,7 +1,5 @@
-define operator, begin
-  10 !+  add          # What? Can't remember...
-  15 %   globalindex  # Internal use
-end
+
+include, "hspp2.hsd"
 
 define constant (-909818727, END OF LIST)
 
