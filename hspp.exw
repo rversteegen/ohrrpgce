@@ -1,0 +1,1361 @@
+--(C) Copyright 2011 Ralph Versteegen, James Paige and Hamster Republic Productions
+-- Please read LICENSE.txt for GPL License details and disclaimer of liability
+
+---------------------------------------------------------------------------
+
+without warning       --to avoid annoying warnings
+without type_check    --for a small speed boost
+--with profile_time     --time profiling
+
+include hsspiffy.e --various routines, sequence manipulation - James Paige
+include graphics.e --standard library, needed for color output
+include machine.e  --needed for int_to_bytes
+include std/search.e
+
+--namespace search
+
+---------------------------------------------------------------------------
+--constants--
+constant false=0
+constant true=1
+
+constant COMPILER_VERSION=1
+constant COMPILER_SUB_VERSION=".2"
+constant COPYRIGHT_DATE="2011"
+
+--these constants are color-flags. May add more colors, up to 254
+constant COLYEL=239
+constant COLRED=240
+constant COLPNK=241
+constant COLWHI=242
+constant COLBWHI=243
+--Euphoria's color constants vary depending on the platform, so we avoid them
+constant HS_TO_EU_COLORS={YELLOW, RED, BRIGHT_RED, WHITE, BRIGHT_WHITE}
+
+constant LEX_CHAR=0
+constant LEX_SPACE=1
+constant LEX_BEGIN=2
+constant LEX_END=3
+constant LEX_KEYWORD=4
+constant LEX_COMMENT=5
+constant LEX_STRING=6
+constant LEX_COMMA=7
+constant LEX_WARN=8
+constant LEX_BINARY=9
+constant LEX_DIGIT=10
+constant LEX_KEYWORD2=11
+constant LEX_DOT=12
+constant LEX_BEGINA=13
+constant LEX_ENDA=14
+constant POS_FILENAME=1
+constant POS_LINE=2
+constant POS_COLUMN=3
+constant POS_LENGTH=4
+constant POS_TEXT=5
+constant CMD_TEXT=1
+constant CMD_POS=2
+
+constant TYPE_NAME=1
+constant TYPE_SIZEOF=2
+constant TYPE_HEAP=3
+
+constant MACRO_NAME=1
+constant MACRO_ARGNUM=2
+constant MACRO_TEXT=3
+
+sequence macro_list       macro_list={}
+
+sequence compiler_dir     compiler_dir=""
+sequence source_file      source_file=""
+sequence dest_file        dest_file=""
+sequence optlist          optlist={}
+sequence include_stack    include_stack={}
+
+sequence separator_list   separator_list={
+                             "+=","-=","$+","$=","$","+","--","/","*","^^","^"
+                             ,"==","<>",">>","<<","<=",">=",":=","=","&&","||","&","%",".","[","]","!"
+                          }
+sequence lexer_table      lexer_table={}
+sequence lexer_table_key2 lexer_table_key2={}
+
+atom start_time           start_time=time()
+atom run_time             run_time=0
+integer colors_enabled    colors_enabled=true
+integer simple_colorcodes simple_colorcodes=false
+integer was_warnings      was_warnings=false
+
+integer bracket_depth     bracket_depth=0
+integer inside_script     inside_script=false
+sequence current_script   current_script=""   --name of current script
+integer current_script_part  current_script_part=0
+
+sequence current_line     current_line=""
+integer current_lineno    current_lineno=0
+integer current_fileno
+sequence typeinfo         typeinfo={}
+
+sequence extra_brackets   extra_brackets={}
+
+
+integer outfh             outfh=-1  --file handle for the current output file
+
+sequence output_queue     output_queue={}   --a list of lines of text to output once the end of the current script is reached
+
+
+---------------------------------------------------------------------------
+--types--
+
+--A position in the script source. A (large) integer, where
+--the bottom 22 bits store the character number in the file, 1-based
+--(where newlines are one character) and higher bits the file index
+--in file_list minus one.
+--See decode_srcpos
+type srcpos(atom pos)
+  --need to allow 0 as a dummy value
+  if pos>=0 and pos=floor(pos) then
+    --odd, or and and only seem to shortcut when used as if condition, not
+    --in a general expression
+    return true
+  else
+    return false
+  end if
+end type
+
+---------------------------------------------------------------------------
+
+--time spent waiting for a user-keypress shouldnt count
+function timeless_wait_key()
+  atom skip_time
+  integer key
+  skip_time=time()
+  key=wait_key()
+  skip_time=time()-skip_time
+  start_time+=skip_time
+  return(key)
+end function
+
+---------------------------------------------------------------------------
+
+--prints a string with printf to stdout converting color codes
+procedure color_print(sequence s,sequence printf_args)
+  sequence buffer
+  s=sprintf(s,printf_args)
+  if simple_colorcodes then
+    buffer=s
+  else
+    buffer=""
+    for i=1 to length(s) do
+      if s[i]<=254 and s[i]>=239 then
+        puts(stdout,buffer)
+        buffer=""
+        if colors_enabled then
+          text_color(HS_TO_EU_COLORS[s[i]-238])
+        end if
+      else  
+        buffer&=s[i]
+      end if
+    end for
+  end if
+  if length(buffer) then
+    puts(stdout,buffer)
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure opt_wait_for_key()
+  integer key
+  if not find('k',optlist) then
+    color_print("[Press Any Key]\n",{})
+    key=timeless_wait_key()
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
+--prints a long string wrapped at 80 columns
+procedure wrap_print(sequence s,sequence arguments)
+  sequence outstring
+  s=sprintf(s,arguments)
+  while length(s) do
+    outstring=before_wrap_point(s)
+    s=after_wrap_point(s)
+    color_print("%s\n",{outstring})
+  end while
+end procedure
+
+---------------------------------------------------------------------------
+
+--prints out warning message in red with word wrap
+procedure simple_warn(sequence s)
+  sequence pos
+  if not find('w',optlist) then
+    --do not warn if -w is set
+    pos=get_position()
+    if pos[2]>1 then
+      printf(stdout,"\n",{})
+    end if
+    wrap_print(COLRED&"WARNING: %s"&COLWHI&"\n",{s})
+    was_warnings = true
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
+--prints out an error message in red with word wrap, then aborts
+procedure simple_error(sequence s)
+  sequence pos
+  pos=get_position()
+  if pos[2]>1 then
+    printf(stdout,"\n",{})
+  end if
+  wrap_print(COLRED&"ERROR: %s"&COLWHI&"\n",{s})
+  opt_wait_for_key()
+  abort(1)
+end procedure
+
+---------------------------------------------------------------------------
+
+--prints out the copyright info, usage info, and command-line options
+procedure check_arg_count(sequence args)
+  if length(args)=2 then
+    wrap_print("HamsterSpeak preprocessor v%d%s_timers (C)2011 Ralph Versteegen, James Paige\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
+    wrap_print("Please read LICENSE.txt for GPL License details and disclaimer of liability",{})
+    wrap_print(COLYEL&"%s [-ckwx] source.hss"&COLWHI&"\n\n",{hs_upper(file_only(args[2]))})
+    color_print("   -k do not wait for a keypress when finished\n",{})
+    color_print("   -w suppress minor warnings\n",{})
+    color_print("\nAdvanced options (not intended for normal use):\n",{})
+    color_print("   -c colors will be disabled\n",{})
+    color_print("   -x used by Hamster Whisper for piped output\n",{})
+    opt_wait_for_key()
+    abort(0)
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
+--build the lexer tables, which for each ASCII character i, contains the type
+--of that character in entry i+1 (have to handle NUL)
+procedure init_lexer()
+  sequence table_insert
+
+  --main table
+  table_insert={" (),\n#\t\"{}",
+--                {LEX_SPACE,LEX_BEGIN,LEX_END,LEX_COMMA,LEX_COMMA,LEX_COMMENT,LEX_SPACE,LEX_STRING,LEX_BEGINA,LEX_ENDA,LEX_WARN,LEX_WARN,LEX_DOT}}
+                {LEX_SPACE,LEX_BEGIN,LEX_END,LEX_COMMA,LEX_COMMA,LEX_COMMENT,LEX_SPACE,LEX_STRING,LEX_WARN,LEX_WARN}}
+  --by default each character is either binary, or an allowed identifier
+  --character. This is for backwards compatibility
+  lexer_table=repeat(LEX_BINARY,32) & repeat(LEX_CHAR,256-32)
+  for i=1 to length(table_insert[1]) do
+    lexer_table[table_insert[1][i]+1]=table_insert[2][i]
+  end for
+  for i=0 to 9 do
+    lexer_table['0'+i+1]=LEX_DIGIT
+  end for
+  --add the one-character prefix of each operator
+  for i=1 to length(separator_list) do
+    lexer_table[separator_list[i][1]+1]=LEX_KEYWORD
+  end for
+
+  --keyword suffix parsing table
+  lexer_table_key2=repeat(LEX_CHAR,256)
+  lexer_table_key2[' '+1]=LEX_SPACE
+  lexer_table_key2['\t'+1]=LEX_SPACE
+  --2nd character of each operator
+  for i=1 to length(separator_list) do
+    if length(separator_list[i])=2 then
+      lexer_table_key2[separator_list[i][2]+1]=LEX_KEYWORD2
+    end if
+  end for
+
+  --when floating point is added will want a table for number parsing
+end procedure
+
+---------------------------------------------------------------------------
+
+--initializes global variables, and generally gets things ready to roll
+procedure init()
+  sequence args
+  integer index
+  integer key
+  integer fh
+  args=command_line()
+  compiler_dir=path_only(args[2])
+  check_arg_count(args)
+  optlist={}
+  index=3
+  while index<=length(args) do
+    if args[index][1]='-' then
+      optlist=optlist&hs_lower(args[index][2..length(args[index])])
+      args=delete_element(args,index)
+    else
+      index+=1  
+    end if
+  end while
+  check_arg_count(args)
+  source_file=normalize_filename(args[3])
+--  if equal(extension_only(source_file),"hspp")=0 then
+--    simple_error("Input file must have .hspp extension")
+--  end if
+  add_source(alter_extension(source_file,"hspp"))  --will throw an error later if doesn't exist
+
+  dest_file=normalize_filename(alter_extension(source_file,"hss"))
+
+  if find('c',optlist) then
+    colors_enabled=false
+  end if
+  --used by Hamster Whisper. Note: overrides -c
+  if find('x',optlist) then
+    simple_colorcodes=true
+  end if
+
+  init_lexer()
+end procedure
+
+---------------------------------------------------------------------------
+
+-- function srcpos_file_number(srcpos pos)
+--   integer point
+--   point=floor(pos/power(2,9))
+--   for i=1 to length(file_list) do
+--     if point<file_list[i][FILE_OFFSET] then
+--       return(i-1)
+--     end if
+--   end for
+--   return(length(file_list))
+-- end function
+
+---------------------------------------------------------------------------
+
+--returns 1-based character number in file
+function srcpos_point(srcpos pos)
+  integer point
+  point=floor(pos/power(2,9))
+  -- for i=1 to length(file_list) do
+  --   if point<length(file_list[i][FILE_TEXT]) then
+  --     exit
+  --   end if
+  --   point-=length(file_list[i][FILE_TEXT])+1
+  -- end for
+  return(point)
+end function
+
+---------------------------------------------------------------------------
+
+--This transforms a srcpos into one marked as virtual. Indicates a roughly relevant position, but
+--not something that actually occurs in the source. Use for inserted dummy code
+function virtual_pos(srcpos pos)
+  return(or_bits(pos,256))
+end function
+
+---------------------------------------------------------------------------
+
+function is_virtual_pos(srcpos pos)
+  return(and_bits(pos,256))
+end function
+
+---------------------------------------------------------------------------
+
+--possibly slow: prehaps avoid heavy use
+--returns {file name, line number, column number, token length, line text}: index with POS_*
+--column number returned is 0-based
+function decode_srcpos(srcpos pos)
+  integer point, tokenlen, filenum
+  integer lineno
+  sequence filetext
+  sequence lines
+
+  point=floor(pos/power(2,9))
+  tokenlen=and_bits(pos,(power(2,9)-1)-256)
+
+  filenum=current_fileno
+  -- filenum=length(file_list)
+  -- for i=1 to length(file_list) do
+  --   if point<length(file_list[i][FILE_TEXT]) then
+  --     filenum=i
+  --     exit
+  --   end if
+  --   point-=length(file_list[i][FILE_TEXT])+1
+  -- end for
+
+--pretty_print(stdout, file_list[1][FILE_LINE_EXTENTS],{1})
+
+  -- filetext=file_list[filenum][FILE_TEXT]
+  -- lines=file_list[filenum][FILE_LINE_EXTENTS]
+  -- if point>length(filetext) then
+  --   simple_error(sprintf("compiler bug: invalid source position %d in file of length %d",{point,length(filetext)}))
+  -- end if
+
+  -- lineno=length(lines)
+  -- for i=1 to length(lines) do
+  --   if point<=lines[i][PAIR_END] then
+  --     lineno=i
+  --     exit
+  --   end if
+  -- end for
+  -- return({file_list[filenum][FILE_NAME],lineno,point-lines[lineno][PAIR_START],tokenlen,filetext[lines[lineno][PAIR_START]..lines[lineno][PAIR_END]]})
+  return({include_stack[filenum],current_lineno,point,tokenlen,current_line})
+end function
+
+
+---------------------------------------------------------------------------
+
+function form_error_text(sequence s,srcpos pos)
+  sequence line
+  sequence src_position
+  --integer carats
+  sequence column_display, caret_display
+  integer tab_compensate
+  src_position=decode_srcpos(pos)
+  --?pos
+  --pretty_print(1,src_position,{2})
+
+  line=substring_replace(src_position[POS_TEXT],"\t","    ")
+  tab_compensate=3*count('\t',src_position[POS_TEXT][1..src_position[POS_COLUMN]])
+  caret_display=repeat('^',large(1,src_position[POS_LENGTH]))
+  column_display=repeat(' ',src_position[POS_COLUMN]+tab_compensate)
+  if inside_script then
+    return(
+      sprintf(
+         "in script "&COLYEL&"%s"&COLRED&" on line %d in "&COLPNK&"%s"&COLRED&"\n"
+         &COLBWHI&"%s\n"
+         &"%s%s\n"
+         &COLRED&"%s\n"
+        ,{current_script,src_position[POS_LINE],src_position[POS_FILENAME],line,column_display,caret_display,s}
+      )
+    )
+  else
+    return(
+      sprintf(
+         "in line %d of "&COLPNK&"%s"&COLRED&"\n"
+         &COLBWHI&"%s\n"
+         &"%s%s\n"
+         &COLRED&"%s\n"
+        ,{src_position[POS_LINE],src_position[POS_FILENAME],line,column_display,caret_display,s}
+      )
+    )
+  end if
+  --note that the calling procedure must send/deal with closing tags to error_file_print
+end function
+
+---------------------------------------------------------------------------
+
+procedure src_warn(sequence s,srcpos pos)
+  if not find('w',optlist) then
+    --do not warn if -w is set
+    simple_warn(form_error_text(s,pos))
+  end if  
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure src_error(sequence s,srcpos pos)
+  simple_error(form_error_text(s,pos))
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure add_source(sequence include_name)
+  if find(include_name,include_stack) then
+    simple_error(sprintf("File "&COLPNK&"%s"&COLRED&" is being included repeatedly",{include_name}))
+  end if
+  include_stack=append(include_stack,include_name)
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure find_source(sequence include_name)
+  --try current directory
+  if file_exists(include_name) then
+    add_source(include_name)
+  else
+    --try source directory
+    if file_exists(path_only(source_file)&include_name) then
+      add_source(normalize_filename(path_only(source_file)&include_name))
+    else  
+      --try compiler_directory
+      if file_exists(compiler_dir&include_name) then
+        add_source(normalize_filename(compiler_dir&include_name))
+      else  
+        --give up
+      end if
+    end if
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure lexer_binary_error(srcpos pos)
+  --better use src_error, to track down garbage if accidentally creeping in
+  src_error("This file contains binary gunk. Are you sure that this is the text file you want to compile?",pos)
+end procedure
+
+---------------------------------------------------------------------------
+
+
+--reads and processes the escape codes in a string and returns it enclosed in quote marks
+function lexer_read_string(sequence s,integer i,integer stop,srcpos pos)
+  sequence string
+  integer mode
+  mode=false
+  string="\""
+  while true do
+    if i>stop then  --did not find a closing " so not a valid string
+      src_error("Expected \" at end of line to end string (multi-line strings are not supported)",(pos+stop)*power(2,9))
+    end if
+    if mode then
+      if s[i]='"' or s[i]='\\' then
+        string&=s[i]
+      else
+        --invalid sequence
+        string&='\\'
+        string&=s[i]
+      end if
+      mode=false
+    else
+      if s[i]='"' then
+        return({i,string&'"'})
+      elsif s[i]='\\' then
+        mode=true
+      else
+        string&=s[i]
+      end if
+    end if
+    if lexer_table[s[i]+1]=LEX_BINARY then
+      lexer_binary_error((pos+i)*power(2,9))
+    end if
+    i+=1
+  end while
+end function
+
+---------------------------------------------------------------------------
+
+function lexer_read_number(sequence s,integer i,integer stop,srcpos pos)
+  integer state
+  atom val
+  integer sign
+  sequence text
+  integer textstart
+  integer textend
+
+  textstart=i
+  textend=i
+  if s[i]='-' then
+    text="-"
+    i+=1
+    sign=-1
+  else
+    text=""
+    sign=1
+  end if
+  val=0
+  while i<=stop do
+    state=lexer_table[s[i]+1]
+    --color_print("lexing %d=%s state %d\n",{s[i],{s[i]},state})
+    if state=LEX_DIGIT then
+      text&=s[i]
+      textend=i
+      val=val*10+s[i]-'0'
+    elsif state=LEX_CHAR or state=LEX_WARN or state=LEX_STRING then
+      if s[i]='.' then
+        src_error("Floating point values are not yet implemented",(pos+i)*power(2,9))
+      end if
+      src_error(
+        sprintf("Expected "&COLYEL&"%s"&COLRED&" to be followed by "&COLYEL&","&COLRED&" or "&COLYEL&"("&COLRED&" or "&COLYEL&")"&COLRED&" or an operator"
+                ,{text})
+        ,(pos+i)*power(2,9)
+      )
+    elsif state=LEX_SPACE then  --yes, allowed in numbers too
+    else  -- state=LEX_COMMA or state=LEX_BEGIN or state=LEX_END or state=LEX_KEYWORD or state=LEX_COMMENT or state=LEX_BINARY
+      --backtrack one character
+      --known bug: if this looks like part of a separator (KEYWORD) but isn't, then have granted a free comma where probably should throw an error instead
+      i-=1
+      exit
+    end if
+    i+=1
+  end while
+  if not int32(sign*val) then
+    src_error(
+      sprintf(COLYEL&"%s"&COLRED&" is too big to be stored in a 32 bit signed integer. Integers must be between -2147483648 and 2147483647",{text})
+      ,(pos+textstart)*power(2,9)
+    )
+  end if
+  return({textend,text})
+end function
+
+---------------------------------------------------------------------------
+
+function lex_line(sequence s,integer i,integer stop,srcpos pos)
+  integer state
+  sequence tokens
+  sequence ident  --identifier text being built up
+  sequence temp
+  sequence masked
+  integer found
+  integer textstart  --the column at which this identifier starts, otherwise 0
+  integer textend  --the column at which the last non-whitespace character was read
+  sequence remem_ident
+  integer remem_textstart
+  integer nonnumeral  --whether we are definitely inside an identifier, ie. a digit doesn't indicate a number
+
+  ident=""
+  nonnumeral=false
+  textstart=0
+  tokens={}
+  while i<=stop do
+    state=lexer_table[s[i]+1]
+    --color_print("lexing %d=%s state %d\n",{s[i],{s[i]},state})
+    if state=LEX_CHAR then
+      ident=ident & hs_lower(s[i])
+      if textstart=0 then
+        textstart=i
+      end if
+      textend=i
+      nonnumeral=true
+    elsif state=LEX_SPACE then
+    elsif state=LEX_DIGIT then
+      if nonnumeral then
+        ident=ident & s[i]
+        textend=i
+      else
+        if length(ident) then  --either ident is "-" or it is ""
+          i=textstart
+          ident=""
+          textstart=0
+        end if
+        temp=lexer_read_number(s,i,stop,pos)
+        tokens=append(tokens,{temp[2],(pos+i)*power(2,9)+temp[1]+1-i})
+        i=temp[1]
+        --nonnumeral remains false
+      end if
+    elsif state=LEX_WARN then
+      ident=ident & hs_lower(s[i])
+      if textstart=0 then
+        textstart=i
+      end if
+      textend=i
+      nonnumeral=true
+      src_warn(sprintf("FUTURE COMPATIBILITY PROBLEM: "&COLYEL&"%s"&COLRED&" should not be used in names!", {s[i]}), (pos+i)*power(2,9))
+    else
+      remem_ident=ident  --for backtracking
+      remem_textstart=textstart
+      if length(ident) then
+        tokens=append(tokens,{ident,(pos+textstart)*power(2,9)+textend+1-textstart})
+      end if
+      ident=""
+      nonnumeral=false
+      textstart=0
+      if state=LEX_BEGIN then
+        tokens=append(tokens,{"begin",(pos+i)*power(2,9)+1})
+      elsif state=LEX_END then
+        tokens=append(tokens,{"end",(pos+i)*power(2,9)+1})
+      elsif state=LEX_BEGINA then
+        tokens=append(tokens,{"%",virtual_pos((pos+i)*power(2,9))})   --zero len
+        tokens=append(tokens,{"begin",virtual_pos((pos+i)*power(2,9)+1)})
+      elsif state=LEX_ENDA then
+        tokens=append(tokens,{"end",virtual_pos((pos+i)*power(2,9)+1)})
+      elsif state=LEX_COMMA then
+      elsif state=LEX_DOT then
+        tokens=append(tokens,{"%",virtual_pos((pos+i)*power(2,9)+1)})
+		ident="obj:"
+        textstart=i
+        textend=i
+        nonnumeral=true
+      elsif state=LEX_COMMENT then
+        exit
+      elsif state=LEX_STRING then
+        temp=lexer_read_string(s,i+1,stop,pos)
+        tokens=append(tokens,{temp[2],(pos+i)*power(2,9)+small(255,temp[1]+1-i)})
+        i=temp[1]
+      elsif state=LEX_KEYWORD then
+        --the following mess is in order to allow whitespace in the middle of separators
+        textstart=i
+        masked=s[i..i]
+        --we only support length 1 and 2 separators
+        while i<stop do
+          i+=1
+          state=lexer_table_key2[s[i]+1]
+          if state=LEX_KEYWORD2 then
+            masked&=s[i]
+            exit
+          elsif state=LEX_CHAR then
+            --includes binary gunk, warning characters and comments
+            i-=1
+            exit
+          end if
+        end while
+        --now i+1 is the start of another token, or > stop
+        found=false
+        for j=1 to length(separator_list) do
+          if match(separator_list[j],masked)=1 then
+            --very hacky
+            if length(separator_list[j])=1 then
+              tokens=append(tokens,{separator_list[j],(pos+textstart)*power(2,9)+1})
+              i=textstart
+            else
+              tokens=append(tokens,{separator_list[j],(pos+textstart)*power(2,9)+i+1-textstart})
+            end if
+            found=true
+            exit
+          end if
+        end for
+        if found=false then
+          --need to backtrack, in particular for -
+          ident=remem_ident & masked[1]
+          i=textstart
+          if length(remem_ident) then
+            tokens=tokens[1..$-1]
+            textstart=remem_textstart
+            nonnumeral=true
+          else
+            --nonnumeral remains false: we've seen exactly "-"
+          end if
+        else
+          textstart=0
+        end if
+      elsif state=LEX_BINARY then
+        lexer_binary_error((pos+i)*power(2,9))
+      end if
+    end if
+    i+=1
+  end while
+  if length(ident) then
+    tokens=append(tokens,{ident,(pos+textstart)*power(2,9)+textend+1-textstart})
+  end if
+  return(tokens)
+end function
+
+---------------------------------------------------------------------------
+
+--Given the original tokens, return the current indentation
+-- function initial_indent(sequence tokens)
+--   sequence src_position
+--   if length(tokens)=0 then
+--     return ""
+--   end if
+--   src_position=decode_srcpos(orig_tokens[1][CMD_POS])
+--   return current_line[1..src_position[POS_COLUMN]-1]
+-- end function
+
+function initial_indent()
+  sequence ret
+  ret=""
+  for i=1 to length(current_line) do
+    if (current_line[i]!=' ') and (current_line[i]!='\t') then
+      exit
+    end if
+    ret&={current_line[i]}
+  end for
+  return ret
+end function
+
+---------------------------------------------------------------------------
+
+--Given a sequence of tokens, get the original text from the file
+function to_text(sequence orig_tokens, sequence new_tokens, integer first, integer last)
+  sequence ret
+  sequence sep_table
+  sequence src_position
+  srcpos pos
+  integer pt
+  integer tok_num, last_tok_num
+
+  --build the list of separators between original tokens
+  sep_table={}
+  pt=1
+  for i=1 to length(orig_tokens) do
+    src_position=decode_srcpos(orig_tokens[i][CMD_POS])
+	if is_virtual_pos(orig_tokens[i][CMD_POS]) or src_position[POS_LENGTH]=0 then
+	  sep_table&={""}
+	else
+      sep_table&={current_line[pt..src_position[POS_COLUMN]-1]}
+	end if
+    pt=src_position[POS_COLUMN]+src_position[POS_LENGTH]
+  end for
+  --final
+  sep_table&={current_line[pt..$]}
+--print(stdout,sep_table)
+  ret=""
+  last_tok_num=0
+  for i=first to last do
+    tok_num=find(new_tokens[i],orig_tokens)
+    if i=first and tok_num=1 then
+      ret=sep_table[1]
+    end if
+
+    if last_tok_num!=0 and tok_num=last_tok_num+1 then
+      ret&=sep_table[tok_num]
+    end if
+
+    pos=new_tokens[i][CMD_POS]
+    src_position=decode_srcpos(pos)
+    if is_virtual_pos(pos) then
+      ret&=new_tokens[i][CMD_TEXT]
+    else
+      ret&=current_line[src_position[POS_COLUMN]..src_position[POS_COLUMN]+src_position[POS_LENGTH]-1]
+    end if
+    
+    last_tok_num=tok_num
+  end for
+  if last=length(new_tokens) then
+    ret&=sep_table[$]
+  end if
+--print(stdout,ret)
+  return(ret)
+end function
+
+
+--in the middle of a token list (index i), look to the right (past nested ()'s []'s) for an :=
+function expression_is_assignment(sequence tokens, integer i)
+  integer depth
+  depth=0
+  i+=1
+  while i<=length(tokens) do
+    if equal(tokens[i][CMD_TEXT],"[") then  depth+=1  end if
+    if equal(tokens[i][CMD_TEXT],"begin") then  depth+=1  end if
+    if equal(tokens[i][CMD_TEXT],"]") then  depth-=1  end if
+    if equal(tokens[i][CMD_TEXT],"end") then  depth-=1  end if
+    if equal(tokens[i][CMD_TEXT],":=") then
+      return true
+    end if
+    if depth=0 then return false end if
+    i+=1
+  end while
+  return false
+end function
+
+--given an expression, possibly output something to outfh, and return a string number (as a string)
+-- "foo" -> outfh << $ID="foo";              return "ID"
+-- 4$    ->                                  return "4"
+-- myfunc$(...) ->                           return "myfunc(...)"
+-- myfunc(...) -> outfh << $ID="", appendnumber(ID, myfunc(...));     return "ID"
+
+--function expression_to_string_id(sequence tokens, integer i)
+
+--end function
+
+--get a list of tokens enclosed in parantheses or square brackets
+--i should start where initial ( or [ is expected
+--returns {i after block, token list}
+--where tokenlist doesn't include the opening/closing brackets
+function get_token_block(sequence tokens, integer startpt)
+  sequence ret
+  integer depth, dived, i
+  depth=0
+  ret={}
+  i=startpt
+  while i<=length(tokens) do
+    dived=false
+    if equal(tokens[i][CMD_TEXT],"[") then
+      depth+=1
+      dived=true
+    end if
+    if equal(tokens[i][CMD_TEXT],"begin") then
+      depth+=1
+      dived=true
+    end if
+    if equal(tokens[i][CMD_TEXT],"]") then   depth-=1  end if
+    if equal(tokens[i][CMD_TEXT],"end") then   depth-=1  end if
+    if depth=0 then   return({i+1,ret})  end if
+    if dived=false or depth>1 then   --otherwise hide the initial ( or [
+      ret&={tokens[i]}
+    end if
+    i+=1
+  end while
+  src_error("Expected argument list starting here to end on the same line --- this is a line-by-line preprocessor.",tokens[startpt])
+end function
+
+
+--returns "" if there are no macros, or a string if there are, which needs to be re-lexed
+function try_expand_macros(sequence tokens)
+  sequence arguments
+  sequence macro_names
+  integer macro_num
+  integer i
+  sequence insert_text
+  sequence insert_seq
+  integer at, last_at
+  integer found_macro
+  sequence result
+  integer argno
+  sequence ret
+  found_macro=false
+  ret=""
+
+  macro_names=column(macro_list,MACRO_NAME)
+
+  if length(tokens)>0 then
+    if equal(tokens[1],"%define") then
+      if length(tokens)<=2 then
+        src_error("Expected macro name and expansion list to follow", tokens[1][CMD_POS])
+      end if
+      insert_text=to_text(tokens, tokens, 3, length(tokens))
+      --slice up
+      at=find('%',insert_text)
+      insert_seq={}
+      last_at=-1
+      while at do
+      end while
+      insert_seq&={insert_text[last_at+2..$]}
+      macro_list&={ {tokens[2], to_text(tokens, tokens, 3, length(tokens))} }
+    else
+      i=1
+      while 1<=length(tokens) do
+        macro_num=find(tokens[i][CMD_TEXT], macro_names)
+        if macro_num then
+          result=get_token_block(tokens, i)
+          i=result[1]
+          arguments=result[2]
+          insert_text=macro_list[MACRO_TEXT]
+          for j=1 to length(insert_text) do
+            if length(insert_text[j])=2 and insert_text[j][1]='%' then
+              argno=insert_text[j][2]-'0'
+              --ret&=to_text(tokens, arguments, 3, length(tokens))
+            else
+              ret&=insert_text[j]
+            end if
+          end for
+          --for j=1 to length(arguments) do
+            --insert_text=substring_replace(insert_text, sprintf("%%%d", j), 
+          --end for
+          
+          continue
+        else
+          ret&=tokens[i][CMD_TEXT]
+        end if
+        i+=1
+      end while
+    end if
+  end if
+  if found_macro then
+    return ret
+  else
+    return ""
+  end if
+end function
+
+function add_indent(sequence text, sequence indent)
+  sequence ret
+  ret = indent
+  for i=1 to length(text) do
+    if text[i]='\n' and i!=length(text) then
+      ret&=indent
+    end if
+    ret&={text[i]}
+  end for
+  return ret
+end function
+
+procedure begin_new_timer_script(sequence ticks, sequence comment)
+  current_script_part+=1
+  printf(outfh, initial_indent() & "set timer (timer id, %s, 1, @%s_part%d)  #%s\n", {ticks,current_script,current_script_part,comment})
+  printf(outfh,"%s\n\n",{repeat(')',bracket_depth)})  --end of script
+  printf(outfh,"script, %s_part%d, timer id, begin\n",{current_script,current_script_part})
+  printf(outfh,"  set timer (timer id, 98765, 0, 0)  #mark timer as inactive (0 speed)\n", {initial_indent()})
+end procedure
+
+function get_typeinfo(sequence typename, integer what)
+  integer at
+  at=find_in_column(typename,typeinfo,1)
+  if at=0 then
+    simple_error(sprintf("misspelt type %s, line %d",{typename,current_lineno}))
+  end if
+  return typeinfo[at][what]
+end function
+
+function translate_timer_waits(sequence tokens)
+  srcpos pos, vpos
+  sequence text
+  sequence new_tokens
+  sequence results
+  sequence arguments, argtext
+  sequence tmp
+  sequence typename
+  sequence heapname
+  sequence sizeof
+  
+  integer i
+  new_tokens={}
+  i=1
+  while i<=length(tokens) do
+    pos=tokens[i][CMD_POS]
+    text=tokens[i][CMD_TEXT]
+    vpos=virtual_pos(pos)
+    if equal(text,"timerwait") then
+      results=get_token_block(tokens, i+1)
+      i=results[1]
+      arguments=results[2]
+      current_script_part+=1      
+      argtext=to_text(tokens,arguments,1,length(arguments))
+      begin_new_timer_script(argtext&" -- 1", trim_whitespace(current_line))
+      continue
+    end if
+
+    if equal(text,"timerwaitfornpc") then
+      results=get_token_block(tokens, i+1)
+      i=results[1]
+      arguments=results[2]
+      argtext=to_text(tokens,arguments,1,length(arguments))
+      begin_new_timer_script("0", trim_whitespace(current_line))
+      tmp = """
+if (npc is walking (%s)) then (
+  set timer (timer id, 0, 1, @%s_part%d)
+  exit script
+)""" & "\n"
+      printf(outfh, add_indent(tmp, initial_indent()), {argtext,current_script,current_script_part})
+      begin_new_timer_script("0", trim_whitespace(current_line))
+      printf(outfh, add_indent(tmp, initial_indent()), {argtext,current_script,current_script_part - 1})
+      continue
+    end if
+
+    if equal(text,"timerwaitwhile") then
+      results=get_token_block(tokens, i+1)
+      i=results[1]
+      arguments=results[2]
+      argtext=to_text(tokens,arguments,1,length(arguments))
+      begin_new_timer_script("0", trim_whitespace(current_line))
+      printf(outfh, "%sif (%s) then (\n", {initial_indent(), argtext})
+      printf(outfh, "%s  set timer (timer id, 0, 1, @%s_part%d)\n", {initial_indent(), current_script,current_script_part})
+      printf(outfh, "%s  exit script\n", {initial_indent()})
+      printf(outfh, "%s)\n", {initial_indent()})
+      continue
+    end if
+
+    if equal(text,"waitfortimerscript") then
+      results=get_token_block(tokens, i+1)
+      i=results[1]
+      arguments=results[2]
+      argtext=to_text(tokens,arguments,1,length(arguments))
+      tmp = "%swhile (read timer (%s) <> 98765) do (wait)\n"
+      printf(outfh, tmp, {initial_indent(), argtext})
+      continue
+    end if
+
+
+    if equal("var",text) then
+	  new_tokens &= { {"variable",vpos} }
+	  i+=1
+	  continue
+    end if
+
+
+	-- eats  ! TYPENAME [
+	----->  !+ ( SIZEOF * (
+    if equal("!",text) then
+	  extra_brackets &= {1}
+
+	  typename=tokens[i+1][CMD_TEXT]
+	  sizeof=get_typeinfo(typename,TYPE_SIZEOF)
+
+	  if equal(tokens[i+2][CMD_TEXT],"[")=0 then
+	  	 src_error(sprintf("expected [ got %s", {tokens[i+2][CMD_TEXT]}), pos)
+	  end if
+
+	  new_tokens &= { {"!+",vpos}, {"(",vpos}, {sizeof,vpos}, {"*",vpos}, {"(",vpos} }
+
+	  i+=3
+	  continue
+    end if
+
+
+    if equal("[",text) then
+	  extra_brackets &= {0}
+	
+	  pos=virtual_pos(pos)
+	  new_tokens &= { {"%",pos}, {"(",pos} }
+	  i+=1
+	  continue
+    end if
+
+
+    if equal("]",text) then
+	  new_tokens &= { {")",vpos} }
+	  if extra_brackets[$] then
+    	  new_tokens &= { {")",vpos} }
+	  end if
+	  extra_brackets = extra_brackets[1..$-1]
+	  i+=1
+	  continue
+    end if
+
+
+    if equal(".",text) then
+	  pos=virtual_pos(pos)
+	  new_tokens &= { {"%",pos}, {"idx:",pos} }
+	  i+=1
+	  continue
+    end if
+
+
+ 
+    if begins("setsizeof",text) then
+	  typename=text[10..$]
+      typeinfo &= {{typename, tokens[i+1][CMD_TEXT], tokens[i+2][CMD_TEXT]}}
+	  i+=3
+	  continue
+    end if
+
+
+ 
+    if begins("alloc:",text) then
+	  typename=text[7..$]
+	  heapname=get_typeinfo(typename,TYPE_HEAP)
+	  new_tokens &={ { sprintf(",heap %s free list, heap %s free list := read global (heap %s free list),",{heapname,heapname,heapname}) , virtual_pos(0) } }
+	  i+=1
+	  continue
+    end if
+
+    if begins("dealloc:",text) then
+	  typename=text[9..$]
+	  heapname=get_typeinfo(typename,TYPE_HEAP)
+      results=get_token_block(tokens, i+1)
+      i=results[1]
+      arguments=results[2]
+      argtext=to_text(tokens,arguments,1,length(arguments))
+	  tmp = ",write global (%s, heap %s free list),  heap %s free list := %s,"
+
+	  new_tokens &={ { sprintf(tmp,{argtext,heapname,heapname,argtext}) , virtual_pos(0) } }
+	  continue
+    end if
+
+    new_tokens&={tokens[i]}
+    i+=1
+  end while
+  return new_tokens
+end function
+
+
+function translate_string_concat(sequence tokens)
+  srcpos pos, vpos
+  sequence new_tokens
+  integer i
+  new_tokens={}
+  i=1
+  while i<=length(tokens) do
+    pos=tokens[i][CMD_POS]
+    vpos=virtual_pos(pos)
+    if equal(tokens[i][CMD_TEXT],"&") then
+      if i=1 then
+        src_error("& should not be first on a line --- this is a line-by-line preprocessor.",pos)
+      end if
+      
+      new_tokens&={{"<OUT>",vpos}}
+    else
+      new_tokens&={tokens[i]}
+    end if
+    i+=1
+  end while
+--pretty_print(stdout,new_tokens,{3})
+  return(new_tokens)
+end function
+  
+
+--this also checks for rogue strings and $'s
+function translate_plotstrings(sequence tokens)
+  integer state
+  integer start_token
+  integer i
+  sequence string_func
+  sequence string_token
+  srcpos pos
+  state=0
+  i=1
+  while i<=length(tokens) do
+    if compare(tokens[i][CMD_TEXT],"$")=0 then
+      pos=tokens[i][CMD_POS]
+      if state=0 then
+        state=1
+        start_token=i
+      else
+        --jump to error throw
+        state=1
+        exit
+      end if
+    end if
+    if state=2 then
+      if tokens[i][CMD_TEXT][1]='"' then
+        --string_list=append(string_list,tokens[i][CMD_TEXT][2..$-1])
+        --string_token={sprintf("@$string%d",{length(string_list)}),pos}
+        string_token={sprintf("@$string%d",{0}),pos}
+        tokens=tokens[1..start_token-1]&{string_func,{"begin",pos}}&tokens[start_token+1..i-2]&{string_token,{"end",pos}}&tokens[i+1..$]
+        state=0  --may have multiple strings on one line
+      else  --we saw a + (or illegal =) inside the string number expression
+        state=1
+      end if
+    else
+      if tokens[i][CMD_TEXT][1]='"' then
+        src_error(
+          sprintf(
+            "The string "&COLYEL&"%s"&COLRED&" is illegal here: strings may only be used as part of a $...=\"...\" or $...+\"...\" construct",
+            {shorten_string(tokens[i][CMD_TEXT],15)}),
+          tokens[i][CMD_POS]
+        )
+      end if
+    end if
+    if state=1 and compare(tokens[i][CMD_TEXT],"=")=0 then
+      string_func={"setstringfromtable",pos}
+      state=2
+    elsif state=1 and compare(tokens[i][CMD_TEXT],"+")=0 then
+      string_func={"appendstringfromtable",pos}
+      state=2
+    end if
+    i+=1
+  end while
+
+  if state!=0 then
+    --we've seen a surplus $, not right
+    src_error(COLYEL&"$"&COLRED&" may only be used as part of a $...=\"...\" or $...+\"...\" construct",pos)
+  end if
+  return(tokens)
+end function
+
+---------------------------------------------------------------------------
+
+function seek_include(sequence s)
+  integer at
+  at=find("include",column(s,CMD_TEXT))
+  if at then
+    if at!=1 then 
+      src_error(COLYEL&"include"&COLRED&" must be the only statement on the line. Maybe you tried to use this reserved keyword illegally?",s[at][CMD_POS])
+    end if
+    if length(s)=1 then
+      src_error("Expected name of file to follow "&COLYEL&"include"&COLRED,s[at][CMD_POS])
+    end if
+    if length(s)>2 then
+      src_error(sprintf("Found garbage "&COLYEL&"%s"&COLRED&" after name of file to include. Try enclosing the filename in \"quote marks\"?",{s[3][CMD_TEXT]}),s[3][CMD_POS])
+    end if
+    if s[at+1][CMD_TEXT][1]='"' then --each element of s guaranteed nonzero length
+      --is a string
+      return(s[at+1][CMD_TEXT][2..$-1])
+    end if
+    --can we throw a warning if quote marks should have been used?
+    return(s[at+1][CMD_TEXT])
+  end if
+  return("")
+end function
+
+---------------------------------------------------------------------------
+
+procedure top_level_testing(sequence tokens)
+  for i=1 to length(tokens) do
+    if equal(tokens[i][CMD_TEXT],"begin") then  bracket_depth+=1  end if
+    if equal(tokens[i][CMD_TEXT],"end") then
+      bracket_depth-=1
+      if bracket_depth<0 then
+        src_error("Found an extra "&COLYEL&"end"&COLRED&" or "&COLYEL&")"&COLRED, tokens[i][CMD_POS])
+      elsif bracket_depth=0 then
+        inside_script=false
+        current_script=""
+      end if
+    end if
+    if equal(tokens[i][CMD_TEXT],"script") or equal(tokens[i][CMD_TEXT],"plotscript") then
+      if bracket_depth!=0 then
+        src_error(sprintf("Found "&COLYEL&"%s"&COLRED&" inside a script!"&COLRED, {tokens[i][CMD_TEXT]}), tokens[i][CMD_POS])
+      end if
+      if length(tokens)<i+1 then
+        src_error(sprintf("Expected to a script name following "&COLYEL&"%s"&COLRED&" (on the same line!)"&COLRED, {tokens[i][CMD_TEXT]}), tokens[i][CMD_POS])
+      end if
+      current_script=to_text(tokens,{tokens[i+1]},1,1)
+      inside_script=true
+      current_script_part=0
+    end if
+  end for  
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure preprocess_file(sequence filename)
+  integer fh
+  sequence outfilename
+  --integer outfh
+
+  object line
+  sequence tokens
+  sequence new_tokens
+  sequence include_name
+  srcpos pos
+--  pos=(file_num-1)*power(2,23)
+  pos=0
+
+  fh=open(filename,"r")
+  if fh=failure then
+    simple_error(sprintf("file "&COLYEL&"%s"&COLRED&" not found\n",{filename}))
+  end if
+  outfilename=alter_extension(filename,"hss")
+  outfh=open(outfilename,"w")
+  if outfh=failure then
+    simple_error(sprintf("file "&COLYEL&"%s"&COLRED&" not found\n",{outfilename}))
+  end if
+
+  wrap_print("Preprocessing "&COLBWHI&"%s"&COLWHI&"\n",{filename})
+
+  current_lineno=1
+  line=gets(fh)
+  while sequence(line) do
+    current_line=exclude(line,"\n\r")
+      
+    tokens=lex_line(current_line,1,length(current_line),pos)
+
+    include_name=seek_include(tokens)
+    if length(include_name) then
+      include_name=alter_extension(include_name,"hspp")
+      find_source(include_name)
+    else
+      --this is probably not the best place to do this translation, but for now we simply emulate old string translation
+      --this also checks for stray strings and $'s
+      --cmd&=translate_plotstrings(tokens)
+    end if
+
+    --process
+    --new_tokens=translate_string_concat(tokens)
+    new_tokens=translate_timer_waits(tokens)
+
+    --do depth counting, so that we know when we're outside a script
+    --also records the name of a script
+    top_level_testing(new_tokens)
+
+    --write
+    --puts(outfh, current_line&"\n")
+    puts(outfh,to_text(tokens, new_tokens, 1, length(new_tokens)) & "\n")
+
+    --if outside any script, flush the queue
+    if bracket_depth=0 then
+      for i=1 to length(output_queue) do
+        puts(outfh,output_queue[i] & "\n")
+      end for
+      output_queue={}
+    end if
+
+    line=gets(fh)
+    current_lineno+=1
+  end while
+  --file_list=append(file_list,{filename,file_text,line_extents})
+
+  close(fh)
+  close(outfh)
+end procedure
+
+---------------------------------------------------------------------------
+
+procedure load_and_lex()
+  current_fileno=1
+  while current_fileno<=length(include_stack) do
+    preprocess_file(include_stack[current_fileno])
+    current_fileno+=1
+  end while
+end procedure
+
+---------------------------------------------------------------------------
+
+init()
+load_and_lex()
+
+run_time=time()-start_time
+color_print("done (%g seconds)\n",{run_time})
+if was_warnings = true then
+  abort(2)
+end if
+
+
+system(compiler_dir&"hspeak_true.exe -y " & dest_file, 2)
+--opt_wait_for_key()

@@ -1,0 +1,35 @@
+define operator, begin
+  10 !+  add          # What? Can't remember...
+  15 %   globalindex  # Internal use
+end
+
+define constant (-909818727, END OF LIST)
+
+# "ptr" means global ID.
+
+# Initialise the free list for a heap (contiguous array of 'count'
+# objects, 'elmt size' globals each, starting at global id 'base').
+# Returns heap free list head ptr
+script, init heap, elmt size, base, count, begin
+  variable (i, ptr, next ptr)
+  next ptr := END OF LIST
+  ptr := base + elmt size * (count -- 1)
+  for (i, count -- 1, 0, -1) do (
+    write global (ptr, next ptr)
+    next ptr := ptr
+    ptr -= elmt size
+  )
+  return (base)
+end
+
+# Pass a free list ptr, returns length.
+script, list length, ptr, begin
+  var(ret)
+  if (ptr == END OF LIST) then (return (0))
+  ret := 1
+  while (ptr[0] <> END OF LIST) do (
+    ret += 1
+	ptr := ptr[0]
+  )
+  return (ret)
+end

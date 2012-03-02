@@ -133,6 +133,7 @@ include std/math.e --needed for mod
 include euphoria/unicode.e
 include euphoria/ucstypes.e
 include euphoria/io_with_unicode.e
+include std/search.e
 
 ---------------------------------------------------------------------------
 --constants--
@@ -350,7 +351,7 @@ sequence math_list        math_list={
 
 sequence separator_list   separator_list={
                              "+=","-=","$+","$=","$","+","--","/","*","^^","^"
-                             ,"==","<>",">>","<<","<=",">=",">","<",":=","=","&&","||"
+                             ,"==","<>",">>","<<","<=",">=",":=","=","&&","||","%","!+","<-","->","<",">"
                           }
 sequence lexer_table      lexer_table={}
 sequence lexer_table_key2 lexer_table_key2={}
@@ -691,7 +692,7 @@ end procedure
 --prints out the copyright info, usage info, and command-line options
 procedure check_arg_count(sequence args)
   if length(args)=2 then
-    wrap_print("HamsterSpeak semicompiler v%s%s (C)%s James Paige&Hamster Republic Productions\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
+    wrap_print("HamsterSpeak semicompiler v%s%s-HSPP fork (C)%s James Paige&Hamster Republic Productions\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
     wrap_print("Please read LICENSE.txt for GPL License details and disclaimer of liability",{})
     wrap_print(COLYEL&"%s [-acdfknstwuyz] source.hss [dest.hs]"&COLWHI&"\n\n",{hs_upper(file_only(args[2]))})
     color_print("   -f fast mode. Disables some optimization\n",{})
@@ -871,7 +872,9 @@ procedure init()
           ,{"="             ,RESERVE_UNIMPLEMENTED}
           ,{"tracevalue"    ,RESERVE_MACRO}
           ,{"assert"        ,RESERVE_MACRO}
-        })--end mass_insert
+          ,{"len"           ,RESERVE_MACRO}
+          ,{"globalindex"   ,RESERVE_MACRO}
+        })--end mass_insert   
   for i=1 to length(math_list) do
     reserved=alpha_tree_insert(reserved,math_list[i][PAIR_NAME],RESERVE_BUILTIN)
   end for
@@ -2449,6 +2452,9 @@ function what_kind_and_id(sequence command,sequence local_vars)
         {shorten_string(s,15)}),
       command[CMD_POS]
     )
+  elsif begins("__global", s) then
+    kind=KIND_GLOBAL
+    id=string_to_object(s[9..$],{})
   else
     src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
   end if
@@ -2493,6 +2499,8 @@ function what_kind(sequence command,sequence local_vars, integer look_for_operat
         {shorten_string(s,15)}),
       command[CMD_POS]
     )
+  elsif begins("__global", s) then
+    kind=KIND_GLOBAL
   else
     src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
   end if
@@ -2705,21 +2713,97 @@ end function
 ---------------------------------------------------------------------------
 
 --there are only two, hardcoded, macros right now: tracevalue, assert
-function expand_macros(sequence tree)
+function expand_macros(sequence tree, sequence vars)
   sequence newtree
   sequence newargs
   sequence new_string
   sequence string_token
   sequence src_position
   sequence temp
+  sequence vartree
+  sequence kind_and_id
   srcpos pos
   integer ptr
+  integer kind, id
   ptr=1
   while ptr<=length(tree) do
+    --this needs to be processed before its arguments
+    --a[b] := c  and   a.b := c   and  len(a) := b
+    --setvariable(globalindex(a,b),c)    -> writeglobal(add(a,b),c)
+	--setvariable(len(a),b) -> writeglobal(subtract(a,1),b)
+    if equal("setvariable",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+--puts(stdout, "got setvar")
+      vartree=tree[ptr][TREE_BRANCHES][1]
+      if equal(vartree[TREE_TRUNK][CMD_TEXT],"globalindex") then
+        --temp={ {"add",pos}, vartree[TREE_BRANCHES] }
+        
+        tree[ptr][TREE_TRUNK][CMD_TEXT]="writeglobal"
+        tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]="add"
+        --tree[ptr][TREE_BRANCHES][1]=temp
+      end if
+--puts(stdout, sprintf(" '%s' " ,{vartree[TREE_TRUNK][CMD_TEXT]}))
+      if equal(vartree[TREE_TRUNK][CMD_TEXT],"len") then
+--puts(stdout, "got len")
+        --temp={ {"add",pos}, vartree[TREE_BRANCHES] }
+        pos=vartree[TREE_TRUNK][CMD_POS]
+	--	pos=virtual_pos(pos)        
+
+        tree[ptr][TREE_TRUNK][CMD_TEXT]="writeglobal"
+        tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]="subtract"
+        tree[ptr][TREE_BRANCHES][1][TREE_BRANCHES] &={ {{"1",pos},{}}  }
+        --tree[ptr][TREE_BRANCHES][1]=temp
+      end if
+    end if
+
+    --increment(globalindex(a,b),c)    -> setvariable(__temp,add(a,b)), writeglobal(__temp,add(readglobal(__temp),c))
+--    if equal("increment",tree[ptr][TREE_TRUNK][CMD_TEXT])
+--       or equal("decrement",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+
+--    end if
+
+
     --recurse first, because tree[ptr] might be split up (as in 'assert')
     if length(tree[ptr][TREE_BRANCHES]) then
-      tree[ptr][TREE_BRANCHES]=expand_macros(tree[ptr][TREE_BRANCHES])
+      tree[ptr][TREE_BRANCHES]=expand_macros(tree[ptr][TREE_BRANCHES],vars)
     end if
+
+
+    if equal("readglobal",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+      kind_and_id=what_kind_and_id(tree[ptr][TREE_TRUNK],vars)
+      kind=kind_and_id[1]
+      id=kind_and_id[2]
+      pos=tree[ptr][TREE_TRUNK][CMD_POS]
+	  
+      if kind=KIND_NUMBER then
+	    temp=sprintf("__global%d", {id})
+	    tree[ptr]= { {temp,pos}, {} }
+	  end if
+	end if
+
+
+    --a[b]  and   a.b    and   len(a)
+    --globalindex(a,b)    -> readglobal(add(a,b))
+    if equal("globalindex",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+      vartree=tree[ptr][TREE_BRANCHES][1]
+      pos=tree[ptr][TREE_TRUNK][CMD_POS]
+      temp={ {"add",pos}, tree[ptr][TREE_BRANCHES] }
+        
+      tree[ptr][TREE_TRUNK][CMD_TEXT]="readglobal"
+      tree[ptr][TREE_BRANCHES]={temp}
+    end if
+
+    --len(a)    -> readglobal(subtract(a,1))
+    if equal("len",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+      vartree=tree[ptr][TREE_BRANCHES][1]
+      pos=tree[ptr][TREE_TRUNK][CMD_POS]
+      temp={ {"subtract",pos}, {tree[ptr][TREE_BRANCHES][1], {{"1",pos},{}} }  }
+        
+      tree[ptr][TREE_TRUNK][CMD_TEXT]="readglobal"
+      tree[ptr][TREE_BRANCHES]={temp}
+    end if
+
+
+--(setq indent-tabs-mode nil)
 
     if equal("tracevalue",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
       newargs={}
@@ -3894,13 +3978,18 @@ procedure compile_a_script(integer id,sequence trigger_data,sequence name_data,s
   exit_timing_zone()
   used_locals={}
   reenter_timing_zone("compile_commands")
+--puts(stdout,"C")
   script_tree=compile_commands(script_data,local_vars)
   exit_timing_zone()
   reenter_timing_zone("convert_operators")
+--puts(stdout,"O")
   script_tree=convert_operators(script_tree)
   exit_timing_zone()
   reenter_timing_zone("expand_macros")
-  script_tree=expand_macros(script_tree)
+--puts(stdout,"E")
+  script_tree=expand_macros(script_tree,local_vars)
+--printf(stdout,"=======DUMP FOR %s \n%s\n", {current_script,dump_script_tree(script_tree,0)})
+
   exit_timing_zone()
   reenter_timing_zone("normalize_flow_control")
   script_tree=normalize_flow_control(script_tree,local_vars,"")
