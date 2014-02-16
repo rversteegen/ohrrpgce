@@ -7,13 +7,6 @@
 'scripterr, runscript, loadscript, freescripts, load/saveglobalvars, commandname, decodetrigger.
 'Probably runscript, loadscript, freescripts will eventually be moved here
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "util.bi"
 #include "misc.bi"
@@ -22,21 +15,22 @@
 #include "gglobals.bi"
 #include "allmodex.bi"
 #include "game.bi"
-#include "moresubs.bi"
-#include "hsinterpreter.bi"
+#include "scripting.bi"
 
 'local subs and functions
+DECLARE SUB scriptinterpreter_loop ()
 DECLARE FUNCTION interpreter_occasional_checks () as integer
+DECLARE SUB scriptdump (header as string)
 DECLARE FUNCTION functiondone () as integer
-DECLARE SUB substart (byref si as ScriptInst)
-DECLARE SUB subdoarg (byref si as ScriptInst)
-DECLARE SUB subreturn (byref si as ScriptInst)
-DECLARE SUB unwindtodo (byref si as ScriptInst, byval levels as integer)
-DECLARE SUB readstackcommand (byref state as ScriptInst, byref stk as Stack, byref i as integer)
+DECLARE SUB killtopscript ()
+DECLARE SUB substart (byref si as OldScriptState)
+DECLARE SUB subdoarg (byref si as OldScriptState)
+DECLARE SUB subreturn (byref si as OldScriptState)
+DECLARE SUB unwindtodo (byref si as OldScriptState, byval levels as integer)
+DECLARE SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk as Stack, byref i as integer)
 DECLARE FUNCTION localvariablename (byval value as integer, byval scriptargs as integer) as string
 DECLARE FUNCTION mathvariablename (byval value as integer, byval scriptargs as integer) as string
 DECLARE FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = -1) as string
-DECLARE SUB reloadscript (byref si as ScriptInst, byval updatestats as integer = -1)
 DECLARE FUNCTION readscriptvar (byval id as integer) as integer
 DECLARE SUB writescriptvar (byval id as integer, byval newval as integer)
 DECLARE SUB scriptmath ()
@@ -53,7 +47,82 @@ DIM SHARED lastscriptnum as integer
  scrat(nowscript).state = streturn
 #ENDMACRO
 
+'Returns error string on failure, NULL on success
+FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr) as zstring ptr
+ WITH scrat(index)
+  'erase state, pointer, return value and depth, set id
+  .state = ststart
+  .ptr = 0
+  .ret = 0
+  .depth = 0
+  .id = script->id
+  .stackbase = -1
+  .scr = script
+  .scrdata = .scr->ptr
+  .curargn = 0
+  curcmd = cast(ScriptCommand ptr, .scrdata + .ptr) 'just in case it's needed before subread is run
+
+  IF index = 0 THEN
+   .frames(0).heap = 0
+  ELSE
+   .frames(0).heap = scrat(index - 1).heapend
+  END IF
+  .heapend = .frames(0).heap + .scr->vars
+  IF .heapend > maxScriptHeap THEN RETURN @"script heap overflow"
+  'Zero out locals
+  FOR i as integer = .frames(0).heap TO .heapend
+   heap(i) = 0
+  NEXT i
+
+  DIM parent as integer = .scr->parent
+  'debug "oldscriptstate_init: loading script " & .id & " " & scriptname(.id) & " scrat(" & index & ") nonlocals " & .scr->nonlocals _
+  '      & " vars " & .scr->vars & " parent " & parent & " heap " & .frames(0).heap & ":" & .heapend
+
+  IF parent THEN
+    'Search up the callstack for ancestors with frames which are referenced by this script.
+    '(this will need to be changed once the frame might exist on a different stack)
+    'Actually only search for the parent, and copy its ancestors
+    DIM tryindex as integer = index - 1
+    DO
+     IF tryindex < 0 ORELSE scrat(tryindex).state < 0 THEN
+      'If it's a suspended script, it's in the wrong fibre
+      scripterr "Could not find parent call frame on scrat stack", serrBug
+      RETURN @"corrupt/unsupported script"
+     END IF
+     'debug "scrat(" & tryindex &") = " & scrat(tryindex).id
+     IF scrat(tryindex).id = parent THEN
+      FOR depth as integer = 1 TO .scr->nestdepth
+       .frames(depth) = scrat(tryindex).frames(depth - 1)
+      NEXT
+      EXIT DO
+     END IF
+     tryindex -= 1
+    LOOP
+
+    'debug "  parent frame is scrat(" & tryindex &"), heap = " & .frames(1).heap & ":" & scrat(tryindex).heapend
+  END IF
+
+ END WITH
+ RETURN NULL
+END FUNCTION
+
 SUB scriptinterpreter ()
+ WITH scrat(nowscript)
+  SELECT CASE .state
+   CASE IS < stnone
+    scripterr "illegally suspended script", serrBug
+    .state = ABS(.state)
+   CASE stnone
+    scripterr "script " & nowscript & " became stateless", serrBug
+   CASE stwait
+    EXIT SUB
+   CASE ELSE
+    scriptinterpreter_loop
+  END SELECT
+ END WITH
+END SUB
+
+SUB scriptinterpreter_loop ()
 DIM i as integer
 DIM rsr as integer
 DIM temp as integer
@@ -66,13 +135,12 @@ DIM tmpnow as integer
 DIM tmpvar as integer
 DIM tmpkind as integer
 
-reloadscript scrat(nowscript)
 #IFDEF SCRIPTPROFILE
  scrat(nowscript).scr->entered += 1
  TIMER_START(scrat(nowscript).scr->totaltime)
 #ENDIF
 
-scrat(nowscript).started = YES
+scriptinsts(nowscript).started = YES
 next_interpreter_check_time = TIMER + scriptCheckDelay
 interruption_grace_period = YES
 
@@ -146,6 +214,7 @@ DO
         IF curcmd->kind = tyflow AND (curcmd->value = flowfor OR curcmd->value = flowwhile) THEN
          dumpandreturn()
         END IF
+        'If the break goes all the way to the root of the script (which is a do()) it is exited (for back-compat)
        CASE flowcontinue
         '--continue could be used to cause an infinite loop (including in a floating do), so also needs these checks
         IF interpreter_occasional_checks THEN CONTINUE DO
@@ -156,6 +225,8 @@ DO
          scrst.pos -= 2
          pushstack(scrst, 2)
          pushstack(scrst, 0) '-- dummy value
+        ELSEIF .depth < 0 THEN
+         scripterr "continue used outside of a do(), script will be exited", serrBadOp
         ELSEIF NOT (curcmd->kind = tyflow AND (curcmd->value = flowfor OR curcmd->value = flowwhile)) THEN
          '--if this do isn't a for's or while's, then just repeat it, discarding the returned value
          scrst.pos -= 1
@@ -176,10 +247,12 @@ DO
       END SELECT
       '.state = streturn'---return
      CASE tyscript
+      DIM argc as integer = curcmd->argc
       rsr = runscript(curcmd->value, NO, NO, "indirect", 0)
+      'WARNING: WITH now points to scrat(nowscript-1)
       IF rsr = 1 THEN
        '--fill heap with arguments
-       FOR i as integer = .curargc - 1 TO 0 STEP -1   '--be VERY careful... runscript set curargc, WITH points to nowscript-1
+       FOR i as integer = argc - 1 TO 0 STEP -1
         popstack(scrst, temp)
         setScriptArg i, temp
        NEXT i
@@ -189,7 +262,7 @@ DO
       END IF
       GOTO interpretloop 'new WITH pointer
      CASE ELSE
-      scripterr "illegal kind " & curcmd->kind & " " & curcmd->value & " in stnext", 6
+      scripterr "illegal kind " & curcmd->kind & " " & curcmd->value & " in stnext", serrError
       killallscripts
       EXIT DO
     END SELECT
@@ -304,7 +377,7 @@ DO
           END IF
 
           WHILE doseek
-           tmpkind = .scrdata[curcmd->args(.curargn)]
+           tmpkind = .scrdata[*(@curcmd->args(0) + .curargn)]
 
            IF (tmpstate = 1 AND tmpkind = tyflow) OR (tmpstate = 0 AND (tmpkind <> tyflow OR .curargn = curcmd->argc - 1)) THEN
             '--fall into a do, execute a case, or run default (last arg)
@@ -365,9 +438,9 @@ DO
    '--just load the first command
    substart scrat(nowscript)
   CASE stwait'---begin waiting for something
-   .curkind = curcmd->kind
-   .curvalue = curcmd->value
-   .curargc = curcmd->argc
+   scriptinsts(nowscript).curkind = curcmd->kind
+   scriptinsts(nowscript).curvalue = curcmd->value
+   scriptinsts(nowscript).curargc = curcmd->argc
    EXIT DO
   CASE stdone'---script terminates
    '--if resuming a supended script, restore its state (normally stwait)
@@ -389,7 +462,7 @@ DO
    GOTO interpretloop 'new WITH pointer
   CASE sttriggered'---special initial state used just for script trigger logging
    IF gam.script_log.enabled THEN watched_script_triggered *last_queued_script
-   .started = YES
+   scriptinsts(nowscript).started = YES
    .state = ststart
   CASE sterror'---some error has occurred, crash and burn
    '--note that there's no thought out plan for handling errors
@@ -439,61 +512,13 @@ SUB killtopscript
  END WITH
 END SUB
 
-SUB killscriptthread
- IF insideinterpreter = NO THEN fatalerror "Inappropriate killscriptthread"
-
- 'Hack: in case this function is called from within the interpreter we set the new state of the
- 'old script so that the main loop sees it using a stale WITH pointer.
- 'Come to think of it, there's no good reason for the interpreter state to be stored in scrat instead
- 'of being global.
- scrat(nowscript).state = stdone
-
- WHILE nowscript >= 0
-  WITH scrat(nowscript)
-   IF .state < 0 THEN EXIT WHILE
-   IF .scr <> NULL THEN .scr->refcount -= 1
-  END WITH
-  nowscript -= 1
- WEND
- gam.script_log.last_logged = -1
-
- 'Go back a script, let functiondone handle the script exit
- nowscript += 1
- reloadscript scrat(nowscript)  'Avoid possible null ptr deref in functiondone
- setstackposition(scrst, scrat(nowscript).stackbase)
-
-END SUB
-
-SUB killallscripts
-'this kills all running scripts.
-'for use in cases of massive errors, quiting to titlescreen or loading a game.
-
- 'Hack, see explanation in killscriptthread
- IF nowscript >= 0 THEN scrat(nowscript).state = stexit
-
- FOR i as integer = nowscript TO 0 STEP -1
-  IF scrat(i).scr <> NULL THEN scrat(i).scr->refcount -= 1
- NEXT
- nowscript = -1
- gam.script_log.last_logged = -1
-
- setstackposition(scrst, 0)
-
- dequeue_scripts
-END SUB
-
-SUB resetinterpreter
-'unload all scripts and wipe interpreter state. use when quitting the game.
-
- killallscripts
-
- IF numloadedscr > 0 THEN freescripts(0)
-END SUB
-
 SUB setScriptArg (byval arg as integer, byval value as integer)
- IF scrat(nowscript).scr->args > arg THEN
-  heap(scrat(nowscript).heap + arg) = value
- END IF
+ 'No warning on passing in more arguments than the script takes, as they are always optional
+ WITH scrat(nowscript)
+  IF .scr->args > arg THEN
+   heap(.frames(0).heap + arg) = value
+  END IF
+ END WITH
 END SUB
 
 FUNCTION functiondone () as integer
@@ -501,9 +526,9 @@ FUNCTION functiondone () as integer
 'returns 1 when all scripts are finished
 'returns 2 when reactivating a suspended script
 
-IF scrat(nowscript).watched THEN watched_script_finished
+IF scriptinsts(nowscript).watched THEN watched_script_finished
 
-scrat(nowscript).scr->refcount -= 1
+deref_script(scrat(nowscript).scr)
 nowscript = nowscript - 1
 
 IF nowscript < 0 THEN
@@ -512,29 +537,31 @@ IF nowscript < 0 THEN
  TIMER_STOP(scrat(nowscript + 1).scr->totaltime)
 #ENDIF
 ELSE
- 'check if script needs reloading
- reloadscript scrat(nowscript)
- curcmd = cast(ScriptCommand ptr, scrat(nowscript).scrdata + scrat(nowscript).ptr)
- IF scrat(nowscript).state < 0 THEN
+ DIM state as OldScriptState ptr = @scrat(nowscript)
+
+ curcmd = cast(ScriptCommand ptr, state->scrdata + state->ptr)
+ IF state->state < 0 THEN
   '--suspended script is resumed
-  scrat(nowscript).state = ABS(scrat(nowscript).state)
-  IF scrat(nowscript).watched THEN watched_script_resumed
+  state->state = ABS(state->state)
+  IF scriptinsts(nowscript).watched THEN watched_script_resumed
   functiondone = 2'--reactivating a supended script
  ELSE
   scriptret = scrat(nowscript + 1).ret
-  scrat(nowscript).state = streturn'---return
+  state->state = streturn'---return
   functiondone = 0'--returning a value to a caller
  END IF
 #IFDEF SCRIPTPROFILE
  TIMER_STOP(scrat(nowscript + 1).scr->totaltime)
  scrat(nowscript).scr->entered += 1
  TIMER_START(scrat(nowscript).scr->totaltime)
+ scriptctr += 1
+ scrat(nowscript + 1).scr->lastuse = scriptctr
 #ENDIF
 END IF
 
 END FUNCTION
 
-SUB substart (si as ScriptInst)
+SUB substart (si as OldScriptState)
 'this sets up a new script by preparing to run at the root command (which should be do)
 curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
 scriptret = 0'--default returnvalue is zero
@@ -546,12 +573,12 @@ si.stackbase = stackposition(scrst)
 checkoverflow(scrst, curcmd->argc + 5)
 
 IF curcmd->kind <> tyflow THEN
- scripterr "Root script command not flow, but " & curcmd->kind, 6
+ scripterr "Root script command not flow, but " & curcmd->kind, serrError
  si.state = sterror
 END IF
 END SUB
 
-SUB subdoarg (si as ScriptInst)
+SUB subdoarg (si as OldScriptState)
 'read/load arguments, evaluating immediate values, in a depth-first manner, until either:
 '-all args for a command have been pushed, stnext to evaluate
 '-certain flow & math commands need special logic after every evaluated arg, stnext to handle
@@ -560,20 +587,24 @@ si.state = stnext
 DIM as integer ptr dataptr = si.scrdata
 
 quickrepeat:
-DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + curcmd->args(si.curargn))
+DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + si.curargn))
 
+' Process an arg here if possible, otherwise stop
 SELECT CASE cmdptr->kind
  CASE tynumber
   pushstack(scrst, cmdptr->value)
  CASE tyglobal
   IF cmdptr->value < 0 OR cmdptr->value > maxScriptGlobals THEN
-   scripterr "Illegal global variable id " & cmdptr->value, 5
+   scripterr "Illegal global variable id " & cmdptr->value, serrBadOp
    si.state = sterror
    EXIT SUB
   END IF
   pushstack(scrst, global(cmdptr->value))
  CASE tylocal
-  pushstack(scrst, heap(si.heap + cmdptr->value))
+  pushstack(scrst, heap(si.frames(0).heap + cmdptr->value))
+ CASE tynonlocal
+  DIM id as integer = cmdptr->value
+  pushstack(scrst, heap(si.frames(id SHR 8).heap + (id AND 255)))
  CASE IS >= tymath, tyflow
   si.depth += 1
   '2 for state + args + 5 just-in-case for extra state stuff pushed to stack (atm just switch, +1 ought to be sufficient)
@@ -592,17 +623,19 @@ SELECT CASE cmdptr->kind
   'scriptdump "subdoarg"
 
 
-  'even for flow, first arg always needs evaluation, so don't leave yet!
+  'Even for flow, first arg always needs evaluation, so don't leave yet!
+  'If there are no args, then time to stop and evaluate it (this is not a math command)
   'EXIT SUB
   IF curcmd->argc = 0 THEN EXIT SUB
   GOTO quickrepeat
  CASE ELSE
-  scripterr "Illegal statement type " & cmdptr->kind, 6
+  scripterr "Illegal statement type " & cmdptr->kind, serrError
   si.state = sterror
   EXIT SUB
 END SELECT
 
 finishedarg:
+' Move on the the next arg and decide whether to fast track its execution
 
 si.curargn += 1
 IF si.curargn >= curcmd->argc THEN
@@ -631,11 +664,12 @@ IF si.curargn >= curcmd->argc THEN
  EXIT SUB
 END IF
 IF curcmd->kind = tyflow THEN IF curcmd->value = flowif OR curcmd->value >= flowfor THEN EXIT SUB
-IF curcmd->kind = tymath THEN IF curcmd->value >= 20 THEN EXIT SUB
+'logand, logor, lognot need special handing
+IF curcmd->kind = tymath THEN IF curcmd->value >= 20 AND curcmd->value <= 22 THEN EXIT SUB
 GOTO quickrepeat
 END SUB
 
-SUB subreturn (si as ScriptInst)
+SUB subreturn (si as OldScriptState)
 si.depth -= 1
 IF si.depth < 0 THEN
  si.state = stdone
@@ -654,7 +688,7 @@ ELSE
 END IF
 END SUB
 
-SUB unwindtodo (byref si as ScriptInst, byval levels as integer)
+SUB unwindtodo (byref si as OldScriptState, byval levels as integer)
 'unwinds the stack until the specified number of dos have been stripped
 'leaves the interpreter as if the last do block had successfully finished
 'this means repeat in the case of for and while loops
@@ -691,23 +725,25 @@ END SUB
 
 FUNCTION readscriptvar (byval id as integer) as integer
  SELECT CASE id
-  CASE IS < 0 'local variable
-   readscriptvar = heap(scrat(nowscript).heap - id - 1)
+  CASE IS < 0 'local/nonlocal variable
+   id = -id - 1
+   RETURN heap(scrat(nowscript).frames(id SHR 8).heap + (id AND 255))
   CASE 0 TO maxScriptGlobals 'global variable
-   readscriptvar = global(id)
+   RETURN global(id)
   CASE ELSE
-   scripterr "Cannot read global " & id & ". Out of range", 5
+   scripterr "Cannot read global " & id & ". Out of range", serrBadOp
  END SELECT
 END FUNCTION
 
 SUB writescriptvar (byval id as integer, byval newval as integer)
  SELECT CASE id
-  CASE IS < 0 'local variable
-   heap(scrat(nowscript).heap - id - 1) = newval
+  CASE IS < 0 'local/nonlocal variable
+   id = -id - 1
+   heap(scrat(nowscript).frames(id SHR 8).heap + (id AND 255)) = newval
   CASE 0 TO maxScriptGlobals 'global variable
    global(id) = newval
   CASE ELSE
-   scripterr "Cannot write global " & id &  ". Out of range", 5
+   scripterr "Cannot write global " & id &  ". Out of range", serrBadOp
  END SELECT
 END SUB
 
@@ -717,19 +753,19 @@ SUB scriptmath
    scriptret = INT(retvals(0) + RND * (1.0 + retvals(1) - retvals(0))) 'handles the case max-min = 2^32
   CASE 1' exponent
    IF retvals(0) = 0 and retvals(1) < 0 THEN
-    scripterr "Tried to take negative power of zero, 0^" & retvals(1), 5
+    scripterr "Tried to take negative power of zero, 0^" & retvals(1), serrBadOp
    ELSE
     scriptret = retvals(0) ^ retvals(1)
    END IF
   CASE 2' modulus
    IF retvals(1) = 0 THEN
-    scripterr "division by zero: " & retvals(0) & ",mod,0", 5
+    scripterr "division by zero: " & retvals(0) & ",mod,0", serrBadOp
    ELSE
     scriptret = retvals(0) MOD retvals(1)
    END IF
   CASE 3' divide
    IF retvals(1) = 0 THEN
-    scripterr "division by zero: " & retvals(0) & "/0", 5
+    scripterr "division by zero: " & retvals(0) & "/0", serrBadOp
    ELSE
     scriptret = retvals(0) \ retvals(1)
    END IF
@@ -783,70 +819,59 @@ SUB scriptmath
    scriptret = SGN(retvals(0))
   CASE 25'sqrt
    IF retvals(0) < 0 THEN
-    scripterr "Tried to take squareroot of " & retvals(0), 5
+    scripterr "Tried to take squareroot of " & retvals(0), serrBadOp
    ELSE
     scriptret = SQRT(retvals(0))
    END IF
   CASE ELSE
-   scripterr "unsupported math function id " & curcmd->value, 6
+   scripterr "unsupported math function id " & curcmd->value, serrError
  END SELECT
 END SUB
 
-SUB reloadscript (byref si as ScriptInst, byval updatestats as integer)
- IF si.scr = NULL THEN
-  si.scr = loadscript(si.id)
-  IF si.scr = NULL THEN killallscripts: EXIT SUB
-  si.scrdata = si.scr->ptr
-  si.scr->refcount += 1
-  IF updatestats THEN si.scr->totaluse += 1
- END IF
- IF updatestats THEN
-  'a rather hackish and not very good attempt to give .lastuse a qualitative use
-  'instead of just for sorting; a priority queue is probably a much better solution
-  IF si.scr->lastuse <= scriptctr - 10 THEN
-   scriptctr += 1
-   si.scr->lastuse = scriptctr
-  END IF
- END IF
-END SUB
+SUB scriptdump (header as string)
+ DIM statestr(9) as string
+ statestr(0) = "none"
+ statestr(1) = "wait"
+ statestr(2) = "start"
+ statestr(3) = "return"
+ statestr(4) = "next"
+ statestr(5) = "doarg"
+ statestr(6) = "done"
+ statestr(7) = "triggered"
+ statestr(8) = "error"
+ statestr(9) = "exit"
 
-SUB scriptdump (s as string)
+ WITH scrat(nowscript)
+   DIM indent as string
+   IF .depth >= 0 THEN
+     indent = STRING(.depth, " ")
+   ELSE
+     indent = STRING(ABS(.depth), "<")
+   END IF
 
-DIM statestr(7) as string
-statestr(0) = "none"
-statestr(1) = "wait"
-statestr(2) = "read"
-statestr(3) = "return"
-statestr(4) = "next"
-statestr(5) = "doarg"
-statestr(6) = "done"
-statestr(7) = "error"
+   DIM state as string
+   SELECT CASE .state
+    CASE 0 TO 9
+      state = statestr(.state)
+    CASE ELSE
+      state = "illegal: " & .state
+   END SELECT
 
-DIM indent as string
-IF scrat(nowscript).depth >= 0 THEN
-  indent = STRING(scrat(nowscript).depth, " ")
-ELSE
-  indent = STRING(ABS(scrat(nowscript).depth), "<")
-END IF
-
-DIM state as string
-SELECT CASE scrat(nowscript).state
- CASE 0 TO 7
-   state = statestr(scrat(nowscript).state)
- CASE ELSE
-   state = "illegal: " & scrat(nowscript).state
-END SELECT
-
-debug indent & "[" & s & "]"
-debug indent & "script = " & nowscript
-debug indent & "id     = " & scrat(nowscript).id & " " & scriptname(scrat(nowscript).id)
-debug indent & "ptr    = " & scrat(nowscript).ptr
-debug indent & "state  = " & state
-debug indent & "kind   = " & curcmd->kind
-debug indent & "value  = " & curcmd->value
-debug indent & "argn   = " & scrat(nowscript).curargn
-debug indent & "argc   = " & curcmd->argc
-
+   debug indent & "[" & header & "]"
+   IF .depth < 0 THEN
+    debug indent & "depth = " & .depth
+   END IF
+   debug indent & "nowscript = " & nowscript
+   debug indent & "id     = " & .id & " " & scriptname(.id)
+   debug indent & "ptr    = " & .ptr
+   debug indent & "state  = " & state
+   debug indent & "kind   = " & curcmd->kind
+   debug indent & "value  = " & curcmd->value
+   debug indent & "argn   = " & .curargn
+   debug indent & "argc   = " & curcmd->argc
+   debug indent & "stkpos = " & (scrst.pos - scrst.bottom)
+   debug indent & "node   : kind " & .scrdata[.ptr] & " id " & .scrdata[.ptr + 1]
+ END WITH
 END SUB
 
 'This function is called at possible breakpoints and decides whether to break into the debugger
@@ -984,7 +1009,7 @@ NEXT
 stringsscroll = small(stringsscroll, (UBOUND(strings) - 1) - 19) 'recall one string wasted
 
 IF nowscript >= 0 THEN
- WITH scrat(nowscript)
+ WITH scriptinsts(nowscript)
   .curkind = curcmd->kind
   .curvalue = curcmd->value
   .curargc = curcmd->argc
@@ -1019,7 +1044,7 @@ lastscript = nowscript
 
 DIM hasargs as integer
 IF nowscript >= 0 THEN 
- SELECT CASE scrat(nowscript).curkind
+ SELECT CASE scriptinsts(nowscript).curkind
   CASE tynumber, tyglobal, tylocal
    hasargs = 0
   CASE ELSE
@@ -1030,7 +1055,7 @@ END IF
 'Note: the colours here are fairly arbitrary
 rectangle 0, 0, 320, 4, uilook(uiBackground), page
 rectangle 0, 0, (320 / scriptmemMax) * totalscrmem, 2, uilook(uiSelectedItem), page
-rectangle 0, 2, (320 / 2048) * scrat(nowscript + 1).heap, 2, uilook(uiSelectedItem + 1), page
+rectangle 0, 2, (320 / maxScriptHeap) * scrat(nowscript + 1).heapend, 2, uilook(uiSelectedItem + 1), page
 
 DIM ol as integer = 191
 
@@ -1058,8 +1083,7 @@ END IF
 DIM scriptargs as integer
 DIM localno as integer
 IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
- 'local variables and return value. Show up to 9 variables at a time
- reloadscript scrat(selectedscript), 0
+ 'local (but not nonlocal) variables and return value. Show up to 9 variables at a time
  WITH scrat(selectedscript)
   IF .scr->vars = 0 THEN
    edgeprint "Has no variables", 0, ol, uilook(uiText), page
@@ -1073,7 +1097,7 @@ IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
      IF localno < .scr->vars THEN
       temp = localvariablename(localno, scriptargs) & "="
       edgeprint temp, j * 96, ol, uilook(uiText), page
-      edgeprint STR(heap(.heap + localno)), j * 96 + 8 * LEN(temp), ol, uilook(uiDescription), page
+      edgeprint STR(.frames(0).heap + localno), j * 96 + 8 * LEN(temp), ol, uilook(uiDescription), page
      END IF
     NEXT
     ol -= 9
@@ -1081,7 +1105,7 @@ IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
    IF scriptargs = 999 THEN
     edgeprint .scr->vars & " local variables and arguments:", 0, ol, uilook(uiText), page
    ELSE
-    edgeprint scriptargs & " arguments and " & (.scr->vars - scriptargs) & " local variables:", 0, ol, uilook(uiText), page
+    edgeprint scriptargs & " arguments and " & (.scr->vars - scriptargs) & " local variables (" & .scr->nonlocals & " non-locals):", 0, ol, uilook(uiText), page
    END IF
    ol -= 9
   END IF
@@ -1188,33 +1212,39 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1) THEN
  
  FOR i as integer = large(bottom, 0) TO nowscript
   'if script is about to be executed, don't show it as having been already
-  IF scrat(i).curargn >= scrat(i).curargc AND i <> nowscript THEN lastarg = -1 ELSE lastarg = 0
+  IF scrat(i).curargn >= scriptinsts(i).curargc AND i <> nowscript THEN lastarg = -1 ELSE lastarg = 0
  
   IF mode > 1 AND i = selectedscript THEN col = uilook(uiSelectedItem) ELSE col = uilook(uiText)
   edgeprint STR(i), 0, ol, col, page
   edgeprint LEFT(scriptname(scrat(i).id), 17), 16, ol, col, page
   edgeprint STR(scrat(i).depth), 160, ol, col, page
   IF scrat(i).state < 0 THEN
-   IF scrat(i).started = NO THEN
+   IF scriptinsts(i).started = NO THEN
     edgeprint "Queued (not started)", 184, ol, col, page
    ELSE
     edgeprint "Suspended", 184, ol, col, page
    END IF
   ELSEIF scrat(i).state = stwait THEN
-   waitcause = commandname(scrat(i).curvalue)
-   SELECT CASE scrat(i).curvalue
-    CASE 1, 3, 4, 9, 244'--wait, wait for hero, wait for NPC, wait for key, wait for scancode
-     waitcause += "(" & scrat(i).waitarg & ")"
-   END SELECT
+   IF scriptinsts(i).waiting = waitingOnCmd THEN
+    waitcause = commandname(scriptinsts(i).curvalue)
+    SELECT CASE scriptinsts(i).curvalue
+     CASE 1, 3, 4, 9, 244'--wait, wait for hero, wait for NPC, wait for key, wait for scancode
+      waitcause += "(" & scriptinsts(i).waitarg & ")"
+    END SELECT
+   ELSEIF scriptinsts(i).waiting = waitingOnTick THEN
+    waitcause = "forced-wait(" & scriptinsts(i).waitarg & ")"
+   ELSE
+    waitcause = "!WAIT ERROR"
+   END IF
    edgeprint waitcause, 184, ol, col, page
-  ELSEIF scrat(i).state = stnext AND scrat(i).curkind = tyscript AND lastarg THEN
+  ELSEIF scrat(i).state = stnext AND scriptinsts(i).curkind = tyscript AND lastarg THEN
    edgeprint "Called #" & i + 1, 184, ol, col, page
-  ELSEIF scrat(i).state = stnext AND scrat(i).curkind = tyfunct AND scrat(i).curvalue = 176 AND lastarg THEN
+  ELSEIF scrat(i).state = stnext AND scriptinsts(i).curkind = tyfunct AND scriptinsts(i).curvalue = 176 AND lastarg THEN
    edgeprint "Called #" & i + 1 & " by ID", 184, ol, col, page
   ELSE
    edgeprint STR(scrat(i).state), 184, ol, col, page
-   edgeprint STR(scrat(i).curkind), 232, ol, col, page
-   edgeprint STR(scrat(i).curvalue), 280, ol, col, page
+   edgeprint STR(scriptinsts(i).curkind), 232, ol, col, page
+   edgeprint STR(scriptinsts(i).curvalue), 280, ol, col, page
   END IF
   ol = ol - 9
   IF ol < 6 THEN EXIT FOR
@@ -1309,11 +1339,6 @@ END IF
 '(the mode = 2 thrown in to prevent an infinite loop, no idea how or why)
 IF drawloop = 0 AND mode = 2 THEN GOTO redraw
 
-'just incase was swapped out above
-IF nowscript >= 0 THEN
- reloadscript scrat(nowscript), 0
-END IF
-
 IF resetpal THEN setpal master()
 
 next_interpreter_check_time = TIMER + scriptCheckDelay
@@ -1321,24 +1346,28 @@ interruption_grace_period = YES
 
 END SUB
 
-SUB readstackcommand (byref state as ScriptInst, byref stk as Stack, byref i as integer)
+SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk as Stack, byref i as integer)
  state.curargn = readstack(stk, i)
  state.ptr = readstack(stk, i - 1)
- DIM cmdptr as ScriptCommand ptr = cast(ScriptCommand ptr, state.scrdata + state.ptr)
- state.curkind = cmdptr->kind
- state.curvalue = cmdptr->value
- state.curargc = cmdptr->argc
+ node = *cast(ScriptCommand ptr, state.scrdata + state.ptr)
+/' DIM cmdptr as ScriptCommand ptr = 
+ node.kind = cmdptr->kind
+ node.value = cmdptr->value
+ node.argc = cmdptr->argc
+'/
  i -= 2
 END SUB
 
 FUNCTION localvariablename (byval value as integer, byval scriptargs as integer) as string
- 'get a variable name from a local variable number
+ 'get a variable name from a local/nonlocal variable number
  'locals (and args) numbered from 0
  IF scriptargs = 999 THEN
   'old HS file
   RETURN "local" & value
  ELSEIF value < scriptargs THEN
   RETURN "arg" & value
+ ELSEIF value >= 256 THEN
+  RETURN "nonloc" & (value SHR 8) & "_" & (value AND 255)
  ELSE
   RETURN "var" & (value - scriptargs)
  END IF
@@ -1378,8 +1407,10 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  DIM flowname(15) as string
  DIM flowtype(15) as integer
  DIM flowbrakbrk(15) as integer
- DIM state as ScriptInst
- DIM laststate as ScriptInst
+ DIM state as OldScriptState
+ DIM scrinst as ScriptInst
+ DIM node as ScriptCommand
+ DIM lastnode as ScriptCommand
 
  flowtype(0) = 0:	flowname(0) = "do"
  flowtype(3) = 1:	flowname(3) = "return"
@@ -1414,20 +1445,17 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  'macro disabled for fb 0.15 compat
  'copyobj(state, scrat(wasscript))
  memcpy(@(state),@(scrat(wasscript)),LEN(scrat(wasscript)))
- state.curkind = curcmd->kind
- state.curvalue = curcmd->value
- state.curargc = curcmd->argc
- memcpy(@(laststate),@(state),LEN(state))
-
- 'so we can grab extra data on the current script
- reloadscript scrat(nowscript), 0
+ node.kind = curcmd->kind
+ node.value = curcmd->value
+ node.argc = curcmd->argc
+ memcpy(@(lastnode),@(node),LEN(ScriptCommand))
 
  'debug "state = " & state.state
  'debug "depth = " & state.depth
- 'debug "kind = " & state.curkind
- 'debug "val = " & state.curvalue
+ 'debug "kind = " & node.kind
+ 'debug "val = " & node.value
  'debug "argn = " & state.curargn
- 'debug "argc = " & state.curargc
+ 'debug "argc = " & node.argc
 
  IF state.state = stdoarg THEN GOTO jmpdoarg
  IF state.state = stnext OR state.state = streturn OR state.state = stwait THEN
@@ -1469,68 +1497,68 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
   cmd = ""
   hidearg = 0
   IF hideoverride THEN hidearg = -1: hideoverride = 0
-  SELECT CASE state.curkind
+  SELECT CASE node.kind
     CASE tynumber
-     outstr = STR(state.curvalue)
+     outstr = STR(node.value)
      hidearg = -1
     CASE tyflow
-     cmd = flowname(state.curvalue)
+     cmd = flowname(node.value)
      hidearg = -3
      IF state.depth = 0 THEN cmd = scriptname(state.id)
      IF state.state = ststart THEN hidearg = -1
 
-     IF flowtype(state.curvalue) = 0 THEN IF state.curargc = 0 THEN hidearg = -1: cmd += "()"
-     IF flowtype(state.curvalue) = 1 THEN hidearg = 0 ': IF state.curargn = 0 THEN cmd += ":"
-     IF flowtype(state.curvalue) = 2 THEN
+     IF flowtype(node.value) = 0 THEN IF node.argc = 0 THEN hidearg = -1: cmd += "()"
+     IF flowtype(node.value) = 1 THEN hidearg = 0 ': IF state.curargn = 0 THEN cmd += ":"
+     IF flowtype(node.value) = 2 THEN
       hidearg = 0
-      'IF state.curargn = state.curargc - 1 THEN hidearg = -1: cmd += "()"
-      IF state.curvalue = flowwhile AND state.curargn = 0 THEN hidearg = -1
+      'IF state.curargn = node.argc - 1 THEN hidearg = -1: cmd += "()"
+      IF node.value = flowwhile AND state.curargn = 0 THEN hidearg = -1
      END IF
-     IF state.curvalue = flowif THEN
+     IF node.value = flowif THEN
       hidearg = -1
-      IF state.curargn > 0 AND state.curargn < state.curargc THEN cmd += "()"
+      IF state.curargn > 0 AND state.curargn < node.argc THEN cmd += "()"
      END IF
-     IF state.curvalue = flowswitch THEN
+     IF node.value = flowswitch THEN
       hidearg = -1
       IF state.curargn = 0 THEN
        cmd += ":"
       ELSE
        cmd += "(" & readstack(scrst, stkpos + 1) & ")"   ' ????
-       IF state.curargn + 1 = state.curargc THEN
+       IF state.curargn + 1 = node.argc THEN
         cmd += " else"
         'hack to replace the 'do' with 'else' (hspeak outputs a do instead of an else)
         IF LEN(outstr) > 1 THEN outstr = MID(outstr, 3)
         hidearg = -2
-       ELSEIF state.curargn >= state.curargc THEN
+       ELSEIF state.curargn >= node.argc THEN
         'an extra step the stepper currently pauses on
-       ELSEIF laststate.curkind = tyflow AND laststate.curvalue = flowdo THEN
+       ELSEIF lastnode.kind = tyflow AND lastnode.value = flowdo THEN
         cmd += " case()"
        ELSE
         cmd += " case"
-        IF state.curargn < state.curargc THEN cmd += ":" ELSE cmd += "()"
+        IF state.curargn < node.argc THEN cmd += ":" ELSE cmd += "()"
        END IF
       END IF
      END IF
     CASE tyglobal
-     outstr = "global" & state.curvalue
+     outstr = "global" & node.value
      hidearg = -1
-    CASE tylocal
+    CASE tylocal, tynonlocal
      'locals can only appear in the topmost script, which we made sure is loaded
-     outstr = localvariablename(state.curvalue, state.scr->args)
+     outstr = localvariablename(node.value, scrinst.scr->args)
      hidearg = -1
     CASE tymath
-     cmd = mathname(state.curvalue)
+     cmd = mathname(node.value)
     CASE tyfunct
-     cmd = commandname(state.curvalue)
+     cmd = commandname(node.value)
     CASE tyscript
-     'IF recurse < 3 AND state.curargn >= state.curargc THEN
+     'IF recurse < 3 AND state.curargn >= node.argc THEN
       'currently executing this script (must have already printed it out)
       'cmd = "==>>"
      'ELSE
-      cmd = scriptname(state.curvalue)
+      cmd = scriptname(node.value)
      'END IF
    END SELECT
-   'debug "kind = " + STR(state.curkind)
+   'debug "kind = " + STR(node.kind)
    'debug "cmd = " + cmd
 
 
@@ -1541,15 +1569,15 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
 '    ELSE
 
      IF hidearg = 0 THEN
-      argnum = state.curargc
-      IF state.curkind = tyflow ANDALSO flowbrakbrk(state.curvalue) <> 0 THEN
-       argnum = flowbrakbrk(state.curvalue)
+      argnum = node.argc
+      IF node.kind = tyflow ANDALSO flowbrakbrk(node.value) <> 0 THEN
+       argnum = flowbrakbrk(node.value)
       END IF
       cmd += "("
       FOR i as integer = 1 TO state.curargn
-       IF i = 1 ANDALSO ((state.curkind = tymath AND state.curvalue >= 16 AND state.curvalue <= 18) _
-                         ORELSE (state.curkind = tyflow AND state.curvalue = flowfor)) THEN
-        cmd += mathvariablename(readstack(scrst, stkpos + i), state.scr->args)
+       IF i = 1 ANDALSO ((node.kind = tymath AND node.value >= 16 AND node.value <= 18) _
+                         ORELSE (node.kind = tyflow AND node.value = flowfor)) THEN
+        cmd += mathvariablename(readstack(scrst, stkpos + i), scrinst.scr->args)
        ELSE
         cmd += STR(readstack(scrst, stkpos + i))
        END IF
@@ -1558,12 +1586,12 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
       IF state.curargn >= argnum THEN cmd += ")"
       outstr = cmd & outstr
      ELSEIF hidearg = -3 THEN
-      IF state.curargn >= state.curargc THEN
+      IF state.curargn >= node.argc THEN
        outstr = cmd & "() " & outstr
-      ELSEIF (state.curargc = 1) AND (state.curargn = 0) THEN
+      ELSEIF (node.argc = 1) AND (state.curargn = 0) THEN
        outstr = cmd & ": " & outstr
       ELSE
-       outstr = cmd & ":" & (state.curargn + 1) & "/" & state.curargc & " " & outstr
+       outstr = cmd & ":" & (state.curargn + 1) & "/" & node.argc & " " & outstr
       END IF
      ELSEIF hidearg = -2 THEN
       outstr = cmd & outstr
@@ -1589,7 +1617,8 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
     'macro disabled for fb 0.15 compat
     'copyobj(state, scrat(wasscript))
     memcpy(@(state),@(scrat(wasscript)),LEN(scrat(wasscript)))
-    reloadscript state, 0
+    memcpy(@(scrinst),@(scriptinsts(wasscript)),LEN(scriptinsts(wasscript)))
+
     IF scrat(wasscript).state < 0 THEN
      IF recurse = 2 OR recurse = 3 THEN
       'deal with state   (can only be wait? - goto streturn)
@@ -1604,17 +1633,17 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
    END IF
 
 
-   memcpy(@(laststate),@(state),LEN(state))
+   memcpy(@(lastnode),@(node),LEN(node))
 
-   readstackcommand state, scrst, stkpos
+   readstackcommand node, state, scrst, stkpos
 
    'debug "stkpos = " & stkpos
 
   jmpdoarg:
 
    'ditch arguments
-   IF state.curkind = tyflow AND state.curvalue = flowswitch AND state.curargn > 0 THEN
-    IF state.curargn >= state.curargc THEN
+   IF node.kind = tyflow AND node.value = flowswitch AND state.curargn > 0 THEN
+    IF state.curargn >= node.argc THEN
      'result of last case/do remains (?)
      stkpos -= 3
     ELSE
@@ -1627,66 +1656,10 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
    'debug "popped stkpos = " & stkpos &  " bottom = " & stkbottom
 
    'error level 1 because this routine is delicate and will probably break if called from an unusual place
-   IF stkpos < stkbottom THEN scripterr("script debugger failed to read script state: stack underflow " & (stkpos - stkbottom), 1): EXIT DO
+   IF stkpos < stkbottom THEN scripterr("script debugger failed to read script state: stack underflow " & (stkpos - stkbottom), serrInfo): EXIT DO
  LOOP
- IF stkpos > stkbottom AND wasscript < 0 THEN scripterr("script debugger failed to read script state: stack garbage " & (stkpos - stkbottom), 1)
+ IF stkpos > stkbottom AND wasscript < 0 THEN scripterr("script debugger failed to read script state: stack garbage " & (stkpos - stkbottom), serrInfo)
 
  scriptstate = TRIM(outstr)
  'debug outstr
- reloadscript scrat(nowscript)
 END FUNCTION
-
-SUB delete_scriptdata (byval scriptd as ScriptData ptr)
- WITH *scriptd
-  'debug "deallocating " & .id & " " & scriptname(.id) & " size " & .size
-  totalscrmem -= .size
-  numloadedscr -= 1
-  deallocate(.ptr)
-  IF .next THEN
-   .next->backptr = .backptr
-  END IF
-  *.backptr = .next
-
-  IF .refcount THEN
-   FOR j as integer = 0 TO nowscript
-    IF scrat(j).scr = scriptd THEN
-     'debug "marking scrat(" & j & ") (id = " & scrat(j).id & ") unloaded"
-     scrat(j).scr = NULL
-     scrat(j).scrdata = NULL
-    END IF
-   NEXT
-  END IF
- END WITH
-
- deallocate(scriptd)
-END SUB
-
-SUB reload_scripts
- IF isfile(game + ".hsp") THEN unlump game + ".hsp", tmpdir
-
- DIM unfreeable as integer = 0
-
- FOR i as integer = 0 TO UBOUND(script)
-  DIM as ScriptData Ptr scrp = script(i), nextp
-  WHILE scrp
-   nextp = scrp->next
-   WITH *scrp
-    IF .refcount = 0 THEN
-     delete_scriptdata scrp
-    ELSE
-     unfreeable += 1
-     debuginfo "not reloading script " & scriptname(.id) & " because it's in use: refcount=" & .refcount
-    END IF
-   END WITH
-
-   scrp = nextp
-  WEND
- NEXT
-
- IF unfreeable THEN
-  notification unfreeable & " scripts are in use and couldn't be freed (see g_debug.txt for details)"
- END IF
-
- 'Cause the cache in scriptname() (and also in commandname()) to be dropped
- game_unique_id = STR(randint(INT_MAX))
-END SUB

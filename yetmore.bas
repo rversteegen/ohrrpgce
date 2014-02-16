@@ -4,13 +4,6 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "allmodex.bi"
 #include "common.bi"
@@ -19,7 +12,7 @@
 #include "scrconst.bi"
 #include "uiconst.bi"
 #include "loading.bi"
-#include "hsinterpreter.bi"
+#include "scripting.bi"
 #include "savegame.bi"
 
 #include "game.bi"
@@ -179,10 +172,76 @@ IF limit > 0 THEN
 END IF
 END SUB
 
-SUB scriptstat (byval id as integer)
+' Implementation of "string sprintf". Reads from retval(1...).
+' retval(1) is the format string id; retval(2...) are the arguments
+' Returns the formatted string
+FUNCTION script_sprintf() as string
+ DIM ret as string
+ DIM formatstring as string = plotstr(retvals(1)).s
+ DIM nextarg as integer = 2  'retval() index
+ DIM copystart as integer = 1  'Position to copy literally from. 1-based indexing
+
+ WHILE copystart <= LEN(formatstring)
+  DIM percentptr as zstring ptr
+  percentptr = strchr(STRPTR(formatstring) + copystart - 1, ASC("%"))
+  'Position of the start of this format code. 1-based indexing
+  DIM percentpos as integer
+  percentpos = (percentptr - STRPTR(formatstring)) + 1
+
+  IF percentptr = NULL THEN EXIT WHILE
+  ret &= MID(formatstring, copystart, percentpos - copystart)
+
+  ' Check what the next letter is
+  IF percentptr[1] = 0 THEN  ' End of string
+   scripterr interpreter_context_name() & !"Found lone % at end of format string:\n" & formatstring, serrBadOp
+   EXIT WHILE
+  ELSEIF percentptr[1] = ASC("%") THEN
+   ret &= "%"
+   copystart = percentpos + 2
+  ELSE
+   IF nextarg >= curcmd->argc THEN
+    scripterr interpreter_context_name() & "There are only " & curcmd->argc & !" formatting arguments, but format string has more codes than that:\n" & formatstring, serrBadOp
+    EXIT WHILE
+   ELSE
+    IF percentptr[1] = ASC("s") THEN
+     ' String
+     IF valid_plotstr(retvals(nextarg), serrBadOp) THEN
+      ret &= plotstr(retvals(nextarg)).s
+     END IF
+    ELSEIF percentptr[1] = ASC("d") THEN
+     ' Decimal
+     ret &= retvals(nextarg)
+    ELSEIF percentptr[1] = ASC("x") THEN
+     ' Hexidecimal
+     ret &= LCASE(HEX(retvals(nextarg)))
+    ELSEIF percentptr[1] = ASC("c") THEN
+     ' Character
+     IF bound_arg(retvals(nextarg), 0, 255, "%c character code", , , serrBadOp) THEN
+      ret &= CHR(retvals(nextarg))
+     END IF
+    END IF
+    copystart = percentpos + 2
+    nextarg += 1
+   END IF
+
+  END IF
+
+ WEND
+ ret &= MID(formatstring, copystart)
+
+ IF nextarg <> curcmd->argc THEN
+  scripterr interpreter_context_name() & "There were more arguments (" & curcmd->argc & ") than were needed (only " & nextarg & !"):\n" & formatstring, serrBadOp
+ END IF
+
+ RETURN ret
+END FUNCTION
+
+
+FUNCTION scriptstat (byval id as integer) as bool
 'contains an assortment of scripting commands that
 'used to depend on access to the hero stat array stat(), but that is irrelevant now,
 'because that is a global gam.hero().stat
+'Returns true if command was handled.
 
 SELECT CASE as CONST id
  CASE 64'--get hero stat (hero, stat, type)
@@ -302,25 +361,28 @@ SELECT CASE as CONST id
   doswap bound(retvals(0), 0, 40), bound(retvals(1), 0, 40)
  CASE 110'--set hero picture
   IF retvals(0) >= 0 AND retvals(0) <= 40 THEN
-   DIM i as integer = bound(retvals(0), 0, 40)
-   retvals(2) = bound(retvals(2), 0, 1)
-   IF retvals(2) = 0 THEN gam.hero(i).battle_pic = bound(retvals(1), 0, gen(genMaxHeroPic))
-   IF retvals(2) = 1 THEN gam.hero(i).pic = bound(retvals(1), 0, gen(genMaxNPCPic))
-   IF i < 4 THEN
-    vishero
+   DIM heronum as integer = bound(retvals(0), 0, 40)
+   DIM whichsprite as integer = bound(retvals(2), 0, 1)
+   IF whichsprite = 0 THEN
+    gam.hero(heronum).battle_pic = bound(retvals(1), 0, gen(genMaxHeroPic))
+   ELSE
+    gam.hero(heronum).pic = bound(retvals(1), 0, gen(genMaxNPCPic))
+    IF heronum < 4 THEN
+     vishero
+    END IF
    END IF
   END IF
  CASE 111'--set hero palette
   IF retvals(0) >= 0 AND retvals(0) <= 40 THEN
-   DIM i as integer = bound(retvals(0), 0, 40)
-   DIM j as integer = bound(retvals(2), 0, 1)
-   IF j < 1 THEN
-    gam.hero(i).battle_pal = bound(retvals(1), -1, 32767)
+   DIM heronum as integer = bound(retvals(0), 0, 40)
+   DIM whichsprite as integer = bound(retvals(2), 0, 1)
+   IF whichsprite = 0 THEN
+    gam.hero(heronum).battle_pal = bound(retvals(1), -1, 32767)
    ELSE
-    gam.hero(i).pal = bound(retvals(1), -1, 32767)
-   END IF
-   IF i < 4 THEN
-    vishero
+    gam.hero(heronum).pal = bound(retvals(1), -1, 32767)
+    IF heronum < 4 THEN
+     vishero
+    END IF
    END IF
   END IF
  CASE 112'--get hero picture
@@ -418,27 +480,33 @@ SELECT CASE as CONST id
    learn_spells_for_current_level retvals(0), (retvals(1)<>0)
   END IF
  CASE 449'--reset hero picture
-  DIM i as integer = retvals(0)
-  DIM j as integer = retvals(1)
-  IF really_valid_hero_party(i, , serrBound) THEN
-   IF bound_arg(j, 0, 1, "in or out of battle") THEN
+  DIM heronum as integer = retvals(0)
+  DIM whichsprite as integer = retvals(1)
+  IF really_valid_hero_party(heronum, , serrBound) THEN
+   IF bound_arg(whichsprite, 0, 1, "in or out of battle") THEN
     DIM her as herodef
-    loadherodata her, hero(i) - 1
-    IF j = 0 THEN gam.hero(i).battle_pic = her.sprite
-    IF j = 1 THEN gam.hero(i).pic = her.walk_sprite
-    IF i < 4 THEN vishero
+    loadherodata her, hero(heronum) - 1
+    IF whichsprite = 0 THEN
+     gam.hero(heronum).battle_pic = her.sprite
+    ELSE
+     gam.hero(heronum).pic = her.walk_sprite
+     IF heronum < 4 THEN vishero
+    END IF
    END IF
   END IF
  CASE 450'--reset hero palette
-  DIM i as integer = retvals(0)
-  DIM j as integer = retvals(1)
-  IF really_valid_hero_party(i, , serrBound) THEN
-   IF bound_arg(j, 0, 1, "in or out of battle") THEN
+  DIM heronum as integer = retvals(0)
+  DIM whichsprite as integer = retvals(1)
+  IF really_valid_hero_party(heronum, , serrBound) THEN
+   IF bound_arg(whichsprite, 0, 1, "in or out of battle") THEN
     DIM her as herodef
-    loadherodata her, hero(i) - 1
-    IF j = 0 THEN gam.hero(i).battle_pal = her.sprite_pal
-    IF j = 1 THEN gam.hero(i).pal = her.walk_sprite_pal
-    IF i < 4 THEN vishero
+    loadherodata her, hero(heronum) - 1
+    IF whichsprite = 0 THEN
+     gam.hero(heronum).battle_pal = her.sprite_pal
+    ELSE
+     gam.hero(heronum).pal = her.walk_sprite_pal
+     IF heronum < 4 THEN vishero
+    END IF
    END IF
   END IF
  CASE 497'--set hero base elemental resist (hero, element, percent)
@@ -482,9 +550,21 @@ SELECT CASE as CONST id
   IF valid_plotstr(retvals(0)) THEN
    plotstr(retvals(0)).s = cheezy_virtual_keyboard(plotstr(retvals(0)).s, retvals(1), retvals(2))
   END IF
+ CASE 557'--get item description(str,itm)
+  scriptret = 0
+  IF valid_plotstr(retvals(0)) THEN
+   IF valid_item(retvals(1)) THEN
+    plotstr(retvals(0)).s = readitemdescription(retvals(1))
+    scriptret = 1
+   END IF
+  END IF
+
+ CASE ELSE
+  RETURN NO
 
 END SELECT
-END SUB
+RETURN YES
+END FUNCTION
 
 SUB forceparty ()
 '---MAKE SURE YOU HAVE AN ACTIVE PARTY---
@@ -537,7 +617,7 @@ FUNCTION get_valid_npc (byval seekid as integer, byval errlvl as scriptErrEnum =
  IF seekid < 0 THEN
   DIM npcidx as integer = (seekid + 1) * -1
   IF npcidx > 299 ORELSE npc(npcidx).id = 0 THEN
-   scripterr commandname(curcmd->value) & ": invalid npc reference " & seekid & " (maybe the NPC was deleted?)", errlvl
+   scripterr current_command_name() & ": invalid npc reference " & seekid & " (maybe the NPC was deleted?)", errlvl
    RETURN -1
   END IF
   RETURN npcidx
@@ -545,7 +625,7 @@ FUNCTION get_valid_npc (byval seekid as integer, byval errlvl as scriptErrEnum =
   FOR i as integer = 0 TO 299
    IF npc(i).id - 1 = seekid THEN RETURN i
   NEXT
-  scripterr commandname(curcmd->value) & ": invalid npc reference; no NPCs of ID " & seekid & " exist", errlvl
+  scripterr current_command_name() & ": invalid npc reference; no NPCs of ID " & seekid & " exist", errlvl
   RETURN -1
  END IF
 END FUNCTION
@@ -555,23 +635,23 @@ END FUNCTION
 FUNCTION get_valid_npc_id (byval seekid as integer, byval errlvl as scriptErrEnum = serrBadOp) as integer
  IF seekid >= 0 THEN
   IF seekid > UBOUND(npcs) THEN
-   scripterr commandname(curcmd->value) & ": invalid NPC ID " & seekid, errlvl
+   scripterr current_command_name() & ": invalid NPC ID " & seekid, errlvl
    RETURN -1
   END IF
   RETURN seekid
  ELSE
   DIM npcidx as integer = (seekid + 1) * -1
   IF npcidx > UBOUND(npc) THEN
-   scripterr commandname(curcmd->value) & ": invalid NPC reference " & seekid, errlvl
+   scripterr current_command_name() & ": invalid NPC reference " & seekid, errlvl
    RETURN -1
   ELSEIF npc(npcidx).id = 0 THEN
-   scripterr commandname(curcmd->value) & ": invalid NPC reference " & seekid & " (maybe the NPC was deleted?)", errlvl
+   scripterr current_command_name() & ": invalid NPC reference " & seekid & " (maybe the NPC was deleted?)", errlvl
    RETURN -1
   ELSE
    DIM id as integer = ABS(npc(npcidx).id) - 1
    IF id > UBOUND(npcs) THEN
     'Note that an NPC may be marked hidden because it has an invalid ID
-    scripterr commandname(curcmd->value) & ": NPC reference " & seekid & " is for a disabled NPC with invalid ID " & npc(npcidx).id & " (the map must be incompletely loaded)", errlvl
+    scripterr current_command_name() & ": NPC reference " & seekid & " is for a disabled NPC with invalid ID " & npc(npcidx).id & " (the map must be incompletely loaded)", errlvl
     RETURN -1
    END IF
    RETURN id
@@ -729,7 +809,7 @@ SUB onkeyscript (byval scriptnum as integer)
  END IF
  
  IF nowscript >= 0 THEN
-  IF scrat(nowscript).state = stwait AND scrat(nowscript).curvalue = 9 THEN
+  IF scriptinsts(nowscript).waiting = waitingOnCmd AND scriptinsts(nowscript).curvalue = 9 THEN
    '--never trigger a onkey script when the previous script
    '--has a "wait for key" command active
    doit = NO
@@ -810,10 +890,11 @@ FUNCTION rankincaterpillar (byval heroid as integer) as integer
  RETURN result
 END FUNCTION
 
-SUB scriptmisc (byval id as integer)
+FUNCTION scriptmisc (byval id as integer) as bool
 
 'contains a whole mess of scripting commands that do not depend on
 'any main-module level local variables or GOSUBs
+'Returns true if command was handled.
 
 DIM npcref as integer = ANY
 
@@ -919,22 +1000,17 @@ SELECT CASE as CONST id
   scripterr "encountered clean noop", serrInfo
  CASE 1'--Wait (cycles)
   IF retvals(0) > 0 THEN
-   scrat(nowscript).waitarg = retvals(0)
-   scrat(nowscript).state = stwait
+   script_start_waiting(retvals(0))
   END IF
  CASE 2'--wait for all
-  scrat(nowscript).waitarg = retvals(0)
-  scrat(nowscript).state = stwait
+  script_start_waiting(retvals(0))
  CASE 3'--wait for hero
   IF retvals(0) >= 0 AND retvals(0) <= 3 THEN
-   scrat(nowscript).waitarg = retvals(0)
-   scrat(nowscript).state = stwait
+   script_start_waiting(retvals(0))
   END IF
  CASE 4'--waitforNPC
   IF retvals(0) >= -300 AND retvals(0) <= UBOUND(npcs) THEN
-   scrat(nowscript).waitarg = retvals(0)
-   scrat(nowscript).waitarg2 = gam.map.id
-   scrat(nowscript).state = stwait
+   script_start_waiting(retvals(0), gam.map.id)
   END IF
  CASE 5'--suspend npcs
   setbit gen(), genSuspendBits, suspendnpcs, 1
@@ -945,8 +1021,7 @@ SELECT CASE as CONST id
  CASE 8'--resume player
   setbit gen(), genSuspendBits, suspendplayer, 0
  CASE 9'--wait for key
-  scrat(nowscript).waitarg = retvals(0)
-  scrat(nowscript).state = stwait
+  script_start_waiting(retvals(0))
  CASE 10'--walk hero
   IF retvals(0) >= 0 AND retvals(0) <= 3 THEN
    SELECT CASE retvals(1)
@@ -1046,8 +1121,7 @@ SELECT CASE as CONST id
   gen(cameraArg4) = ABS(retvals(2))
   limitcamera gen(cameraArg), gen(cameraArg2)
  CASE 42'--wait for camera
-  scrat(nowscript).waitarg = retvals(0)
-  scrat(nowscript).state = stwait
+  script_start_waiting(retvals(0))
  CASE 43'--hero x
   IF retvals(0) >= 0 AND retvals(0) <= 3 THEN
    scriptret = catx(retvals(0) * 5) \ 20
@@ -1077,8 +1151,7 @@ SELECT CASE as CONST id
   interpolatecat
  CASE 59'--wait for text box
   IF readbit(gen(), genSuspendBits, suspendboxadvance) = 0 THEN
-   scrat(nowscript).waitarg = retvals(0)
-   scrat(nowscript).state = stwait
+   script_start_waiting(retvals(0))
   END IF
  CASE 60'--equip where
   scriptret = 0
@@ -1206,6 +1279,14 @@ SELECT CASE as CONST id
    ELSE
     scriptret = 1
    END IF
+   IF readbit(gen(), genSuspendBits, suspendcaterpillar) = 0 THEN
+    ' Other heroes trail behind the leader automatically without using .xgo and .ygo.
+    ' walkhero partially works when the caterpillar party is enabled too
+    ' (well they move, but don't animate), so combine the two
+    IF herow(0).xgo <> 0 OR herow(0).ygo <> 0 THEN
+     scriptret = 1
+    END IF
+   END IF
   END IF
  CASE 127'--teach spell
   scriptret = trylearn(bound(retvals(0), 0, 40), retvals(1))
@@ -1316,10 +1397,11 @@ SELECT CASE as CONST id
   END IF
  CASE 176'--run script by id
   DIM rsr as integer
+  DIM argc as integer = curcmd->argc  'Must store before calling runscript
   rsr = runscript(retvals(0), NO, NO, "indirect", plottrigger) 'possible to get ahold of triggers
   IF rsr = 1 THEN
    '--fill heap with arguments
-   FOR i as integer = 1 TO scrat(nowscript - 1).curargc - 1  'flexible argument number! (note that argc has been saved here by runscript)
+   FOR i as integer = 1 TO argc - 1  'flexible argument number!
     setScriptArg i - 1, retvals(i)
    NEXT i
    'NOTE: scriptret is not set here when this command is successful. The return value of the called script will be returned.
@@ -1670,31 +1752,32 @@ SELECT CASE as CONST id
    scriptret = 0
   END IF
  CASE 244'--wait for scancode
-  scrat(nowscript).waitarg = retvals(0)
-  scrat(nowscript).state = stwait
+  script_start_waiting(retvals(0))
  CASE 249'--party money
   scriptret = gold
  CASE 250'--set money
   IF retvals(0) >= 0 THEN gold = retvals(0)
  CASE 251'--set string from table
   IF bound_arg(retvals(0), 0, UBOUND(plotstr), "string ID", !"$# = \"...\"") THEN
-   WITH *scrat(nowscript).scr
+   WITH *scriptinsts(nowscript).scr
     DIM stringp as integer ptr = .ptr + .strtable + retvals(1)
     IF .strtable + retvals(1) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
      scripterr "script corrupt: illegal string offset", serrError
     ELSE
      plotstr(retvals(0)).s = read32bitstring(stringp)
+     scriptret = retvals(0)
     END IF
    END WITH
   END IF
  CASE 252'--append string from table
   IF bound_arg(retvals(0), 0, UBOUND(plotstr), "string ID", !"$# + \"...\"") THEN
-   WITH *scrat(nowscript).scr
+   WITH *scriptinsts(nowscript).scr
     DIM stringp as integer ptr = .ptr + .strtable + retvals(1)
     IF .strtable + retvals(1) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
      scripterr "script corrupt: illegal string offset", serrError
     ELSE
      plotstr(retvals(0)).s += read32bitstring(stringp)
+     scriptret = retvals(0)
     END IF
    END WITH
   END IF
@@ -1899,6 +1982,10 @@ SELECT CASE as CONST id
  CASE 328 '--set sprite frame
   IF valid_plotslice(retvals(0)) THEN
    ChangeSpriteSlice plotslices(retvals(0)), , , , retvals(1)
+  END IF
+ CASE 558'--set sprite set number
+  IF valid_plotslice(retvals(0)) THEN
+   ChangeSpriteSlice plotslices(retvals(0)), , retvals(1)
   END IF
  CASE 329'--load walkabout sprite
   scriptret = load_sprite_plotslice(4, retvals(0), retvals(1))
@@ -2625,7 +2712,7 @@ SELECT CASE as CONST id
    SliceLoadFromFile sl, workingdir & SLASH & "slicetree_0_" & retvals(0) & ".reld"
    scriptret = create_plotslice_handle(sl)
   ELSE
-   scripterr commandname(curcmd->value) & ": invalid slice collection id " & retvals(0), serrBadOp
+   scripterr current_command_name() & ": invalid slice collection id " & retvals(0), serrBadOp
    scriptret = 0
   END IF
  CASE 462 '--set slice edge x
@@ -2651,9 +2738,9 @@ SELECT CASE as CONST id
  CASE 465 '--set slice lookup
   IF valid_plotslice(retvals(0)) THEN
    IF retvals(1) < 0 THEN
-    scripterr commandname(curcmd->value) & ": negative lookup codes are reserved, they can't be set.", serrBadOp
+    scripterr current_command_name() & ": negative lookup codes are reserved, they can't be set.", serrBadOp
    ELSEIF plotslices(retvals(0))->Lookup < 0 THEN
-    scripterr commandname(curcmd->value) & ": can't modify the lookup code of a special slice.", serrBadOp
+    scripterr current_command_name() & ": can't modify the lookup code of a special slice.", serrBadOp
    ELSE
     plotslices(retvals(0))->Lookup = retvals(1)
    END IF
@@ -2663,7 +2750,7 @@ SELECT CASE as CONST id
   FOR i as integer = 0 TO curcmd->argc - 1
    IF i MOD 2 = 0 THEN
     IF i <> 0 THEN result &= ", "
-    WITH *scrat(nowscript).scr
+    WITH *scriptinsts(nowscript).scr
      DIM stringp as integer ptr = .ptr + .strtable + retvals(i)
      IF .strtable + retvals(i) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
       scripterr "script corrupt: illegal string offset", serrError
@@ -2862,7 +2949,7 @@ SELECT CASE as CONST id
  CASE 506 '--move slice to (handle, x, y, ticks)
   IF valid_plotslice(retvals(0)) THEN
    IF retvals(3) < 1 THEN
-     scripterr commandname(curcmd->value) & ": ticks arg " & retvals(3) & " mustn't be < 1", serrBadOp
+     scripterr current_command_name() & ": ticks arg " & retvals(3) & " mustn't be < 1", serrBadOp
    ELSE
     SetSliceTarg plotslices(retvals(0)), retvals(1), retvals(2), retvals(3)
    END IF
@@ -2870,7 +2957,7 @@ SELECT CASE as CONST id
  CASE 507 '--move slice by (handle, rel x, rel y, ticks)
   IF valid_plotslice(retvals(0)) THEN
    IF retvals(3) < 1 THEN
-     scripterr commandname(curcmd->value) & ": ticks arg " & retvals(3) & " mustn't be < 1", serrBadOp
+     scripterr current_command_name() & ": ticks arg " & retvals(3) & " mustn't be < 1", serrBadOp
    ELSE
     WITH *plotslices(retvals(0))
      SetSliceTarg plotslices(retvals(0)), .X + retvals(1), .Y + retvals(2), retvals(3)
@@ -2879,8 +2966,7 @@ SELECT CASE as CONST id
   END IF
  CASE 508'--wait for slice
   IF valid_plotslice(retvals(0)) THEN
-   scrat(nowscript).waitarg = retvals(0)
-   scrat(nowscript).state = stwait
+   script_start_waiting(retvals(0))
   END IF
  CASE 509'--slice is moving
   IF valid_plotslice(retvals(0)) THEN
@@ -3127,15 +3213,20 @@ SELECT CASE as CONST id
  scriptret = 1
 #ENDIF
  CASE 554 '--running on mobile
-#IFDEF __FB_ANDROID__
- '--return true for all Android except OUYA
- scriptret = IIF(running_on_console(), 0, 1)
-#ELSE
- scriptret = 0
-#ENDIF
+  scriptret = IIF(running_on_mobile(), 1, 0)
  CASE 555 '--running on console
   scriptret = IIF(running_on_console(), 1, 0)
-
+ CASE 565 '--string sprintf (dest string id, format string id, args...)
+  IF valid_plotstr(retvals(0), serrBadOp) AND valid_plotstr(retvals(1), serrBadOp) THEN
+   plotstr(retvals(0)).s = script_sprintf()
+   scriptret = retvals(0)
+  END IF
+ CASE 566 '--script error
+  IF retvals(0) = -1 THEN
+   scripterr "(Triggered with ""scripterror"", no message)", serrBadOp
+  ELSEIF valid_plotstr(retvals(0), serrBadOp) THEN
+   scripterr !"(Triggered with ""scripterror""):\n" & plotstr(retvals(0)).s, serrBadOp
+  END IF
 
 'old scriptnpc
 
@@ -3377,10 +3468,56 @@ SELECT CASE as CONST id
   IF npcref >= 0 THEN
    scriptret = iif(npc(npcref).suspend_ai, 0, 1)
   END IF
+ CASE 559'--get sprite default pal
+  IF valid_plotsprite(retvals(0)) THEN
+   DIM dat as SpriteSliceData Ptr
+   dat = plotslices(retvals(0))->SliceData
+   IF dat->paletted = NO THEN
+    'Only paletted sprites have default palettes
+    scriptret = -1
+   ELSE
+    scriptret = getdefaultpal(dat->spritetype, dat->record)
+   END IF
+  END IF
+ CASE 560'--NPC is disabled
+  npcref = getnpcref(retvals(0), 0)
+  scriptret = 0
+  IF npcref >= 0 THEN
+   IF npc(npcref).id < 0 THEN
+    scriptret = 1
+   END IF
+  ELSE
+   scriptret = 1
+  END IF
+ CASE 561'--create scrunch
+  DIM sl as Slice Ptr
+  sl = NewSliceOfType(slScrunch, SliceTable.scriptsprite)
+  sl->Width = retvals(0)
+  sl->Height = retvals(1)
+  ChangeScrunchSlice sl, retvals(2)
+  scriptret = create_plotslice_handle(sl)
+ CASE 562 '--slice is scrunch
+  IF valid_plotslice(retvals(0)) THEN
+   scriptret = 0
+   IF plotslices(retvals(0))->SliceType = slScrunch THEN scriptret = 1
+  END IF
+ CASE 563 '--set scrunch subpixels
+  IF valid_plotslice(retvals(0)) THEN
+   ChangeScrunchSlice plotslices(retvals(0)), retvals(1)
+  END IF
+ CASE 564 '--get scrunch subpixels
+  IF valid_plotslice(retvals(0)) THEN
+   DIM dat as ScrunchSliceData ptr
+   dat = plotslices(retvals(0))->SliceData
+   scriptret = dat->subpixels
+  END IF
+
+ CASE ELSE
+  RETURN NO
 
 END SELECT
-
-END SUB
+RETURN YES
+END FUNCTION
 
 SUB tweakpalette (byval r as integer, byval g as integer, byval b as integer, byval first as integer = 0, byval last as integer = 255)
  FOR i as integer = first TO last
@@ -3583,6 +3720,24 @@ SUB vishero ()
  NEXT
 END SUB
 
+'Change picture and/or palette of a walkabout slice.
+'
+'Here is an exhaustive list of the conditions under which a walkabout sprite slice gets updated,
+'(picture and/or palette is changed), wiping out any modifications by scripts.
+'Note everything else such as extra data and child slices of the walkabout sprite and container
+'slices always remain untouched, except for the container position, shadow slice, and walking animation.
+'
+'-When a specific NPC is enabled or disabled by tag changes
+' (disabled NPCs have their container slices deleted, not just hidden)
+'-When alternpc, changenpcid, etc, is used, affecting a specific NPC/NPC ID
+'-When reset_npc_graphics gets called, which happens when loading map state (sometimes after
+' a battle, changing maps, loadmapstate) or when live previewing (changes to NPC data)
+'ALL hero sprite slices get reloaded (vishero is called) when:
+'-calling reset/setheropicture/palette(outsidebattle) on a walkabout party hero
+'-the hero party changes, such as when changing the order of heroes
+'Unlike NPCs, hero container slices are hidden rather than disabled when a hero slot is empty.
+'Hero container slices are never recreated when changing maps, etc.
+'
 SUB set_walkabout_sprite (byval cont as Slice Ptr, byval pic as integer=-1, byval pal as integer=-2)
  DIM sprsl as Slice Ptr
  IF cont = 0 THEN
@@ -3877,6 +4032,8 @@ txt.show_lines = 0
 '--Create a set of slices to display the text box
 init_text_box_slices txt
 
+update_virtual_gamepad_display()
+
 END SUB
 
 SUB load_text_box_portrait (byref box as TextBox, byref gfx as GraphicPair)
@@ -3924,16 +4081,16 @@ END FUNCTION
 
 FUNCTION valid_plotslice(byval handle as integer, byval errlev as scriptErrEnum = serrBadOp) as integer
  IF handle < LBOUND(plotslices) OR handle > UBOUND(plotslices) THEN
-  scripterr commandname(curcmd->value) & ": invalid slice handle " & handle, errlev
+  scripterr current_command_name() & ": invalid slice handle " & handle, errlev
   RETURN NO
  END IF
  IF plotslices(handle) = 0 THEN
-  scripterr commandname(curcmd->value) & ": slice handle " & handle & " has already been deleted", errlev
+  scripterr current_command_name() & ": slice handle " & handle & " has already been deleted", errlev
   RETURN NO
  END IF
  IF ENABLE_SLICE_DEBUG THEN
   IF SliceDebugCheck(plotslices(handle)) = NO THEN
-   scripterr commandname(curcmd->value) & ": slice " & handle & " " & plotslices(handle) & " is not in the slice debug table!", serrBug
+   scripterr current_command_name() & ": slice " & handle & " " & plotslices(handle) & " is not in the slice debug table!", serrBug
    RETURN NO
   END IF
  END IF
@@ -3947,7 +4104,7 @@ FUNCTION valid_plotsprite(byval handle as integer) as integer
     RETURN YES
    END IF
   ELSE
-   scripterr commandname(curcmd->value) & ": slice handle " & handle & " is not a sprite", serrBadOp
+   scripterr current_command_name() & ": slice handle " & handle & " is not a sprite", serrBadOp
   END IF
  END IF
  RETURN NO
@@ -3958,7 +4115,7 @@ FUNCTION valid_plotrect(byval handle as integer) as integer
   IF plotslices(handle)->SliceType = slRectangle THEN
    RETURN YES
   ELSE
-   scripterr commandname(curcmd->value) & ": slice handle " & handle & " is not a rect", serrBadOp
+   scripterr current_command_name() & ": slice handle " & handle & " is not a rect", serrBadOp
   END IF
  END IF
  RETURN NO
@@ -3968,12 +4125,12 @@ FUNCTION valid_plottextslice(byval handle as integer) as integer
  IF valid_plotslice(handle) THEN
   IF plotslices(handle)->SliceType = slText THEN
    IF plotslices(handle)->SliceData = 0 THEN
-    scripterr commandname(curcmd->value) & ": text slice handle " & handle & " has null data", serrBug
+    scripterr current_command_name() & ": text slice handle " & handle & " has null data", serrBug
     RETURN NO
    END IF
    RETURN YES
   ELSE
-   scripterr commandname(curcmd->value) & ": slice handle " & handle & " is not text", serrBadOp
+   scripterr current_command_name() & ": slice handle " & handle & " is not text", serrBadOp
   END IF
  END IF
  RETURN NO
@@ -3984,7 +4141,7 @@ FUNCTION valid_plotgridslice(byval handle as integer) as integer
   IF plotslices(handle)->SliceType = slGrid THEN
    RETURN YES
   ELSE
-   scripterr commandname(curcmd->value) & ": slice handle " & handle & " is not a grid", serrBadOp
+   scripterr current_command_name() & ": slice handle " & handle & " is not a grid", serrBadOp
   END IF
  END IF
  RETURN NO
@@ -3994,11 +4151,11 @@ FUNCTION valid_resizeable_slice(byval handle as integer, byval ignore_fill as in
  IF valid_plotslice(handle) THEN
   DIM sl as Slice Ptr
   sl = plotslices(handle)
-  IF sl->SliceType = slRectangle OR sl->SliceType = slContainer OR sl->SliceType = slGrid OR sl->SliceType = slEllipse THEN
+  IF sl->SliceType = slRectangle OR sl->SliceType = slContainer OR sl->SliceType = slGrid OR sl->SliceType = slEllipse OR sl->SliceType = slScrunch THEN
    IF sl->Fill = NO OR ignore_fill THEN
     RETURN YES
    ELSE
-    scripterr commandname(curcmd->value) & ": slice handle " & handle & " cannot be resized while filling parent", serrBadOp
+    scripterr current_command_name() & ": slice handle " & handle & " cannot be resized while filling parent", serrBadOp
    END IF
   ELSE
    IF sl->SliceType = slText THEN
@@ -4008,10 +4165,10 @@ FUNCTION valid_resizeable_slice(byval handle as integer, byval ignore_fill as in
     IF dat->wrap = YES THEN
      RETURN YES
     ELSE
-     scripterr commandname(curcmd->value) & ": text slice handle " & handle & " cannot be resized unless wrap is enabled", serrBadOp
+     scripterr current_command_name() & ": text slice handle " & handle & " cannot be resized unless wrap is enabled", serrBadOp
     END IF
    ELSE
-    scripterr commandname(curcmd->value) & ": slice handle " & handle & " is not resizeable", serrBadOp
+    scripterr current_command_name() & ": slice handle " & handle & " is not resizeable", serrBadOp
    END IF
   END IF
  END IF
@@ -4086,7 +4243,7 @@ SUB change_rect_plotslice(byval handle as integer, byval style as integer=-2, by
   IF sl->SliceType = slRectangle THEN
    ChangeRectangleSlice sl, style, bgcol, fgcol, border, translucent
   ELSE
-   scripterr commandname(curcmd->value) & ": " & SliceTypeName(sl) & " is not a rect", serrBadOp
+   scripterr current_command_name() & ": " & SliceTypeName(sl) & " is not a rect", serrBadOp
   END IF
  END IF
 END SUB

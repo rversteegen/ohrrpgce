@@ -5,13 +5,6 @@
 'Type definitions for the basic builtin types. Place other DEFINE_VECTOR_OF_TYPE macros in another
 'module (somewhere where your type definitions are actually available, they aren't here)
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "util.bi"
 #include "common_base.bi"
@@ -31,11 +24,11 @@ SUB string_copyctor cdecl (byval p1 as string ptr, byval p2 as string ptr)
   fb_StrAssignEx(p1, -1, p2, -1, 0, 1)
 END SUB
 
-FUNCTION zstring_compare CDECL (byval a as zstring ptr ptr, byval b as zstring ptr ptr) as integer
+FUNCTION zstring_compare CDECL (byval a as zstring ptr ptr, byval b as zstring ptr ptr) as long
   RETURN strcmp(*a, *b)
 END FUNCTION
 
-FUNCTION double_compare CDECL (byval a as double ptr, byval b as double ptr) as integer
+FUNCTION double_compare CDECL (byval a as double ptr, byval b as double ptr) as long
   IF *a < *b THEN RETURN -1
   IF *a > *b THEN RETURN 1
   'implicitly RETURN 0 (it's faster to omit the RETURN :-)

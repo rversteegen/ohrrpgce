@@ -117,6 +117,7 @@ DECLARE SUB upgrade ()
 DECLARE SUB future_rpg_warning ()
 DECLARE SUB rpg_sanity_checks ()
 DECLARE SUB fix_sprite_record_count(byval pt_num as integer)
+DECLARE SUB fix_recordless_lump(lumpname as string, byref record_byte_size as integer, byval header_bytes as integer=0)
 DECLARE SUB fix_record_count(byref last_rec_index as integer, byref record_byte_size as integer, lumpname as string, info as string, byval skip_header_bytes as integer=0, byval count_offset as integer=0)
 DECLARE SUB loadglobalstrings ()
 DECLARE FUNCTION readglobalstring (byval index as integer, default as string, byval maxlen as integer=10) as string
@@ -140,6 +141,7 @@ DECLARE FUNCTION getdisplayname (default as string) as string
 
 DECLARE SUB playsongnum (byval songnum as integer)
 
+DECLARE FUNCTION open_url (url as string) as bool
 DECLARE FUNCTION spawn_and_wait (app as string, args as string) as string
 DECLARE FUNCTION find_support_dir () as string
 DECLARE FUNCTION find_helper_app (appname as string, try_install as integer=NO) as string
@@ -204,8 +206,9 @@ DECLARE FUNCTION xreadbit (bitarray() as integer, byval bitoffset as integer, by
 DECLARE FUNCTION get_text_box_height(byref box as TextBox) as integer
 DECLARE FUNCTION last_inv_slot() as integer
 
-DECLARE FUNCTION decode_backslash_codes(s as string) as string
+DECLARE FUNCTION decode_backslash_codes(s as string, context as string = "", byref show_warnings as bool = NO) as string
 DECLARE FUNCTION escape_nonprintable_ascii(s as string) as string
+DECLARE FUNCTION remove_nonprintable_ascii(s as string) as string
 DECLARE FUNCTION fixfilename (s as string) as string
 DECLARE FUNCTION sanitize_script_identifier (ident as string, byval allow_whitespace as integer = YES) as string
 
@@ -260,9 +263,6 @@ DECLARE FUNCTION should_hide_hero_stat(hero as HeroDef, byval statnum as integer
 DECLARE FUNCTION find_on_word_boundary_excluding(haystack as string, needle as string, excludeword as string) as integer
 DECLARE FUNCTION find_on_word_boundary(haystack as string, needle as string) as integer
 
-DECLARE FUNCTION get_resolution_x() as integer
-DECLARE FUNCTION get_resolution_y() as integer
-
 DECLARE FUNCTION str_rect(s as string, byval x as integer, byval y as integer) as RectType
 
 DECLARE FUNCTION cheezy_virtual_keyboard OVERLOAD (default_str as string, max_length as integer=-1, byval multi_player as integer=-1) as string
@@ -277,6 +277,9 @@ DECLARE FUNCTION keyval_arrowset_down(arr as ArrowSet) as bool
 DECLARE FUNCTION keyval_arrowset_left(arr as ArrowSet) as bool
 DECLARE FUNCTION keyval_arrowset_confirm(arr as ArrowSet) as bool
 DECLARE FUNCTION keyval_arrowset_cancel(arr as ArrowSet) as bool
+
+TYPE FnNoArgsBool as FUNCTION () as bool
+DECLARE SUB progress_spinner (exit_condition_func as FnNoArgsBool, caption as string, byval timeout_seconds as double)
 
 'Global variables
 EXTERN sourcerpg as string

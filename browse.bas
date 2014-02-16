@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "const.bi"
@@ -128,12 +121,13 @@ IF remember = "" THEN remember = curdir & SLASH
 IF default = "" THEN
  default = remember
 END IF
-startfile = default
-br.nowdir = trimfilename(startfile) & SLASH
-IF RIGHT(startfile, 1) = SLASH THEN
+default = simplify_path(default)
+IF isdir(default) THEN
+ br.nowdir = default & SLASH
  startfile = ""
 ELSE
- startfile = trimpath(startfile)
+ br.nowdir = trimfilename(default) & SLASH
+ startfile = trimpath(default)
 END IF
 
 IF br.special = 7 THEN br.mstate.size = 16 ELSE br.mstate.size = 17
@@ -265,8 +259,8 @@ DO
   .has_been_drawn = YES
   .rect.x = 10
   .rect.y = 20
-  .rect.wide = get_resolution_x()
-  .rect.high = get_resolution_y()
+  .rect.wide = get_resolution_w()
+  .rect.high = get_resolution_h()
   .spacing = 9
  END WITH
  FOR i as integer = br.mstate.top TO small(br.mstate.top + br.mstate.size, br.mstate.last)

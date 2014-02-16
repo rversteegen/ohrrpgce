@@ -3,13 +3,6 @@
 '
 'This module is completely bool-clean (bool always used when appropriate)
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "crt/limits.bi"
 #include "common.bi"
@@ -43,8 +36,8 @@ end type
 declare sub drawohr(byval src as Frame ptr, byval dest as Frame ptr, byval pal as Palette16 ptr = null, byval x as integer, byval y as integer, byval trans as bool = YES)
 'declare sub grabrect(byval page as integer, byval x as integer, byval y as integer, byval w as integer, byval h as integer, ibuf as ubyte ptr, tbuf as ubyte ptr = 0)
 declare function write_bmp_header(f as string, byval w as integer, byval h as integer, byval bitdepth as integer) as integer
-declare sub loadbmp32(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor)
-declare sub loadbmp24(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor)
+declare sub loadbmp32(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor, firstindex as integer)
+declare sub loadbmp24(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor, firstindex as integer)
 declare sub loadbmp8(byval bf as integer, byval fr as Frame ptr)
 declare sub loadbmp4(byval bf as integer, byval fr as Frame ptr)
 declare sub loadbmp1(byval bf as integer, byval fr as Frame ptr)
@@ -92,15 +85,19 @@ dim key2text(3,53) as string*1 => { _
 
 '--------- Module shared variables ---------
 
+'For each vpage() element, this records whether it shouldn't be resized when the window size changes (normally is)
+'(Not fully implemented, as it seems it would only benefit textbox_appearance_editor)
+'dim shared fixedsize_vpages() as bool
 dim shared wrkpage as integer  'used by some legacy modex functions. Usually points at clippedframe
 dim shared clippedframe as Frame ptr  'used to track which Frame the clips are set for.
 dim shared as integer clipl, clipt, clipr, clipb 'drawable area on clippedframe; right, bottom margins are excluded
 
-'temporary exploratory variable resolution stuff
+'The current internal size of the window (takes effect at next setvispage).
+'Should only be modified via set_resolution and unlock_resolution
 dim shared windowsize as XYPair = (320, 200)
-dim shared variablerez as bool = NO
+'Minimum window size; can't resize width or height below this. Default to (0,0): no bound
 dim shared minwinsize as XYPair
-dim shared forcevispageresize as bool = NO  'for mischief!
+dim shared resizing_enabled as bool = NO  'keeps track of backend state
 
 'storeset/loadset stuff
 dim shared bptr as integer ptr	' buffer
@@ -145,6 +142,7 @@ dim shared endpollthread as bool         'signal the polling thread to quit
 dim shared keybdstate(127) as integer    '"real"time keyboard array
 dim shared mouseflags as integer
 dim shared mouselastflags as integer
+dim shared cursorvisible as bool = YES
 
 'State saved from one readmouse call to the next
 dim shared mouse_lastpos as XYPair       'Position at last readmouse call
@@ -197,6 +195,7 @@ sub modex_init()
 	'initialise software gfx library
 
 	redim vpages(3)
+	'redim fixedsize_vpages(3)  'Initially all NO
 	vpagesp = @vpages(0)
 	for i as integer = 0 to 3
 		vpages(i) = frame_new(320, 200, , YES)
@@ -311,11 +310,14 @@ sub freepage (byval page as integer)
 	frame_unload(@vpages(page))
 end sub
 
+'Adds a Frame ptr to vpages(), returning its index.
 function registerpage (byval spr as Frame ptr) as integer
 	if spr->refcount <> NOREFC then	spr->refcount += 1
 	for i as integer = 0 to ubound(vpages)
 		if vpages(i) = NULL then
 			vpages(i) = spr
+			' Mark as fixed size, so it won't be resized when the window resizes.
+			'fixedsize_vpages(i) = YES
 			return i
 		end if
 	next
@@ -323,10 +325,14 @@ function registerpage (byval spr as Frame ptr) as integer
 	redim preserve vpages(ubound(vpages) + 1)
 	vpagesp = @vpages(0)
 	vpages(ubound(vpages)) = spr
+	'redim preserve fixedsize_vpages(ubound(vpages) + 1)
+	'fixedsize_vpages(ubound(vpages)) = YES
 	return ubound(vpages)
 end function
 
-function allocatepage(byval w as integer = 320, byval h as integer = 200) as integer
+function allocatepage(byval w as integer = -1, byval h as integer = -1) as integer
+	if w < 0 then w = windowsize.w
+	if h < 0 then h = windowsize.h
 	dim fr as Frame ptr = frame_new(w, h, , YES)
 
 	dim ret as integer = registerpage(fr)
@@ -343,13 +349,13 @@ function duplicatepage (byval page as integer) as integer
 	return ret
 end function
 
-'copy page1 to page2
+'Copy contents of one page onto another
 'should copying to a page of different size resize that page?
-sub copypage (byval page1 as integer, byval page2 as integer)
-	'if vpages(page1)->w <> vpages(page2)->w or vpages(page1)->h <> vpages(page2)->h then
+sub copypage (byval src as integer, byval dest as integer)
+	'if vpages(src)->w <> vpages(dest)->w or vpages(src)->h <> vpages(dest)->h then
 	'	debug "warning, copied to page of unequal size"
 	'end if
-	frame_draw vpages(page1), , 0, 0, , NO, vpages(page2)
+	frame_draw vpages(src), , 0, 0, , NO, vpages(dest)
 end sub
 
 sub clearpage (byval page as integer, byval colour as integer = -1)
@@ -357,41 +363,146 @@ sub clearpage (byval page as integer, byval colour as integer = -1)
 	frame_clear vpages(page), colour
 end sub
 
-'TEMPORARY
-'resizes a page to match the 'window size' (which is a fake, currently) - if so, the page is erased
-'returns whether the page size was changed
-function updatepagesize (byval page as integer) as bool
-	gfx_getresize(windowsize)
-	if vpages(page)->w = windowsize.w and vpages(page)->h = windowsize.h then return NO
+'The contents are either trimmed or extended with colour 0.
+sub resizepage (page as integer, w as integer, h as integer)
+	if vpages(page) = NULL then
+		showerror "resizepage called with null ptr"
+		exit sub
+	end if
+	dim newpage as Frame ptr
+	newpage = frame_new(w, h, , YES)
+	frame_draw vpages(page), NULL, 0, 0, 1, 0, newpage
 	frame_unload @vpages(page)
-	vpages(page) = frame_new(windowsize.w, windowsize.h, , YES)
-	return YES
+	vpages(page) = newpage
+end sub
+
+private function compatpage_internal(pageframe as Frame ptr) as Frame ptr
+	return frame_new_view(vpages(vpage), (vpages(vpage)->w - 320) / 2, (vpages(vpage)->h - 200) / 2, 320, 200)
 end function
 
-'TEMPORARY
-sub unlockresolution (byval min_w as integer = -1, byval min_h as integer = -1)
-	variablerez = YES
-	minwinsize.w = iif(min_w = -1, 320, min_w)
-	minwinsize.h = iif(min_h = -1, 200, min_h)
-	windowsize.w = large(windowsize.w, minwinsize.w)
-	windowsize.h = large(windowsize.h, minwinsize.h)
-end sub
+'Return a video page which is a view on vpage hat is 320x200 (or smaller) and centred.
+'In order to use this, draw to the returned page, but call setvispage(vpage).
+'Do not swap dpage and vpage!
+'WARNING: if a menu using compatpage calls another one that does swap dpage and
+'vpage, things will break 50% of the time!
+function compatpage() as integer
+	dim fakepage as integer
+	dim centreview as Frame ptr
+	centreview = compatpage_internal(vpages(vpage))
+	fakepage = registerpage(centreview)
+	frame_unload @centreview
+	return fakepage
+end function
 
-'TEMPORARY
-sub setresolution (byval w as integer, byval h as integer)
-	forcevispageresize = YES
-	windowsize.w = large(w, minwinsize.w)
-	windowsize.h = large(h, minwinsize.h)
-end sub
 
-'TEMPORARY
-sub resetresolution ()
-	variablerez = NO
-	windowsize = Type(320, 200)
-	for i as integer = 0 to ubound(vpages)
-		if vpages(i) then updatepagesize i
+'==========================================================================================
+'                                   Resolution changing
+'==========================================================================================
+
+
+'First check if the window was resized by the user,
+'then if windowsize has changed (possibly by a call to unlock_resolution/set_resolution)
+'resize all videopages (except compatpages) to the new window size.
+'The videopages are either trimmed or extended with colour 0.
+private sub screen_size_update ()
+	'Changes windowsize if user tried to resize, otherwise does nothing
+	gfx_get_resize(windowsize)
+
+	'Clamping windowsize to the minwinsize here means trying to override user
+	'resizes (specific to the case where the backend doesn't support giving the WM
+	'a min size hint).
+	'However unfortunately gfx_sdl can't reliably override it, at least with X11+KDE,
+	'because the window size can't be changed while the user is still dragging the window
+	'frame.
+	'So just accept whatever the backend says the actual window size is.
+	'windowsize.w = large(windowsize.w, minwinsize.w)
+	'windowsize.h = large(windowsize.h, minwinsize.h)
+
+	dim oldvpages(ubound(vpages)) as Frame ptr
+	for page as integer = 0 to ubound(vpages)
+		oldvpages(page) = vpages(page)
+	next
+	'oldvpages pointers will be invalidated
+
+	'Resize dpage and vpage (I think it's better to hardcode 0 & 1 rather
+	'than using dpage and vpage variables in case the later are temporarily changed)
+
+	'Update size of all real pages. I think it's better to do so to all pages rather
+	'than just page 0 and 1, as other pages are generally used as 'holdpages'.
+	'The alternative is to update all menus using holdpages to clear the screen
+	'before copying the holdpage over.
+	'All pages which are not meant to be the same size as the screen
+	'currently don't persist to the next frame.
+	for page as integer = 0 to ubound(vpages)
+		if vpages(page) andalso vpages(page)->isview = NO then
+			if vpages(page)->w <> windowsize.w or vpages(page)->h <> windowsize.h then
+				'debug "screen_size_update: resizing page " & page & " -> " & windowsize.w & "*" & windowsize.h
+				resizepage page, windowsize.w, windowsize.h
+			end if
+		end if
+	next
+
+	'Scan for compatpages (we're assuming all views are compatpages, which isn't true in
+	'general, but currently true when setvispage is called) and replace each with a new view
+	'onto the same page if it changed.
+	for page as integer = 0 to ubound(vpages)
+		if vpages(page) andalso vpages(page)->isview then
+			for page2 as integer = 0 to ubound(oldvpages)
+				if vpages(page)->base = oldvpages(page2) and vpages(page2) <> oldvpages(page2) then
+					'debug "screen_size_update: updating view page " & page & " to new compatpage onto " & page2
+					frame_unload @vpages(page)
+					vpages(page) = compatpage_internal(vpages(page2))
+					exit for
+				end if
+			next
+			'If no match found, do nothing
+		end if
 	next
 end sub
+
+'Makes the window resizeable, and sets a minimum size.
+'Whenever the window is resized all videopages (except compatpages) are resized to match.
+sub unlock_resolution (byval min_w as integer, byval min_h as integer)
+	debuginfo "unlock_resolution " & min_w & "*" & min_h
+	minwinsize.w = min_w
+	minwinsize.h = min_h
+	if gfx_supports_variable_resolution() = NO then
+		debuginfo "Resolution changing not supported"
+		exit sub
+	end if
+	resizing_enabled = gfx_set_resizable(YES, minwinsize.w, minwinsize.h)
+	windowsize.w = large(windowsize.w, minwinsize.w)
+	windowsize.h = large(windowsize.h, minwinsize.h)
+	screen_size_update
+end sub
+
+'Disable window resizing.
+sub lock_resolution ()
+	resizing_enabled = gfx_set_resizable(NO, 0, 0)
+end sub
+
+'Set the window size, if possible, subject to min size bound. Doesn't modify resizability state.
+'This will resize all videopages (except compatpages) to the new window size.
+sub set_resolution (byval w as integer, byval h as integer)
+	debuginfo "set_resolution " & w & "*" & h
+	if gfx_supports_variable_resolution() = NO then
+		debuginfo "Resolution changing not supported"
+		exit sub
+	end if
+	windowsize.w = large(w, minwinsize.w)
+	windowsize.h = large(h, minwinsize.h)
+	screen_size_update
+end sub
+
+'The current internal window size in pixels (actual window updated at next setvispage)
+function get_resolution_w() as integer
+	return windowsize.w
+end function
+
+'The current internal window size in pixels (actual window updated at next setvispage)
+function get_resolution_h() as integer
+	return windowsize.h
+end function
 
 
 '==========================================================================================
@@ -399,38 +510,45 @@ end sub
 '==========================================================================================
 
 
+'Display a videopage. May modify the page!
+'Also resizes all videopages to match the window size
 sub setvispage (byval page as integer)
-	fpsframes += 1
-	if timer > fpstime + 1 then
-		fpsstring = "fps:" & INT(10 * fpsframes / (timer - fpstime)) / 10
-		fpstime = timer
-		fpsframes = 0
-	end if
-	if showfps then
-		edgeprint fpsstring, 255, 190, uilook(uiText), page
-	end if
-
-	'the fb backend may freeze up if it collides with the polling thread
-	mutexlock keybdmutex
-	if updatepal then
-		gfx_setpal(@intpal(0))
-		updatepal = NO
-	end if
-	with *vpages(page)
-		if .w = windowsize.w and .h = windowsize.h then
-			gfx_showpage(.image, .w, .h)
-		else
-			dim tpage as integer
-			tpage = allocatepage(windowsize.w, windowsize.h)
-			frame_draw vpages(page), NULL, 0, 0, 1, 0, tpage
-			gfx_showpage(vpages(tpage)->image, windowsize.w, windowsize.h)
-			freepage tpage
+	if gfx_supports_variable_resolution() = NO then
+		'Safety check. We must stick to 320x200, otherwise the backend could crash.
+		'In future backends should be updated to accept other sizes even if they only support 320x200
+		'(Actually gfx_directx appears to accept other sizes, but I can't test)
+		if vpages(page)->w <> 320 or vpages(page)->h <> 200 then
+			resizepage page, 320, 200
+			showerror "setvispage: page was not 320x200 even though gfx backend forbade it"
 		end if
-	end with
-	mutexunlock keybdmutex
+	end if
 
-	'for having fun
-	if forcevispageresize then updatepagesize page
+	with *vpages(page)
+		fpsframes += 1
+		if timer > fpstime + 1 then
+			fpsstring = "fps:" & INT(10 * fpsframes / (timer - fpstime)) / 10
+			fpstime = timer
+			fpsframes = 0
+		end if
+		if showfps then
+			'NOTE: this is bad if displaying a page other than vpage/dpage!
+			edgeprint fpsstring, vpages(page)->w - 65, vpages(page)->h - 10, uilook(uiText), page
+		end if
+		'rectangle .w - 6, .h - 6, 6, 6, uilook(uiText), page
+
+		'the fb backend may freeze up if it collides with the polling thread
+		mutexlock keybdmutex
+		if updatepal then
+			gfx_setpal(@intpal(0))
+			updatepal = NO
+		end if
+		gfx_showpage(.image, .w, .h)
+		mutexunlock keybdmutex
+	end with
+
+	'After presenting the page this is a good time to check for window size changes and
+	'resize the videopages as needed before the next frame is rendered.
+	screen_size_update
 end sub
 
 sub setpal(pal() as RGBcolor)
@@ -1199,29 +1317,16 @@ sub setkeys (byval enable_inputtext as bool = NO)
 		showfps xor= 1
 	end if
 
-	'some debug keys for working on resolution independence
+	'Some debug keys for working on resolution independence
 	if keyval(scShift) > 0 and keyval(sc1) > 0 then
-		if variablerez then
-			if keyval(scRightBrace) > 1 then
-				windowsize.w += 10
-				windowsize.h += 10
-			end if
-			if keyval(scLeftBrace) > 1 then
-				windowsize.w -= 10
-				windowsize.h -= 10
-				windowsize.w = large(windowsize.w, minwinsize.w)
-				windowsize.h = large(windowsize.h, minwinsize.h)
-			end if
+		if keyval(scRightBrace) > 1 then
+			set_resolution windowsize.w + 10, windowsize.h + 10
+		end if
+		if keyval(scLeftBrace) > 1 then
+			set_resolution windowsize.w - 10, windowsize.h - 10
 		end if
 		if keyval(scR) > 1 then
-			variablerez xor= YES
-			gfx_setresizable(variablerez)
-			if forcevispageresize = NO then
-				forcevispageresize = YES
-			else
-				forcevispageresize = NO
-				resetresolution
-			end if
+			resizing_enabled = gfx_set_resizable(resizing_enabled xor YES, minwinsize.w, minwinsize.h)
 		end if
 	end if
 
@@ -1273,12 +1378,18 @@ end function
 
 sub hidemousecursor ()
 	io_setmousevisibility(0)
+	cursorvisible = NO
 end sub
 
 sub unhidemousecursor ()
 	io_setmousevisibility(-1)
 	io_mouserect(-1, -1, -1, -1)
+	cursorvisible = YES
 end sub
+
+function mousecursorvisible () as bool
+	return cursorvisible
+end function
 
 function readmouse () as MouseInfo
 	dim info as MouseInfo
@@ -2093,9 +2204,9 @@ sub getsprite (pic() as integer, byval picoff as integer, byval x as integer, by
 	sbase = vpages(page)->image + (vpages(page)->pitch * y) + x
 
 	'pixels are stored in columns for the sprites (argh)
-	for sh = 0 to w - 1
+	for sh = 0 to small(w, vpages(page)->w)  - 1
 		sptr = sbase
-		for sw = 0 to h - 1
+		for sw = 0 to small(h, vpages(page)->h) - 1
 			select case nyb
 				case 0
 					pic(p) = (*sptr and &h0f) shl 12
@@ -2171,6 +2282,8 @@ end sub
 
 sub loadset (fil as string, byval i as integer, byval l as integer)
 ' i = index, l = line (only if reading to screen buffer)
+'Obsolete, use loadrecord instead
+'Note: This is extremely slow when reading past end of file because fread buffering internal stuff
 	dim f as integer
 	dim idx as integer
 	dim bi as integer
@@ -2264,12 +2377,24 @@ sub storemxs (fil as string, byval record as integer, byval fr as Frame ptr)
 end sub
 
 function loadmxs (fil as string, byval record as integer, byval dest as Frame ptr = NULL) as Frame ptr
-'loads a 320x200 mode X format page from a file.
-'You may optionally pass in existing frame to load into.
+'Loads a 320x200 mode X format page from a file.
+'You may optionally pass in existing frame to load into (unnecessary functionality)
 	dim f as integer
 	dim as integer x, y
 	dim sptr as ubyte ptr
 	dim plane as integer
+
+	if dest then
+		dim temp as Frame ptr
+		temp = loadmxs(fil, record)
+		frame_clear dest
+		if temp then
+			frame_draw temp, , 0, 0, , NO, dest
+			frame_unload @temp
+		end if
+		return dest
+	end if
+	dest = frame_new(320, 200)
 
 	if NOT fileisreadable(fil) then return 0
 	if record < 0 then
@@ -2288,16 +2413,13 @@ function loadmxs (fil as string, byval record as integer, byval dest as Frame pt
 	'skip to index
 	seek #f, (record*64000) + 1
 
-	if dest = NULL then
-		dest = frame_new(320, 200)
-	end if
-
 	'modex format, 4 planes
 	for plane = 0 to 3
-		for y = 0 to 199
+		for y = 0 to 200 - 1
 			sptr = dest->image + dest->pitch * y + plane
 
-			for x = 0 to (80 - 1) '1/4 of a row
+			'1/4 of a row
+			for x = 0 to 80 - 1
 				get #f, , *sptr
 				sptr = sptr + 4
 			next
@@ -2469,6 +2591,34 @@ sub fuzzyrect (byval fr as Frame Ptr, byval x as integer, byval y as integer, by
 		h -= 1
 		sptr += fr->pitch
 	wend
+end sub
+
+'Draw either a rectangle or a scrolling chequer pattern.
+'bgcolor is either between 0 and 255 (a colour), -1 (a scrolling chequered
+'background), or -2 (a non-scrolling chequered background)
+'chequer_scroll is a counter variable which the calling function should increment once per tick.
+sub draw_background (x as integer, y as integer, wide as integer, high as integer, bgcolor as integer, byref chequer_scroll as integer, dest as Frame ptr)
+	const zoom = 3  'Chequer pattern zoom, fixed
+	const rate = 4  'ticks per pixel scrolled, fixed
+	'static chequer_scroll as integer
+	chequer_scroll = POSMOD(chequer_scroll, (zoom * rate * 2))
+
+	if bgcolor >= 0 then
+		rectangle dest, x, y, wide, high, bgcolor
+	else
+		dim bg_chequer as Frame Ptr
+		bg_chequer = frame_new(wide / zoom + 2, high / zoom + 2)
+		frame_clear bg_chequer, uilook(uiBackground)
+		fuzzyrect bg_chequer, 0, 0, bg_chequer->w, bg_chequer->h, uilook(uiDisabledItem)
+		dim offset as integer = 0
+		if bgcolor = -1 then offset = chequer_scroll \ rate
+		dim oldclip as ClipState
+		saveclip oldclip
+		shrinkclip x, y, x + wide - 1, y + high - 1, dest
+		frame_draw bg_chequer, NULL, x - offset, y - offset, zoom, NO, dest
+		loadclip oldclip
+		frame_unload @bg_chequer
+	end if
 end sub
 
 sub drawline (byval x1 as integer, byval y1 as integer, byval x2 as integer, byval y2 as integer, byval c as integer, byval p as integer)
@@ -2789,7 +2939,8 @@ sub ellipse (byval fr as Frame ptr, byval x as double, byval y as double, byval 
 end sub
 
 'Replaces one colour with another within a rectangular region.
-'Specifying the region is optional
+'Specifying the region is optional (all four args x,y,w,h must be given if any of them are)
+'w and h may be negative to 'grow' a rectangle from the opposite edge
 sub replacecolor (byval fr as Frame ptr, byval c_old as integer, byval c_new as integer, byval x as integer = -1, byval y as integer = -1, byval w as integer = -1, byval h as integer = -1)
 	if clippedframe <> fr then
 		setclip , , , , fr
@@ -2832,7 +2983,7 @@ end sub
 'Pass a string, a 0-based offset of the start of the tag (it is assumed the first two characters have already
 'been matched as ${ or \8{ as desired), and action and arg pointers, to fill with the parse results. (Action in UPPERCASE)
 'Returns 0 for an invalidly formed tag, otherwise the (0-based) offset of the closing }.
-function parse_tag(z as string, byval offset as integer, byval action as string ptr, byval arg as integer ptr) as integer
+function parse_tag(z as string, byval offset as integer, byval action as string ptr, byval arg as int32 ptr) as integer
 	dim closebrace as integer = INSTR((offset + 4) + 1, z, "}") - 1
 	if closebrace <> -1 then
 		*action = ""
@@ -2863,24 +3014,24 @@ end function
 type PrintStrState
 	'Public members (may set before passing to render_text)
 	as Font ptr thefont
-	as integer fgcolor          'Used when resetting localpal. May be -1 for none
-	as integer bgcolor          'Only used if not_transparent
-	as bool    not_transparent  'Force non-transparency of layer 1
+	as long fgcolor          'Used when resetting localpal. May be -1 for none
+	as long bgcolor          'Only used if not_transparent
+	as bool32 not_transparent  'Force non-transparency of layer 1
 
 	'Internal members
 	as Font ptr initial_font    'Used when resetting thefont
-	as integer leftmargin
-	as integer rightmargin
-	as integer x
-	as integer y
-	as integer startx
-	as integer charnum
+	as long leftmargin
+	as long rightmargin
+	as long x
+	as long y
+	as long startx
+	as long charnum
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
 	as Palette16 localpal
-	as integer initial_fgcolor  'Used when resetting fgcolor
-	as integer initial_bgcolor  'Used when resetting bgcolor
-	as bool    initial_not_trans 'Used when resetting bgcolor
+	as long initial_fgcolor  'Used when resetting fgcolor
+	as long initial_bgcolor  'Used when resetting bgcolor
+	as bool32 initial_not_trans 'Used when resetting bgcolor
 end type
 
 'Special signalling characters
@@ -2888,7 +3039,7 @@ end type
 #define tcmdState      15
 #define tcmdPalette    16
 #define tcmdRepalette  17
-#define tcmdFont       18
+#define tcmdFont       18  '1 argument: the font number (possibly -1)
 #define tcmdLast       18
 
 'Invisible argument: state. (member should not be . prefixed, unfortunately)
@@ -2898,22 +3049,22 @@ end type
 'members greater than 4 bytes aren't supported
 #macro UPDATE_STATE(outbuf, member, value)
 	'Ugh! FB doesn't allow sizeof in #if conditions!
-	#if typeof(state.member) <> integer
+	#if typeof(state.member) <> long
 		#error "UPDATE_STATE: bad member type"
 	#endif
 	outbuf += CHR(tcmdState) & "      "
 	*Cast(short ptr, @outbuf[len(outbuf) - 6]) = Offsetof(PrintStrState, member)
-	*Cast(integer ptr, @outbuf[len(outbuf) - 4]) = Cast(integer, value)
+	*Cast(long ptr, @outbuf[len(outbuf) - 4]) = Cast(long, value)
 	state.member = value
 #endmacro
 
 'Interprets a control sequence (at 0-based offset ch in outbuf) written by UPDATE_STATE,
 'modifying state.
 #define MODIFY_STATE(state, outbuf, ch) _
-	/' dim offset as integer = *Cast(short ptr, @outbuf[ch + 1]) '/ _
-	/' dim newval as integer = *Cast(integer ptr, @outbuf[ch + 3]) '/ _
-	*Cast(integer ptr, Cast(byte ptr, @state) + *Cast(short ptr, @outbuf[ch + 1])) = _
-		*Cast(integer ptr, @outbuf[ch + 3]) : _
+	/' dim offset as long = *Cast(short ptr, @outbuf[ch + 1]) '/ _
+	/' dim newval as long = *Cast(long ptr, @outbuf[ch + 3]) '/ _
+	*Cast(long ptr, Cast(byte ptr, @state) + *Cast(short ptr, @outbuf[ch + 1])) = _
+		*Cast(long ptr, @outbuf[ch + 3]) : _
 	ch += 6
 
 #define APPEND_CMD0(outbuf, cmd_id) _
@@ -2921,10 +3072,10 @@ end type
 
 #define APPEND_CMD1(outbuf, cmd_id, value) _
 	outbuf += CHR(cmd_id) & "    " : _
-	*Cast(integer ptr, @outbuf[len(outbuf) - 4]) = Cast(integer, value)
+	*Cast(long ptr, @outbuf[len(outbuf) - 4]) = Cast(long, value)
 
 #define READ_CMD(outbuf, ch, variable) _
-	variable = *Cast(integer ptr, @outbuf[ch + 1]) : _
+	variable = *Cast(long ptr, @outbuf[ch + 1]) : _
 	ch += 4
 
 'Processes starting from z[state.charnum] until the end of the line, returning a string
@@ -3013,7 +3164,7 @@ private function layout_line_fragment(z as string, byval endchar as integer, byv
 			elseif z[ch] = asc("$") then
 				if withtags and z[ch + 1] = asc("{") then
 					dim action as string
-					dim intarg as integer
+					dim intarg as int32
 
 					dim closebrace as integer = parse_tag(z, ch, @action, @intarg)
 					if closebrace then
@@ -3038,7 +3189,7 @@ private function layout_line_fragment(z as string, byval endchar as integer, byv
 								else
 									goto badtexttag
 								end if
-								APPEND_CMD1(outbuf, tcmdFont, .thefont)
+								APPEND_CMD1(outbuf, tcmdFont, intarg) '.thefont)
 								line_height = large(line_height, .thefont->h)
 							else
 								goto badtexttag
@@ -3203,10 +3354,24 @@ sub draw_line_fragment(byval dest as Frame ptr, byref state as PrintStrState, by
 			if parsed_line[ch] = tcmdState then
 				'Control sequence. Make a change to state, and move ch past the sequence
 				MODIFY_STATE(state, parsed_line, ch)
+
 			elseif parsed_line[ch] = tcmdFont then
 				READ_CMD(parsed_line, ch, arg)
-				.thefont = cast(Font ptr, arg)
-				'.thefont = @fonts(arg)
+				if arg >= -1 andalso arg <= ubound(fonts) then
+					if arg = -1 then
+						'UPDATE_STATE(outbuf, thefont, .initial_font)
+						.thefont = .initial_font
+					elseif fonts(arg).initialised then
+						'UPDATE_STATE(outbuf, thefont, @fonts(arg))
+						.thefont = @fonts(arg)
+					else
+						'This should be impossible, because layout_line_fragment has already checked this
+						debugc errPromptBug, "draw_line_fragment: font not initialised!"
+					end if
+				else
+					'This should be impossible, because layout_line_fragment has already checked this
+					debugc errPromptBug, "draw_line_fragment: invalid font!"
+				end if
 				if reallydraw then
 					'In case .fgcolor == -1 and .thefont->pal == NULL. Palette changes are per-font,
 					'so reset the colour.
@@ -3214,6 +3379,7 @@ sub draw_line_fragment(byval dest as Frame ptr, byref state as PrintStrState, by
 					'We rebuild the local palette using either the font's palette or from scratch
 					build_text_palette state, .thefont->pal
 				end if
+
 			elseif parsed_line[ch] = tcmdPalette then
 				READ_CMD(parsed_line, ch, arg)
 				if reallydraw then
@@ -3227,12 +3393,14 @@ sub draw_line_fragment(byval dest as Frame ptr, byref state as PrintStrState, by
 					end if
 					'FIXME: in fact pal should be kept around, for tcmdRepalette
 				end if
+
 			elseif parsed_line[ch] = tcmdRepalette then
 				if reallydraw then
 					'FIXME: if we want to support switching to a non-font palette, then
 					'that palette should be stored in state and used here
 					build_text_palette state, .thefont->pal
 				end if
+
 			else
 				'Draw a character
 
@@ -3570,7 +3738,7 @@ sub printstr (s as string, byval x as integer, byval y as integer, byval p as in
 end sub
 
 'this doesn't autowrap either
-sub edgeprint (s as string, byval x as integer, byval y as integer, byval c as integer, byval p as integer, byval withtags as bool = NO)
+sub edgeprint (s as string, byval x as integer, byval y as integer, byval c as integer, byval p as integer, byval withtags as bool = NO, byval withnewlines as bool = NO)
 	'preserve the old behaviour (edgeprint used to call textcolor)
 	textfg = c
 	textbg = 0
@@ -3579,7 +3747,7 @@ sub edgeprint (s as string, byval x as integer, byval y as integer, byval c as i
 	state.thefont = @fonts(1)
 	state.fgcolor = c
 
-	render_text (vpages(p), state, s, , x, y, , , withtags, NO)
+	render_text (vpages(p), state, s, , x, y, , , withtags, withnewlines)
 end sub
 
 sub textcolor (byval fg as integer, byval bg as integer)
@@ -3822,7 +3990,11 @@ sub font_loadold1bit (byval font as Font ptr, byval fontdata as ubyte ptr)
 				'maskp += 8
 			next
 			fi = fi + fstep
+#IFDEF __FB_64BIT__
+			fstep = iif(fstep = 1, 7, 1) 'uneven steps due to 2->8 byte thunk
+#ELSE
 			fstep = iif(fstep = 1, 3, 1) 'uneven steps due to 2->4 byte thunk
+#ENDIF
 			sptr += 1 - 8 * 8
 			'maskp += 1 - 8 * 8
 		next
@@ -3980,6 +4152,28 @@ end sub
 sub setfont (f() as integer)
 	font_loadold1bit(@fonts(0), cast(ubyte ptr, @f(0)))
 	font_create_edged(@fonts(1), @fonts(0))
+end sub
+
+'NOTE: the following two functions are for the old style fonts, they will
+'be removed when switching to the new system supporting unicode fonts
+
+'These old style fonts store the type of the font in first integer (part of character
+'0). The default "Latin-1.ohf" and "OHRRPGCE Default.ohf" fonts are marked as Latin 1, so
+'any font derived from them will be too (ability to change the type only added in Callipygous)
+
+function get_font_type (font() as integer) as fontTypeEnum
+	if font(0) <> ftypeASCII and font(0) <> ftypeLatin1 then
+		debugc errPromptBug, "Unknown font type ID " & font(0)
+		return ftypeASCII
+	end if
+	return font(0)
+end function
+
+sub set_font_type (font() as integer, ty as fontTypeEnum)
+	if ty <> ftypeASCII and ty <> ftypeLatin1 then
+		debugc errPromptBug, "set_font_type: bad type " & ty
+	end if
+	font(0) = ty
 end sub
 
 
@@ -4230,9 +4424,11 @@ function open_bmp_and_read_header(bmp as string, byref header as BITMAPFILEHEADE
 end function
 
 
-function frame_import_bmp24_or_32(bmp as string, pal() as RGBcolor) as Frame ptr
+function frame_import_bmp24_or_32(bmp as string, pal() as RGBcolor, firstindex as integer = 0) as Frame ptr
 'loads and palettises the 24-bit or 32-bit bitmap bmp, mapped to palette pal()
 'The alpha channel if any is ignored
+'Pass firstindex = 1 to prevent anything from getting mapped to colour 0.
+
 	dim header as BITMAPFILEHEADER
 	dim info as BITMAPINFOHEADER
 	dim bf as integer
@@ -4247,9 +4443,9 @@ function frame_import_bmp24_or_32(bmp as string, pal() as RGBcolor) as Frame ptr
 	ret = frame_new(info.biWidth, info.biHeight)
 
 	if info.biBitCount = 24 then
-		loadbmp24(bf, ret, pal())
+		loadbmp24(bf, ret, pal(), firstindex)
 	elseif info.biBitCount = 32 then
-		loadbmp32(bf, ret, pal())
+		loadbmp32(bf, ret, pal(), firstindex)
 	else
 		debug "frame_import_bmp24_or_32 should not have been called!"
 		frame_unload @ret
@@ -4346,7 +4542,7 @@ function frame_import_bmp_raw(bmp as string) as Frame ptr
 	return ret
 end function
 
-private sub loadbmp32(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor)
+private sub loadbmp32(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor, firstindex as integer)
 'takes an open file handle, an already sized Frame, and a 256 colour palette to map to
 	dim pix as RGBQUAD
 	dim ub as ubyte
@@ -4357,13 +4553,13 @@ private sub loadbmp32(byval bf as integer, byval fr as Frame ptr, pal() as RGBco
 		sptr = fr->image + h * fr->pitch
 		for w = 0 to fr->w - 1
 			get #bf, , pix
-			*sptr = nearcolor(pal(), pix.rgbRed, pix.rgbGreen, pix.rgbBlue)
+			*sptr = nearcolor(pal(), pix.rgbRed, pix.rgbGreen, pix.rgbBlue, firstindex)
 			sptr += 1
 		next
 	next
 END SUB
 
-private sub loadbmp24(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor)
+private sub loadbmp24(byval bf as integer, byval fr as Frame ptr, pal() as RGBcolor, firstindex as integer)
 'takes an open file handle, an already sized Frame pointer, and a 256 colour palette to map to
 	dim pix as RGBTRIPLE
 	dim ub as ubyte
@@ -4380,7 +4576,7 @@ private sub loadbmp24(byval bf as integer, byval fr as Frame ptr, pal() as RGBco
 		for w = 0 to fr->w - 1
 			'read the data
 			get #bf, , pix
-			*sptr = nearcolor(pal(), pix.rgbtRed, pix.rgbtGreen, pix.rgbtBlue)
+			*sptr = nearcolor(pal(), pix.rgbtRed, pix.rgbtGreen, pix.rgbtBlue, firstindex)
 			sptr += 1
 		next
 		'padding to dword boundary
@@ -4632,10 +4828,11 @@ function loadbmppal (f as string, pal() as RGBcolor) as integer
 	return info.biBitCount
 end function
 
-sub convertbmppal (f as string, mpal() as RGBcolor, pal() as integer)
+sub convertbmppal (f as string, mpal() as RGBcolor, pal() as integer, firstindex as integer = 0)
 'Find the nearest match palette mapping from a 1/4/8 bit bmp f to
 'the master palette mpal(), and store it in pal(), an array of mpal() indices.
-'pal() may contain initial values, used as hints.
+'pal() may contain initial values, used as hints which are used if an exact match.
+'Pass firstindex = 1 to prevent anything from getting mapped to colour 0.
 	dim bitdepth as integer
 	dim cols(255) as RGBcolor
 
@@ -4643,7 +4840,7 @@ sub convertbmppal (f as string, mpal() as RGBcolor, pal() as integer)
 	if bitdepth = 0 then exit sub
 
 	for i as integer = 0 to small(UBOUND(pal), (1 SHL bitdepth) - 1)
-		pal(i) = nearcolor(mpal(), cols(i).r, cols(i).g, cols(i).b, , pal(i))
+		pal(i) = nearcolor(mpal(), cols(i).r, cols(i).g, cols(i).b, firstindex, pal(i))
 	next
 end sub
 
@@ -4671,7 +4868,7 @@ function color_distance(pal() as RGBcolor, byval index1 as integer, byval index2
 end function
 
 function nearcolor(pal() as RGBcolor, byval red as ubyte, byval green as ubyte, byval blue as ubyte, byval firstindex as integer = 0, byval indexhint as integer = -1) as ubyte
-'Figure out nearest palette colour in a very very crude way
+'Figure out nearest palette colour in range [firstindex..255] using Euclidean distance
 'A perfect match against pal(indexhint) is tried first
 	dim as integer i, diff, best, save, rdif, bdif, gdif
 
@@ -6468,6 +6665,12 @@ sub sprite_draw(spr as SpriteState ptr, byval x as integer, byval y as integer, 
 	frame_draw(spr->curframe, spr->pal, realx, realy, scale, trans, page)
 end sub
 
+
+'==========================================================================================
+'                           Platform specific wrapper functions
+'==========================================================================================
+
+
 sub show_virtual_keyboard()
 	'Does nothing on platforms that have real keyboards
 	debuginfo "show_virtual_keyboard"
@@ -6492,18 +6695,55 @@ end sub
 
 sub remap_android_gamepad(byval player as integer, gp as GamePadMap)
 	'Does nothing on non-android non-ouya platforms
-	debuginfo "remap_android_gamepad " & gp.Ud & " " & gp.Rd & " " & gp.Dd & " " & gp.Ld & " " & gp.A & " " & gp.B & " " & gp.X & " " & gp.Y & " " & gp.L1 & " " & gp.R1 & " " & gp.L2 & " " & gp.R2
+	'debuginfo "remap_android_gamepad " & gp.Ud & " " & gp.Rd & " " & gp.Dd & " " & gp.Ld & " " & gp.A & " " & gp.B & " " & gp.X & " " & gp.Y & " " & gp.L1 & " " & gp.R1 & " " & gp.L2 & " " & gp.R2
 	io_remap_android_gamepad(player, gp)
 end sub
 
 sub remap_touchscreen_button (byval button_id as integer, byval ohr_scancode as integer)
 	'Does nothing on platforms without touch screens
-	debuginfo "remap_android_gamepad " & button_id & " " & ohr_scancode
+	'debuginfo "remap_android_gamepad " & button_id & " " & ohr_scancode
 	io_remap_touchscreen_button(button_id, ohr_scancode)
 end sub
 
 function running_on_console() as bool
-	return io_running_on_console()
+	'Currently the ouya is the only supported console, but there could be others someday
+	static cached as bool = NO
+	static cached_result as bool
+	if not cached then
+		cached_result = io_running_on_console()
+		cached = YES
+	end if
+	return cached_result
+end function
+
+function running_on_ouya() as bool
+'Only use this for things that strictly require OUYA, like the OUYA store
+#IFDEF __FB_ANDROID__
+	static cached as bool = NO
+	static cached_result as bool
+	if not cached then
+		cached_result = io_running_on_console()
+		cached = YES
+	end if
+	return cached_result
+#ELSE
+	return NO
+#ENDIF
+end function
+
+function running_on_mobile() as bool
+#IFDEF __FB_ANDROID__
+	'--return true for all Android except OUYA
+	static cached as bool = NO
+	static cached_result as bool
+	if not cached then
+		cached_result = NOT io_running_on_console()
+		cached = YES
+	end if
+	return cached_result
+#ELSE
+	return NO
+#ENDIF
 end function
 
 function get_safe_zone_margin () as integer
@@ -6526,3 +6766,39 @@ function supports_safe_zone_margin () as bool
 	'Returns YES if the current backend supports safe zone margins
 	return gfx_supports_safe_zone_margin()
 end function
+
+sub ouya_purchase_request (dev_id as string, identifier as string, key_der as string)
+	'Only works on OUYA. Should do nothing on other platforms
+	debug "ouya_purchase_request for product " & identifier
+	gfx_ouya_purchase_request(dev_id, identifier, key_der)
+end sub
+
+function ouya_purchase_is_ready () as bool
+	'Wait until the OUYA store has replied. Always return YES on other platforms
+	return gfx_ouya_purchase_is_ready()
+end function
+
+function ouya_purchase_succeeded () as bool
+	'Returns YES if the OUYA purchase was completed successfully.
+	'Always returns NO on other platforms
+	return gfx_ouya_purchase_succeeded()
+end function
+
+sub ouya_receipts_request (dev_id as string, key_der as string)
+	'Start a request for reciepts. They may take some time.
+	'Does nothing if the platform is not OUYA
+	gfx_ouya_receipts_request(dev_id, key_der)
+end sub
+
+function ouya_receipts_are_ready () as bool
+	'Wait until the OUYA store has replied. Always return YES on other platforms
+	return gfx_ouya_receipts_are_ready ()
+end function
+
+function ouya_receipts_result () as string
+	'Returns a newline delimited list of OUYA product identifiers that
+	'have already been purchased.
+	'Always returns "" on other platforms
+	return gfx_ouya_receipts_result()
+end function
+

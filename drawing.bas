@@ -4,13 +4,6 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "udts.bi"
 #include "custom_udts.bi"
@@ -21,11 +14,12 @@ DECLARE SUB savepasdefaults (byref defaults as integer vector, tilesetnum as int
 DECLARE FUNCTION importmasterpal (f as string, byval palnum as integer) as integer
 
 'Local SUBs and FUNCTIONS
+DECLARE FUNCTION pick_image_pixel(image as Frame ptr, pal16 as Palette16 ptr = NULL, byref pickpos as XYPair, zoom as integer = 1, maxx as integer = 9999, maxy as integer = 9999, message as string, helpkey as string) as bool
 DECLARE FUNCTION importbmp_import(mxslump as string, imagenum as integer, srcbmp as string, pmask() as RGBcolor) as bool
 
-DECLARE SUB picktiletoedit (byref tmode as integer, byval pagenum as integer, mapfile as string)
-DECLARE SUB editmaptile (ts as TileEditState, mover() as integer, mouse as MouseInfo, area() as MouseArea)
-DECLARE SUB tilecut (ts as TileEditState, mouse as MouseInfo, area() as MouseArea)
+DECLARE SUB picktiletoedit (byref tmode as integer, byval pagenum as integer, mapfile as string, bgcolor as integer)
+DECLARE SUB editmaptile (ts as TileEditState, mover() as integer, mouse as MouseInfo, area() as MouseArea, bgcolor as integer)
+DECLARE SUB tilecut (ts as TileEditState, mouse as MouseInfo)
 DECLARE SUB refreshtileedit (mover() as integer, state as TileEditState)
 DECLARE SUB writeundoblock (mover() as integer, state as TileEditState)
 DECLARE SUB readundoblock (mover() as integer, state as TileEditState)
@@ -48,7 +42,7 @@ DECLARE SUB tileedit_set_tool (ts as TileEditState, toolinfo() as ToolInfoType, 
 DECLARE SUB tile_anim_draw_range(tastuf() as integer, byval taset as integer)
 DECLARE SUB tile_anim_set_range(tastuf() as integer, byval taset as integer, byval pagenum as integer)
 DECLARE SUB tile_animation(byval pagenum as integer)
-DECLARE SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string)
+DECLARE SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string, byref bgcolor as integer)
 
 DECLARE SUB spriteedit_load_what_you_see(byval j as integer, byval top as integer, byval sets as integer, ss as SpriteEditState, byval soff as integer, placer() as integer, workpal() as integer, poffset() as integer)
 DECLARE SUB spriteedit_save_what_you_see(byval j as integer, byval top as integer, byval sets as integer, ss as SpriteEditState, byval soff as integer, placer() as integer, workpal() as integer, poffset() as integer)
@@ -116,6 +110,14 @@ NEXT i
 
 END SUB
 
+'Used inside the palette color disabler in importbmp
+PRIVATE SUB toggle_pmask (pmask() as RGBcolor, master() as RGBcolor, index as integer)
+ pmask(index).r xor= master(index).r
+ pmask(index).g xor= master(index).g
+ pmask(index).b xor= master(index).b
+ setpal pmask()
+END SUB
+
 SUB importbmp (f as string, cap as string, byref count as integer)
 STATIC default as string
 DIM pmask(255) as RGBcolor
@@ -138,6 +140,9 @@ DIM tog as integer
 DIM cx as integer
 DIM cy as integer
 DIM pt as integer = 0 'backdrop number
+DIM mouse as MouseInfo
+DIM rect as RectType
+DIM col as integer
 
 IF count = 0 THEN count = 1
 loadpalette pmask(), activepalette
@@ -181,7 +186,11 @@ DO
    menu(1) = CHR(27) + "Browse " & pt & CHR(26)
    loadmxs game + f, pt, vpages(2)
   END IF
-  IF mstate.pt = 4 THEN GOSUB disable
+  IF mstate.pt = 4 THEN
+   hidemousecursor
+   GOSUB disable
+   unhidemousecursor
+  END IF
   IF mstate.pt = 5 THEN
    DIM outfile as string
    outfile = inputfilename("Name of file to export to?", ".bmp", "", "input_file_export_screen", trimextension(trimpath(sourcerpg)) & " " & cap & pt)
@@ -207,6 +216,29 @@ DO
  setwait 55
  setkeys
  tog = tog XOR 1
+ mouse = readmouse()
+ WITH mouse
+  IF .clickstick AND mouseleft THEN
+   IF rect_collide_point(str_rect("Previous Menu", 0, 0), .x, .y) THEN
+    RETRACE
+   ELSE
+    rect.wide = 10  '2 pixels wider than real squares, to avoid gaps
+    rect.high = 10
+    col = -1
+    'Click on a palette colour
+    FOR xidx as integer = 0 TO 15
+     FOR yidx as integer = 0 TO 15
+      rect.topleft = TYPE<XYPair>(xidx * 10, 8 + yidx * 10)
+      IF rect_collide_point(rect, .x, .y) THEN col = yidx * 16 + xidx
+     NEXT
+    NEXT
+    'Click on an image pixel
+    IF col = -1 THEN col = readpixel(.x, .y, 2)
+    toggle_pmask pmask(), master(), col
+   END IF
+  END IF
+ END WITH
+
  IF keyval(scESC) > 1 THEN setpal master(): RETRACE
  IF keyval(scF1) > 1 THEN show_help "importbmp_disable"
  IF csr2 = 0 THEN
@@ -219,10 +251,7 @@ DO
   IF keyval(scDown) > 1 THEN cy = small(cy + 1, 15)
   IF keyval(scUp) > 1 THEN cy = cy - 1: IF cy < 0 THEN cy = 0: csr2 = 0
   IF enter_or_space() THEN
-   pmask(cy * 16 + cx).r xor= master(cy * 16 + cx).r
-   pmask(cy * 16 + cx).g xor= master(cy * 16 + cx).g
-   pmask(cy * 16 + cx).b xor= master(cy * 16 + cx).b
-   setpal pmask()
+   toggle_pmask pmask(), master(), cy * 16 + cx
   END IF
  END IF
  copypage 2, dpage
@@ -234,10 +263,23 @@ DO
    rectangle 1 + o * 10, 9 + i * 10, 8, 8, i * 16 + o, dpage
   NEXT o
  NEXT i
+ printstr CHR(2), mouse.x - 2, mouse.y - 2, dpage
  SWAP vpage, dpage
  setvispage vpage
  dowait
 LOOP
+END SUB
+
+'Give the user the chance to remap a color to 0.
+SUB importbmp_change_background_color(img as Frame ptr)
+ DIM pickpos as XYPair
+ DIM ret as bool
+ DIM message as string = !"Pick the background (transparent) color\nor press ESC to skip remapping"
+ ret = pick_image_pixel(img, , pickpos, , , , message, "importbmp_pickbackground")
+ IF ret THEN
+  DIM bgcol as integer = readpixel(img, pickpos.x, pickpos.y)
+  replacecolor img, bgcol, 0
+ END IF
 END SUB
 
 'Returns true if imported, false if cancelled
@@ -251,10 +293,10 @@ FUNCTION importbmp_import(mxslump as string, imagenum as integer, srcbmp as stri
 
  bmpinfo(srcbmp, bmpd)
  IF bmpd.biBitCount <= 8 THEN
-  paloption = 2  'no remapping
+  paloption = 0  'Perform remapping, otherwise disabling colors won't work
   loadbmppal srcbmp, temppal()
   IF memcmp(@temppal(0), @master(0), 256 * sizeof(RGBcolor)) <> 0 THEN
-   'the palette is inequal to the master palette 
+   'the palette is inequal to the master palette
    clearpage vpage
    menu(0) = "Remap to current Master Palette"
    menu(1) = "Import with new Master Palette"
@@ -271,7 +313,14 @@ FUNCTION importbmp_import(mxslump as string, imagenum as integer, srcbmp as stri
   END IF
   img = frame_import_bmp_raw(srcbmp)
   IF paloption = 0 THEN
-   convertbmppal srcbmp, pmask(), palmapping()
+   'Put hint values in palmapping(), which will used if an exact match
+   FOR idx as integer = 0 TO 255
+    palmapping(idx) = idx
+   NEXT
+   ' Disallow anything other than colour 0 from being mapped to colour 0 to prevent accidental transparency,
+   ' and force 0 to be mapped to 0.
+   convertbmppal srcbmp, pmask(), palmapping(), 1  'firstindex = 1
+   palmapping(0) = 0
    FOR y as integer = 0 TO img->h - 1
     FOR x as integer = 0 TO img->w - 1
      putpixel img, x, y, palmapping(readpixel(img, x, y))
@@ -279,20 +328,38 @@ FUNCTION importbmp_import(mxslump as string, imagenum as integer, srcbmp as stri
    NEXT
   END IF
  ELSE
-  img = frame_import_bmp24_or_32(srcbmp, pmask())
+  'Since the source image is not paletted, we don't know what the background colour
+  'is (if any: not all backdrops and tilesets are transparent). Import it, disallowing anything to
+  'be remapped to colour 0 (unfortunately colour 0 is the only pure black in the default palette),
+  'then let the user pick.
+  img = frame_import_bmp24_or_32(srcbmp, pmask(), 1)
+  importbmp_change_background_color img
  END IF
+
  storemxs mxslump, imagenum, img
  frame_unload @img
  loadpalette pmask(), activepalette
  RETURN YES
 END FUNCTION
 
+'Draw a Frame (specially a tileset) onto another Frame with the transparent
+'colour replaced either with another colour, or with a chequer pattern.
+'bgcolor is either between 0 and 255 (a colour), -1 (a scrolling chequered
+'background), or -2 (a non-scrolling chequered background)
+'chequer_scroll is a counter variable which the calling function should increment once per tick.
+SUB frame_draw_with_background (byval src as Frame ptr, byval pal as Palette16 ptr = NULL, byval x as integer, byval y as integer, byval scale as integer = 1, byval bgcolor as integer, byref chequer_scroll as integer, byval dest as Frame ptr)
+ draw_background x, y, src->w * scale, src->h * scale, bgcolor, chequer_scroll, dest
+ 'Draw transparently
+ frame_draw src, pal, x, y, scale, YES, dest
+END SUB
+
 SUB maptile ()
+STATIC bgcolor as integer = 0
 DIM menu() as string
 DIM mapfile as string = game & ".til"
 DIM pagenum as integer
 DIM top as integer = -1
-DIM tog as integer
+DIM chequer_scroll as integer
 
 DIM state as MenuState
 state.top = -1
@@ -302,9 +369,17 @@ state.last = gen(genMaxTile)
 state.size = 20
 state.need_update = YES
 
+'The tileset editor only works at 320x200 or larger, since the tileset is stored on page 3
+DIM remember_resolution as XYPair = (get_resolution_w, get_resolution_h)
+set_resolution 320, 200
+lock_resolution
+'Force videopage sizes to update
+setvispage vpage
+
 clearpage 3
 setkeys
 DO
+ chequer_scroll += 1
  setwait 55
  setkeys
  IF keyval(scESC) > 1 THEN EXIT DO
@@ -333,7 +408,7 @@ DO
  IF enter_space_click(state) AND state.pt = -1 THEN EXIT DO
  IF enter_space_click(state) AND state.pt > -1 THEN
   pagenum = state.pt
-  tile_edit_mode_picker pagenum, mapfile
+  tile_edit_mode_picker pagenum, mapfile, bgcolor
   state.need_update = YES
  END IF
 
@@ -347,7 +422,7 @@ DO
   IF state.pt = -1 THEN clearpage 3 ELSE loadmxs mapfile, state.pt, vpages(3)
  END IF
 
- copypage 3, dpage
+ frame_draw_with_background vpages(3), , 0, 0, , bgcolor, chequer_scroll, vpages(dpage)
  DIM menuopts as MenuOptions
  menuopts.edged = YES
  standardmenu menu(), state, 10, 8, dpage, menuopts
@@ -363,17 +438,21 @@ clearpage 0
 'Robust againts tileset leaks
 sprite_update_cache_tilesets
 
+unlock_resolution 320, 200
+set_resolution remember_resolution.w, remember_resolution.h
+
 END SUB
  
-SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string)
- DIM menu(5) as string
+SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string, byref bgcolor as integer)
+ DIM chequer_scroll as integer
+ DIM menu(6) as string
  menu(0) = "Draw Tiles"
  menu(1) = "Cut Tiles from Tilesets"
  menu(2) = "Cut Tiles from Backdrops"
  menu(3) = "Set Default Passability"
  menu(4) = "Define Tile Animation"
- menu(5) = "Cancel"
- 
+ menu(6) = "Cancel"
+
  DIM state as MenuState
  init_menu_state state, menu()
  state.need_update = YES
@@ -383,6 +462,7 @@ SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string)
  
  setkeys
  DO
+  chequer_scroll += 1
   setwait 55
   setkeys
   IF keyval(scESC) > 1 THEN EXIT DO
@@ -391,14 +471,24 @@ SUB tile_edit_mode_picker(byval pagenum as integer, mapfile as string)
   IF enter_space_click(state) THEN
    SELECT CASE state.pt
     CASE 0, 1, 2, 3
-     picktiletoedit state.pt, pagenum, mapfile
+     picktiletoedit state.pt, pagenum, mapfile, bgcolor
     CASE 4
      tile_animation pagenum
     CASE 5
+     bgcolor = color_browser_256(large(bgcolor, 0))
+    CASE 6
      EXIT DO
    END SELECT
   END IF
-  copypage 3, dpage
+  IF state.pt = 5 THEN intgrabber(bgcolor, -2, 255)
+  frame_draw_with_background vpages(3), , 0, 0, , bgcolor, chequer_scroll, vpages(dpage)
+  IF bgcolor = -2 THEN
+   menu(5) = "Background: chequer"
+  ELSEIF bgcolor = -1 THEN
+   menu(5) = "Background: scrolling chequer"
+  ELSE
+   menu(5) = "Background color: " & bgcolor
+  END IF
   standardmenu menu(), state, 10, 8, dpage, menuopt
   SWAP vpage, dpage
   setvispage vpage
@@ -734,7 +824,7 @@ RETRACE
 
 END SUB
 
-SUB picktiletoedit (byref tmode as integer, byval pagenum as integer, mapfile as string)
+SUB picktiletoedit (byref tmode as integer, byval pagenum as integer, mapfile as string, bgcolor as integer)
 STATIC cutnpaste(19, 19) as integer
 STATIC oldpaste as integer
 DIM ts as TileEditState
@@ -743,6 +833,7 @@ DIM area(24) as MouseArea
 DIM mouse as MouseInfo
 ts.tilesetnum = pagenum
 ts.drawframe = frame_new(20, 20, , YES)
+DIM chequer_scroll as integer
 DIM tog as integer
 ts.gotmouse = havemouse()
 hidemousecursor
@@ -772,14 +863,7 @@ FOR i as integer = 0 TO 3
  area(12 + i).w = 8
  area(12 + i).h = 8
 NEXT i
-area(10).x = 8
-area(10).y = 190
-area(10).w = 32
-area(10).h = 10
-area(11).x = 280
-area(11).y = 190
-area(11).w = 32
-area(11).h = 10
+'Areas 11 and 12 used only in tile cutter
 'LESS AIRBRUSH AREA
 area(16).x = 12
 area(16).y = 60
@@ -892,17 +976,17 @@ DO
  IF enter_or_space() OR mouse.clicks > 0 THEN
   setkeys
   IF tmode = 0 THEN
-   editmaptile ts, mover(), mouse, area()
+   editmaptile ts, mover(), mouse, area(), bgcolor
   END IF
   IF tmode = 1 THEN
    ts.cuttileset = YES
    ts.cutfrom = small(ts.cutfrom, gen(genMaxTile))
-   tilecut ts, mouse, area()
+   tilecut ts, mouse
   END IF 
   IF tmode = 2 THEN
    ts.cuttileset = NO
    ts.cutfrom = small(ts.cutfrom, gen(genNumBackdrops) - 1)
-   tilecut ts, mouse, area()
+   tilecut ts, mouse
   END IF 
   IF tmode = 3 THEN
    DIM buf() as integer
@@ -913,7 +997,7 @@ DO
   IF slave_channel <> NULL_CHANNEL THEN storemxs mapfile, pagenum, vpages(3)
  END IF
 
- copypage 3, dpage
+ frame_draw_with_background vpages(3), , 0, 0, , bgcolor, chequer_scroll, vpages(dpage)
  IF tmode = 1 OR tmode = 2 THEN
   'Show tile number
   edgeprint "Tile " & bnum, 0, IIF(bnum < 112, 190, 0), uilook(uiText), dpage
@@ -944,7 +1028,10 @@ DO
  END IF
  SWAP dpage, vpage
  setvispage vpage
- IF dowait THEN tog = tog XOR 1
+ IF dowait THEN
+  tog = tog XOR 1
+  chequer_scroll += 1
+ END IF
 LOOP
 storemxs mapfile, pagenum, vpages(3)
 IF tmode = 3 THEN
@@ -979,7 +1066,7 @@ printstr ">", 270, 16 + (state.undo * 21), 2
 refreshtileedit mover(), state
 END SUB
 
-SUB editmaptile (ts as TileEditState, mover() as integer, mouse as MouseInfo, area() as MouseArea)
+SUB editmaptile (ts as TileEditState, mover() as integer, mouse as MouseInfo, area() as MouseArea, bgcolor as integer)
 STATIC clone as TileCloneBuffer
 DIM spot as XYPair
 
@@ -1060,6 +1147,7 @@ overlay = frame_new(20, 20, , YES)
 DIM overlaypal as Palette16 ptr
 overlaypal = palette16_new()
 
+DIM chequer_scroll as integer = 0
 DIM tog as integer = 0
 DIM tick as integer = 0
 ts.lastcpos = TYPE(ts.x, ts.y)
@@ -1173,6 +1261,7 @@ DO
  IF keyval(scEnter) > 1 THEN ts.curcolor = readpixel(ts.tilex * 20 + ts.x, ts.tiley * 20 + ts.y, 3)
  SELECT CASE ts.zone
  CASE 1
+  'Drawing area
   ts.x = zox \ 8
   ts.y = zoy \ 8
   IF ts.tool = clone_tool THEN
@@ -1206,6 +1295,7 @@ DO
   END IF
   IF mouse.buttons AND mouseLeft THEN clicktile mover(), ts, (mouse.clicks AND mouseLeft), clone
  CASE 2
+  'Colour selector
   IF mouse.clicks AND mouseLeft THEN
    ts.curcolor = ((zoy \ 4) * 16) + ((zox MOD 160) \ 10) + (zox \ 160) * 128
   END IF
@@ -1259,7 +1349,7 @@ DO
 
  '--Draw screen (Some of the editor is predrawn to page 2)
  copypage 2, dpage
- frame_draw ts.drawframe, NULL, 80, 0, 8, NO, dpage  'Draw the tile, at 8x zoom
+ frame_draw_with_background ts.drawframe, NULL, 80, 0, 8, bgcolor, chequer_scroll, vpages(dpage)  'Draw the tile, at 8x zoom with background
  frame_clear overlay
  overlay_use_palette = YES  'OK, this is a bit of a hack
  overlaypal->col(1) = ts.curcolor
@@ -1359,7 +1449,11 @@ DO
  SWAP dpage, vpage
  setvispage vpage
  tick = 0
- IF dowait THEN tick = 1: tog = tog XOR 1
+ IF dowait THEN
+  tick = 1
+  tog = tog XOR 1
+  chequer_scroll += 1
+ END IF
 LOOP
 IF ts.gotmouse THEN
  movemouse ts.tilex * 20 + 10, ts.tiley * 20 + 10
@@ -1583,7 +1677,19 @@ refreshtileedit mover(), ts
 rectangle 0, 0, 20, 20, uilook(uiBackground), dpage
 END SUB
 
-SUB tilecut (ts as TileEditState, mouse as MouseInfo, area() as MouseArea)
+SUB tilecut (ts as TileEditState, mouse as MouseInfo)
+DIM area(24) as MouseArea
+'"Prev" button
+area(10).x = 8
+area(10).y = 190
+area(10).w = 32
+area(10).h = 10
+'"Next" button
+area(11).x = 280
+area(11).y = 190
+area(11).w = 32
+area(11).h = 10
+
 IF ts.gotmouse THEN
  movemouse ts.x, ts.y
 END IF
@@ -1624,7 +1730,7 @@ DO
  IF keyval(scDown) AND 5 THEN ts.y = small(ts.y + inc, 180): IF ts.gotmouse THEN movemouse ts.x, ts.y
  IF keyval(scLeft) AND 5 THEN ts.x = large(ts.x - inc, 0): IF ts.gotmouse THEN movemouse ts.x, ts.y
  IF keyval(scRight) AND 5 THEN ts.x = small(ts.x + inc, 300): IF ts.gotmouse THEN movemouse ts.x, ts.y
- IF enter_or_space() OR (mouse.clicks > 0 AND ts.zone < 11) THEN
+ IF enter_or_space() OR (mouse.clicks > 0 AND ts.zone = 0) THEN
   IF ts.delay = 0 THEN
    FOR i as integer = 0 TO 19
     FOR j as integer = 0 TO 19
@@ -1745,6 +1851,13 @@ END SUB
 
 SUB sprite (byval xw as integer, byval yw as integer, byref sets as integer, byval perset as integer, byval soff as integer, info() as string, byval zoom as integer, byval fileset as integer, byval fullset as integer=NO, byval cursor_start as integer=0, byval cursor_top as integer=0)
 STATIC ss_save as SpriteEditStatic
+
+'The sprite editor doesn't work at anything other than 320x200; graphics are corrupted
+DIM remember_resolution as XYPair = (get_resolution_w, get_resolution_h)
+set_resolution 320, 200
+lock_resolution
+'Force videopage sizes to update
+setvispage vpage
 
 DIM ss as SpriteEditState
 WITH ss
@@ -1956,14 +2069,16 @@ clearpage 0
 clearpage 1
 clearpage 2
 clearpage 3
-EXIT SUB
+
+unlock_resolution 320, 200
+set_resolution remember_resolution.w, remember_resolution.h
 
 END SUB '----END of sprite()
 
 SUB spriteedit_clip (placer() as integer, ss as SpriteEditState)
  'clip possibly rotated sprite buffer to sprite's frame size
  DIM holdscreen as integer
- holdscreen = allocatepage
+ holdscreen = allocatepage(320, 200)  'I assume this is sufficient
  drawsprite placer(), 0, ss.nulpal(), 0, 0, 0, holdscreen
  getsprite placer(), 0, 0, 0, ss.wide, ss.high, holdscreen
  freepage holdscreen
@@ -1998,7 +2113,14 @@ SUB spriteedit_display(ss as SpriteEditState, ss_save as SpriteEditStatic, state
  textcolor uilook(uiText), uilook(uiDisabledItem): IF ss.zonenum = 6 THEN textcolor uilook(uiText), uilook(uiSelectedDisabled)
  printstr CHR(26), 304, 100, dpage
  textcolor uilook(uiText), 0
- printstr LEFT(" Pal", 4 - (LEN(STR(poffset(state.pt))) - 3)) & poffset(state.pt), 248, 100, dpage
+ IF ss.showcolnum > 0 THEN
+  printstr " Col" & ss.curcolor, 248, 100, dpage
+  IF keyval(scAlt) = 0 THEN
+   ss.showcolnum -= 1
+  END IF
+ ELSE
+  printstr LEFT(" Pal", 4 - (LEN(STR(poffset(state.pt))) - 3)) & poffset(state.pt), 248, 100, dpage
+ END IF
  rectangle 247 + (ss.palindex * 4), 110, 5, 7, uilook(uiText), dpage
  FOR i = 0 TO 15
   rectangle 248 + (i * 4), 111, 3, 5, peek8bit(workpal(), i + (state.pt - state.top) * 16), dpage
@@ -2314,7 +2436,7 @@ END SUB
 SUB frame_to_4bit_buffer(byval spr as Frame ptr, buf() as integer, byval wid as integer, byval high as integer)
  'Allocate a 320x200 page instead of just registering spr as a page, because it might be smaller than wid*high
  DIM holdscreen as integer
- holdscreen = allocatepage
+ holdscreen = allocatepage(320, 200)
  frame_draw spr, NULL, 0, 0, 1, YES, holdscreen
  getsprite buf(), 0, 0, 0, wid, high, holdscreen
  freepage holdscreen
@@ -2425,54 +2547,248 @@ SUB spriteedit_import16_loadbmp(byref ss as SpriteEditState, workpal() as intege
  END IF
 END SUB
 
-'Lets the use pick one of the colour/pixels in impsprite, returns the colour index
-'Returns -1 is cancelled
-FUNCTION spriteedit_import16_pick_bgcol(byref ss as SpriteEditState, byref impsprite as Frame ptr, byref pal16 as Palette16 ptr) as integer
+'Returns a new Frame, after deleting the input one. Returns NULL if cancelled
+FUNCTION spriteedit_import16_cut_frames(byref ss as SpriteEditState, impsprite as Frame ptr, pal16 as Palette16 ptr, bgcol as integer) as Frame ptr
+ DIM image_pos as XYPair = (1, 1)  'Position at which to draw impsprite
+
+ 'This staticness is a bit hacky
+ STATIC last_fileset as integer = -1
+ STATIC frame_size as XYPair
+ STATIC first_offset as XYPair     'Position of first frame
+ STATIC direction_offset as XYPair 'Offset between direction groups
+ STATIC frame_offset as XYPair     'Offset between frames for the same direction
+
+ 'unlock_resolution 320, 200   'Minimum window size
+
+ WITH sprite_sizes(ss.fileset)
+  DIM frames_per_dir as integer = .frames \ .directions
+
+  IF last_fileset <> ss.fileset THEN
+   frame_size = .size
+   first_offset = TYPE(0, 0)
+   frame_offset = TYPE(.size.w, 0)
+   direction_offset = TYPE(.size.w * frames_per_dir, 0)
+  END IF
+  last_fileset = ss.fileset
+
+  DIM tog as integer
+  DIM menu(7) as string
+  DIM st as MenuState
+  DIM menuopts as MenuOptions
+  menuopts.edged = YES
+  st.active = YES
+  IF .directions > 1 THEN
+   st.last = 7
+  ELSE
+   st.last = 5
+  END IF
+  st.size = st.last + 1
+
+  setkeys
+  DO
+   setwait 55
+   setkeys
+   tog XOR= 1
+
+   'Every frame re-layout the menu
+   'The Y position of the text at bottom of the screen
+   DIM texty as integer = vpages(dpage)->h - (st.last + 2) * 8 - 4
+
+   DIM zoom as integer
+   ' Choose maximum zoom that will fit
+   zoom = small(large(1, vpages(dpage)->w \ impsprite->w), large(1, texty \ impsprite->h))
+
+   IF keyval(scESC) > 1 THEN
+    frame_unload @impsprite
+    RETURN NULL
+   END IF
+   IF keyval(scF1) > 1 THEN show_help "sprite_import16_cut_frames"
+   IF enter_or_space() THEN EXIT DO
+
+   usemenu st
+   DIM temp as integer = st.pt
+   IF .directions = 1 AND temp >= 2 THEN temp += 2
+   SELECT CASE temp
+    CASE 0: intgrabber first_offset.x, -impsprite->w, impsprite->w
+    CASE 1: intgrabber first_offset.y, -impsprite->h, impsprite->h
+    CASE 2: intgrabber direction_offset.x, -impsprite->w, impsprite->w
+    CASE 3: intgrabber direction_offset.y, -impsprite->h, impsprite->h
+    CASE 4: intgrabber frame_offset.x, -impsprite->w, impsprite->w
+    CASE 5: intgrabber frame_offset.y, -impsprite->h, impsprite->h
+    CASE 6: intgrabber frame_size.w, 0, .size.w
+    CASE 7: intgrabber frame_size.h, 0, .size.h
+   END SELECT
+
+   menu(0) = "First frame x: " & first_offset.x
+   menu(1) = "First frame y: " & first_offset.y
+   temp = 2
+   IF .directions > 1 THEN
+    menu(2) = "Direction group offset x: " & direction_offset.x
+    menu(3) = "Direction group offset y: " & direction_offset.y
+    temp = 4
+   END IF
+   menu(temp) = "Each-frame offset x: " & frame_offset.x
+   menu(temp + 1) = "Each-frame offset y: " & frame_offset.y
+   menu(temp + 2) = "Frame width: " & frame_size.w
+   menu(temp + 3) = "Frame height: " & frame_size.h
+
+   '--Draw screen
+   clearpage dpage
+   drawbox image_pos.x - 1, image_pos.y - 1, zoom * impsprite->w + 2, zoom * impsprite->h + 2, uilook(uiMenuItem), 1, dpage
+   frame_draw impsprite, pal16, image_pos.x, image_pos.y, zoom, NO, dpage
+
+   DIM framenum as integer = 0
+   FOR direction as integer = 0 TO .directions - 1
+    FOR dirframe as integer = 0 TO frames_per_dir - 1
+     DIM as integer x, y  'coords in terms of impsprite pixels
+     x = first_offset.x + direction * direction_offset.x + dirframe * frame_offset.x
+     y = first_offset.y + direction * direction_offset.y + dirframe * frame_offset.y
+     drawbox image_pos.x + zoom * x, image_pos.y + zoom * y, zoom * frame_size.w, zoom * frame_size.h, uilook(uiText), 1, dpage
+     framenum += 1
+    NEXT
+   NEXT
+
+   'edgeprint "Offsets between spriteset frames:", 0, texty, uilook(uiText), dpage, YES, YES
+   edgeprint "Select spriteset layout and press ENTER", 0, texty, uilook(uiText), dpage, YES, YES
+   standardmenu menu(), st, 0, texty + 10, dpage, menuopts
+   
+   SWAP vpage, dpage
+   setvispage vpage
+   dowait
+  LOOP
+
+  ' Cut out the frames and place in a new one DIM flattened_set as Frame ptr
+  DIM flattened_set as Frame ptr
+  flattened_set = frame_new(ss.wide, ss.high)
+  frame_clear flattened_set, bgcol
+
+  DIM framenum as integer = 0
+  FOR direction as integer = 0 TO .directions - 1
+   FOR dirframe as integer = 0 TO frames_per_dir - 1
+    DIM as integer x, y
+    x = first_offset.x + direction * direction_offset.x + dirframe * frame_offset.x
+    y = first_offset.y + direction * direction_offset.y + dirframe * frame_offset.y
+    DIM impview as Frame ptr = frame_new_view(impsprite, x, y, frame_size.w, frame_size.h)
+    frame_draw impview, , (.size.w - frame_size.w) \ 2 + framenum * .size.w, .size.h - frame_size.h, , NO, flattened_set
+    frame_unload @impview
+    framenum += 1
+   NEXT
+  NEXT
+
+  frame_unload @impsprite
+ END WITH
+
+ 'set_resolution 320, 200
+ 'lock_resolution
+ RETURN flattened_set
+END FUNCTION
+
+'Select a single pixel from a Frame, used for selecting the background colour.
+'pal16 may be NULL.
+'zoom is the zoom to draw at.
+'Can restrict the selected pixel to the top left corner of the image by passing maxx, maxy args
+'Returns NO if user cancelled, otherwise YES and the pixel coordinate is returned in pickpos
+FUNCTION pick_image_pixel(image as Frame ptr, pal16 as Palette16 ptr = NULL, byref pickpos as XYPair, zoom as integer = 1, maxx as integer = 9999, maxy as integer = 9999, message as string, helpkey as string) as bool
+ DIM ret as bool = YES
  DIM tog as integer
- DIM pickpos as XYPair
  DIM picksize as XYPair
  pickpos.x = 0
  pickpos.y = 0
- picksize.x = small(320, small(impsprite->w, ss.wide))
- picksize.y = small(200, small(impsprite->h, ss.high))
+ DIM imagepos as XYPair
+ ' If it's smaller than the screen, offset the image so it's not sitting in the corner
+ IF maxx * zoom + 4 < vpages(dpage)->w THEN
+  imagepos.x = 4
+  imagepos.y = 1
+ END IF
 
+ DIM mouse_was_visible as bool = mousecursorvisible()
+ hidemousecursor
+ DIM mouse as MouseInfo
  setkeys
  DO
-  setwait 55
+  setwait 20
   setkeys
+  mouse = readmouse()
   tog XOR= 1
-  IF keyval(scESC) > 1 THEN RETURN -1
-  IF keyval(scF1) > 1 THEN show_help "frame_import16_pickbackground"
-  IF enter_or_space() THEN EXIT DO
+  IF keyval(scESC) > 1 THEN ret = NO : EXIT DO
+  IF keyval(scF1) > 1 THEN show_help helpkey
 
-  DIM movespeed as integer
-  IF keyval(scALT) THEN movespeed = 9 ELSE movespeed = 1
-  IF keyval(scUp) > 0 THEN pickpos.y = large(pickpos.y - movespeed, 0)
-  IF keyval(scDown) > 0 THEN pickpos.y = small(pickpos.y + movespeed, picksize.y - 1)
-  IF keyval(scleft) > 0 THEN pickpos.x = large(pickpos.x - movespeed, 0)
-  IF keyval(scRight) > 0 THEN pickpos.x = small(pickpos.x + movespeed, picksize.x - 1)
+  IF enter_or_space() OR (mouse.clickstick AND mouseleft) THEN
+   ret = YES
+   EXIT DO
+  END IF
+
+  picksize.x = small(vpages(dpage)->w, small(image->w, maxx))
+  picksize.y = small(vpages(dpage)->h, small(image->h, maxy))
+
+  '--Moving mouse moves cursor and vice versa
+  IF mouse.moved THEN
+   pickpos.x = bound((mouse.x - imagepos.x) \ zoom, 0, picksize.x - 1)
+   pickpos.y = bound((mouse.y - imagepos.y) \ zoom, 0, picksize.y - 1)
+  ELSE
+   DIM movespeed as integer
+   IF keyval(scALT) THEN movespeed = 9 ELSE movespeed = 1
+   DIM moved as bool = NO
+   IF keyval(scUp) > 0 THEN pickpos.y = large(pickpos.y - movespeed, 0) : moved = YES
+   IF keyval(scDown) > 0 THEN pickpos.y = small(pickpos.y + movespeed, picksize.y - 1) : moved = YES
+   IF keyval(scleft) > 0 THEN pickpos.x = large(pickpos.x - movespeed, 0) : moved = YES
+   IF keyval(scRight) > 0 THEN pickpos.x = small(pickpos.x + movespeed, picksize.x - 1) : moved = YES
+   IF moved THEN
+    mouse.x = imagepos.x + (pickpos.x + 0.5) * zoom
+    mouse.y = imagepos.y + (pickpos.y + 0.5) * zoom
+    movemouse mouse.x, mouse.y
+   END IF
+  END IF
 
   clearpage dpage
-  frame_draw impsprite, pal16, 4, 1, ss.zoom, NO, dpage
-  'Draw box around the proportion of the image that will be used
-  drawbox 3, 0, ss.wide * ss.zoom + 2, ss.high * ss.zoom + 2, uilook(uiText), 1, dpage
+  frame_draw image, pal16, imagepos.x, imagepos.y, zoom, NO, dpage
+  'Draw box around the selectable proportion of the image
+  drawbox imagepos.x - 1, imagepos.y - 1, picksize.x * zoom + 2, picksize.y * zoom + 2, uilook(uiText), 1, dpage
+
+  '--Draw info box at top right
+  DIM current_col as integer = readpixel(image, pickpos.x, pickpos.y)
+  DIM master_col as integer  ' Index in master()
+  IF pal16 THEN
+   master_col = pal16->col(current_col)
+  ELSE
+   master_col = current_col
+  END IF
+  rectangle vpages(dpage)->w - 50, 0, 50, 40, master_col, dpage
+  edgeprint !"Color:\n" & current_col, vpages(dpage)->w - 50, 10, uilook(uiMenuItem), dpage, YES, YES
 
   '--Draw the pixel cursor
   DIM col as integer
   IF tog THEN col = uilook(uiBackground) ELSE col = uilook(uiText)
-  IF ss.zoom = 1 THEN
-   'A single pixel is too small
+  IF zoom = 1 THEN
+   'A single pixel is too small, so draw the crosshair mouse cursor.
+   'A little bit tricky: we only draw the mouse cursor, and not a separate cursor
    textcolor col, 0
-   printstr CHR(5), 4 + pickpos.x - 2, 1 + pickpos.y - 2, dpage
+   'printstr CHR(5), imagepos.x + pickpos.x - 2, imagepos.y + pickpos.y - 2, dpage
+   printstr CHR(5), mouse.x - 2, mouse.y - 2, dpage
   ELSE
-   rectangle 4 + pickpos.x * ss.zoom, 1 + pickpos.y * ss.zoom, ss.zoom, ss.zoom, col, dpage
+   'Draw both pixel cursor and mouse cursor
+   rectangle imagepos.x + pickpos.x * zoom, imagepos.y + pickpos.y * zoom, zoom, zoom, col, dpage
+   textcolor uilook(uiSelectedItem + tog), 0
+   printstr CHR(2), mouse.x - 2, mouse.y - 2, dpage
   END IF
 
-  edgeprint "Pick background (transparent) color", 0, 190, uilook(uiMenuItem), dpage
+  edgeprint message, 0, 180, uilook(uiMenuItem), dpage, YES, YES
+  'edgeprint "ALT: move faster", 320 - 16*8, 190, uilook(uiMenuItem), dpage, YES, YES
   SWAP vpage, dpage
   setvispage vpage
   dowait
  LOOP
+ IF mouse_was_visible THEN unhidemousecursor
+ RETURN ret
+END FUNCTION
+
+'Lets the use pick one of the colour/pixels in impsprite, returns the colour index
+'Returns -1 if cancelled.
+FUNCTION spriteedit_import16_pick_bgcol(byref ss as SpriteEditState, impsprite as Frame ptr, pal16 as Palette16 ptr) as integer
+ DIM pickpos as XYPair
+ DIM ret as bool
+ ret = pick_image_pixel(impsprite, pal16, pickpos, ss.zoom, , , "Pick background (transparent) color", "sprite_import16_pickbackground")
+ IF ret = NO THEN RETURN -1
 
  RETURN readpixel(impsprite, pickpos.x, pickpos.y)
 END FUNCTION
@@ -2618,6 +2934,14 @@ SUB spriteedit_import16(byref ss as SpriteEditState, byref ss_save as SpriteEdit
   frame_unload @impsprite
   palette16_unload @pal16
   EXIT SUB
+ END IF
+
+ IF ss.fullset THEN
+  impsprite = spriteedit_import16_cut_frames(ss, impsprite, pal16, bgcol)
+  IF impsprite = NULL THEN
+   palette16_unload @pal16
+   EXIT SUB
+  END IF
  END IF
 
  'Swap the transparent pixels to 0
@@ -2851,10 +3175,19 @@ IF mouse.buttons = 0 AND keyval(scSpace) = 0 THEN
  ss.lastpos.y = -1
 END IF
 IF keyval(scTilde) > 1 THEN ss.hidemouse = ss.hidemouse XOR 1
-IF keyval(scComma) > 1 AND ss.palindex > 0 THEN ss.palindex -= 1
-IF keyval(scPeriod) > 1 AND ss.palindex < 15 THEN ss.palindex += 1
+IF keyval(scComma) > 1 AND ss.palindex > 0 THEN
+ ss.palindex -= 1
+ ss.showcolnum = 18
+END IF
+IF keyval(scPeriod) > 1 AND ss.palindex < 15 THEN
+ ss.palindex += 1
+ ss.showcolnum = 18
+END IF
 IF ss.zonenum = 2 THEN
- IF mouse.clicks > 0 THEN ss.palindex = small(ss.zone.x \ 4, 15)
+ IF mouse.clicks > 0 THEN
+  ss.palindex = small(ss.zone.x \ 4, 15)
+  ss.showcolnum = 18
+ END IF
 END IF
 IF keyval(scLeftBrace) > 1 OR (ss.zonenum = 5 AND mouse.clicks > 0) THEN
  changepal poffset(state.pt), -1, workpal(), state.pt - state.top
@@ -2913,15 +3246,16 @@ IF keyval(scAlt) > 0 AND keyval(scV) > 1 THEN
 END IF
 ss.curcolor = peek8bit(workpal(), (state.pt - state.top) * 16 + ss.palindex)
 IF keyval(scAlt) > 0 THEN
- IF keyval(scUp) > 1 AND ss.curcolor > 15 THEN ss.curcolor -= 16
- IF keyval(scDown) > 1 AND ss.curcolor < 240 THEN ss.curcolor += 16
- IF keyval(scLeft) > 1 AND ss.curcolor > 0 THEN ss.curcolor -= 1
- IF keyval(scRight) > 1 AND ss.curcolor < 255 THEN ss.curcolor += 1
+ IF keyval(scUp) > 1 AND ss.curcolor > 15 THEN ss.curcolor -= 16 : ss.showcolnum = 18
+ IF keyval(scDown) > 1 AND ss.curcolor < 240 THEN ss.curcolor += 16 : ss.showcolnum = 18
+ IF keyval(scLeft) > 1 AND ss.curcolor > 0 THEN ss.curcolor -= 1 : ss.showcolnum = 18
+ IF keyval(scRight) > 1 AND ss.curcolor < 255 THEN ss.curcolor += 1 : ss.showcolnum = 18
  'If the palette has changed, update genMaxPal
  gen(genMaxPal) = large(gen(genMaxPal), poffset(state.pt))
 END IF
 IF (mouse.clicks AND mouseLeft) ANDALSO ss.zonenum = 3 THEN
  ss.curcolor = ((ss.zone.y \ 6) * 16) + (ss.zone.x \ 4)
+ ss.showcolnum = 18
  'If the palette has changed, update genMaxPal
  gen(genMaxPal) = large(gen(genMaxPal), poffset(state.pt))
 END IF
@@ -3104,7 +3438,10 @@ IF ss.hold = YES AND ss.tool = oval_tool THEN
  END IF
 END IF
 FOR i as integer = 0 TO UBOUND(toolinfo)
- IF (mouse.clicks > 0 AND ss.zonenum = toolinfo(i).areanum + 1) OR keyval(toolinfo(i).shortcut) > 1 THEN
+ 'Check tool selection
+ 'Alt is used for alt+c and alt+v
+ IF (mouse.clicks > 0 AND ss.zonenum = toolinfo(i).areanum + 1) OR _
+    (keyval(scAlt) = 0 AND keyval(toolinfo(i).shortcut) > 1) THEN
   IF ss.tool <> i THEN ss.didscroll = NO
   ss.tool = i
   GOSUB resettool
@@ -3150,6 +3487,7 @@ ELSE
  IF keyval(scEnter) > 1 OR (ss.zonenum = 1 AND mouse.buttons = mouseRight) THEN
   drawsprite placer(), 0, ss.nulpal(), 0, ss.previewpos.x, ss.previewpos.y, dpage
   ss.palindex = readpixel(ss.previewpos.x + ss.x, ss.previewpos.y + ss.y, dpage)
+  ss.showcolnum = 18
  END IF
 END IF
 IF keyval(scBackspace) > 1 OR (ss.zonenum = 4 AND mouse.clicks > 0) THEN wardsprite placer(), 0, ss.nulpal(), 0, ss.previewpos.x, ss.previewpos.y, dpage: getsprite placer(), 0, ss.previewpos.x, ss.previewpos.y, ss.wide, ss.high, dpage

@@ -9,7 +9,30 @@ WHAT IS NEW?
     * When hiring heroes in a shop, show hero portraits [James]
     * Split "Change Box Styles", "Change User-Interface Colors" into
       two separate menus [James]
+    * Split "General Preference Bitsets" and "Backwards-compatibility
+      Bitsets" into two menus [Ralph]
     * Clean up orphaned temporary folders when you exit game [James]
+    * Games can now optionally increase (or decrease) the number of
+      save/load slots that are available. [James]
+    * In the font editor you can set roughly which characters are
+      icons. If you use a font with the extra Latin-1 characters
+      (eg. with accents), then those letters will now show correctly in
+      the .txt file when exporting textboxes.  And characters which are
+      icons won't be exported as garbage in .hsi files. [Ralph]
+    * Attack chains conditions can now be based on the stats of the
+      targets [James]
+    * Attack bitset "Never trigger elemental counterattack" [James]
+    * The map editor's Clone tool now has separate 'merge' and 'replace'
+      modes (Ctrl+M to toggle) [Ralph]
+    * When adding a new map layer you may copy an existing one [Ralph]
+    * When importing an 8-bit backdrop or tileset (eg. exported from
+      another game) color 0 (transparency) is preserved; when importing
+      a 24/32-bit one you now have the option to pick the background
+      color [Ralph]
+    * Ability to specify the positions of the frames in the source
+      spritesheet when importing with the sprite editor in full-set
+      mode (regular offsets between frames only) [Ralph]
+    * Additional master palettes in import/ [Soda_piggy, Dragontao]
 
   * Bugfixes
     * Fixed a few cosmetic bugs in the equip menu including possibly
@@ -22,22 +45,47 @@ WHAT IS NEW?
     * Fix heroes getting stuck in active-time battle mode if they are
       in the middle of targetting an attack and get hit with a stun
       or mute attack. [James]
-    * Attack chains conditions can now be based on the stats of the
-      targets [James]
+    * "showtextbox happens immediately" backcompat bitset (on for new
+      games) helps to prevent bugs due to showing two boxes at once;
+      "show textbox" now affects "current textbox" immediately [Ralph]
+    * HSpeak accepts files with Mac line-endings again [Ralph]
+    * Fix attacks that use the attacker's max stats as the base attack
+      stat [James]
+    * Fix vehicles that are configured to disable random battles [James]
+    * Bug 997: Crash/freeze when fullscreening in Mac OS 10.7 and later
+    * Bug 777: 'Load' menu called from a customisable menu showed a
+      'New Game' button which did nothing [Ralph]
+    * Disabling palette colours for backdrop/tileset import didn't work
+      for 8-bit BMPs. (Also added mouse support.) [Ralph]
+    * Bug 1004: Copying a shop didn't copy all the shop items [Ralph]
+    * Hero attack animations didn't occur if they were weak [Ralph]
+    * Bug 1005: "hero is walking" didn't work for heroes other than
+      leader when the caterpillar party was enabled [Ralph]
 
   * New Plotscripting Stuff
     * "Menu action plotscript" special script trigger to run a script
       instead of opening the main menu [Lakan Inocencio]
-  
+    * subscripts: scripts embeddable inside other scripts, with access
+      to their local variables [Ralph]
+    * "read item description" counterpart to existing "read item name"
+      [James]
+    * "get sprite default pal" [James]
+    * "NPC is disabled" for detecting when an NPC reference is disabled
+      by tags or by one-time-use [James]
+    * "string sprintf" for easier piecing together of strings [Ralph]
+    * "script error" [Ralph]
+    * Make $id="foo" return id so that you can write showstring($0="foo")
+
   * Performance Fixes
     * Fixed delay when opening a menu that happened when a large number
       of menus were defined [Ralph]
+    * HSpeak was extremely slow (potentially hours) at reading files
+      with DOS/Windows line-endings on Linux/Mac [Ralph]
 
   * Stuff Only Developers Will Notice
     * Experimental support for Android phones and tablets
     * Experimental support for the OUYA Console
     * Experimental support for the Raspberry Pi
-
 
 April 9 2013 [Beelzebufo]
 

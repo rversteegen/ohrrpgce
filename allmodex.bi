@@ -20,18 +20,24 @@ DECLARE SUB setmodex ()
 DECLARE SUB modex_quit ()
 DECLARE SUB restoremode ()
 DECLARE SUB mersenne_twister (byval seed as double)
-DECLARE SUB setwindowtitle (title as string)
-DECLARE FUNCTION allocatepage(byval w as integer = 320, byval h as integer = 200) as integer
+
+DECLARE FUNCTION allocatepage(byval w as integer = -1, byval h as integer = -1) as integer
 DECLARE FUNCTION duplicatepage (byval page as integer) as integer
 DECLARE SUB freepage (byval page as integer)
 DECLARE FUNCTION registerpage (byval spr as Frame ptr) as integer
-DECLARE SUB copypage (byval page1 as integer, byval page2 as integer)
+DECLARE SUB copypage (byval src as integer, byval dest as integer)
 DECLARE SUB clearpage (byval page as integer, byval colour as integer = -1)
-DECLARE FUNCTION updatepagesize (byval page as integer) as bool
-DECLARE SUB unlockresolution (byval min_w as integer = -1, byval min_h as integer = -1)
-DECLARE SUB setresolution (byval w as integer, byval h as integer)
-DECLARE SUB resetresolution ()
+DECLARE SUB resizepage (page as integer, w as integer, h as integer)
+DECLARE FUNCTION compatpage() as integer
+
+DECLARE SUB unlock_resolution (byval min_w as integer, byval min_h as integer)
+DECLARE SUB lock_resolution ()
+DECLARE SUB set_resolution (byval w as integer, byval h as integer)
+DECLARE FUNCTION get_resolution_w () as integer
+DECLARE FUNCTION get_resolution_h () as integer
+
 DECLARE SUB setvispage (byval page as integer)
+DECLARE SUB setwindowtitle (title as string)
 DECLARE SUB setpal (pal() as RGBcolor)
 DECLARE SUB fadeto (byval red as integer, byval green as integer, byval blue as integer)
 DECLARE SUB fadetopal (pal() as RGBcolor)
@@ -56,6 +62,8 @@ DECLARE SUB rectangle OVERLOAD (byval x as integer, byval y as integer, byval w 
 DECLARE SUB rectangle OVERLOAD (byval fr as Frame Ptr, byval x as integer, byval y as integer, byval w as integer, byval h as integer, byval c as integer)
 DECLARE SUB fuzzyrect OVERLOAD (byval x as integer, byval y as integer, byval w as integer, byval h as integer, byval c as integer, byval p as integer, byval fuzzfactor as integer = 50)
 DECLARE SUB fuzzyrect OVERLOAD (byval fr as Frame Ptr, byval x as integer, byval y as integer, byval w as integer, byval h as integer, byval c as integer, byval fuzzfactor as integer = 50)
+DECLARE SUB draw_background (x as integer, y as integer, wide as integer, high as integer, bgcolor as integer, byref chequer_scroll as integer, dest as Frame ptr)
+
 
 'NOTE: clipping values are global.
 DECLARE SUB setclip OVERLOAD (byval l as integer = 0, byval t as integer = 0, byval r as integer = 999999, byval b as integer = 999999, byval fr as Frame ptr = 0)
@@ -89,14 +97,14 @@ DECLARE FUNCTION dowait () as bool
 DECLARE SUB enable_speed_control(byval setting as bool = YES)
 DECLARE FUNCTION get_tickcount() as integer
 
-DECLARE FUNCTION parse_tag(z as string, byval offset as integer, byval action as string ptr, byval arg as integer ptr) as integer
+DECLARE FUNCTION parse_tag(z as string, byval offset as integer, byval action as string ptr, byval arg as int32 ptr) as integer
 
 TYPE PrintStrStatePtr as PrintStrState Ptr
 
 DECLARE SUB text_layout_dimensions (byval retsize as StringSize ptr, z as string, byval endchar as integer = 999999, byval maxlines as integer = 999999, byval wide as integer = 999999, byval fontnum as integer, byval withtags as bool = YES, byval withnewlines as bool = YES)
 DECLARE SUB printstr OVERLOAD (byval dest as Frame ptr, s as string, byval x as integer, byval y as integer, byval wide as integer = 999999, byval fontnum as integer, byval withtags as bool = YES, byval withnewlines as bool = YES)
 DECLARE SUB printstr OVERLOAD (s as string, byval x as integer, byval y as integer, byval p as integer, byval withtags as bool = NO)
-DECLARE SUB edgeprint (s as string, byval x as integer, byval y as integer, byval c as integer, byval p as integer, byval withtags as bool = NO)
+DECLARE SUB edgeprint (s as string, byval x as integer, byval y as integer, byval c as integer, byval p as integer, byval withtags as bool = NO, byval withnewlines as bool = NO)
 DECLARE SUB textcolor (byval fg as integer, byval bg as integer)
 
 DECLARE FUNCTION textwidth (z as string, byval fontnum as integer = 0, byval withtags as bool = YES, byval withnewlines as bool = YES) as integer
@@ -107,6 +115,8 @@ DECLARE FUNCTION fgcol_text (text as string, byval colour as integer) as string
 DECLARE FUNCTION bgcol_text (text as string, byval colour as integer) as string
 
 DECLARE SUB setfont (f() as integer)
+DECLARE FUNCTION get_font_type (font() as integer) as fontTypeEnum
+DECLARE SUB set_font_type (font() as integer, ty as fontTypeEnum)
 DECLARE SUB font_create_edged (byval font as Font ptr, byval basefont as Font ptr)
 DECLARE SUB font_create_shadowed (byval font as Font ptr, byval basefont as Font ptr, byval xdrop as integer = 1, byval ydrop as integer = 1)
 DECLARE SUB font_loadbmps (byval font as Font ptr, directory as string, byval fallback as Font ptr = null)
@@ -128,11 +138,11 @@ DECLARE SUB screenshot (f as string)
 DECLARE SUB bmp_screenshot(f as string)
 DECLARE SUB frame_export_bmp4 (f as string, byval fr as Frame Ptr, maspal() as RGBcolor, byval pal as Palette16 ptr)
 DECLARE SUB frame_export_bmp8 (f as string, byval fr as Frame Ptr, maspal() as RGBcolor)
-DECLARE FUNCTION frame_import_bmp24_or_32(bmp as string, pal() as RGBcolor) as Frame ptr
+DECLARE FUNCTION frame_import_bmp24_or_32(bmp as string, pal() as RGBcolor, firstindex as integer = 0) as Frame ptr
 DECLARE FUNCTION frame_import_bmp_raw(bmp as string) as Frame ptr
 DECLARE SUB bitmap2pal (bmp as string, pal() as RGBcolor)
 DECLARE FUNCTION loadbmppal (f as string, pal() as RGBcolor) as integer
-DECLARE SUB convertbmppal (f as string, mpal() as RGBcolor, pal() as integer)
+DECLARE SUB convertbmppal (f as string, mpal() as RGBcolor, pal() as integer, firstindex as integer = 0)
 DECLARE FUNCTION color_distance(pal() as RGBcolor, byval index1 as integer, byval index2 as integer) as integer
 DECLARE FUNCTION nearcolor OVERLOAD (pal() as RGBcolor, byval red as ubyte, byval green as ubyte, byval blue as ubyte, byval firstindex as integer = 0, byval indexhint as integer = -1) as ubyte
 DECLARE FUNCTION nearcolor OVERLOAD (pal() as RGBcolor, byval index as integer, byval firstindex as integer = 0) as ubyte
@@ -159,6 +169,7 @@ DECLARE SUB stop_replaying_input (msg as string="", byval errorlevel as ErrorLev
 DECLARE FUNCTION havemouse () as bool
 DECLARE SUB hidemousecursor ()
 DECLARE SUB unhidemousecursor ()
+DECLARE FUNCTION mousecursorvisible () as bool
 DECLARE FUNCTION readmouse () as MouseInfo
 DECLARE SUB movemouse (byval x as integer, byval y as integer)
 DECLARE SUB mouserect (byval xmin as integer, byval xmax as integer, byval ymin as integer, byval ymax as integer)
@@ -223,6 +234,16 @@ declare sub remap_android_gamepad(byval player as integer, gp as GamePadMap)
 declare sub remap_touchscreen_button (byval button_id as integer, byval ohr_scancode as integer)
 
 declare function running_on_console() as bool
+declare function running_on_mobile() as bool
+declare function running_on_ouya() as bool 'Only use this for things that strictly require OUYA, like the OUYA store
+
+declare sub ouya_purchase_request (dev_id as string, identifier as string, key_der as string)
+declare function ouya_purchase_is_ready () as bool
+declare function ouya_purchase_succeeded () as bool
+
+declare sub ouya_receipts_request (dev_id as string, key_der as string)
+declare function ouya_receipts_are_ready () as bool
+declare function ouya_receipts_result () as string
 
 declare function get_safe_zone_margin () as integer
 declare sub set_safe_zone_margin (byval margin as integer)

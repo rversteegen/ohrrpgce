@@ -8,6 +8,7 @@
 
 include, plotscr.hsd
 include, autotest.hsi
+include, hstests.hss
 
 ########################################################################
 
@@ -23,6 +24,20 @@ global variable(106, export global 1)
 global variable(107, export global 2)
 global variable(108, expecting death)
 global variable(109, died)
+global variable(110, map autorun triggered)
+global variable(111, eachstep triggered)
+global variable(112, textbox script triggered)
+global variable(113, npc script triggered)
+global variable(114, testing script triggers)
+# 200-300 used in hstests.hss
+global variable(200, ticker 0)
+global variable(201, ticker 1)
+global variable(202, ticker 2)
+global variable(203, expected ticker 0)
+global variable(204, expected ticker 1)
+global variable(205, tick counter slice)
+global variable(206, a global)
+global variable(207, another global)
 global variable(5000, global 5000)
 
 #string 0 = error messages
@@ -34,12 +49,18 @@ define constant(11, assert expression string)
 
 ########################################################################
 
+# Set on starting map 0
+plotscript, mapautorun, begin
+  # Test that the map autorun script on the starting map happens before
+  # the newgame script
+  map autorun triggered += 1
+end
+
 plotscript, run all tests, begin
   suspend player
   seed random(4444)
-  hspeak tests
-  string tests
-  math tests
+  assert(map autorun triggered == 1)
+  interpreter tests
   save load tests
   slice tests
   inventory tests
@@ -50,6 +71,7 @@ plotscript, run all tests, begin
   npc tests
   menu tests
   textbox tests
+  script trigger tests
   enemy tests
   battle tests
   timer tests
@@ -78,141 +100,10 @@ script, crash, begin
 end
 
 script, assert failure, begin
+  $1="ASSERT FAILURE:"
+  trace(1)
   trace(assert expression string)
   crash
-end
-
-########################################################################
-
-script, elseif A, x, begin
-  if(x == 0) then( return(1) )
-  elseif(x == 1) then( return(2) )
-  else( return(3) )
-end
-
-script, elseif B, x, begin
-  if(x == 0)
-  elseif(x == 1) then( return(2) )
-end
-
-script, elseif C, x, begin
-  if(x == 0)
-  elseif(x == 1)
-  else( return(3) )
-end
-
-script, elseif tests, begin
-  $0="elseif tests"
-  assert(elseif A(0) == 1)
-  assert(elseif A(1) == 2)
-  assert(elseif A(2) == 3)
-  assert(elseif B(0) == 0)
-  assert(elseif B(1) == 2)
-  assert(elseif B(2) == 0)
-  assert(elseif C(0) == 0)
-  assert(elseif C(1) == 0)
-  assert(elseif C(2) == 3)
-end
-
-########################################################################
-
-script, switch A, x, begin
-  return(1)
-  switch (x) do(
-    case(5) do()
-    case(zero)
-    case(2) return(100)
-            return(101)
-    case(7) return(-1)
-            while(1) do(continue(2))
-            return(-1)
-    case(1) return(102)
-    case(3, 4, 2)
-            return(103)
-            break
-            return(104)
-    case(6, else)
-      return(99) 
-  )
-end
-
-script, switch B, x, begin
-  return(1)
-  switch(x) do(
-    case(5) do()
-    case(2) do(
-      return(100)
-      break
-      return(101)
-    )
-    case(1) return(102)
-    case((2+1), 2*2, zero)
-      if(x) then(return(103))
-      else(return(104))
-    else(return(99))
-  )
-end
-
-script, switch tests, begin
-  $0="switch tests"
-  assert(switch A(0) == 101)
-  assert(switch A(1) == 102)
-  assert(switch A(2) == 101)
-  assert(switch A(3) == 103)
-  assert(switch A(4) == 103)
-  assert(switch A(5) == 1)
-  assert(switch A(6) == 99)
-  assert(switch A(7) == 102)
-  assert(switch A(8) == 99)
-
-  assert(switch B(0) == 104)
-  assert(switch B(1) == 102)
-  assert(switch B(2) == 100)
-  assert(switch B(3) == 103)
-  assert(switch B(4) == 103)
-  assert(switch B(5) == 1)
-  assert(switch B(6) == 99)
-end
-
-########################################################################
-
-# include a file with UTF-16 encoding
-include, "utf16 encoding test.hss"
-
-plotscript, ¿ƒüñÑÿ sÇ®¡ÞΤ ηªɱE, begin
-	return (42)
-end 
-
-# This really doesn't belong here, but I'm too lazy to find a better place
-script, hspeak tests, begin
-  variable (Über)
-  Über := 12
-  for (über, über, über + 4) do ()
-  assert(Über == 17)
-
-  # Lowercase form in Latin-1, uppercase not
-  variable (Ÿve)
-  ÿve := 0
-
-  assert(¿ƒüñÑÿ sÇ®¡ÞΤ ηªɱE == 42)
-
-  assert(that script in the other file == 91)
-  
-  global 5000 := 99999
-  assert(global 5000 == 99999)
-
-  elseif tests
-  switch tests
-end
-
-########################################################################
-
-script, math tests, begin
-  variable(n)
-  n := 10
-  $0="math tests"
-  if(abs(-10) <> n) then(crash)
-  if(abs(15) <> n + 5) then(crash)
 end
 
 ########################################################################
@@ -1253,6 +1144,7 @@ script, npc tests, begin
   npc movement tests(NPC reference(1))
   npc id tests(NPC reference(1))
   npc tag and onetime tests
+  use npc script tests
 end
 
 script, npc movement tests, n, begin
@@ -1285,6 +1177,7 @@ script, npc movement tests, n, begin
   set npc position(n, 3, 5)
   
   show no value
+  $10=""
 end
 
 script, npc id tests, n, begin
@@ -1337,6 +1230,32 @@ script, npc tag and onetime tests, begin
   wait for hero(me), w
   walk hero to y(me, hy)
   wait for hero(me), w
+end
+
+plotscript, another npc script, begin
+  assert(ticknumber == 2)
+end
+
+script, use npc script tests, begin
+  $0="use npc script tests"
+  # Tests the implicit wait behaviour of usenpc
+
+  tick counter slice := create container
+  set slice velocity x(tick counter slice, 1, 1000)
+  assert(ticknumber == 0)
+
+  create npc(8)  # Does nothing
+  use npc(8)
+  assert(ticknumber == 1)
+  delete npc(8)
+
+  # Both this script and anothernpcscript should wait
+  create npc(7)  # Calls anothernpcscript
+  use npc(7)
+  assert(ticknumber == 2)
+  delete npc(7)
+
+  free slice(tick counter slice)
 end
 
 ########################################################################
@@ -1985,6 +1904,56 @@ script, textbox tests, begin
   w
   show text box(12), w, advance text box, w
   show text box(13), w, advance text box, w
+
+  variable (oldval)
+  oldval := read general(178)  # genBits2
+  assert((oldval, and, 2^2) == 2^2)  # "showtextbox happens immediately" is on
+
+  # check showtextbox isn't delayed
+  show text box(14)
+  assert(checktag(tag:textbox 14 happened) == true)
+  # no wait required before advance
+  advance textbox
+  wait
+  assert(current textbox == -1)
+  settag(tag:textbox 14 happened, false)
+
+  # check both showtextboxes work
+  show text box(14)
+  show text box(15)
+  assert(checktag(tag:textbox 14 happened) == true)
+  assert(checktag(tag:textbox 15 happened) == true)
+  advance textbox
+  settag(tag:textbox 14 happened, false)
+  settag(tag:textbox 15 happened, false)
+
+  write general(178, oldval -- 2^2) # "showtextbox happens immediately" OFF
+
+  # Check currenttextbox still updates immediately
+  show text box(2)
+  assert(current textbox == 2)
+  # wait required before advance
+  wait
+  advance text box
+  assert(current textbox == -1)
+
+  # check showtextbox is delayed
+  show text box(14)
+  assert(checktag(tag:textbox 14 happened) == false)
+  wait
+  assert(checktag(tag:textbox 14 happened) == true)
+  advance textbox
+  settag(tag:textbox 14 happened, false)
+
+  # check only last showtextbox works
+  show text box(14)
+  show text box(15)
+  wait
+  assert(checktag(tag:textbox 14 happened) == false)
+  assert(checktag(tag:textbox 15 happened) == true)
+  advance textbox
+
+  write general(178, oldval)
 end
 
 ########################################################################
@@ -2214,103 +2183,6 @@ end
 
 ########################################################################
 
-script, string tests, begin
-  # There are tons more string commands we could test here!
-  $0="String tests", trace(0)
-
-  $1=""
-  $2=""
-  assert(string compare(1,2))
-  $1="a"
-  $2="A"
-  assert(string compare(1,2) == false)
-  $1=" .~fooy"
-  $2=" .~fooY"
-  assert(string compare(1,2) == false)
-
-  # Check HSpeak encodes Unicode correctly
-  $1="	 ¡éÖœ£"  # tab, space, exclamation
-  $2="‰Œẽñ"  # characters above U+00FF
-  $3="???ñ"
-  trace(3)
-  assert(string compare(2, 3))
-  3 $= 1
-  3 $+ 2
-  trace(3)
-  trace value(string length(3))
-  assert(string length(3) == 11)
-  assert(ascii from string(3, 1) == 9)
-  assert(ascii from string(3, 2) == 32)
-  assert(ascii from string(3, 3) == 161)
-  assert(ascii from string(3, 4) == 233)
-  assert(ascii from string(3, 10) == 63)
-  assert(ascii from string(3, 11) == 241)
-  show string at(3, 0, 0)
-  w
-  hide string(3)
-
-  $1="SelfStab"
-  read attack name(2, 0 + 1)
-  assert(string compare(1,2))
-  
-  $1="Attack self"
-  get attack caption(2, 0 + 1)
-  assert(string compare(1,2))
-
-  embedding global := -1234
-  $3="<embedded> "
-
-  # Test the obsolete stringfromtextbox: 4th arg ignored
-  stringfromtextbox(1, 8, 2)
-  $2="."
-  assert(string compare(1, 2))
-  stringfromtextbox(1, 8, 3)
-  $2=""
-  assert(string compare(1, 2))
-  stringfromtextbox(1, 8, 4)
-  $2="##"
-  assert(string compare(1, 2))
-  stringfromtextbox(1, 8, 5, false)
-  $2=",-1234. ,<embedded> "
-  assert(string compare(1, 2))
-  stringfromtextbox(1, 8, 5, true)
-  assert(string compare(1, 2))
-
-  # textbox line
-  textboxline(1, 8, 2)
-  $2="."
-  assert(string compare(1, 2))
-  textboxline(1, 8, 3)
-  $2=""
-  assert(string compare(1, 2))
-  textboxline(1, 8, 4)
-  $2=" ## "
-  assert(string compare(1, 2))
-  textboxline(1, 8, 4, true, false)
-  assert(string compare(1, 2))
-  textboxline(1, 8, 4, true, true)
-  $2="##"
-  assert(string compare(1, 2))
-  textboxline(1, 8, 5, false)
-  $2=" ,${V105}. ,${S3} "
-  assert(string compare(1, 2))
-  textboxline(1, 8, 5, true)
-  $2=" ,-1234. ,<embedded>  "
-  assert(string compare(1, 2))
-  textboxline(1, 8, 5, true, true)
-  $2=",-1234. ,<embedded> "
-  assert(string compare(1, 2))
-
-  # higher IDs
-  $95="a "
-  $96=""
-  appendascii(96, 97)
-  $96+" "
-  assert(string compare(95, 96))
-end
-
-########################################################################
-
 script, door tests, begin
   $0="Door tests"
 
@@ -2330,7 +2202,7 @@ script, door tests, begin
   assert(get door destination id(1) == -1)
   assert(get door destination map(1) == -1)
   assert(door exists(1))
-  assert(door exists(2) == false)
+  assert(door exists(3) == false)
 
   # using doors
   walk hero to x(0, 8)
@@ -2371,6 +2243,202 @@ script, door tests, begin
   wait for hero
   walk hero to x(0, 6)
   wait for hero
+end
+
+########################################################################
+
+# Not defined as a plotscript on purpose
+script, each-step script, x, y, dir, begin
+  $0="each-step script", trace
+  assert(x == hero x)
+  assert(y == hero y)
+  assert(dir == hero direction)
+
+  # First to run
+  assert(npc script triggered == 0)
+  assert(map autorun triggered == 0)
+  eachstep triggered += 1
+end
+
+plotscript, npc triggered script, arg, npc, begin
+  $0="npc triggered script", trace
+  assert(arg == -1)
+  assert(npc == npc reference(6))
+
+  # Second to run
+  assert(eachstep triggered == 1)
+  assert(map autorun triggered == 0)
+  npc script triggered += 1
+
+  # Should happen immediately (also tested in textbox tests)
+  # and trigger two scripts
+  advance textbox
+
+  # Fifth to run
+  assert(current textbox == -1)
+  assert(textbox script triggered == 1)
+  assert(map autorun triggered == 1)
+  npc script triggered += 1
+end
+
+plotscript, textbox advance script, begin
+  $0="textbox advance script", trace
+  assert(current map == 4)
+  assert(hero direction == left)
+
+  # These should be the correct position on the new map
+  assert(hero x == 11)
+  assert(hero y == 4)
+
+  # Third to run
+  assert(current textbox == -1)
+  assert(npc script triggered == 1)
+  assert(eachstep triggered == 1)
+  assert(map autorun triggered == 0)
+  textbox script triggered += 1
+end
+
+# Set on map 4
+plotscript, map 4 autorun, arg, begin
+  if (testing script triggers == false) then (exit script)
+  $0="map 4 autorun", trace
+
+  assert(arg == 42)
+  assert(current map == 4)
+
+  # Fourth to run
+  assert(textbox script triggered == 1)
+  map autorun triggered += 1   # also set in "map autorun"
+end
+
+
+script, concurrent script trigger tests, begin
+  $0="concurrent script trigger tests"
+
+  # Test multiple triggers happening the same tick, and that they all happen in the right order.
+  # This tests both scripts triggered inside and outside the interpreter
+
+  # Take a step, triggering each-step script and stepping on an NPC, which runs a script,
+  # and opens a textbox, which is advanced, running a script and activating a door which
+  # goes to a map with an autorun script
+
+  # Preconditions
+  assert(current map == 0 && hero x == 6 && hero y == 6)
+
+  map autorun triggered := 0
+  set eachstep script (@each-step script)
+  testing script triggers := true
+
+  tick counter slice := create container
+  set slice velocity x(tick counter slice, 1, 1000)
+  assert(ticknumber == 0)
+  assert(get hero speed(me) == 4)
+
+  create npc(6, hero x -- 1, hero y)
+  walk hero(me, left, 1)
+  wait for hero
+
+  #Events happen in this order, and scripts should run in reverse
+  #order of triggering:
+  #  (step completes)
+  #  (npc triggered, opens textbox)
+  #  npc script triggered
+  #  each step triggered
+  # (interpreter entered)
+  #  (npc script calls advancetextbox)
+  #  (textbox loaded)
+  #  (preparemap called)
+  #  autorun triggered
+  #  after textbox script triggered
+  # (this script resumes, waitfornpc finishing)
+
+  #So scripts run in order (all in the same tick):
+  # | each step
+  # | npc
+  # | | autorun
+  # | | textbox
+  # | npc finishes
+  # this script
+
+  # Sixth to run
+  assert(npc script triggered == 2)
+  assert(textbox script triggered == 1)
+  assert(map autorun triggered == 1)
+  assert(ticknumber == 5)
+
+  # reset
+  testing script triggers := false
+  free slice(tick counter slice)
+  teleport to map (0, 6, 6)
+  assert(current map == 0)
+  # Incremented by the other map autorun script
+  assert(map autorun triggered == 2)
+end
+
+########################################################################
+
+script, another eachstep script, begin
+  eachstep triggered += 1
+  wait for hero
+end
+
+script, yet another eachstep script, begin
+  eachstep triggered += 1
+  subscript, waiting, begin
+    wait for hero
+  end
+  waiting
+end
+
+script, script double trigger tests, begin
+  $0="script trigger tests"
+
+  # precondition
+  assert(hero x == 6 && hero y == 6)
+
+  # Test double triggering of scripts
+  set eachstep script(@another eachstep script)
+
+  variable (oldval)
+  oldval := read general(101)  # genBits
+  assert((oldval, and, 2^10) == 0)  # "permit double triggering scripts" is off
+
+  eachstep triggered := 0
+  walk hero(me, left, 3)
+  wait for hero
+  # eachstep should only trigger once
+  assert(eachstep triggered == 1)
+
+  write general(101, oldval + 2^10)  # turn on "permit double triggering scripts"
+
+  eachstep triggered := 0
+  walk hero(me, right, 3)
+  wait for hero
+  assert(eachstep triggered == 3)
+
+  set eachstep script(@yet another eachstep script)
+
+  eachstep triggered := 0
+  walk hero(me, left, 3)
+  wait for hero
+  assert(eachstep triggered == 3)
+
+  write general(101, oldval)  # turn off "permit double triggering scripts"
+
+  eachstep triggered := 0
+  walk hero(me, right, 3)
+  wait for hero
+  # eachstep should should trigger three times because the "waiting"
+  # subscript foils the double trigger check
+  assert(eachstep triggered == 3)
+
+  set eachstep script(0)
+  assert(hero x == 6 && hero y == 6)
+end
+
+script, script trigger tests, begin
+  concurrent script trigger tests
+  script double trigger tests
 end
 
 ########################################################################
@@ -2708,7 +2776,6 @@ end
 #random formation (formation set)
 #read attack name (ID, attack)
 #read color (index, element)
-#read global (id)
 #read map block (x,y,layer)
 #read NPC (who,NPCstat)
 #read pass block (x,y)
@@ -2894,7 +2961,6 @@ end
 #update palette
 #use item (item)
 #use item in slot(slot)
-#use NPC (who)
 #vert flip sprite (handle, flip)
 #wait for all
 #wait for camera
@@ -2904,7 +2970,6 @@ end
 #walk NPC to X (who, X)
 #walk NPC to Y (who, Y)
 #write color (index, element, value)
-#write global (id,value)
 #write map block (x,y,value,layer)
 #write pass block (x,y,value)
 #write zone (zone id, x, y, value)

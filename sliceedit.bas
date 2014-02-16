@@ -4,13 +4,6 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 'Except, this module isn't especially crappy. Yay!
 '
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "allmodex.bi"
 #include "common.bi"
@@ -58,13 +51,14 @@ END TYPE
 
 '==============================================================================
 
-REDIM SHARED editable_slice_types(5) as SliceTypes
+REDIM SHARED editable_slice_types(6) as SliceTypes
 editable_slice_types(0) = SlContainer
 editable_slice_types(1) = SlRectangle
 editable_slice_types(2) = SlSprite
 editable_slice_types(3) = SlText
 editable_slice_types(4) = SlGrid
 editable_slice_types(5) = SlEllipse
+editable_slice_types(6) = slScrunch
 
 '==============================================================================
 
@@ -374,7 +368,7 @@ SUB slice_editor (byref ses as SliceEditState, byref edslice as Slice Ptr, byval
 
   END IF '--end IF state.need_update = NO AND menu(state.pt).handle
 
-  IF UpdateScreenSlice(dpage) THEN state.need_update = YES
+  IF UpdateScreenSlice() THEN state.need_update = YES
 
   IF state.need_update THEN
    slice_editor_refresh(ses, state, menu(), edslice, cursor_seek, slicelookup())
@@ -523,7 +517,7 @@ SUB slice_edit_detail (sl as Slice Ptr, byref ses as SliceEditState, rootsl as S
   IF keyval(scF1) > 1 THEN show_help "sliceedit_" & rules(state.pt).helpkey
   IF keyval(scF4) > 1 THEN ses.hide_menu = NOT ses.hide_menu
 
-  IF UpdateScreenSlice(dpage) THEN state.need_update = YES
+  IF UpdateScreenSlice() THEN state.need_update = YES
 
   IF state.need_update THEN
    slice_edit_detail_refresh state, menu(), sl, rules(), slicelookup()
@@ -812,6 +806,12 @@ SUB slice_edit_detail_refresh (byref state as MenuState, menu() as string, sl as
     sliceed_rule rules(), "bordercol", erIntgrabber, @(dat->bordercol), 0, 255, slgrPICKCOL
     str_array_append menu(), "Fill Color: " & zero_default(dat->fillcol, "transparent")
     sliceed_rule rules(), "fillcol", erIntgrabber, @(dat->fillcol), 0, 255, slgrPICKCOL
+   CASE slScrunch
+    DIM dat as ScrunchSliceData Ptr
+    dat = .SliceData
+    str_array_append menu(), "Subpixels: " & dat->subpixels
+    sliceed_rule rules(), "subpixels", erIntgrabber, @(dat->subpixels), 1, 100 'FIXME: upper limit of 100 is totally arbitrary
+    
   END SELECT
   str_array_append menu(), "Visible: " & yesorno(.Visible)
   sliceed_rule_tog rules(), "vis", @.Visible

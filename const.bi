@@ -37,7 +37,7 @@ CONST CURRENT_RSAV_VERSION = 3
 CONST CURRENT_TESTING_IPC_VERSION = 4
 ' Version of the IPC protocol used when live-previewing
 
-CONST CURRENT_HSZ_VERSION = 2
+CONST CURRENT_HSZ_VERSION = 3
 ' .hsz script binary format
 
 CONST CURRENT_HSP_VERSION = 1
@@ -152,7 +152,8 @@ CONST genItemStackSize = 193    'Default item stack size
 CONST genResolutionX = 194      'Screen resolution (unzoomed). 0 for default
 CONST genResolutionY = 195      ' "
 CONST genEscMenuScript = 196     'id of plotscript called instead of the default menu
-'196 to 198 unused
+CONST genSaveSlotCount = 197    'The number of available save slots, 1 to 32. If 0, the default of 4 will be used
+'198 is unused
 '199 to 359 used to be the scattertable for PW2, now zeroed out
 '360 to 499 unused
 
@@ -218,18 +219,19 @@ CONST maxScriptGlobals = 16383 'Actually the index of the last global
 CONST maxScriptStrings = 99 'ID of last plotstring
 CONST maxScriptHeap = 8192 'Maximum number of local variables in use by all running scripts
 CONST maxScriptRunning = 128 'Number of scripts which can run at once
+CONST maxScriptNesting = 4 'Maximum subscript nesting depth
 #IFDEF SCRIPTPROFILE
 'Amount of script data to cache
 CONST scriptmemMax = 10000000 'in 4-byte ints
 CONST scriptTableSize = 512  'hash table size, power of 2 please
-CONST maxLoadedScripts = 32768
 #ELSE
 CONST scriptmemMax = 65536 'in 4-byte ints (256kb)
 CONST scriptTableSize = 256  'hash table size, power of 2 please
-CONST maxLoadedScripts = 360
 #ENDIF
 CONST scriptCheckDelay = 1.1     'How long, in seconds, before the script interpreter becomes interruptable
 CONST scriptCheckInterval = 0.1  'How often, in seconds, that the script interpreter should perform checks
+
+CONST maxScriptCmdID = 566  'Max ID number of any supported script command (checked when loading game)
 
 '--- Binary files in BINSIZE.BIN for getbinsize()
 CONST binATTACK = 0
@@ -249,6 +251,12 @@ CONST binITM = 12
 CONST binLASTENTRY = 12 ' *** Update this when adding binsize records ***
 
 '--- Misc constants
+
+'Constants for gen(genFontType)
+Enum fontTypeEnum
+  ftypeASCII  = 0 'Non-extended ASCII, characters 127 and above assumed to be icons
+  ftypeLatin1 = 1 'Characters between 127 and 160 inclusive are assumed to be icons
+End Enum
 
 'Constants for debugc
 Enum errorLevelEnum

@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "udts.bi"
@@ -74,7 +67,7 @@ DECLARE SUB cleanup_and_terminate ()
 DECLARE SUB import_scripts_and_terminate (scriptfile as string)
 DECLARE SUB prompt_for_password()
 DECLARE SUB prompt_for_save_and_quit()
-DECLARE SUB choose_rpg_to_open ()
+DECLARE SUB choose_rpg_to_open (rpg_browse_default as string)
 DECLARE SUB main_editor_menu()
 DECLARE SUB gfx_editor_menu()
 
@@ -113,6 +106,7 @@ DIM running_as_slave as integer = NO  'This is just for the benefit of gfx_sdl
 DIM scriptfile as string
 DIM archinym as string
 DIM SHARED nocleanup as integer = NO
+DIM rpg_browse_default as string = ""
 
 '--Startup
 
@@ -176,6 +170,7 @@ getdefaultfont current_font()
 setmodex
 debuginfo musicbackendinfo  'Preliminary info before initialising backend
 setwindowtitle "O.H.R.RPG.C.E"
+unlock_resolution 320, 200   'Minimum window size
 setpal master()
 setfont current_font()
 textcolor uilook(uiText), 0
@@ -192,16 +187,23 @@ FOR i as integer = 1 TO UBOUND(cmdline_args)
  IF (extn = "hs" OR extn = "hss" OR extn = "txt") AND isfile(arg) THEN
   scriptfile = arg
   CONTINUE FOR
- ELSEIF (extn = "rpg" AND isfile(arg)) ORELSE isdir(arg) THEN
+ ELSEIF extn = "rpg" AND isfile(arg) THEN
   sourcerpg = arg
   game = trimextension(trimpath(sourcerpg))
+ ELSEIF isdir(arg) THEN
+  IF isfile(arg + SLASH + "archinym.lmp") THEN 'ok, accept it
+   sourcerpg = trim_trailing_slashes(arg)
+   game = trimextension(trimpath(sourcerpg))
+  ELSE
+   rpg_browse_default = arg
+  END IF
  ELSE
   visible_debug !"File not found/invalid option:\n" & cmdline_args(i)
  END IF
 NEXT
 IF game = "" THEN
  scriptfile = ""
- choose_rpg_to_open()
+ choose_rpg_to_open(rpg_browse_default)
 END IF
 
 IF NOT is_absolute_path(sourcerpg) THEN sourcerpg = absolute_path(sourcerpg)
@@ -440,7 +442,7 @@ SUB gfx_editor_menu()
     EXIT DO
    END IF
    IF state.pt = 1 THEN maptile
-   IF state.pt = 2 THEN sprite 20, 20, gen(genMaxNPCPic),    8, 5, walkabout_frame_captions(),  4, 4
+   IF state.pt = 2 THEN sprite 20, 20, gen(genMaxNPCPic),    8, 5, walkabout_frame_captions(),  8, 4
    IF state.pt = 3 THEN sprite 32, 40, gen(genMaxHeroPic),   8, 16, hero_frame_captions(), 4, 0
    IF state.pt = 4 THEN sprite 34, 34, gen(genMaxEnemy1Pic), 1, 2, enemy_frame_captions(), 4, 1
    IF state.pt = 5 THEN sprite 50, 50, gen(genMaxEnemy2Pic), 1, 4, enemy_frame_captions(), 2, 2
@@ -479,7 +481,7 @@ SUB gfx_editor_menu()
 
 END SUB
 
-SUB choose_rpg_to_open ()
+SUB choose_rpg_to_open (rpg_browse_default as string)
  'This sub sets the globals: game and sourcerpg
 
  DIM state as MenuState
@@ -511,7 +513,7 @@ SUB choose_rpg_to_open ()
        EXIT DO
      END IF
     CASE 1
-     sourcerpg = browse(7, "", "*.rpg", tmpdir, 0, "custom_browse_rpg")
+     sourcerpg = browse(7, rpg_browse_default, "*.rpg", tmpdir, 0, "custom_browse_rpg")
      game = trimextension(trimpath(sourcerpg))
      IF game <> "" THEN EXIT DO
     CASE 2
@@ -812,7 +814,7 @@ SUB shop_add_new (shopst as ShopEditState)
     END IF
     IF enter_space_click(state) THEN
       DIM shopbuf(19) as integer
-      DIM stufbuf(curbinsize(binSTF) \ 2 - 1) as integer
+      DIM stufbuf(50 * curbinsize(binSTF) \ 2 - 1) as integer
       SELECT CASE state.pt
         CASE 0 ' cancel
           shopst.id -= 1
@@ -824,7 +826,7 @@ SUB shop_add_new (shopst as ShopEditState)
           '--Create a new shop stuff record
           flusharray stufbuf()
           'FIXME: load the name and price for first shop item
-          stufbuf(19) = -1  'Default in-stock to infinite
+          stufbuf(19) = -1  'Default in-stock to infinite (first item only!)
         CASE 2 ' copy
           gen(genMaxShop) += 1
           loadrecord shopbuf(), game + ".sho", 20, shoptocopy
@@ -1264,8 +1266,8 @@ SUB resolution_menu ()
   setkeys
   IF keyval(scEsc) > 1 THEN EXIT DO
   SELECT CASE st.pt
-   CASE 0: intgrabber(gen(genResolutionX), 0, 320)
-   CASE 1: intgrabber(gen(genResolutionY), 0, 200)
+   CASE 0: intgrabber(gen(genResolutionX), 0, 640)  'Arbitrary limits
+   CASE 1: intgrabber(gen(genResolutionY), 0, 480)
   END SELECT
   usemenu st
   menu(0) = "Width: " & gen(genResolutionX)
@@ -1275,6 +1277,7 @@ SUB resolution_menu ()
   setvispage vpage
   dowait
  LOOP
+ xbsave game + ".gen", gen(), 1000
 END SUB
 
 SUB arbitrary_sprite_editor ()
@@ -1602,10 +1605,10 @@ SUB font_test_menu
    font_loadbmps @fonts(st.pt), "fonttests/testfont", @fonts(st.pt)
   END IF
   IF keyval(sc2) > 1 THEN
-   DIM file as string
-   file = browse(10, "", "*.bmp", tmpdir, 0, "")
-   IF LEN(file) THEN
-    font_loadbmp_16x16 @fonts(st.pt), file
+   DIM filen as string
+   filen = browse(10, "", "*.bmp", tmpdir, 0, "")
+   IF LEN(filen) THEN
+    font_loadbmp_16x16 @fonts(st.pt), filen
    END IF
   END IF
   IF keyval(sc3) > 1 THEN

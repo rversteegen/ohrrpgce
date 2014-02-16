@@ -64,9 +64,19 @@ extern Gfx_setwindowed as sub (byval iswindow as integer)
 extern Gfx_windowtitle as sub (byval title as zstring ptr)
 extern Gfx_getwindowstate as function () as WindowState ptr
 
-'(optional, temporary/experimental)
-extern Gfx_getresize as function (byref ret as XYPair) as integer
-extern Gfx_setresizable as sub (byval able as integer)
+'(optional) Returns whether the resolution can be changed to something other than 320x200 (via gfx_showpage)
+'(This doesn't imply that gfx_set_resizable is supported)
+'Returns false if the backend hasn't been updated or there are other constraints.
+extern Gfx_supports_variable_resolution as function () as bool
+'(optional) If a window resize was requested, returns true and sets ret. Otherwise must not modify ret.
+extern Gfx_get_resize as function (byref ret as XYPair) as bool
+'(optional) Enable or disable window resizing by the user, and optionally specify minimum window width/height.
+'Returns new resizability state: false if the backend doesn't support it.
+'Minimum window width/height may not work!
+extern Gfx_set_resizable as function (enable as bool, min_width as integer, min_height as integer) as bool
+'(optional) At the next gfx_showpage call, recentering the window would be a good idea.
+'Called when starting a game.
+extern Gfx_recenter_window_hint as sub ()
 
 'gfx_setoption recieves an option name and the following option which may or may not be a related argument
 'returns 0 if unrecognised, 1 if recognised but arg is ignored, 2 if arg is gobbled
@@ -80,6 +90,13 @@ extern Gfx_printchar as sub (byval ch as integer, byval x as integer, byval y as
 extern Gfx_get_safe_zone_margin as function () as single
 extern Gfx_set_safe_zone_margin as sub (byval margin as single)
 extern Gfx_supports_safe_zone_margin as function () as bool
+
+extern Gfx_ouya_purchase_request as sub(dev_id as string, identifier as string, key_der as string)
+extern Gfx_ouya_purchase_is_ready as function () as bool
+extern Gfx_ouya_purchase_succeeded as function () as bool
+extern Gfx_ouya_receipts_request as sub (dev_id as string, key_der as string)
+extern Gfx_ouya_receipts_are_ready as function () as bool
+extern Gfx_ouya_receipts_result as function () as string
 
 extern Io_init as sub ()
 
@@ -150,12 +167,12 @@ declare sub Io_amx_mousebits (byref mx as integer, byref my as integer, byref mw
 
 ' functions in blit.c
 
-declare sub blitohr(byval spr as Frame ptr, byval destspr as Frame ptr, byval pal as Palette16 ptr, byval startoffset as integer, byval startx as integer, byval starty as integer, byval endx as integer, byval endy as integer, byval trans as integer)
-declare sub blitohrscaled(byval spr as Frame ptr, byval destspr as Frame ptr, byval pal as Palette16 ptr, byval x as integer, byval y as integer, byval startx as integer, byval starty as integer, byval endx as integer, byval endy as integer, byval trans as integer, byval scale as integer)
+declare sub blitohr(byval spr as Frame ptr, byval destspr as Frame ptr, byval pal as Palette16 ptr, byval startoffset as int32, byval startx as int32, byval starty as int32, byval endx as int32, byval endy as int32, byval trans as int32)
+declare sub blitohrscaled(byval spr as Frame ptr, byval destspr as Frame ptr, byval pal as Palette16 ptr, byval x as int32, byval y as int32, byval startx as int32, byval starty as int32, byval endx as int32, byval endy as int32, byval trans as int32, byval scale as int32)
 
-declare sub smoothzoomblit_8_to_8bit(byval srcbuffer as ubyte ptr, byval destbuffer as ubyte ptr, byval w as integer, byval h as integer, byval pitch as integer, byval zoom as integer, byval smooth as integer)
-declare sub smoothzoomblit_8_to_32bit(byval srcbuffer as ubyte ptr, byval destbuffer as uinteger ptr, byval w as integer, byval h as integer, byval pitch as integer, byval zoom as integer, byval smooth as integer, byval pal as integer ptr)
-declare sub smoothzoomblit_32_to_32bit(byval srcbuffer as uinteger ptr, byval destbuffer as uinteger ptr, byval w as integer, byval h as integer, byval pitch as integer, byval zoom as integer, byval smooth as integer)
+declare sub smoothzoomblit_8_to_8bit(byval srcbuffer as ubyte ptr, byval destbuffer as ubyte ptr, byval w as int32, byval h as int32, byval pitch as int32, byval zoom as int32, byval smooth as int32)
+declare sub smoothzoomblit_8_to_32bit(byval srcbuffer as ubyte ptr, byval destbuffer as uint32 ptr, byval w as int32, byval h as int32, byval pitch as int32, byval zoom as int32, byval smooth as int32, byval pal as int32 ptr)
+declare sub smoothzoomblit_32_to_32bit(byval srcbuffer as uint32 ptr, byval destbuffer as uint32 ptr, byval w as int32, byval h as int32, byval pitch as int32, byval zoom as int32, byval smooth as int32)
 
 end extern
 

@@ -1,0 +1,610 @@
+########################################################################
+# This file contains testcases for the script interpreter and HSpeak.
+# It is part of autotest.rpg; see autotest.hss
+#
+
+# include a file with UTF-16 encoding
+include, "utf16 encoding test.hss"
+include, mixed line endings.hss
+
+########################################################################
+
+script, interpreter tests, begin
+  hspeak tests
+  string tests
+  math tests
+  flow tests
+  scheduling tests
+  subscript tests
+end
+
+########################################################################
+
+script, elseif A, x, begin
+  if(x == 0) then( return(1) )
+  elseif(x == 1) then( return(2) )
+  else( return(3) )
+end
+
+script, elseif B, x, begin
+  if(x == 0)
+  elseif(x == 1) then( return(2) )
+end
+
+script, elseif C, x, begin
+  if(x == 0)
+  elseif(x == 1)
+  else( return(3) )
+end
+
+script, elseif tests, begin
+  $0="elseif tests"
+  assert(elseif A(0) == 1)
+  assert(elseif A(1) == 2)
+  assert(elseif A(2) == 3)
+  assert(elseif B(0) == 0)
+  assert(elseif B(1) == 2)
+  assert(elseif B(2) == 0)
+  assert(elseif C(0) == 0)
+  assert(elseif C(1) == 0)
+  assert(elseif C(2) == 3)
+end
+
+########################################################################
+
+script, switch A, x, begin
+  return(1)
+  switch (x) do(
+    case(5) do()
+    case(zero)
+    case(2) return(100)
+            return(101)
+    case(7) return(-1)
+            while(1) do(continue(2))
+            return(-1)
+    case(1) return(102)
+    case(3, 4, 2)
+            return(103)
+            break
+            return(104)
+    case(6, else)
+      return(99) 
+  )
+end
+
+script, switch B, x, begin
+  return(1)
+  switch(x) do(
+    case(5) do()
+    case(2) do(
+      return(100)
+      break
+      return(101)
+    )
+    case(1) return(102)
+    case((2+1), 2*2, zero)
+      if(x) then(return(103))
+      else(return(104))
+    else(return(99))
+  )
+end
+
+script, switch tests, begin
+  $0="switch tests"
+  assert(switch A(0) == 101)
+  assert(switch A(1) == 102)
+  assert(switch A(2) == 101)
+  assert(switch A(3) == 103)
+  assert(switch A(4) == 103)
+  assert(switch A(5) == 1)
+  assert(switch A(6) == 99)
+  assert(switch A(7) == 102)
+  assert(switch A(8) == 99)
+
+  assert(switch B(0) == 104)
+  assert(switch B(1) == 102)
+  assert(switch B(2) == 100)
+  assert(switch B(3) == 103)
+  assert(switch B(4) == 103)
+  assert(switch B(5) == 1)
+  assert(switch B(6) == 99)
+end
+
+########################################################################
+
+script, bad break, begin
+  break(1)
+end
+
+script, bad continue, begin
+  continue(1)
+end
+
+script, flow tests, begin
+  variable(var1)
+  # for loop creates some state which can be corrupted
+  for (var1, 0, 6) do (
+    bad break
+    # Causes an error
+    #bad continue
+  )
+
+  elseif tests
+  switch tests
+end
+
+########################################################################
+
+plotscript, ¿ƒüñÑÿ sÇ®¡ÞΤ ηªɱE, begin
+  return (42)
+end 
+
+# This really doesn't belong here, but I'm too lazy to find a better place
+script, hspeak tests, begin
+  $0="hspeak tests"
+  variable (Über)
+  Über := 12
+  for (über, über, über + 4) do ()
+  assert(Über == 17)
+
+  # Lowercase form in Latin-1, uppercase not
+  variable (Ÿve)
+  ÿve := 0
+
+  assert(¿ƒüñÑÿ sÇ®¡ÞΤ ηªɱE == 42)
+
+  assert(that script in the other file == 91)
+  
+  global 5000 := 99999
+  assert(global 5000 == 99999)
+end
+
+########################################################################
+
+script, string tests, begin
+  # There are tons more string commands we could test here!
+  $0="String tests", trace(0)
+
+  $1=""
+  $2=""
+  assert(string compare(1,2))
+  $1="a"
+  $2="A"
+  assert(string compare(1,2) == false)
+  $1=" .~fooy"
+  $2=" .~fooY"
+  assert(string compare(1,2) == false)
+
+  # Check HSpeak encodes Unicode correctly
+  $1="	 ¡éÖœ£"  # tab, space, exclamation
+  $2="‰Œẽñ"  # characters above U+00FF
+  $3="???ñ"
+  trace(3)
+  assert(string compare(2, 3))
+  3 $= 1
+  3 $+ 2
+  trace(3)
+  trace value(string length(3))
+  assert(string length(3) == 11)
+  assert(ascii from string(3, 1) == 9)
+  assert(ascii from string(3, 2) == 32)
+  assert(ascii from string(3, 3) == 161)
+  assert(ascii from string(3, 4) == 233)
+  assert(ascii from string(3, 10) == 63)
+  assert(ascii from string(3, 11) == 241)
+  show string at(3, 0, 0)
+  w
+  hide string(3)
+
+  $1="SelfStab"
+  read attack name(2, 0 + 1)
+  assert(string compare(1,2))
+  
+  $1="Attack self"
+  get attack caption(2, 0 + 1)
+  assert(string compare(1,2))
+
+  embedding global := -1234
+  $3="<embedded> "
+
+  # Test the obsolete stringfromtextbox: 4th arg ignored
+  stringfromtextbox(1, 8, 2)
+  $2="."
+  assert(string compare(1, 2))
+  stringfromtextbox(1, 8, 3)
+  $2=""
+  assert(string compare(1, 2))
+  stringfromtextbox(1, 8, 4)
+  $2="##"
+  assert(string compare(1, 2))
+  stringfromtextbox(1, 8, 5, false)
+  $2=",-1234. ,<embedded> "
+  assert(string compare(1, 2))
+  stringfromtextbox(1, 8, 5, true)
+  assert(string compare(1, 2))
+
+  # textbox line
+  textboxline(1, 8, 2)
+  $2="."
+  assert(string compare(1, 2))
+  textboxline(1, 8, 3)
+  $2=""
+  assert(string compare(1, 2))
+  textboxline(1, 8, 4)
+  $2=" ## "
+  assert(string compare(1, 2))
+  textboxline(1, 8, 4, true, false)
+  assert(string compare(1, 2))
+  textboxline(1, 8, 4, true, true)
+  $2="##"
+  assert(string compare(1, 2))
+  textboxline(1, 8, 5, false)
+  $2=" ,${V105}. ,${S3} "
+  assert(string compare(1, 2))
+  textboxline(1, 8, 5, true)
+  $2=" ,-1234. ,<embedded>  "
+  assert(string compare(1, 2))
+  textboxline(1, 8, 5, true, true)
+  $2=",-1234. ,<embedded> "
+  assert(string compare(1, 2))
+
+  assert($1="foo" == 1)
+  assert($1+"bar" == 1)
+
+  # higher IDs
+  $95="a "
+  $96=""
+  appendascii(96, 97)
+  $96+" "
+  assert(string compare(95, 96))
+
+  # string sprintf
+  string sprintf(1, $2=" test ")
+  assert(string compare(1, 2))
+
+  $2="%%"
+  $3="%"
+  string sprintf(1, 2)
+  assert(string compare(1, 3))
+
+  $2=" test %d "
+  $3=" test -24 "
+  string sprintf(1, 2, -24)
+  assert(string compare(1, 3))
+
+  $2=" test %d%d%d%d%d"
+  $3=" test 1-2-3-4-5"
+  string sprintf(1, 2, 1, -2, -3, -4, -5)
+  assert(string compare(1, 3))
+
+  $2="test (%s)"
+  $3="test (test (%s))"
+  string sprintf(1, 2, 2)
+  assert(string compare(1, 3))
+
+  $2=" test%c "
+  $3=" testA "
+  string sprintf(1, 2, 65)
+  assert(string compare(1, 3))
+
+  $2=" test %x %x "
+  $3=" test 1abcdef ffffffff "
+  string sprintf(1, 2, 28036591, -1)
+  assert(string compare(1, 3))
+end
+
+########################################################################
+
+script, math tests, begin
+  variable(n)
+  n := 10
+  $0="math tests"
+  if(abs(-10) <> n) then(crash)
+  if(abs(15) <> n + 5) then(crash)
+
+  assert(another global == 0)
+  another global := 10
+  assert(another global == 10)
+  assert(read global(@another global) == 10)
+  write global(@another global, 4)
+  assert(another global == 4)
+end
+
+########################################################################
+
+# Test the interaction of different script fibres, including pausing,
+# waiting, and back-compat blocking.
+# This makes use of timers, but the real timer tests are in autotest.hss
+script, scheduling tests, begin
+  $0="scheduling tests"
+
+  tick counter slice := create container
+  set slice velocity x(tick counter slice, 1, 1000)
+
+  blocking tests
+  assert(check bug 430 enabled == false)
+  variable (oldval)
+  oldval := read general(178)  # genBits2
+  write general(178, oldval, or, (2 ^ 1)) # Enable bug 430
+  assert(check bug 430 enabled == true)
+  write general(178, oldval)
+
+  free slice(tick counter slice)
+end
+
+script, ticknumber, begin
+  return(slice x(tick counter slice))
+end
+
+########################################################################
+
+script, blocker script, begin
+#  assert(ticker 0 == expected ticker 0)
+  ticker 1 += 1
+  wait
+  ticker 1 += 1
+end
+
+script, blocker script 2, begin
+  assert(ticker 1 == expected ticker 1)
+  ticker 2 += 1
+  wait
+  ticker 2 += 1
+  assert(ticker 1 == expected ticker 1)
+end
+
+script, eachtick script, begin
+  ticker 0 += 1
+  set timer(3, 0, 1, @eachtick script)
+end
+
+script, blocking tests, begin
+  $0="blocking tests"
+
+  variable (start tick)
+  start tick := ticknumber
+  ticker 0 := 0
+  ticker 1 := 0  # globals
+  ticker 2 := 0
+
+  # Start an each-tick script on a timer that should not interfer with anything else
+  # (since it has a higher timer ID)
+  set timer(3, 0, 1, @eachtick script)
+
+  wait(2)
+  assert(ticknumber == start tick + 2)
+
+  # Trigger another script and check that this one is blocked
+  # (This is also a test for bug 430, because of eachtick script)
+  expected ticker 0 := 0
+  set timer(1, 0, 1, @blocker script)
+  assert(ticknumber == start tick + 2)
+  # This script will continue running until the next tick
+  assert(ticker 1 == 0)
+  wait(1)
+  assert(ticker 1 == 2)
+  assert(ticknumber == start tick + 4)
+
+  # Trigger two scripts to run at once; one blocks the other (test for bug 430)
+  expected ticker 1 := 2
+  set timer(1, 0, 1, @blocker script)
+  set timer(2, 0, 1, @blocker script 2)  # Runs first
+  assert(ticknumber == start tick + 4)
+  wait
+  assert(ticknumber == start tick + 7)  # one tick wait each plus the wait above
+  assert(ticker 1 == 4)
+  assert(ticker 2 == 2)
+
+  # Check eachtick ran every tick
+  #trace value(ticknumber, start tick, ticker 0, ticker 1, ticker 2)
+  assert(ticker 0 == ticknumber -- start tick)
+  stop timer(3)
+end
+
+########################################################################
+
+script, bug 430 tester, begin
+  variable (start tick)
+  start tick := ticknumber
+  wait  # should be skipped
+  if (ticknumber == start tick) then (
+    # was skipped
+    ticker 1 += 1
+  )
+end
+
+# blocking tests is completely broken if bug 430 is enabled, so here is a separate test,
+# Returns whether bug 430 is enabled
+script, check bug 430 enabled, begin
+  $0="check bug 430 enabled"
+  variable (start tick)
+  start tick := ticknumber
+  ticker 1 := 0  # globals
+  ticker 2 := 0
+
+  # Trigger two scripts to run at once; one blocks the other (test for bug 430)
+  expected ticker 1 := 0
+  set timer(1, 0, 1, @bug 430 tester)
+  set timer(2, 0, 1, @blocker script 2)  # Runs first
+  wait
+  assert(ticker 2 == 2)
+  if(ticknumber == start tick + 2 && ticker 1 == 1) then (
+    # wait in blocker script 2 plus the wait above
+    return (true)
+  ) else if(ticknumber == start tick + 3 && ticker 1 == 0) then (
+    return (false)
+  ) else (
+    # Other combinations should be impossible
+    crash
+  )
+end
+
+########################################################################
+
+script, subscript tests, begin
+  $0="subscript tests"
+
+  variable(var1, var2)
+
+  assert(sscript 1 == 2)
+  assert(var1 == 1)
+
+  subscript, sscript 1, begin
+    var1 := 1
+    return (2)
+  end
+
+  subscript, sscript 2, arg=42, begin
+    variable(x)
+    var1 := arg
+    x := var1 + 1
+    var1 += x
+  end
+
+  sscript 2(2)
+  assert(var1 == 5)
+  sscript 2
+  assert(var1 == 85)
+
+  subscript, sscript 3, begin
+    subscript, ssscript 1, arg2, begin
+      x += arg2 + 10
+    end
+    variable(x)
+    x := 1
+    ssscript 1 (100)
+    var2 := x
+  end
+  sscript 3
+  assert(var2 == 111)
+
+  # test maximum nesting depth (4)
+  a global := -1
+  subscript, sscript 4, arg1, begin
+    variable(v0,v1)
+    v0 := 5
+    subscript, ssscript, arg2, begin
+      variable(v2)
+      subscript, sssscript, arg3, begin
+        variable(v3)
+        subscript, ssssscript, arg4, begin
+          # returns arg4 * 10 + 5
+          assert(a global == -1)
+          a global := -2
+          assert(arg4 == 1234)
+          variable(v4)
+          #trace value(v4, arg4, v0)
+          v4 += arg4 * 5 + v0
+          for (v0, v0, 1, -1) do (v4 += arg4) # v4 += 5 * arg4
+          #tracevalue(v0, v4, arg4 * 10 + 5)
+          assert(v4 == arg4 * 10 + 5)
+          var1 := var2
+          return(v4)
+        end
+        assert(arg3 == 123)
+        v1 := 1002
+        return(ssssscript(arg3 * 10 + 4))
+      end
+      assert(arg2 == 12)
+      return(sssscript(arg2 * 10 + 3))
+    end
+    assert(read global(@a global) == -1)
+    return (ssscript(arg1 * 10 + 2))
+    assert(v0 == 0)  # 1 past end of for loop (so 1 - 1)
+    assert(v1 == 1002)
+  end
+  assert(sscript4(1) == 12345)
+  assert(var1 == 111)
+  assert(a global == -2)
+
+  # break stops at a script boundary
+  variable(var3)
+  subscript, break subscript, begin
+    break(4)
+    var3 := 1
+  end 
+  for (var1, 0, 6) do (
+    break subscript
+    var2 += 1
+  )
+  assert(var1 == 7)
+  assert(var2 == 111 + 7)
+  assert(var3 == 0)
+
+  # Test call patterns other than being called by parent...
+
+  # Recursion
+  subscript, fib, x, begin
+    variable(ret)
+    if (x <= 2) then (ret += 1)
+    else (
+      x -= 1
+      ret += fib(x)
+      x -= 1
+      ret += fib(x)
+    )
+    return(ret)
+  end
+  assert(fib(10) == 55)
+  # All 4 directions of call between a script and its subscript
+  assert(inside-outside fib(10) == 55)
+
+  # Calling a sibling subscript or a sibling of a parent subscript (another fibonacci)
+  var1 := 0  # temporary
+  subscript, sibling 1, n, begin
+    variable(ret)
+    subscript, niece, k, begin
+      if (k <= 2) then (
+        ret += 1
+      ) elseif (k, mod, 2) then (
+        ret += sibling 1(k -- 1)
+        k -= 1
+        ret += sibling 2(k -- 1)
+      ) else (
+        ret += sibling 2(k -- 1)
+        k -= 1
+        ret += sibling 1(k -- 1)
+      )
+    end
+    niece(n)
+    return(ret)
+  end
+  subscript, sibling 2, n, begin
+    if (n <= 2) then (var1 += 1)
+    else (
+      variable(ret)
+      ret += sibling 1(n -- 2)
+      var1 += sibling 1(n -- 1)
+      var1 += ret
+    )
+    return(var1)
+    var1 := 0
+  end
+  assert(sibling1(10) == 55)
+end
+
+# A very weird way to compute fibonacci numbers
+script, inside-outside fib, n, begin
+  variable(x)
+
+  subscript, inside fib, begin
+    variable(y)
+    if (n <= 2) then (
+      x += 1
+    ) else (
+      n -= 1
+      y += inside fib() #n -- 1)
+      n += 1
+      x += inside-outside fib(n -- 2) + y
+    )
+  end
+  if (n <= 2) then (exit returning (1))
+  n -= 1
+  inside fib()
+  n -= 1
+  x += inside-outside fib(n)
+  return(x)
+end
+
+
+########################################################################

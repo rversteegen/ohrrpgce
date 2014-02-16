@@ -13,6 +13,14 @@
 ---------------------------------------------------------------------------
 
 --Changelog
+--3Re 2014-02-17 Trivial change to math builtin warnings
+----- 2013-11-09 Prevent misuse of betweenable-operators in
+--               declarations, and allow constants for global ids
+--3Rc 2013-10-11 subscript implementation changes (add nonlocal kind)
+--3Rb 2013-10-10 Remove variable() later, for syntax checking
+--3Ra 2013-10-09 Fixed \r lineendings (AGAIN) and slow \r\n handling
+--3R  2013-10-05 Add subscript
+--3Qc 2013-10-04 Disallow flow statements used as expressions
 --3Qb 2013-07-24 Require begin after then, do, etc. (else excluded)
 --3Qa 2013-04-11 Warn when plotscr.hsd not included
 ----- 2013-02-28 Allow non-constant expressions in case blocks again
@@ -145,7 +153,7 @@ constant COMPILER_VERSION="3"
 -- For small changes increment the second letter of COMPILER_SUB_VERSION
 -- For large changes increment the first letter and reset the second letter
 --*Please make sure this is 2 chararacters long! Append a space if required.*
-constant COMPILER_SUB_VERSION="Qb"
+constant COMPILER_SUB_VERSION="Re"
 constant COPYRIGHT_DATE="2013"
 
 --This is the oldest version of plotscr.hsd which is supported (feel free to
@@ -187,11 +195,11 @@ constant POS_COLUMN=3
 constant POS_TEXT=4
 constant CMD_TEXT=1
 constant CMD_POS=2
-constant RESERVE_CORE=1
+constant RESERVE_TOPLEVEL=1      --Tokens that are only allowed at the toplevel, but not including script triggers
 constant RESERVE_UNIMPLEMENTED=2
-constant RESERVE_FLOW=3
-constant RESERVE_FUNCTION=4
-constant RESERVE_SCRIPT=5
+constant RESERVE_FLOW=3          --Flow control keywords
+constant RESERVE_FUNCTION=4      --Name of a defined function
+constant RESERVE_SCRIPT=5        --etc
 constant RESERVE_GLOBAL=6
 constant RESERVE_BEGIN=7
 constant RESERVE_END=8
@@ -199,6 +207,7 @@ constant RESERVE_OPERATOR=9
 constant RESERVE_BUILTIN=10
 constant RESERVE_CONSTANT=11
 constant RESERVE_MACRO=12
+constant RESERVE_KEYWORD=13      --Miscellaneous keywords which can only occur inside scripts
 constant RESERVE_NAMES={"declaration"
                        ,"unimplemented keyword/operator"
                        ,"flow control"
@@ -211,6 +220,7 @@ constant RESERVE_NAMES={"declaration"
                        ,"builtin command"
                        ,"constant"
                        ,"hardcoded function/macro"
+                       ,"keyword"
                        }
 constant PAIR_NUM=1
 constant PAIR_NAME=2
@@ -218,13 +228,17 @@ constant PAIR_START=1
 constant PAIR_END=2
 constant OPER_TRUENAME=3
 constant OPER_POS=4
-constant FUNC_ARGS=3
-constant FUNC_POS=4
-constant GLB_POS=3
+constant FUNC_ARGS=3    --Either list of default values (each an integer or NO_DEFAULT), or VAR_ARGS
+constant FUNC_POS=4     --srcpos of start of function/script
+constant GLB_POS=3      --srcpos of globalvariable definition
 constant CONST_VALUE=1
 constant CONST_POS=2
+constant VAR_FRAME=3    --VarToken index, integer giving frame number of a variable (0 is current script, 1 is parent...)
+constant VAR_ID=4       --VarToken index, integer giving ID in frame
+
 constant NO_DEFAULT={}  --when appears in script_list[FUNC_ARGS], indicates arg with no default value
 constant VAR_ARGS=0     --when appears AS function_list[FUNC_ARGS], indicates unlimited num of args
+
 constant KIND_NUMBER=1
 constant KIND_FLOW=2
 constant KIND_GLOBAL=3
@@ -232,10 +246,12 @@ constant KIND_LOCAL=4
 constant KIND_MATH=5
 constant KIND_FUNCTION=6
 constant KIND_SCRIPT=7
-constant KIND_REFERENCE=8 --converted to KIND_NUMBER in compiled script
-constant KIND_OPERATOR=9 --never appears in compiled script
-constant KIND_PARENS=10 --never appears in compiled script
-constant KIND_MACRO=11 --never appears in compiled script
+constant KIND_NONLOCAL=8
+constant KIND_REFERENCE=9   --converted to KIND_NUMBER in compiled script
+constant KIND_OPERATOR=10   --never appears in compiled script
+constant KIND_PARENS=11     --never appears in compiled script
+constant KIND_MACRO=12      --never appears in compiled script
+constant KIND_KEYWORD=13    --never appears in compiled script
 constant KIND_LONGNAMES={"number"
                         ,"flow control statement"
                         ,"global variable"
@@ -243,6 +259,7 @@ constant KIND_LONGNAMES={"number"
                         ,"built-in function"
                         ,"hard-coded function"
                         ,"script"
+                        ,"non-local variable"
                         ,"reference"
                         ,"untranslated operator"
                         ,"order-of-operations-enforcing parenthesis"
@@ -258,30 +275,51 @@ constant TIMING_ACTIVE=4
 --Version number for the .hs/.hsp format (not including HSZ files!)
 constant HSP_FORMAT_VERSION=1
 
-constant CODE_START_BYTE_OFFSET=12
-constant SCRIPT_FORMAT_VERSION=2
+constant CODE_START_BYTE_OFFSET=18
+constant HSZ_FORMAT_VERSION=3
 
-constant MAXGLOBAL=16383
+constant MAXGLOBAL=16383  --largest ID
+constant MAX_LOCALS=100   --max number of locals per script (not including nonlocals)
+
+constant MAX_NEST_DEPTH=4
 
 ---------------------------------------------------------------------------
 --globals--               --initializations--
-sequence compiler_dir     compiler_dir=""
-sequence source_file      source_file=""
-sequence dest_file        dest_file=""
+string compiler_dir       compiler_dir=""
+string source_file        source_file=""
+string dest_file          dest_file=""
 sequence optlist          optlist={}
-sequence file_list        file_list={}
+sequence file_list        file_list={}            --type {FILE_NAME,FILE_TEXT,FILE_LINE_EXTENTS}
 integer max_srcpos        max_srcpos=0
 integer total_lines       total_lines=0
-sequence cmd              cmd={}
+sequence cmd              cmd={}                  --TokenList (but type checking is very slow)
 sequence reuse_ids        reuse_ids={}
 sequence constant_list    constant_list=alpha_tree_create()
-sequence trigger_list     trigger_list={}
-sequence operator_list    operator_list={}
-sequence function_list    function_list={}
-sequence global_list      global_list={{},{},{}}
-sequence string_list      string_list={}
-sequence script_list      script_list={}
-sequence script_cmd       script_cmd={}
+sequence trigger_list     trigger_list={}         --type {PAIR_NUM, PAIR_NAME}
+sequence operator_list    operator_list={}        --type {PAIR_NUM, PAIR_NAME, OPER_TRUENAME, OPER_POS}
+sequence function_list    function_list={}        --type {PAIR_NUM, PAIR_NAME, FUNC_ARGS, FUNC_POS}
+sequence global_list      global_list={{},{},{}}  --NOTE: three lists {PAIR_NUM, PAIR_NAME, GLB_POS}, not a list of globals
+sequence string_list      string_list={}          --list of strings
+sequence script_list      script_list={}          --type {PAIR_NUM, PAIR_NAME, FUNC_ARGS, FUNC_POS} (PAIR_NAME is the full name)
+
+constant SCRIPT_TRIGGER_TOK=1     --Trigger token (type {CMD_TEXT, CMD_POS}), e.g. "script"
+constant SCRIPT_NAME=2            --String, not fully-scoped
+constant SCRIPT_POS=3             --(scrpos of script name)
+constant SCRIPT_FULL_NAME=4       --Full-scoped script name
+constant SCRIPT_ARG_TOKS=5        --List of argument name tokens (type {CMD_TEXT, CMD_POS})
+                                  --Initially the tokens may include default values (like "a=4"), which are later removed
+constant SCRIPT_BODY_TOKS=6       --List of tokens (type {CMD_TEXT, CMD_POS}) in the body, of the form do,begin,...,end
+constant SCRIPT_PARENT_IDX=7      --index in all_scripts, or 0 for none
+constant SCRIPT_NEST_DEPTH=8      --Nesting depth. A script is 0, subscript 1, sub-subscript 2...
+constant SCRIPT_ID=9              --Script ID. Value not appended until all IDs are assigned in check_script_declarations
+constant SCRIPT_TRIGGER_ID=10     --trigger ID. SCRIPT_TRIGGER_ID and later not appended until compile_a_script
+constant SCRIPT_NUM_NONLOCALS=11
+constant SCRIPT_AST=12
+constant SCRIPT_VARIABLES=13      --VarList of locals and nonlocals
+constant SCRIPT_BINARY=14
+
+sequence all_scripts      all_scripts={}       --list of Scripts == {SCRIPT_*} (variable length)
+
 sequence reserved         reserved=alpha_tree_create()
 atom start_time           start_time=time()
 atom run_time             run_time=0
@@ -305,6 +343,7 @@ sequence flow_list        flow_list={
                              ,{14,"exitreturning"}
                              ,{15,"switch"}
                              ,{16,"case"}  --never appears in compiled script
+                             ,{17,"subscript"}  --never appears in compiled script
                           }
                           --elseif is not a flow type
 sequence flow_requiring_brackets  --else is excluded, because of case(else)
@@ -319,7 +358,7 @@ sequence flow_requiring_brackets  --else is excluded, because of case(else)
                              "switch",
                              "case"
                           }
-sequence math_list        math_list={
+sequence math_list        math_list={          --type {PAIR_NUM, PAIR_NAME, FUNC_ARGS} (FUNC_POS omitted)
                               {0,"random",{0,1}}
                              ,{1,"exponent",{0,2}}
                              ,{2,"modulus",{0,1}}
@@ -355,21 +394,20 @@ sequence separator_list   separator_list={
                           }
 sequence lexer_table      lexer_table={}
 sequence lexer_table_key2 lexer_table_key2={}
-sequence hex_chars        hex_chars="0123456789abcedfABCDEF"
+string hex_chars          hex_chars="0123456789abcedfABCDEF"
 sequence hex_char_values  hex_char_values={0,1,2,3,4,5,6,7,8,9,#a,#b,#c,#e,#d,#f,#A,#B,#C,#D,#E,#F}
 
 sequence compiled_data    compiled_data={}    --used inside binary_compile only; compiled data for the current script
-
-sequence all_scripts      all_scripts={}
-sequence current_script   current_script=""   --name of current script
-integer cur_script_num    cur_script_num=0    --index into script_cmd of current script
+string current_script     current_script=""   --name of current script
+sequence current_scopes   current_scopes={""} --list of possible prefixes to add to (sub)script names, eg "master<-"
+integer cur_script_num    cur_script_num=0    --index into all_scripts of current script
 integer colors_enabled    colors_enabled=true
 integer simple_colorcodes simple_colorcodes=false
 integer error_file        error_file=false
-sequence used_globals     used_globals={}
-sequence used_locals      used_locals={}
-sequence string_table     string_table={}
-sequence plotscr_version  plotscr_version=""
+sequence used_globals     used_globals={}     --list of strings
+sequence used_locals      used_locals={}      --list of strings
+sequence string_table     string_table={}     --binary data
+string plotscr_version    plotscr_version=""
 integer max_used_function max_used_function=0 --maximum id of a function used in a script
 integer fast_mode         fast_mode=false
 integer end_anchor_kludge end_anchor_kludge=false
@@ -381,9 +419,102 @@ integer was_warnings      was_warnings=false
 --A position in the script source. An integer, encoding an index in file_list
 --and a character number that file (where newlines are one character).
 --See encode_srcpos and decode_srcpos
-type srcpos(atom pos)
+type srcpos(object pos)
   --need to allow 0 as a dummy value
-  if pos=floor(pos) and pos>=0 and pos<=max_srcpos then
+  if atom(pos) and pos=floor(pos) and pos>=0 and pos<=max_srcpos then
+    return true
+  else
+    return false
+  end if
+end type
+
+--Not the same as Euphoria's string type, which is limited to extended ASCII
+type string(object str)
+  if not sequence(str) then
+    return false
+  end if
+  --Too slow
+  -- for i=1 to length(str) do
+  --   if not integer(str[i]) or str[i]<0 then
+  --     return false
+  --   end if
+  -- end for
+  return true
+end type
+
+--A CMD_TEXT,CMD_POS pair
+type Token(object tok)
+  if sequence(tok) and length(tok)=2 and string(tok[1]) and srcpos(tok[2]) then
+    return true
+  else
+    return false
+  end if
+end type
+
+--A CMD_TEXT,CMD_POS,VAR_FRAME,VAR_ID tuple describing a local/nonlocal variable
+type VarToken(object var)
+  if length(var)=4 and string(var[1]) and srcpos(var[2]) and integer(var[3]) and integer(var[4]) then
+    return true
+  end if
+  return false
+end type
+
+--sequence of Tokens
+type TokenList(object list)
+  if not sequence(list) then
+    return false
+  end if
+  for i=1 to length(list) do
+    if not Token(list[i]) then
+      return false
+    end if
+  end for
+  return true
+end type
+
+--sequence of VarTokens
+type VarList(object vars)
+  if not sequence(vars) then
+    return false
+  end if
+  for i=1 to length(vars) do
+    if not VarToken(vars[i]) then
+      return false
+    end if
+  end for
+  return true
+end type
+
+--{Token,children}
+type Node(object node)
+  if sequence(node) and length(node)=2 and Token(node[1]) and sequence(node[2]) then
+    for i=1 to length(node[2]) do
+      if not Node(node[2][i]) then
+        return false
+      end if
+    end for
+    return true
+  else
+    return false
+  end if 
+end type
+
+--sequence of Nodes
+type NodeList(object list)
+  if not sequence(list) then
+    return false
+  end if
+  for i=1 to length(list) do
+    if not Node(list[i]) then
+      return false
+    end if
+  end for
+  return true
+end type
+
+--An element of all_scripts
+type Script(object script)
+  if sequence(script) and length(script)>=SCRIPT_NEST_DEPTH and length(script)<=SCRIPT_BINARY then
     return true
   else
     return false
@@ -414,11 +545,11 @@ end function
 --so this is an Unicode-enabled replacement. Supports %d, %s, %g, %%
 --Beware! This will be way slower than sprintf, but luckily it's not
 --needed anywhere where speed matters.
-function sprintf_utf(sequence s,sequence printf_args)
+function sprintf_utf(string s, sequence printf_args)
   integer seg_start, seg_end
   integer arg_ctr
   integer code
-  sequence ret
+  string ret
   if length(printf_args)=0 then
     return s
   end if
@@ -442,7 +573,7 @@ function sprintf_utf(sequence s,sequence printf_args)
       simple_error(sprintf("sprintf_utf: unrecognised format code %%%s\n",{s[seg_end+1]}))
     end if
     seg_start=seg_end+2
-    seg_end=find_from('%',s,seg_start)
+    seg_end=find('%',s,seg_start)
   end while
   if seg_start<=length(s) then
     ret&=s[seg_start..$]
@@ -457,7 +588,7 @@ end function
 ---------------------------------------------------------------------------
 
 --fprintf as UTF8
-procedure print_utf(object fh,sequence s,sequence printf_args)
+procedure print_utf(object fh, string s, sequence printf_args)
   if length(printf_args) then
     s=sprintf_utf(s,printf_args)
   end if
@@ -468,8 +599,8 @@ end procedure
 ---------------------------------------------------------------------------
 
 --prints a string with printf to stdout converting color codes
-procedure color_print(sequence s,sequence printf_args)
-  sequence buffer
+procedure color_print(string s, sequence printf_args)
+  string buffer
   s=sprintf_utf(s,printf_args)
   if simple_colorcodes then
     buffer=s
@@ -504,7 +635,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure enter_timing_zone(sequence description)
+procedure enter_timing_zone(string description)
   if not find('t',optlist) then
     return
   end if
@@ -514,7 +645,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure reenter_timing_zone(sequence description)
+procedure reenter_timing_zone(string description)
   if not find('t',optlist) then
     return
   end if
@@ -550,9 +681,9 @@ end procedure
 ---------------------------------------------------------------------------
 
 procedure print_timing_data()
-  sequence indent
+  string indent
   sequence data
-  sequence tmp1, tmp2
+  string tmp1, tmp2
   if run_time=0 then
     --so that all percentages show as 0%
     run_time=1e100
@@ -568,9 +699,9 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-function html_char_convert(sequence s)
-  sequence buffer
-  sequence result
+function html_char_convert(string s)
+  string buffer
+  string result
   result=""
   buffer=""
   for i=1 to length(s) do
@@ -596,9 +727,9 @@ end function
 
 ---------------------------------------------------------------------------
 
-function error_string_convert(sequence s)
-  sequence buffer
-  sequence result
+function error_string_convert(string s)
+  string buffer
+  string result
   result=""
   buffer=""
   for i=1 to length(s) do
@@ -629,8 +760,8 @@ end function
 ---------------------------------------------------------------------------
 
 --prints a long string wrapped at 80 columns
-procedure wrap_print(sequence s,sequence arguments)
-  sequence outstring
+procedure wrap_print(string s, sequence arguments)
+  string outstring
   s=sprintf_utf(s,arguments)
   while length(s) do
     outstring=before_wrap_point(s)
@@ -641,7 +772,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure error_file_print(sequence s)
+procedure error_file_print(string s)
   integer fh
   if error_file then
     fh=open(compiler_dir&"hs_error.htm","a")
@@ -655,7 +786,7 @@ end procedure
 ---------------------------------------------------------------------------
 
 --prints out warning message in red with word wrap
-procedure simple_warn(sequence s)
+procedure simple_warn(string s)
   sequence pos
   if not find('w',optlist) then
     --do not warn if -w is set
@@ -672,7 +803,7 @@ end procedure
 ---------------------------------------------------------------------------
 
 --prints out an error message in red with word wrap, then aborts
-procedure simple_error(sequence s)
+procedure simple_error(string s)
   sequence pos
   pos=get_position()
   if pos[2]>1 then
@@ -843,14 +974,14 @@ procedure init()
   --thing would have been even better, but thats alot of trouble :)
   --FIXME: variable is missing! It doesn't fit in any of the categories
   reserved=alpha_tree_mass_insert(reserved,{
-           {"defineconstant",RESERVE_CORE}
-          ,{"definetrigger" ,RESERVE_CORE}
-          ,{"defineoperator",RESERVE_CORE}
-          ,{"globalvariable",RESERVE_CORE}
-          ,{"definefunction",RESERVE_CORE}
-          ,{"definescript"  ,RESERVE_CORE}
-          ,{"plotscrversion",RESERVE_CORE}
-          ,{"include"       ,RESERVE_CORE}  --should never appear, in theory
+           {"defineconstant",RESERVE_TOPLEVEL}
+          ,{"definetrigger" ,RESERVE_TOPLEVEL}
+          ,{"defineoperator",RESERVE_TOPLEVEL}
+          ,{"globalvariable",RESERVE_TOPLEVEL}
+          ,{"definefunction",RESERVE_TOPLEVEL}
+          ,{"definescript"  ,RESERVE_TOPLEVEL}
+          ,{"plotscrversion",RESERVE_TOPLEVEL}
+          ,{"include"       ,RESERVE_TOPLEVEL}  --should never appear, in theory
           ,{"do"            ,RESERVE_FLOW}
           ,{"begin"         ,RESERVE_BEGIN}
           ,{"end"           ,RESERVE_END}
@@ -858,7 +989,7 @@ procedure init()
           ,{"if"            ,RESERVE_FLOW}
           ,{"then"          ,RESERVE_FLOW}
           ,{"else"          ,RESERVE_FLOW}
-          ,{"elseif"        ,RESERVE_FLOW}
+          ,{"elseif"        ,RESERVE_FLOW}  --not in flow_list... shouldn't that be a problem?
           ,{"for"           ,RESERVE_FLOW}
           ,{"cfor"          ,RESERVE_UNIMPLEMENTED}
           ,{"foreach"       ,RESERVE_UNIMPLEMENTED}
@@ -869,14 +1000,25 @@ procedure init()
           ,{"exitreturning" ,RESERVE_FLOW}
           ,{"switch"        ,RESERVE_FLOW}
           ,{"case"          ,RESERVE_FLOW}
+          ,{"subscript"     ,RESERVE_KEYWORD}
+          ,{"variable"      ,RESERVE_KEYWORD}
           ,{"="             ,RESERVE_UNIMPLEMENTED}
           ,{"tracevalue"    ,RESERVE_MACRO}
           ,{"assert"        ,RESERVE_MACRO}
           ,{"len"           ,RESERVE_MACRO}
           ,{"globalindex"   ,RESERVE_MACRO}
+          -- Stray "$"'s are picked up by the lexer (not totally ideal maybe)
         })--end mass_insert   
   for i=1 to length(math_list) do
     reserved=alpha_tree_insert(reserved,math_list[i][PAIR_NAME],RESERVE_BUILTIN)
+  end for
+  -- Adding the separators (operators) here prevents them from being used before
+  -- defineoperator is handled (either a block before include,plotscr.hsd, or in
+  -- e.g. defineconstant)
+  for i=1 to length(separator_list) do
+    if alpha_tree_data(reserved,separator_list[i],false)=false then
+      reserved=alpha_tree_insert(reserved,separator_list[i],RESERVE_OPERATOR)
+    end if
   end for
   init_lexer()
 end procedure
@@ -945,7 +1087,7 @@ end function
 function decode_srcpos(srcpos pos)
   integer point, filenum
   integer lineno
-  sequence filetext
+  string filetext
   sequence lines
   sequence temp
 
@@ -967,10 +1109,10 @@ end function
 
 ---------------------------------------------------------------------------
 
-function form_error_text(sequence s,srcpos pos)
-  sequence line
+function form_error_text(string s, srcpos pos)
+  string line
   sequence src_position
-  sequence column_display
+  string column_display
   integer tab_compensate
   src_position=decode_srcpos(pos)
   --?pos
@@ -1006,7 +1148,7 @@ end function
 
 ---------------------------------------------------------------------------
 
-procedure src_warn(sequence s,srcpos pos)
+procedure src_warn(string s, srcpos pos)
   if not find('w',optlist) then
     --do not warn if -w is set
     simple_warn(form_error_text(s,pos))
@@ -1016,17 +1158,42 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure src_error(sequence s,srcpos pos)
+procedure src_error(string s, srcpos pos)
   end_anchor_kludge=true
   simple_error(form_error_text(s,pos))
 end procedure
 
 ---------------------------------------------------------------------------
 
-procedure load_source(sequence filename,sequence reading_how,srcpos pos)
+--Find newlines in a file (possibly mixed type), returns line extents
+function split_lines(string file_text)
+  integer line_start=1
+  integer last_13=-1
+  sequence line_extents = {}  -- {start of line, end of line} pairs, both inclusive
+  for i=1 to length(file_text) do
+    if file_text[i]=13 then
+      line_extents=append(line_extents, {line_start,i-1})
+      last_13=i
+      line_start=i+1
+    elsif file_text[i]=10 then
+      if last_13!=i-1 then  -- handle {13,10} "\r\n"
+        line_extents=append(line_extents, {line_start,i-1})
+      end if
+      line_start=i+1
+    end if
+  end for
+
+  if line_start<=length(file_text) then
+    line_extents=append(line_extents, {line_start,length(file_text)})
+  end if
+  return line_extents
+end function
+
+---------------------------------------------------------------------------
+
+procedure load_source(string filename, string reading_how, srcpos pos)
   integer fh
-  integer line_start, line_end
-  sequence file_text
+  string file_text
   sequence line_extents  -- {start of line, end of line} pairs
 
   fh=open(filename,"r")
@@ -1041,19 +1208,7 @@ procedure load_source(sequence filename,sequence reading_how,srcpos pos)
     exit_timing_zone()
     close(fh)
 
-    --read_file already converts lineendings, so this usually won't be needed
-    file_text=exclude(file_text,"\r")
-
-    line_start=1
-    line_end=find('\n',file_text)
-    while line_end do
-      line_extents=append(line_extents,{line_start,line_end-1})
-      line_start=line_end+1
-      line_end=find_from('\n',file_text,line_start)
-    end while
-    if line_start<=length(file_text) then
-      line_extents=append(line_extents,{line_start,length(file_text)})
-    end if
+    line_extents=split_lines(file_text)
     total_lines+=length(line_extents)
     file_list=append(file_list,{filename,file_text,line_extents})
     max_srcpos+=length(file_text)+1
@@ -1068,7 +1223,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure load_include(sequence include_name,srcpos pos)
+procedure load_include(string include_name, srcpos pos)
   reenter_timing_zone("load_source/include")
   --try source directory
   if file_exists(path_only(source_file)&include_name) then
@@ -1110,8 +1265,8 @@ end procedure
 ---------------------------------------------------------------------------
 
 --reads and processes the escape codes in a string and returns it enclosed in quote marks
-function lexer_read_string(sequence s,integer i,integer stop,srcpos pos)
-  sequence string
+function lexer_read_string(string s, integer i, integer stop, srcpos pos)
+  string string
   integer escaping
   integer at1, at2
   escaping=false
@@ -1164,11 +1319,11 @@ end function
 
 ---------------------------------------------------------------------------
 
-function lexer_read_number(sequence s,integer i,integer stop,srcpos pos)
+function lexer_read_number(string s, integer i, integer stop, srcpos pos)
   integer state
   atom val
   integer sign
-  sequence text
+  string text
   integer starti
 
   starti=i
@@ -1218,7 +1373,7 @@ end function
 ---------------------------------------------------------------------------
 
 --Clean the rest of a line for seek_include after 'include' occurs
-function lexer_read_include_line(sequence tokens, sequence s, integer i, srcpos pos)
+function lexer_read_include_line(TokenList tokens, string s, integer i, integer stop, srcpos pos)
   integer at
   sequence temp
 
@@ -1227,11 +1382,7 @@ function lexer_read_include_line(sequence tokens, sequence s, integer i, srcpos 
   end if
 
   i+=1
-  s=s[i..$]
-  at=find('\n',s)
-  if at then
-    s=s[1..at-1]
-  end if
+  s=s[i..stop]
   at=find('#',s)
   if at then
     s=s[1..at-1]
@@ -1264,16 +1415,16 @@ end function
 
 -- s is the text for the whole file, the interval i to stop is a single line,
 -- and pos is the srcpos for the beginning of the file
-function lex_line(sequence s,integer i,integer stop,srcpos pos)
+function lex_line(sequence s, integer i, integer stop, srcpos pos)
   integer state
-  sequence tokens
-  sequence ident  --identifier text being built up
+  TokenList tokens
+  string ident  --identifier text being built up
   sequence temp
-  sequence masked
+  string masked
   integer oldi
   integer found
   integer textstart  --the column at which this identifier starts, otherwise 0
-  sequence remem_ident
+  string remem_ident
   integer remem_textstart
   integer nonnumeral  --whether we are definitely inside an identifier, ie. a digit doesn't indicate a number
   integer backtracked
@@ -1282,6 +1433,7 @@ function lex_line(sequence s,integer i,integer stop,srcpos pos)
   nonnumeral=false
   textstart=0
   tokens={}
+
   while i<=stop do
     if s[i]<256 then
       state=lexer_table[s[i]+1]
@@ -1403,7 +1555,7 @@ function lex_line(sequence s,integer i,integer stop,srcpos pos)
           if length(ident) then
             simple_error("compiler bug!\n")
           end if
-          return lexer_read_include_line(tokens,s,i,pos)
+          return lexer_read_include_line(tokens,s,i,stop,pos)
         end if
       end if
     end if
@@ -1419,12 +1571,12 @@ end function
 ---------------------------------------------------------------------------
 
 --this also checks for rogue strings and $'s
-function translate_plotstrings(sequence tokens)
+function translate_plotstrings(TokenList tokens)
   integer state
   integer start_token
   integer i
-  sequence string_func
-  sequence string_token
+  Token string_func
+  Token string_token
   srcpos pos
   state=0
   i=1
@@ -1472,20 +1624,20 @@ end function
 --Given a command tree, get the original text from the file
 --OK, this function is horribly complicated just so tracevalue can print
 --"hero X (me)" instead of "herox(me)". It could be implemented much simpler if
---macros were expanded in the lexer, but then compile_commands and
+--macros were expanded in the lexer, but then build_ast and
 --convert_macros would have to be as well
-function tree_original_text(sequence tree)
-  sequence script_toks
-  sequence subtree
+function tree_original_text(Node tree)
+  TokenList script_toks
+  Node subtree
   srcpos leftmost, rightmost
   integer left_at, right_at
   integer filenum
   integer left_point, right_point
   integer depth
-  sequence tokens
-  sequence text
+  TokenList tokens
+  string text
 
-  script_toks=script_cmd[cur_script_num][4]
+  script_toks=all_scripts[cur_script_num][SCRIPT_BODY_TOKS]
 
   --find leftmost and rightmost tokens making up the expression, not including brackets
   leftmost=tree[TREE_TRUNK][CMD_POS]
@@ -1540,8 +1692,8 @@ end function
 
 ---------------------------------------------------------------------------
 
-function seek_include(sequence tokens)
-  sequence ret
+function seek_include(TokenList tokens)
+  string ret
   if length(tokens) and equal(tokens[1][CMD_TEXT],"include") then
     ret=tokens[2][CMD_TEXT]
     if ret[1]='"' then
@@ -1555,9 +1707,9 @@ end function
 
 ---------------------------------------------------------------------------
 
-procedure read_commands(integer file_num,sequence include_stack)
-  sequence broken
-  sequence include_name
+procedure read_commands(integer file_num, sequence include_stack)
+  TokenList broken
+  string include_name
   sequence lines
   integer include_num
   srcpos pos
@@ -1567,6 +1719,7 @@ procedure read_commands(integer file_num,sequence include_stack)
   lines=file_list[file_num][FILE_LINE_EXTENTS]
   for i=1 to length(lines) do
     broken=lex_line(file_list[file_num][FILE_TEXT],lines[i][PAIR_START],lines[i][PAIR_END],pos)
+
     include_name=seek_include(broken)
     if length(include_name) then
       if find(include_name,include_stack) then
@@ -1604,7 +1757,7 @@ end procedure
 ---------------------------------------------------------------------------
 
 --Warning: you normally want to use check_undefined_string instead of this
-procedure check_for_reserved(sequence s,srcpos pos,sequence expect)
+procedure check_for_reserved(string s, srcpos pos, string expect)
   if alpha_tree_seek(reserved,s) then
     if compare("top-level declaration",expect)=0 then
       src_error(
@@ -1624,7 +1777,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure mustnt_be_a_number(sequence s)
+procedure mustnt_be_a_number(Token s)
   --note that identifiers are allowed to start with -
   if length(exclude(s[CMD_TEXT],"-0123456789"))=0 and count('-',s[CMD_TEXT])!=length(s[CMD_TEXT]) then
     src_error(sprintf_utf("Expected a name, but found a number "&COLYEL&"%s"&COLRED,{s[CMD_TEXT]}),s[CMD_POS])
@@ -1633,11 +1786,11 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure check_undefined_constant(sequence s,atom value)
+procedure check_undefined_constant(Token s, atom value)
    sequence const_data
    sequence src_position
-   sequence err_string
-   sequence whats_happening
+   string err_string
+   string whats_happening
    if alpha_tree_seek(constant_list,s[CMD_TEXT]) then
      --constant is already defined
      const_data=alpha_tree_data(constant_list,s[CMD_TEXT],0)
@@ -1670,14 +1823,14 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure check_undefined_string(sequence s,sequence seeking)
+procedure check_undefined_string(Token s, string seeking)
    check_for_reserved(s[CMD_TEXT],s[CMD_POS],seeking)
    mustnt_be_a_number(s)
 end procedure
 
 ---------------------------------------------------------------------------
 
-function force_16_bit(atom n,srcpos pos)
+function force_16_bit(atom n, srcpos pos)
   if n>32767 then
     src_warn(sprintf_utf("number "&COLYEL&"%d"&COLRED&" is out of range for a 16-bit signed integer, and will be truncated to "&COLYEL&"32767"&COLRED,{n}),pos)
     n=32767
@@ -1690,7 +1843,7 @@ end function
 
 ---------------------------------------------------------------------------
 
-function try_string_to_number(sequence s)
+function try_string_to_number(Token s)
   atom result
   result=floor(string_to_object(s[CMD_TEXT],0))
   if not string_is_int32(s[CMD_TEXT]) then
@@ -1701,7 +1854,7 @@ end function
 
 ---------------------------------------------------------------------------
 
-function enforce_constants(sequence s)
+function enforce_constants(string s)
   --enforces both constants
   object v
   v=alpha_tree_data(constant_list,s,{})
@@ -1717,7 +1870,7 @@ end function
 ---------------------------------------------------------------------------
 
 function get_cmd()
-  sequence result
+  Token result
   if get_cmd_pointer>length(cmd) then
     src_error("Unexpected end of file",cmd[length(cmd)][CMD_POS])
   end if
@@ -1730,7 +1883,7 @@ end function
 ---------------------------------------------------------------------------
 
 function get_cmd_no_constants()
-  sequence result
+  Token result
   if get_cmd_pointer>length(cmd) then
     src_error("Unexpected end of file",cmd[length(cmd)][CMD_POS])
   end if
@@ -1743,8 +1896,8 @@ end function
 ---------------------------------------------------------------------------
 
 function get_cmd_block(integer convert_constants)
-  sequence this
-  sequence result
+  Token this
+  TokenList result
   result={}
   this=get_cmd()
   if compare("begin",this[CMD_TEXT])!=0 then
@@ -1769,9 +1922,9 @@ end function
 
 ---------------------------------------------------------------------------
 
-procedure parse_constant_block(sequence block)
+procedure parse_constant_block(TokenList block)
   atom num
-  sequence name
+  string name
   for i=1 to length(block) by 2 do
     if i+1>length(block) then
       src_error("Expected name to follow but defineconstant block ended",block[i][CMD_POS])
@@ -1786,9 +1939,9 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure parse_trigger_block(sequence block)
+procedure parse_trigger_block(TokenList block)
   integer num
-  sequence name
+  string name
   for i=1 to length(block) by 2 do
     if i+1>length(block) then
       src_error("Expected name but script trigger definition block ended",block[i][CMD_POS])
@@ -1797,14 +1950,14 @@ procedure parse_trigger_block(sequence block)
     check_undefined_string(block[i+1],"script trigger name")
     name=block[i+1][CMD_TEXT]
     trigger_list=append(trigger_list,{num,name})
-    reserved=alpha_tree_insert(reserved,name,RESERVE_CORE)
+    reserved=alpha_tree_insert(reserved,name,RESERVE_TOPLEVEL)
   end for
 end procedure
 
 ---------------------------------------------------------------------------
 
-procedure parse_version_block(sequence block)
-  sequence req_version
+procedure parse_version_block(TokenList block)
+  string req_version
   if length(block)<2 then
     --Don't have a srcpos
     simple_error(COLYEL&"plotscr.hsd"&COLRED&" is malformed (empty 'plotscr version' block)")
@@ -1828,7 +1981,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure create_global(integer id,sequence name,srcpos pos)
+procedure create_global(integer id, string name, srcpos pos)
   integer at
   at=find(id,global_list[PAIR_NUM])
   if at then
@@ -1847,13 +2000,13 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure parse_global_block(sequence block)
+procedure parse_global_block(TokenList block)
   integer num
   for i=1 to length(block) by 2 do
     if i+1>length(block) then
       src_error("expected name but globalvariable block ended",block[i][CMD_POS])
     end if
-    num=try_string_to_number(block[i])
+    num=try_string_to_number({enforce_constants(block[i][CMD_TEXT]),block[i][CMD_POS]})
     check_undefined_string(block[i+1],"global variable name")
     create_global(num,block[i+1][CMD_TEXT],block[i][CMD_POS])
   end for
@@ -1861,9 +2014,11 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure parse_operator_block(sequence block)
+procedure parse_operator_block(TokenList block)
   integer num
-  sequence name,true
+  integer keyword
+  string name,truename
+  srcpos pos
   for i=1 to length(block) by 3 do
     if i+2>length(block) then
       src_error("expected name but defineoperator block ended",block[i][CMD_POS])
@@ -1872,9 +2027,17 @@ procedure parse_operator_block(sequence block)
     mustnt_be_a_number(block[i+1])
     mustnt_be_a_number(block[i+2])
     name=block[i+1][CMD_TEXT]
-    true=block[i+2][CMD_TEXT]
-    operator_list=append(operator_list,{num,name,true,block[i+2][CMD_POS]})
-    reserved=alpha_tree_insert(reserved,name,RESERVE_OPERATOR)
+    truename=block[i+2][CMD_TEXT]
+    pos=block[i+2][CMD_POS]
+    operator_list=append(operator_list,{num,name,truename,pos})
+    keyword=alpha_tree_data(reserved,name,false)
+    if keyword then
+      if keyword!=RESERVE_OPERATOR and keyword!=RESERVE_BUILTIN then
+        src_error(sprintf_utf("%s "&COLYEL&"%s"&COLRED&" may not be used as an operator",{RESERVE_NAMES[keyword],name}),pos)
+      end if
+    else
+      reserved=alpha_tree_insert(reserved,name,RESERVE_OPERATOR)
+    end if
   end for
 end procedure
 
@@ -1882,7 +2045,7 @@ end procedure
 
 --arglist is either a sequence of default values (which may equal to the NO_DEFAULT constant), or it's equal to
 --VAR_ARGS indicating a variable (unlimited) number of arguments.
-function create_function(sequence list,integer id,sequence name,object arglist,integer func_type,srcpos pos)
+function create_function(sequence list, integer id, string name, object arglist, integer func_type, srcpos pos)
   integer at
   sequence encoded
   if func_type=RESERVE_SCRIPT then
@@ -1890,9 +2053,10 @@ function create_function(sequence list,integer id,sequence name,object arglist,i
     if at then
       src_error(sprintf_utf("%s ID "&COLYEL&"%d"&COLRED&" is already defined as "&COLYEL&"%s"&COLRED,{RESERVE_NAMES[func_type],id,list[at][PAIR_NAME]}),pos)
     end if
-    if id=0 then
+    if id=0 or id<-1 then
       src_error(sprintf_utf("ID "&COLYEL&"%d"&COLRED&" is not valid",{id}),pos)
-    elsif id<0 then
+    elsif id=-1 then
+      --autonumbered
       if length(reuse_ids) then
         encoded=encode_ohr(name)
         if length(encoded)>36 then
@@ -1920,11 +2084,11 @@ end function
 
 ---------------------------------------------------------------------------
 
-function parse_define_block(sequence block,sequence list,integer func_type)
+function parse_define_block(TokenList block, sequence list, integer func_type)
   integer num
-  sequence name
+  string name
   integer args
-  sequence arglist
+  sequence arglist  --sequence of strings
   srcpos name_pos
   integer i
   i=1
@@ -1965,8 +2129,8 @@ end function
 
 ---------------------------------------------------------------------------
 
-procedure primary_parse_pass()
-  sequence this
+procedure preliminary_parse_pass()
+  Token this
   enter_timing_zone("Preliminary pass")
   color_print("preliminary pass\n",{})
   get_cmd_pointer=1
@@ -1988,47 +2152,112 @@ procedure primary_parse_pass()
       simple_error("You forgot to put the line "&COLYEL&"include, plotscr.hsd"&COLRED&" in your script file.")
     end if
   end if
+  --If definetrigger is missing (very old plotscr.hsd), add "script"
   if find_in_column("script",trigger_list,PAIR_NUM)=0 then
     trigger_list=append(trigger_list,{0,"script"})
   end if
+  --Append nested script trigger ids (these are needed for scripts.bin)
+  trigger_list=append(trigger_list,{-1,"subscript"})
   exit_timing_zone()
 end procedure
 
 ---------------------------------------------------------------------------
 
-procedure parse_script(sequence trigger)
-  sequence name
-  sequence arglist
-  sequence s
-  sequence this
-  sequence err_string
+--Parse a script or subscript
+--parent_name is a fully-scoped name of parent script, or ""
+--if this script isn't a subscript of another.
+--Returns Token with name of parsed script
+function parse_script(Token trigger, string parent_name, integer parent_idx)
+  Token name
+  string full_name
+  TokenList arglist
+  TokenList body
+  Token this
+  string err_string
+  string previous_script
+  Token subname
+  sequence src_position
+  string msg
   integer depth
+  integer nest_depth
   integer temp
+  integer idx
   name=get_cmd()
-  if not find_in_column(name[CMD_TEXT],script_list,PAIR_NAME) then
-    --Doesn't appear in a definescript block; if it did the name is already reserved
+  if parent_idx=0 then
+    full_name=name[CMD_TEXT]
+    nest_depth=0
+  else
+    full_name=sprintf("%s<-%s",{parent_name,name[CMD_TEXT]})
+    nest_depth=all_scripts[parent_idx][SCRIPT_NEST_DEPTH]+1
+    if nest_depth>MAX_NEST_DEPTH then
+      src_error(
+        sprintf_utf("%s "&COLYEL&"%s"&COLRED&" is nested too deeply (%d layers deep), which is more than is supported. Reorganise your scripts to not use so much nesting."
+          ,{trigger[CMD_TEXT],name[CMD_TEXT],nest_depth})
+        ,name[CMD_POS]
+      )
+    end if
+  end if
+  previous_script=current_script
+  current_script=full_name --name[CMD_TEXT]
+
+  --Check not already a script
+  cur_script_num=parent_idx
+  temp=lookup_scoped_script_name(name[CMD_TEXT])
+  cur_script_num=0
+  if temp then
+    if parent_idx then
+      msg="There already is a script or subscript named "&COLYEL&"%s"&COLRED&" in this context/scope, defined on line %d of "&COLPNK&"%s"&COLRED
+    else
+      msg="Script "&COLYEL&"%s"&COLRED&" appears more than once! It was previously defined on line %d of "&COLPNK&"%s"&COLRED
+    end if
+    src_position=decode_srcpos(all_scripts[temp][SCRIPT_POS])
+    src_error(
+      sprintf_utf(msg,{name[CMD_TEXT],src_position[POS_LINE],src_position[POS_FILENAME]})
+      ,name[CMD_POS]
+    )
+  end if
+
+  --Check not a reserved non-script name.
+  --This check is independent of the above 'name already in scope' check.
+  if not find_in_column(full_name,script_list,PAIR_NAME) then
+    --Doesn't appear in a definescript block; if it did the name is already reserved.
     --Note that we won't add it to script_list yet; that happens later in check_script_declarations
     check_undefined_string(name,"user script name")
   end if
-  current_script=name[CMD_TEXT]
+
+  --Parse arguments
   arglist={}
   while true do
     if get_cmd_pointer>length(cmd) then
-      src_error(sprintf_utf("script "&COLYEL&"%s"&COLRED&" is missing "&COLYEL&"begin"&COLRED&" or "&COLYEL&"("&COLRED,{name[CMD_TEXT]}),name[CMD_POS])
+      src_error(sprintf_utf("%s "&COLYEL&"%s"&COLRED&" is missing "&COLYEL&"begin"&COLRED&" or "&COLYEL&"("&COLRED,{trigger[CMD_TEXT],name[CMD_TEXT]}),name[CMD_POS])
     end if
     this=get_cmd()
     if compare("begin",this[CMD_TEXT])=0 then
       exit--break the while
     end if
-    --Note that arglist isn't the actual list of arguments, it's just a string of tokens right now.
+    --Note that arglist isn't the actual list of arguments, it's just a string of tokens right now (including defaults).
     --The actual arglist is built in process_arglist, while compiling each script.
     arglist=append(arglist,this)
   end while
-  --every script is nested inside a big fat do() block
-  s={{"do",this[CMD_POS]}}
+
+  --Create all_scripts entry now for recursive calls; SCRIPT_BODY_TOKS filled in later
+  all_scripts=append(all_scripts,{
+           trigger
+          ,name[CMD_TEXT]
+          ,name[CMD_POS]
+          ,full_name
+          ,arglist
+          ,{}
+          ,parent_idx
+          ,nest_depth
+  })
+  idx=length(all_scripts)
+
+  --Every script is nested inside a big fat do() block
+  body={{"do",this[CMD_POS]}}
   depth=0
   while true do
-    s=append(s,this)
+    body=append(body,this)
     if compare("end",this[CMD_TEXT])=0 then
       depth-=1
       if depth=0 then
@@ -2036,13 +2265,18 @@ procedure parse_script(sequence trigger)
       end if
     elsif compare("begin",this[CMD_TEXT])=0 then
       depth+=1
+    elsif compare("subscript",this[CMD_TEXT])=0 then
+      --Recurse, so body of subscript doesn't appear in this script.
+      --The subscript node stays, for syntax checking, but is removed in normalize_flow_control
+      subname=parse_script(this,full_name,idx)
+      body&={{"begin",this[CMD_POS]},{"end",this[CMD_POS]}}
     else
-      temp=alpha_tree_data(reserved,this[CMD_TEXT],3)
+      temp=alpha_tree_data(reserved,this[CMD_TEXT],RESERVE_FLOW)
       if temp<=RESERVE_UNIMPLEMENTED then
         err_string=sprintf_utf(
           "%s "&COLYEL&"%s"&COLRED&" is not permitted inside a script.",{RESERVE_NAMES[alpha_tree_data(reserved,this[CMD_TEXT],0)],this[CMD_TEXT]}
         )
-        if temp=RESERVE_CORE then
+        if temp=RESERVE_TOPLEVEL then
           err_string&=sprintf_utf(" Perhaps "&COLYEL&"%s"&COLRED&" has an extra "&COLYEL&"begin"&COLRED&" or "&COLYEL&"("&COLRED,{name[CMD_TEXT]})
         end if
         src_error(err_string,this[CMD_POS])
@@ -2051,24 +2285,25 @@ procedure parse_script(sequence trigger)
     if get_cmd_pointer>length(cmd) then
       src_error(
         sprintf_utf(
-           "script "&COLYEL&"%s"&COLRED&" is missing "&COLYEL&"end"&COLRED&" or "&COLYEL&")"&COLRED
-          ,{name[CMD_TEXT]}
+           "%s "&COLYEL&"%s"&COLRED&" is missing "&COLYEL&"end"&COLRED&" or "&COLYEL&")"&COLRED
+          ,{trigger[CMD_TEXT],name[CMD_TEXT]}
         )
         ,name[CMD_POS]
       )
     end if
     this=get_cmd()
   end while
-  script_cmd=append(script_cmd,{trigger,name,arglist,s})
-  current_script=""
-end procedure
+  all_scripts[idx][SCRIPT_BODY_TOKS]=body
+  current_script=previous_script
+  return name
+end function
 
 ---------------------------------------------------------------------------
 
 procedure parse_top_level()
-  sequence this
-  sequence ignore
+  Token this
   sequence triggers
+  integer triggeridx
   enter_timing_zone("Top level pass")
   color_print("parsing top-level\n",{})
   triggers=column(trigger_list,PAIR_NAME)
@@ -2076,10 +2311,11 @@ procedure parse_top_level()
   while get_cmd_pointer<=length(cmd) do
     --read a top-level command
     this=get_cmd()
+    triggeridx=find(this[CMD_TEXT],triggers)
     if compare("defineconstant",this[CMD_TEXT])=0 then
-      ignore=get_cmd_block(true)
+      get_cmd_block(true)
     elsif compare("definetrigger",this[CMD_TEXT])=0 then
-      ignore=get_cmd_block(true)
+      get_cmd_block(true)
     elsif compare("globalvariable",this[CMD_TEXT])=0 then
       parse_global_block(get_cmd_block(true))
     elsif compare("defineoperator",this[CMD_TEXT])=0 then
@@ -2091,8 +2327,18 @@ procedure parse_top_level()
     elsif compare("plotscrversion",this[CMD_TEXT])=0 then
       --ignore
       get_cmd_block(false)
-    elsif find(this[CMD_TEXT],triggers)>0 then
-      parse_script(this)
+    elsif triggeridx>0 then
+      if trigger_list[triggeridx][PAIR_NUM]<0 then
+        src_error(
+          sprintf_utf(
+            COLYEL&"%s"&COLRED&" can only occur inside another script. Use "&COLYEL&"script"&COLRED&" instead for regular scripts."
+            ,{this[CMD_TEXT]}
+          )
+          ,this[CMD_POS]
+        )
+      else
+        parse_script(this,{},0)
+      end if
     else
       check_for_reserved(this[CMD_TEXT],this[CMD_POS],"top-level declaration")
       src_error(
@@ -2110,9 +2356,9 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure dump_script_and_function_info(integer fh,sequence list)
+procedure dump_script_and_function_info(integer fh, sequence list)
   sequence this
-  sequence id_string
+  string id_string
   sequence src_position
   for i=1 to length(list) do
     this=list[i]
@@ -2136,7 +2382,7 @@ procedure dump_script_and_function_info(integer fh,sequence list)
           print_utf(fh,",",{})
         end if
         if equal(this[FUNC_ARGS][j],NO_DEFAULT) then
-          print_utf(fh,"NONE",{})
+          print_utf(fh,"REQ",{})
         else
           print_utf(fh,"%d",{this[FUNC_ARGS][j]})
         end if
@@ -2148,7 +2394,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-function seek_string_by_id(integer id,sequence list,sequence name)
+function seek_string_by_id(integer id, sequence list, string name)
   integer at
   at=find_in_column(id,list,PAIR_NUM)
   if at then
@@ -2161,12 +2407,21 @@ end function
 
 ---------------------------------------------------------------------------
 
-function name_lookup(sequence pair)
+--Used while dumping script binary
+function name_lookup(sequence pair, VarList locals)
   integer at
+  integer frame,id
   if pair[1]=KIND_NUMBER then
     return(sprintf("%d",{pair[2]}))
-  elsif pair[1]=KIND_LOCAL then
-    return(sprintf("local%d",{pair[2]}))
+  elsif pair[1]=KIND_LOCAL or pair[1]=KIND_NONLOCAL then
+    frame=and_bits(pair[2],#FF00)/#100
+    id=and_bits(pair[2],#FF)
+    for i=1 to length(locals) do
+      if locals[i][VAR_FRAME]=frame and locals[i][VAR_ID]=id then
+        return locals[i][CMD_TEXT]
+      end if
+    end for
+    simple_error(sprintf_utf("HSpeak bug: decompiler found illegal variable ID "&COLYEL&"%d*256+%d"&COLRED,{frame,id}))
   elsif pair[1]=KIND_GLOBAL then
     at=find(pair[2],global_list[PAIR_NUM])
     if at then
@@ -2183,7 +2438,7 @@ function name_lookup(sequence pair)
   elsif pair[1]=KIND_MATH then
     return(seek_string_by_id(pair[2],math_list,"built-in function"))
   else
-    simple_error(sprintf_utf("decompiler found illegal kind "&COLYEL&"%d"&COLRED,{pair[1]}))
+    simple_error(sprintf_utf("HSpeak bug: decompiler found illegal kind "&COLYEL&"%d"&COLRED,{pair[1]}))
   end if
 end function
 
@@ -2213,8 +2468,8 @@ end function
 
 ---------------------------------------------------------------------------
 
-function dump_script_binary(sequence bin,integer offset,integer depth)
-  sequence result
+function dump_script_binary(sequence bin, integer offset, integer depth, VarList locals)
+  string result
   sequence kind_and_id
   integer kind
   integer argcount
@@ -2224,7 +2479,7 @@ function dump_script_binary(sequence bin,integer offset,integer depth)
   kind=kind_and_id[1]
   result&=sprintf_utf("%s%s",{
      repeat(' ',depth)  --indent
-    ,name_lookup(kind_and_id)
+    ,name_lookup(kind_and_id,locals)
   })
   if kind=KIND_FLOW or kind=KIND_SCRIPT or kind=KIND_FUNCTION or kind=KIND_MATH then
     argcount=binstring_to_int(bin[1+offset*4+8..1+offset*4+11])
@@ -2232,7 +2487,7 @@ function dump_script_binary(sequence bin,integer offset,integer depth)
       result&="(\n"
       for i=0 to argcount-1 do
         new_offset=binstring_to_int(bin[1+(offset+3+i)*4..1+(offset+3+i)*4+3])
-        result&=dump_script_binary(bin,new_offset,depth+2)
+        result&=dump_script_binary(bin,new_offset,depth+2,locals)
       end for
       result&=repeat(' ',depth)&")\n"
     else
@@ -2247,8 +2502,8 @@ end function
 
 ---------------------------------------------------------------------------
 
-function dump_script_tree(sequence tree,integer depth)
-  sequence result
+function dump_script_tree(NodeList tree, integer depth)
+  string result
   result=""
     for i=1 to length(tree)  do
       result&=sprintf_utf("%s%s",{
@@ -2269,7 +2524,7 @@ end function
 ---------------------------------------------------------------------------
 
 function dump_script_strings(sequence bin)
-  sequence result
+  string result
   integer table_start
   integer offset
   integer len
@@ -2296,8 +2551,11 @@ end function
 
 procedure dump_debug_report()
   integer fh
-  sequence debug_file
+  string debug_file
   sequence src_position
+  Script script
+  integer idx
+  VarList locals
   --only do this if the -d debug option was on the command line
   if find('d',optlist) then
     if length(path_only(dest_file))>1 then
@@ -2344,32 +2602,47 @@ procedure dump_debug_report()
       -------------------------------------
       print_utf(fh,"[Script Dumps]\n",{})
       for i=1 to length(all_scripts) do
-        src_position=decode_srcpos(all_scripts[i][4])
-        print_utf(fh,"%s %d\tID=%d\t%s\n",{
+        script=all_scripts[i]
+        src_position=decode_srcpos(script[SCRIPT_POS])
+        print_utf(fh,"%s %d\tID=%d\t%s (%s)\n",{
            src_position[POS_FILENAME]
           ,src_position[POS_LINE]
-          ,all_scripts[i][1]
-          ,all_scripts[i][3]
+          ,script[SCRIPT_ID]
+          ,script[SCRIPT_NAME]
+          ,script[SCRIPT_FULL_NAME]
         })
-        src_position=decode_srcpos(script_cmd[i][1][CMD_POS])
+        idx=script[SCRIPT_PARENT_IDX]
+        if idx then
+          src_position=decode_srcpos(script[SCRIPT_POS])
+          print_utf(fh,"%s %d\tparent=%s (access to %d nonlocals)\n",{
+             src_position[POS_FILENAME]
+            ,src_position[POS_LINE]
+            ,script[SCRIPT_NAME]
+            ,script[SCRIPT_NUM_NONLOCALS]
+          })
+        end if
+        src_position=decode_srcpos(script[SCRIPT_TRIGGER_TOK][CMD_POS])
         print_utf(fh,"%s %d\tTrigger=%d\t%s\n",{
            src_position[POS_FILENAME]
           ,src_position[POS_LINE]
-          ,all_scripts[i][2]
-          ,script_cmd[i][1][CMD_TEXT]
+          ,script[SCRIPT_TRIGGER_ID]
+          ,script[SCRIPT_TRIGGER_TOK][CMD_TEXT]
         })
-        for j=1 to length(all_scripts[i][6]) do
-          src_position=decode_srcpos(all_scripts[i][6][j][CMD_POS])
-          print_utf(fh,"%s %d\tvar=%s\n",{
+        locals=script[SCRIPT_VARIABLES]
+        for j=1 to length(locals) do
+          src_position=decode_srcpos(locals[j][CMD_POS])
+          print_utf(fh,"%s %d\tvar(frame %d id %d)=%s\n",{
              src_position[POS_FILENAME]
             ,src_position[POS_LINE]
-            ,all_scripts[i][6][j][CMD_TEXT]
+            ,locals[j][VAR_FRAME]
+            ,locals[j][VAR_ID]
+            ,locals[j][CMD_TEXT]
           })
         end for
-        print_utf(fh,"%d bytes compiled\n",{length(all_scripts[i][7])})
---        print_utf(fh,"%s\n\n",{dump_script_tree(all_scripts[i][5],0)})
-        print_utf(fh,"%s",{dump_script_binary(all_scripts[i][7][CODE_START_BYTE_OFFSET+1..$],0,0)})
-        print_utf(fh,"%s\n\n",{dump_script_strings(all_scripts[i][7])})
+        print_utf(fh,"%d bytes compiled\n",{length(script[SCRIPT_BINARY])})
+--        print_utf(fh,"%s\n\n",{dump_script_tree(script[SCRIPT_AST],0)})
+        print_utf(fh,"%s",{dump_script_binary(script[SCRIPT_BINARY][CODE_START_BYTE_OFFSET+1..$],0,0,script[SCRIPT_VARIABLES])})
+        print_utf(fh,"%s\n\n",{dump_script_strings(script[SCRIPT_BINARY])})
       end for
       print_utf(fh,"\n",{})
       -------------------------------------
@@ -2382,9 +2655,9 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-function get_cmd_depth(integer ptr,sequence data,integer depth)
-  sequence result
-  sequence this
+function get_cmd_depth(integer ptr, TokenList data, integer depth)
+  TokenList result
+  Token this
   result={}
   while true do
     --if get_key()=27 then abort(1/0) end if
@@ -2409,24 +2682,60 @@ end function
 
 ---------------------------------------------------------------------------
 
+--Look up the name of a script in all current scopes, returning all_scripts
+--index if found, or 0 if not
+function lookup_scoped_script_name(string name)
+  string s
+  integer at
+  integer idx
+  idx=cur_script_num
+  while true do
+    if idx then
+      s=all_scripts[idx][SCRIPT_FULL_NAME]&"<-"&name     
+    else
+      s=name
+    end if   
+    at=find_in_column(s,all_scripts,SCRIPT_FULL_NAME)
+    if at then
+      return at
+    end if
+
+    if idx=0 then
+      return 0
+    end if
+    idx=all_scripts[idx][SCRIPT_PARENT_IDX]
+  end while
+end function
+
+---------------------------------------------------------------------------
+
 --identify the kind and id of a text command. Does not support untranslated operators or floaty parethesis
-function what_kind_and_id(sequence command,sequence local_vars)
+function what_kind_and_id(Token command, VarList local_vars)
   integer kind
+  integer at
   atom id
   integer keyword
-  sequence s
+  string s
   s=command[CMD_TEXT]
   keyword=alpha_tree_data(reserved,s,0)
   if string_is_int32(s) then
     kind=KIND_NUMBER
     id=string_to_object(s,{})
-  elsif length(s) and s[1] = '@' then
+  elsif length(s)=0 then
+    kind=KIND_PARENS
+    id=0
+  elsif s[1] = '@' then
     kind=KIND_REFERENCE
     id=0 -- ID always resolves to 0 for references here, since it is too early to know all
-         -- script IDs. The real work is done in binary_compile_recurse
+         -- script IDs (really?). The real work is done in binary_compile_recurse
   elsif find_in_column(s,local_vars,CMD_TEXT) then
-    kind=KIND_LOCAL
-    id=find_in_column(s,local_vars,CMD_TEXT)
+    at=find_in_column(s,local_vars,CMD_TEXT)
+    if local_vars[at][VAR_FRAME]=0 then
+      kind=KIND_LOCAL
+    else
+      kind=KIND_NONLOCAL
+    end if
+    id=local_vars[at][VAR_ID] + 256*local_vars[at][VAR_FRAME]
   elsif keyword=RESERVE_GLOBAL then
     kind=KIND_GLOBAL
     id=global_list[PAIR_NUM][find(s,global_list[PAIR_NAME])]
@@ -2445,7 +2754,10 @@ function what_kind_and_id(sequence command,sequence local_vars)
   elsif keyword=RESERVE_MACRO then
     kind=KIND_MACRO
     id=0
-  elsif length(s) and s[1] = '"' then
+  elsif keyword=RESERVE_KEYWORD then
+    kind=KIND_KEYWORD
+    id=0
+  elsif s[1] = '"' then
     src_error(
       sprintf_utf(
         "The string "&COLYEL&"%s"&COLRED&" is illegal here: strings may only be used as part of a $...=\"...\" or $...+\"...\" construct",
@@ -2456,7 +2768,14 @@ function what_kind_and_id(sequence command,sequence local_vars)
     kind=KIND_GLOBAL
     id=string_to_object(s[9..$],{})
   else
-    src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
+    --It may be a subscript, in which case the scoped name needs to be looked up
+    at=lookup_scoped_script_name(s)
+    if at then
+      kind=KIND_SCRIPT
+      id=all_scripts[at][SCRIPT_ID]
+    else
+      src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
+    end if
   end if
   return({kind,id})
 end function
@@ -2464,20 +2783,26 @@ end function
 ---------------------------------------------------------------------------
 
 --identify the kind of a text command
-function what_kind(sequence command,sequence local_vars, integer look_for_operators)
+function what_kind(Token command, VarList local_vars, integer look_for_operators)
+  integer at
   integer kind
   integer keyword
-  sequence s
+  string s
   s=command[CMD_TEXT]
   keyword=alpha_tree_data(reserved,s,0)
   if string_is_int32(s) then
     kind=KIND_NUMBER
-  elsif length(s) and s[1] = '@' then
-    kind=KIND_REFERENCE
-  elsif find_in_column(s,local_vars,CMD_TEXT) then
-    kind=KIND_LOCAL
   elsif length(s)=0 then
     kind=KIND_PARENS
+  elsif s[1] = '@' then
+    kind=KIND_REFERENCE
+  elsif find_in_column(s,local_vars,CMD_TEXT) then
+    at=find_in_column(s,local_vars,CMD_TEXT)
+    if local_vars[at][VAR_FRAME]=0 then
+      kind=KIND_LOCAL
+    else
+      kind=KIND_NONLOCAL
+    end if
   elsif look_for_operators and find_in_column(s,operator_list,PAIR_NAME) then
     kind=KIND_OPERATOR --this MUST go before KIND_MATH, because some operators and math functions have the same name
   elsif keyword=RESERVE_GLOBAL then
@@ -2492,7 +2817,9 @@ function what_kind(sequence command,sequence local_vars, integer look_for_operat
     kind=KIND_MATH
   elsif keyword=RESERVE_MACRO then
     kind=KIND_MACRO
-  elsif length(s) and s[1] = '"' then
+  elsif keyword=RESERVE_KEYWORD then
+    kind=KIND_KEYWORD
+  elsif s[1] = '"' then
     src_error(
       sprintf_utf(
         "The string "&COLYEL&"%s"&COLRED&" is illegal here: strings may only be used as part of a $...=\"...\" or $...+\"...\" construct",
@@ -2502,7 +2829,13 @@ function what_kind(sequence command,sequence local_vars, integer look_for_operat
   elsif begins("__global", s) then
     kind=KIND_GLOBAL
   else
-    src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
+    --It may be a subscript, in which case the scoped name needs to be looked up
+    at=lookup_scoped_script_name(s)
+    if at then
+      kind=KIND_SCRIPT
+    else
+      src_error(sprintf_utf("Unrecognised name "&COLYEL&"%s"&COLRED&". It has not been defined as script, constant, variable, or anything else",{s}),command[CMD_POS])
+    end if
   end if
   return(kind)
 end function
@@ -2516,8 +2849,27 @@ end function
 
 ---------------------------------------------------------------------------
 
+--Given name (CMD_TEXT) of a Node, return whether it is a block: all its arguments are
+--statements as opposed to expressions (if, for, while, switch, which take a mix need special handling)
+function block_command(string name)
+  return compare("do",name)=0 or compare("then",name)=0 or compare("else",name)=0
+end function
+
+---------------------------------------------------------------------------
+
+procedure check_is_expression(Node node, string parent)
+  if alpha_tree_data(reserved,node[TREE_TRUNK][CMD_TEXT],0)=RESERVE_FLOW then
+    src_error(
+      sprintf_utf(COLYEL&"%s"&COLRED&" may not be used as part of an expression (found as an argument to "&COLYEL&"%s"&COLRED&")"
+                  ,{node[TREE_TRUNK][CMD_TEXT],parent})
+      ,node[TREE_TRUNK][CMD_POS])
+  end if
+end procedure
+
+---------------------------------------------------------------------------
+
 --this function not used anywhere
-function how_many_args(sequence name,integer kind)
+function how_many_args(string name, integer kind)
   integer result
   integer at
   if kind=KIND_PARENS then
@@ -2548,8 +2900,9 @@ end function
 
 ---------------------------------------------------------------------------
 
+--Something that potentially takes args
 function takes_args(integer kind)
-  if kind=KIND_PARENS or kind=KIND_FLOW or kind=KIND_MATH or kind=KIND_FUNCTION or kind=KIND_SCRIPT or kind=KIND_MACRO then
+  if kind=KIND_PARENS or kind=KIND_FLOW or kind=KIND_MATH or kind=KIND_FUNCTION or kind=KIND_SCRIPT or kind=KIND_MACRO or kind=KIND_KEYWORD then
     return(true)
   else
     return(false)
@@ -2558,10 +2911,12 @@ end function
 
 ---------------------------------------------------------------------------
 
-function get_script_cmd(integer ptr,sequence data,sequence vars)
-  sequence command
+--Get next AST node from a list of tokens by pairing up begin,end
+--Returns {new_ptr,{token,children}} where children is a TokenList not a NodeList
+function get_script_node(integer ptr, TokenList data, VarList vars)
+  Token command
   sequence ptr_and_block
-  sequence block
+  TokenList block
   integer kind
   integer followed_by_begin
   block={}
@@ -2573,16 +2928,6 @@ function get_script_cmd(integer ptr,sequence data,sequence vars)
     --floaty brackets for order-of-operations-enforcement
     ptr-=1
     command[CMD_TEXT]=""
-  elsif compare("variable",command[CMD_TEXT])=0 then
-    --must ignore variable declaration
-    if ptr<=length(data) then
-      --there is room for args
-      ptr+=1--only increment the pointer when we have args
-      ptr_and_block=get_cmd_depth(ptr,data,1)
-      ptr=ptr_and_block[1]
-    end if
-    --non-command
-    return({ptr,{}})
   end if
 
   kind=what_kind(command,vars,true)
@@ -2624,6 +2969,9 @@ function get_script_cmd(integer ptr,sequence data,sequence vars)
     --'not followed_by_begin' excludes 'else(...)if'
     if equal("else",command[CMD_TEXT]) and ptr<=length(data) and equal("if",data[ptr][CMD_TEXT]) and not followed_by_begin then
       src_error(COLYEL&"else if"&COLRED&" may not be written with a separator in-between",command[CMD_POS])
+      --temp=get_script_node(ptr, data, vars)  --hack to allow if necessary
+      --temp[2][1][CMD_TEXT]="elseif"
+      --return temp
     end if
   end if
 
@@ -2632,25 +2980,27 @@ end function
 
 ---------------------------------------------------------------------------
 
-function compile_commands(sequence script_data,sequence vars)
+--Returns a NodeList
+function build_ast(TokenList script_body_toks, VarList vars)
   integer ptr
-  sequence this
-  sequence command
-  sequence result
+  sequence ptr_and_seminode
+  sequence seminode  --Not a Node, has a TokenList instead of NodeList
+  Node node
+  NodeList result
   result={}
   ptr=1
   while true do
-    this=get_script_cmd(ptr,script_data,vars)
-    ptr=this[1]
-    command=this[2]
-    if length(command)>0 then
-      if length(command[2])>0 then
-        --this command has arguments that need parsing
-        command[2]=compile_commands(command[2],vars)
-      end if
-      result=append(result,command)
+    ptr_and_seminode=get_script_node(ptr,script_body_toks,vars)
+    ptr=ptr_and_seminode[1]
+    seminode=ptr_and_seminode[2]
+    if length(seminode[TREE_BRANCHES])>0 then
+      --this seminode has arguments that need parsing
+      node={seminode[TREE_TRUNK],build_ast(seminode[TREE_BRANCHES],vars)}
+    else
+      node=seminode
     end if
-    if ptr>length(script_data) then
+    result=append(result,node)
+    if ptr>length(script_body_toks) then
       exit --break out of while when there is no more data
     end if
   end while
@@ -2659,11 +3009,43 @@ end function
 
 ---------------------------------------------------------------------------
 
-function gather_local_vars(sequence vars,sequence data)
-  sequence this
-  integer at
-  integer ptr
+--When variables are inherited by a subscript all frame numbers need to be incremented
+function shift_variables_frame(VarList vars)
+  for i=1 to length(vars) do
+    vars[i][VAR_FRAME]+=1
+  end for
+  return vars
+end function
+
+---------------------------------------------------------------------------
+
+--Returns new VarList of locals.
+function add_local_variable(VarList vars, Token var)
+  integer at, id
   sequence src_position
+  check_undefined_string(var,"local variable name")
+  at=find_in_column(var[CMD_TEXT],vars,CMD_TEXT)
+  if at then
+    src_position=decode_srcpos(vars[at][CMD_POS])
+    src_error(
+      sprintf_utf(
+        "Local variable/argument "&COLYEL&"%s"&COLRED&" is already defined in line %d of "&COLPNK&"%s"&COLRED,
+        {var[CMD_TEXT],src_position[POS_LINE],src_position[POS_FILENAME]}
+      )
+      ,var[CMD_POS]
+    )
+  end if
+  --Always add to scope of current script (frame == 0)
+  id=length(vars)-all_scripts[cur_script_num][SCRIPT_NUM_NONLOCALS]
+  return append(vars, var&{0,id})
+end function
+
+---------------------------------------------------------------------------
+
+--Find the variable declarations in a script
+function gather_local_vars(VarList vars, TokenList data)
+  Token this
+  integer ptr
   ptr=1
   while true do
     this=data[ptr]
@@ -2684,20 +3066,7 @@ function gather_local_vars(sequence vars,sequence data)
           if compare("end",this[CMD_TEXT])=0 then
             exit--break the while
           end if
-          check_undefined_string(this,"local variable name")
-          at=find_in_column(this[CMD_TEXT],vars,CMD_TEXT)
-          if at then
-            src_position=decode_srcpos(vars[at][CMD_POS])
-            src_error(
-              sprintf_utf(
-                "local variable/argument "&COLYEL&"%s"&COLRED&" is already defined in line %d of "&COLPNK&"%s"&COLRED,
-                {this[CMD_TEXT],src_position[POS_LINE],src_position[POS_FILENAME]}
-              )
-              ,this[CMD_POS]
-            )
-          else
-            vars=append(vars,this)
-          end if
+          vars=add_local_variable(vars,this)
         end while
       else
         src_error(sprintf_utf(COLYEL&"variable"&COLRED&" should be followed by "&COLYEL&"(name)"&COLRED,{}),this[CMD_POS])
@@ -2712,12 +3081,12 @@ end function
 
 ---------------------------------------------------------------------------
 
---there are only two, hardcoded, macros right now: tracevalue, assert
-function expand_macros(sequence tree, sequence vars)
-  sequence newtree
-  sequence newargs
-  sequence new_string
-  sequence string_token
+--There are only two, hardcoded, macros right now: tracevalue, assert.
+function expand_macros(NodeList tree, sequence vars)
+  NodeList newtree
+  NodeList newargs
+  string new_string
+  Token string_token
   sequence src_position
   sequence temp
   sequence vartree
@@ -2846,11 +3215,11 @@ end function
 
 ---------------------------------------------------------------------------
 
---tree[ptr] is a partially constructed if node (lacking else child), followed either by an else or elseif node.
+--tree[ptr] is a partially constructed if Node (lacking else child), followed either by an else or elseif Node.
 --Handle else/elseif, parenting to tree[pt], and return the new tree.
-function build_else_node(sequence tree, integer ptr)
-  sequence elseargs
-  sequence nextcmd
+function build_else_node(NodeList tree, integer ptr)
+  NodeList elseargs
+  string nextcmd
   integer eptr
   srcpos pos
 
@@ -2888,36 +3257,38 @@ end function
 
 ---------------------------------------------------------------------------
 
---Build switch AST nodes, return new tree
-function build_switch_node(sequence tree,sequence vars,integer ptr)
+--Build switch AST Nodes, return new tree
+function build_switch_node(NodeList tree, VarList vars, integer ptr)
   srcpos pos
   srcpos argpos
-  sequence args
-  sequence thiscmd
-  sequence rawargs
-  sequence caseargs
-  sequence casecmd
-  sequence lastnodename
-  sequence collected
+  NodeList args
+  Token thiscmd
+  NodeList rawargs
+  NodeList caseargs
+  Token casecmd
+  string lastnodename
+  sequence collected  --either a Node or {}
   sequence temp
   integer have_else
   srcpos elsepos
   integer expect_case
   integer kind
   integer id
-  sequence else_error_msg
+  string else_error_msg
   else_error_msg=COLYEL&"else"&COLRED&" case should be placed last inside a "&COLYEL&"switch"&COLRED&" block"
 
   pos=tree[ptr][TREE_TRUNK][CMD_POS]
+  args=tree[ptr][TREE_BRANCHES]  --start with the condition, length 1
 
-  if length(tree[ptr][TREE_BRANCHES])>1 then
+  if length(args)>1 then
     src_error(sprintf_utf(
-                  COLYEL&"switch"&COLRED&" statement has %d expressions. It should have only one."
-                  ,{length(tree[ptr][TREE_BRANCHES])}
-                ),tree[ptr][TREE_BRANCHES][2][TREE_TRUNK][CMD_POS])
-  elsif length(tree[ptr][TREE_BRANCHES])=0 then
+                  COLYEL&"switch"&COLRED&" statement has %d expressions. It should have only one. (The body of the switch should go in its "&COLYEL&"do(...)"&COLRED&" block instead.)"
+                  ,{length(args)}
+                ),args[2][TREE_TRUNK][CMD_POS])
+  elsif length(args)=0 then
     src_error(COLYEL&"switch"&COLRED&" statement has no expression to match! Write "&COLYEL&"switch (expression) do (...)"&COLRED,pos)
   end if
+  check_is_expression(args[1],"switch")
   if ptr>=length(tree) then
     src_error(COLYEL&"switch"&COLRED&" should be followed by "&COLYEL&"do"&COLRED,pos)
   end if
@@ -2927,7 +3298,6 @@ function build_switch_node(sequence tree,sequence vars,integer ptr)
   end if
 
   --found do, processing starts here (build arguments to switch, after the expression)
-  args=tree[ptr][TREE_BRANCHES]  --start with the condition, length 1
   rawargs=tree[ptr+1][TREE_BRANCHES]  --contents of the 'do'
   lastnodename=""
   have_else=false
@@ -3033,7 +3403,7 @@ function build_switch_node(sequence tree,sequence vars,integer ptr)
   if length(collected) then
     args&={collected}
   end if
-  if length(args) and equal(args[$][TREE_TRUNK][CMD_TEXT],"do")=false then
+  if length(args)>1 and equal(args[$][TREE_TRUNK][CMD_TEXT],"do")=false then
     --Last case (possibly an else) is new-style syntax and wasn't followed by any statements,
     --so add the missing do. Don't need to do this, but I'd like to keep things tidy
     --(srcpos is of the last case)
@@ -3051,29 +3421,70 @@ end function
 
 ---------------------------------------------------------------------------
 
+--Given a variable token for 'for' or 'setvariable', etc. (parent) and list of locals/non-locals 'vars',
+--return a an integer ID token, or throw an error if not a variable.
+function convert_variable_to_id(Token var, VarList locals, string parent)
+  sequence kind_and_id
+  integer id
+  integer argkind
+  integer var_at
+  kind_and_id=what_kind_and_id(var,locals)
+  argkind=kind_and_id[1]
+  id=kind_and_id[2]
+  if argkind=KIND_LOCAL or argkind=KIND_NONLOCAL then
+    id=-1-id
+  elsif argkind=KIND_GLOBAL then
+    --id unmodified
+  else
+    --It's not a variable. bad!
+    src_error(sprintf_utf(
+      "first argument of "&COLYEL&"%s"&COLRED&" must be a variable, not %s "&COLYEL&"%s"&COLRED
+      ,{parent,KIND_LONGNAMES[argkind],var[CMD_TEXT]}
+    ),var[CMD_POS])
+  end if
+  return {sprintf("%d",{id}),var[CMD_POS]}
+end function
+
+---------------------------------------------------------------------------
+
 --parse the script tree and make if absorb then and else, for and while absorb do, switch absorb stuff, check correctness of flow statements
---Note that several of these checks are now redundant to the check for 'begin' performed in get_script_cmd
-function normalize_flow_control(sequence tree,sequence vars,sequence parent)
+--Note that several of these checks are now redundant to the check for 'begin' performed in get_script_node
+function normalize_flow_control(NodeList tree, VarList vars, string parent)
   integer ptr
-  sequence s
-  sequence nextcmd
+  string s
+  string nextcmd
+  NodeList args
+  Token ctr
   srcpos pos
   integer argkind
   integer var_at
+  integer keyword
   ptr=1
+
   while ptr<=length(tree) do
     s=tree[ptr][TREE_TRUNK][CMD_TEXT]
     pos=tree[ptr][TREE_TRUNK][CMD_POS]
+    args=tree[ptr][TREE_BRANCHES]
+
+    keyword=alpha_tree_data(reserved,s,0)
+    if keyword=RESERVE_FLOW then
+      if equal(s,"then") or equal(s,"else") or equal(s,"do") then
+        --these are checked for correct parents below.
+      elsif block_command(parent)=false then
+        src_error(COLYEL&s&COLRED&" may not be used as part of an expression (found as an argument to "&COLYEL&parent&COLRED&")",pos)
+      end if
+    end if
 
     if compare("if",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])>1 then
+      if length(args)>1 then
         src_error(sprintf_utf(
-                      COLYEL&"if"&COLRED&" statement has %d conditions. It should have only one. Use "&COLYEL&"&&"&COLRED&" and "&COLYEL&"||"&COLRED&" for complex conditions"
-                      ,{length(tree[ptr][TREE_BRANCHES])}
-                    ),tree[ptr][TREE_BRANCHES][2][TREE_TRUNK][CMD_POS])
-      elsif length(tree[ptr][TREE_BRANCHES])=0 then
+                      COLYEL&"if"&COLRED&" statement has %d conditions. It should have only one. Use "&COLYEL&"&&"&COLRED&" and "&COLYEL&"||"&COLRED&" to combine multiple conditions"
+                      ,{length(args)}
+                    ),args[2][TREE_TRUNK][CMD_POS])
+      elsif length(args)=0 then
         src_error(sprintf_utf(COLYEL&"if"&COLRED&" statement has no condition. It should have one.",{}),pos)
       end if
+      check_is_expression(args[1],s)
       if ptr<length(tree) then
         --there is room
         nextcmd=tree[ptr+1][TREE_TRUNK][CMD_TEXT]
@@ -3121,15 +3532,24 @@ function normalize_flow_control(sequence tree,sequence vars,sequence parent)
       --Should be absorbed by now
       src_error(COLYEL&"else if"&COLRED&" should follow an "&COLYEL&"if"&COLRED&" or "&COLYEL&"then"&COLRED&" block",pos)
 
+    elsif compare("do",s)=0 then
+      if equal(parent,"")=false and block_command(parent)=false then
+        --These check their arguments are expressions, so a do which is a child of one of these is correct
+        if equal(parent,"for")=false and equal(parent,"while")=false and equal(parent,"switch")=false then
+          src_error(COLYEL&s&COLRED&" may not be used as part of an expression (found as an argument to "&COLYEL&parent&COLRED&")",pos)
+        end if
+      end if
+
     elsif compare("while",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])>1 then
+      if length(args)>1 then
         src_error(sprintf_utf(
-                  COLYEL&"while"&COLRED&" statement has %d conditions. It should have only one. Use "&COLYEL&"&&"&COLRED&" and "&COLYEL&"||"&COLRED&" for complex conditions"
-                  ,{length(tree[ptr][TREE_BRANCHES])}
-                  ),tree[ptr][TREE_BRANCHES][2][TREE_TRUNK][CMD_POS])
-      elsif length(tree[ptr][TREE_BRANCHES])=0 then
+                  COLYEL&"while"&COLRED&" statement has %d conditions. It should have only one. Use "&COLYEL&"&&"&COLRED&" and "&COLYEL&"||"&COLRED&" to combine multiple conditions"
+                  ,{length(args)}
+                  ),args[2][TREE_TRUNK][CMD_POS])
+      elsif length(args)=0 then
         src_error(sprintf_utf(COLYEL&"while"&COLRED&" statement has no condition. It should have one.",{}),pos)
       end if
+      check_is_expression(args[1],s)
       if ptr<length(tree) then
         --there is room
         if compare("do",tree[ptr+1][TREE_TRUNK][CMD_TEXT])=0 then
@@ -3144,43 +3564,37 @@ function normalize_flow_control(sequence tree,sequence vars,sequence parent)
       end if
 
     elsif compare("for",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])<3 then
+      --Handle regular arguments
+      if length(args)<3 then
         src_error(sprintf_utf(COLYEL&"for"&COLRED&" statement needs three or four arguments",{}),pos)
-      elsif length(tree[ptr][TREE_BRANCHES])>4 then
-        src_error(sprintf_utf(COLYEL&"for"&COLRED&" statement has too many arguments (%d)",{length(tree[ptr][TREE_BRANCHES])}),tree[ptr][TREE_BRANCHES][5][TREE_TRUNK][CMD_POS])
-      elsif length(tree[ptr][TREE_BRANCHES])=3 then
+      elsif length(args)>4 then
+        src_error(sprintf_utf(COLYEL&"for"&COLRED&" statement has too many arguments (%d)",{length(args)}),args[5][TREE_TRUNK][CMD_POS])
+      elsif length(args)=3 then
         --append default step value
-        tree[ptr][TREE_BRANCHES]&={ {{"1",tree[ptr][TREE_TRUNK][CMD_POS]},{}} }
+        args&={ {{"1",pos},{}} }
       end if
-      argkind=what_kind(tree[ptr][TREE_BRANCHES][1][TREE_TRUNK],vars,true)
+      ctr=args[1][TREE_TRUNK]
+      argkind=what_kind(ctr,vars,true)
       if argkind=KIND_LOCAL then
-        --translate into a numeric reference to a variable
-        used_locals=append(used_locals,tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT])
-        var_at=find_in_column(tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT],vars,CMD_TEXT)
-        tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]=sprintf("-%d",{var_at})
+        used_locals=append(used_locals,ctr[CMD_TEXT])
       elsif argkind=KIND_GLOBAL then
         --warn, then translate into a numeric reference to a variable
         src_warn(sprintf_utf(
           "Using global variable "&COLYEL&"%s"&COLRED&" as the counter in a "&COLYEL&"for"&COLRED&" loop"
-         ,{tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]}
-        ),tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_POS])
-        var_at=find(tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT],global_list[PAIR_NAME])
-        tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]=sprintf("%d",{global_list[PAIR_NUM][var_at]})
-      else
-        --only variables allowed as the first argument of a "for"
-        src_error(
-           sprintf_utf("first argument of "&COLYEL&"for"&COLRED&" statement must be a variable, not %s "&COLYEL&"%s"&COLRED,{
-              KIND_LONGNAMES[argkind]
-             ,tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]
-           })
-          ,tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_POS]
-        )
+         ,{ctr[CMD_TEXT]}
+        ),ctr[CMD_POS])
       end if
+      args[1][TREE_TRUNK]=convert_variable_to_id(ctr,vars,"for")
+      check_is_expression(args[2],s)
+      check_is_expression(args[3],s)
+      check_is_expression(args[4],s)
+
+      --Handle "do"
       if ptr<length(tree) then
         --there is room
         if compare("do",tree[ptr+1][TREE_TRUNK][CMD_TEXT])=0 then
           --found do
-          tree[ptr][TREE_BRANCHES]&={tree[ptr+1]}
+          args&={tree[ptr+1]}
           tree=delete_element(tree,ptr+1)
         else
           src_error(sprintf_utf(COLYEL&"for"&COLRED&" should be followed by "&COLYEL&"do"&COLRED&", not by "&COLYEL&"%s"&COLRED&".",{tree[ptr+1][TREE_TRUNK][CMD_TEXT]}),tree[ptr+1][TREE_TRUNK][CMD_POS])
@@ -3188,34 +3602,35 @@ function normalize_flow_control(sequence tree,sequence vars,sequence parent)
       else
         src_error(sprintf_utf(COLYEL&"for"&COLRED&" should be followed by "&COLYEL&"do"&COLRED,{}),pos)
       end if
+      tree[ptr][TREE_BRANCHES]=args
 
     elsif compare("return",s)=0 or compare("exitreturning",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])>1 then
+      if length(args)>1 then
         src_error(sprintf_utf(
                       COLYEL&s&COLRED&" statement has %d arguments. It should have only one."
-                      ,{length(tree[ptr][TREE_BRANCHES])}
-                    ),tree[ptr][TREE_BRANCHES][2][TREE_TRUNK][CMD_POS])
-      elsif length(tree[ptr][TREE_BRANCHES])=0 then
+                      ,{length(args)}
+                    ),args[2][TREE_TRUNK][CMD_POS])
+      elsif length(args)=0 then
         src_error(sprintf_utf(COLYEL&s&COLRED&" statement has no argument. It should have one. Prehaps you meant to use "&COLYEL&"exit script"&COLRED,{}),pos)
       end if
 
     elsif compare("break",s)=0 or compare("continue",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])>1 then
+      if length(args)>1 then
         src_error(sprintf_utf(
                       COLYEL&s&COLRED&" statement has %d arguments. It should have no more than one."
-                      ,{length(tree[ptr][TREE_BRANCHES])}
-                    ),tree[ptr][TREE_BRANCHES][2][TREE_TRUNK][CMD_POS])
-      elsif length(tree[ptr][TREE_BRANCHES])=0 then
+                      ,{length(args)}
+                    ),args[2][TREE_TRUNK][CMD_POS])
+      elsif length(args)=0 then
         --append default value
-        tree[ptr][TREE_BRANCHES]={{{"1",tree[ptr][TREE_TRUNK][CMD_POS]},{}}}
+        tree[ptr][TREE_BRANCHES]={{{"1",pos},{}}}
       end if
 
     elsif compare("exitscript",s)=0 then
-      if length(tree[ptr][TREE_BRANCHES])>0 then
+      if length(args)>0 then
         src_error(sprintf_utf(
                       COLYEL&s&COLRED&" statement has %d arguments. It should have none. Prehaps you meant to use "&COLYEL&"exit returning"&COLRED
-                      ,{length(tree[ptr][TREE_BRANCHES])}
-                    ),tree[ptr][TREE_BRANCHES][1][TREE_TRUNK][CMD_POS])
+                      ,{length(args)}
+                    ),args[1][TREE_TRUNK][CMD_POS])
       end if
 
     elsif compare("switch",s)=0 then
@@ -3223,8 +3638,19 @@ function normalize_flow_control(sequence tree,sequence vars,sequence parent)
 
     elsif compare("case",s)=0 then
       src_error(COLYEL&"case"&COLRED&" is not allowed outside of "&COLYEL&"switch"&COLRED,pos)
+
+    elsif compare("subscript",s)=0 or compare("variable",s)=0 then
+      --Does nothing; remove. (Kept until now to check they isn't placed in a silly place)
+      tree=delete_element(tree,ptr)
+      continue
+
     end if
-    tree[ptr][TREE_BRANCHES]=normalize_flow_control(tree[ptr][TREE_BRANCHES],vars,tree[ptr][TREE_TRUNK][CMD_TEXT])
+
+    if equal(s,"") then
+      --Floaty brackets (they haven't been removed yet). Look to parent instead.
+      s=parent
+    end if
+    tree[ptr][TREE_BRANCHES]=normalize_flow_control(tree[ptr][TREE_BRANCHES],vars,s)
     ptr+=1
   end while
   return(tree)
@@ -3233,11 +3659,11 @@ end function
 ---------------------------------------------------------------------------
 
 --A modification of Dijkstra's shunting-yard algorithm
---(This could probably subsume compile_commands too)
-function convert_operators(sequence tree)
-  sequence new_tree
-  sequence stack
-  sequence opnode
+--(This could probably subsume build_ast too)
+function convert_operators(NodeList tree)
+  NodeList new_tree
+  sequence stack   --{int,Node} pairs
+  Node opnode
   integer ptr
   integer at
   integer priority
@@ -3304,52 +3730,59 @@ end function
 
 ---------------------------------------------------------------------------
 
-function fix_arguments(sequence tree,integer kind,sequence list,sequence vars)
-  integer at,var_at
-  integer argkind
+--Ensure correct number of arguments, add defaults, and translate variables to IDs in assignments
+function fix_arguments(Node tree, integer kind, integer id, sequence list, VarList vars)
+  integer at
   integer argnum,maxargs
-  argnum=length(tree[TREE_BRANCHES])
-  at=find_in_column(tree[TREE_TRUNK][CMD_TEXT],list,PAIR_NAME)
+  NodeList args
+  string funcname
+  srcpos funcpos
+  funcname=tree[TREE_TRUNK][CMD_TEXT]
+  funcpos=tree[TREE_TRUNK][CMD_POS]
+  args=tree[TREE_BRANCHES]
+  argnum=length(args)
+  --Lookup ID because name might be scoped
+  at=find_in_column(id,list,PAIR_NUM)
   if equal(list[at][FUNC_ARGS],VAR_ARGS) then
-    return(tree[TREE_BRANCHES])
+    return(args)
   else
     maxargs=length(list[at][FUNC_ARGS])
   end if
   if maxargs < argnum then
     src_error(sprintf_utf(
       "%s "&COLYEL&"%s"&COLRED&" takes at most %d arguments but is being passed %d arguments"
-      ,{KIND_LONGNAMES[kind],tree[TREE_TRUNK][CMD_TEXT],maxargs,argnum}
-    ),tree[TREE_BRANCHES][maxargs+1][TREE_TRUNK][CMD_POS])
+      ,{KIND_LONGNAMES[kind],funcname,maxargs,argnum}
+    ),args[maxargs+1][TREE_TRUNK][CMD_POS])
   elsif maxargs > argnum then
     --add defaults if not enough args are present
     if kind=KIND_MATH then
       --special processing for math
-      if list[at][PAIR_NUM]<16 or list[at][PAIR_NUM]>=19 then
+      if list[at][PAIR_NUM]<=15 or list[at][PAIR_NUM]>=19 then
         --math shouldnt have defaults
         src_error(sprintf_utf(
           "math function "&COLYEL&"%s"&COLRED&" is being passed %d arguments but it should always have %d"
-          ,{tree[TREE_TRUNK][CMD_TEXT],argnum,maxargs}
-        ),tree[TREE_TRUNK][CMD_POS])
+          ,{funcname,argnum,maxargs}
+        ),funcpos)
       else
         --variable assignment commands can have defaults
         if argnum = 0 then
           --no defaults for first argument of variable function
           src_error(sprintf_utf(
             "variable manipulation function "&COLYEL&"%s"&COLRED&" has %d arguments - it needs at least 1"
-            ,{tree[TREE_TRUNK][CMD_TEXT],argnum}
-          ),tree[TREE_TRUNK][CMD_POS])
+            ,{funcname,argnum}
+          ),funcpos)
         elsif argnum = 1 then
           --make defaults for second arg of variable function
           if list[at][PAIR_NUM]=16 then
             --setvariable
-            tree[TREE_BRANCHES]=append(tree[TREE_BRANCHES],{
-               {"0",tree[TREE_TRUNK][CMD_POS]}
+            args=append(args,{
+               {"0",funcpos}
               ,{}
             })
           else
             --increment and decrement
-            tree[TREE_BRANCHES]=append(tree[TREE_BRANCHES],{
-               {"1",tree[TREE_TRUNK][CMD_POS]}
+            args=append(args,{
+               {"1",funcpos}
               ,{}
             })
           end if
@@ -3361,51 +3794,41 @@ function fix_arguments(sequence tree,integer kind,sequence list,sequence vars)
         if equal(list[at][FUNC_ARGS][i],NO_DEFAULT) then
           src_error(sprintf_utf(
             "%s "&COLYEL&"%s"&COLRED&" has no default for missing argument %d"
-            ,{KIND_LONGNAMES[kind],tree[TREE_TRUNK][CMD_TEXT],i}
-          ),tree[TREE_TRUNK][CMD_POS])
+            ,{KIND_LONGNAMES[kind],funcname,i}
+          ),funcpos)
         end if
-        tree[TREE_BRANCHES]=append(tree[TREE_BRANCHES],{
-           {sprintf("%d",{list[at][FUNC_ARGS][i]}),tree[TREE_TRUNK][CMD_POS]}
+        args=append(args,{
+           {sprintf("%d",{list[at][FUNC_ARGS][i]}),funcpos}
           ,{}
         })
       end for
     end if
   end if
-  --this is as good a time as any to make sure that var manipulation functions point to real variables
-  if kind=KIND_MATH and list[at][PAIR_NUM]>=16 and list[at][PAIR_NUM]<19 then
-    argkind=what_kind(tree[TREE_BRANCHES][1][TREE_TRUNK],vars,false)
-    if argkind=KIND_LOCAL then
-      --its local. translate it to a numeric reference
-      var_at=find_in_column(tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT],vars,CMD_TEXT)
-      tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]=sprintf("-%d",{var_at})
-    elsif argkind=KIND_GLOBAL then
-      --its global. translate it to a numeric reference
-      var_at=find(tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT],global_list[PAIR_NAME])
-      tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]=sprintf("%d",{global_list[PAIR_NUM][var_at]})
-    else
-      --its not a variable. bad!
-      src_error(sprintf_utf(
-        "first argument of variable manipulation function "&COLYEL&"%s"&COLRED&" must be a variable, not %s "&COLYEL&"%s"&COLRED
-        ,{tree[TREE_TRUNK][CMD_TEXT],KIND_LONGNAMES[argkind],tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_TEXT]}
-      ),tree[TREE_BRANCHES][1][TREE_TRUNK][CMD_POS])
-    end if
+  --Translate variables in the variable manipulation functions
+  if kind=KIND_MATH and list[at][PAIR_NUM]>=16 and list[at][PAIR_NUM]<=18 then
+    args[1][TREE_TRUNK]=convert_variable_to_id(args[1][TREE_TRUNK],vars,funcname)
   end if
-  return(tree[TREE_BRANCHES])
+  return(args)
 end function
 
 ---------------------------------------------------------------------------
 
-function normalize_arguments(sequence tree,sequence vars)
-  integer kind
-  --unlike the flow normalization and operator translation we do not insert/delete elements from the current level, so we can use a "for" safely, and dont need a "while"
+--Calls fix_arguments on each non-flow node with arguments
+function normalize_arguments(NodeList tree, VarList vars)
+  sequence kind_and_id
+  integer kind,id
+  --Unlike the flow normalization and operator translation we do not insert/delete elements from
+  --the current level, so we can use a "for" safely, and dont need a "while"
   for i=1 to length(tree) do
-    kind=what_kind(tree[i][TREE_TRUNK],vars,false)
+    kind_and_id=what_kind_and_id(tree[i][TREE_TRUNK],vars)
+    kind=kind_and_id[1]
+    id=kind_and_id[2]
     if kind=KIND_SCRIPT then
-      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,script_list,vars)
+      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,id,script_list,vars)
     elsif kind=KIND_FUNCTION then
-      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,function_list,vars)
+      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,id,function_list,vars)
     elsif kind=KIND_MATH then
-      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,math_list,vars)
+      tree[i][TREE_BRANCHES]=fix_arguments(tree[i],kind,id,math_list,vars)
     end if --number, flow, global, local, parens need no argchecking
     if length(tree[i][TREE_BRANCHES]) then
       --if there are sub-arguments, recurse
@@ -3440,7 +3863,7 @@ end function
 
 --Encode a unicode (UTF32/native Euphoria) string in the format the engine
 --requires, which is currently Latin-1
-function encode_ohr(sequence string, integer maxbytes=0)
+function encode_ohr(string string, integer maxbytes=0)
   for i=1 to length(string) do
     if string[i]>=256 then
       string[i]='?'
@@ -3473,26 +3896,31 @@ end function
 ---------------------------------------------------------------------------
 
 --returns the offset where this node was either added, or references an existing node
-function binary_compile_recurse(sequence tree,sequence vars)
+function binary_compile_recurse(Node tree, VarList vars)
   sequence result
   integer kind,id
   integer at
-  sequence s
-  integer offset
-  sequence value_temp, str_temp
+  string s
+  sequence kind_and_id
+  sequence value_temp
+  string str_temp
+  integer parent_idx
   integer recurse_result
   integer can_reference  --whether can return a pointer to an earlier node
   integer initial_data_len
+  srcpos cmdpos
   result={}
   can_reference=true
   initial_data_len=length(compiled_data)
 
-  kind=what_kind(tree[TREE_TRUNK],vars,false)
+  kind_and_id=what_kind_and_id(tree[TREE_TRUNK],vars)
+  kind=kind_and_id[1]
+  id=kind_and_id[2]
   s=tree[TREE_TRUNK][CMD_TEXT]
+  cmdpos=tree[TREE_TRUNK][CMD_POS]
   if kind=KIND_NUMBER then
-    value_temp=value(s)
     result&=kind
-    result&=value_temp[2]
+    result&=id
   elsif kind=KIND_REFERENCE then
     str_temp = s[2..length(s)]
     --is it a global variable?
@@ -3503,11 +3931,15 @@ function binary_compile_recurse(sequence tree,sequence vars)
       result&=global_list[PAIR_NUM][at]
     else
       --is it a script?
-      at=find_in_column(str_temp,script_list,PAIR_NAME)
+      at=lookup_scoped_script_name(str_temp)
       if at then
-        --yes, it is a script. Compile to a script ID
+        --Yes, it is a script. Compile to a script ID unless it's a reference to a subscript, as
+        --I want to eventually make subscript handles closures (without which subscript handles can't work)
+        if all_scripts[at][SCRIPT_PARENT_IDX] then
+          src_error("References to subscripts haven't been implemented yet. Use a regular script instead if you need its ID.",cmdpos)
+        end if
         result&=KIND_NUMBER
-        result&=script_list[at][PAIR_NUM]
+        result&=all_scripts[at][SCRIPT_ID]
       else
         --is it a string literal?
         if length(str_temp)>7 and equal("$string",str_temp[1..7]) then
@@ -3515,34 +3947,22 @@ function binary_compile_recurse(sequence tree,sequence vars)
           result&=KIND_NUMBER
           result&=table_string(value_temp[2])
         else
-          src_error(sprintf_utf("reference "&COLYEL&"@%s"&COLRED&" could not be resolved: must be the name of a global variable or a script",{str_temp}),tree[TREE_TRUNK][CMD_POS])
+          src_error(sprintf_utf("Reference "&COLYEL&"@%s"&COLRED&" not understood: references must be the name of a global variable or a script",{str_temp}),cmdpos)
         end if
       end if
     end if
   elsif kind=KIND_GLOBAL then
-    at=find(s,global_list[PAIR_NAME])
     result&=kind
-    result&=global_list[PAIR_NUM][at]
-  elsif kind=KIND_LOCAL then
-    at=find_in_column(s,vars,CMD_TEXT)
+    result&=id
+  elsif kind=KIND_LOCAL or kind=KIND_NONLOCAL then
     result&=kind
-    result&=at-1
+    result&=id
   elsif kind=KIND_SCRIPT or kind=KIND_FUNCTION or kind=KIND_FLOW or kind=KIND_MATH then
-    if kind=KIND_SCRIPT then
-      at=find_in_column(s,script_list,PAIR_NAME)
-      id=script_list[at][PAIR_NUM]
-    elsif kind=KIND_FUNCTION then
-      at=find_in_column(s,function_list,PAIR_NAME)
-      id=function_list[at][PAIR_NUM]
+    --Use id from what_kind_and_id
+    if kind=KIND_FUNCTION then
       if max_used_function<id then
         max_used_function=id
       end if
-    elsif kind=KIND_FLOW then
-      at=find_in_column(s,flow_list,PAIR_NAME)
-      id=flow_list[at][PAIR_NUM]
-    elsif kind=KIND_MATH then
-      at=find_in_column(s,math_list,PAIR_NAME)
-      id=math_list[at][PAIR_NUM]
     end if
     result&=kind
     result&=id
@@ -3570,7 +3990,7 @@ function binary_compile_recurse(sequence tree,sequence vars)
       return(initial_data_len)
     end if
   else
-    src_error(sprintf_utf("Compiler Bug! Illegal kind "&COLYEL&"%d"&COLRED&" for "&COLYEL&"%s"&COLRED,{kind,s}),tree[TREE_TRUNK][CMD_POS])
+    src_error(sprintf_utf("Compiler Bug! Illegal kind "&COLYEL&"%d"&COLRED&" for "&COLYEL&"%s"&COLRED,{kind,s}),cmdpos)
   end if
 
   if not fast_mode and can_reference then
@@ -3593,10 +4013,19 @@ end function
 
 ---------------------------------------------------------------------------
 
-function binary_compile(integer id,sequence tree,sequence vars)
+function binary_compile(Script script)
+  NodeList tree
   sequence result
-  integer at
   integer recurse_ret
+  integer parent_idx
+  integer parent_id
+
+  parent_idx=script[SCRIPT_PARENT_IDX]
+  if parent_idx=0 then
+    parent_id=0
+  else
+    parent_id=all_scripts[parent_idx][SCRIPT_ID]
+  end if
 
   string_table={}
   compiled_data={}
@@ -3605,18 +4034,23 @@ function binary_compile(integer id,sequence tree,sequence vars)
   --the header is (mostly) 16-bit and the data (script format version 1+) is 32-bit.
 
   --output header
-  --the first word is the zero-rooted byte-offset of the first executable code byte
+  --0..1: the zero-rooted byte-offset of the first executable code byte
   result=output_word(CODE_START_BYTE_OFFSET)
-  --the second word is the number of local variables
-  result&=output_word(length(vars))
-  --the third word is the number of arguments the script takes (also in SCRIPTS.TXT)
-  at=find_in_column(id,script_list,PAIR_NUM)
-  result&=output_word(length(script_list[at][FUNC_ARGS]))
-  --the fourth word is the format of the command data (presently used to indicate 32-bit encoding)
-  result&=output_word(SCRIPT_FORMAT_VERSION)
-  --the fifth&sixth words are a 32bit pointer to the string literal table (in bytes), we don't know it yet
+  --2..3: the number of local variables (not including nonlocals)
+  result&=output_word(length(script[SCRIPT_VARIABLES]) - script[SCRIPT_NUM_NONLOCALS])
+  --4..5: the number of arguments the script takes (also in SCRIPTS.TXT)
+  result&=output_word(length(script[SCRIPT_ARG_TOKS]))
+  --6..7: the format of the command data (presently used to indicate 32-bit encoding)
+  result&=output_word(HSZ_FORMAT_VERSION)
+  --8..11: a 32bit offset to the string literal table (in bytes), we don't know it yet
   result&=output_word(0)
   result&=output_word(0)
+  --12..13: parent script ID or 0 if none
+  result&=output_word(parent_id)
+  --14..15: Nesting depth
+  result&=output_word(script[SCRIPT_NEST_DEPTH]) 
+  --16..17: number of nonlocals
+  result&=output_word(script[SCRIPT_NUM_NONLOCALS])
 
   --what follows is command data in the format [kindID,Value,argcount,argpointerlist]
   --numbers and variables have no argcount or argpointerlist
@@ -3627,11 +4061,12 @@ function binary_compile(integer id,sequence tree,sequence vars)
   --but in actual practice, it isnt worth the trouble, since the only
   --commands that tend to be redundant are the really short ones.
   --the first command is always a "do". there can be only one top-level command
+  tree=script[SCRIPT_AST]
   if length(tree)!=1 then
     simple_error(sprintf_utf("compiler bug! script tree has %s root nodes",{length(tree)}))
   end if
   reenter_timing_zone("binary_compile_recurse")
-  recurse_ret=binary_compile_recurse(tree[1],vars)
+  recurse_ret=binary_compile_recurse(tree[1],script[SCRIPT_VARIABLES])
   if recurse_ret!=0 then
     simple_error(sprintf_utf("compiler bug! Root binary_compile_recurse call returned %d",{recurse_ret}))
   end if
@@ -3649,9 +4084,9 @@ end function
 ---------------------------------------------------------------------------
 
 --floaty brackets are un-needed after the operators have been translated.
-function collapse_floaty_brackets(sequence tree)
+function collapse_floaty_brackets(NodeList tree)
   integer i
-  sequence graft
+  NodeList graft
   i=1
   while i<=length(tree) do
     if length(tree[i][TREE_TRUNK][CMD_TEXT])=0 then
@@ -3675,8 +4110,9 @@ end function
 
 ---------------------------------------------------------------------------
 
-function sanity_check(sequence tree,sequence vars,sequence parent)
-  sequence s
+--parent is CMD_TEXT of parent node
+function sanity_check(NodeList tree, VarList vars, string parent)
+  string s
   sequence kind_and_id
   integer kind
   atom id
@@ -3695,17 +4131,18 @@ function sanity_check(sequence tree,sequence vars,sequence parent)
       elsif kind=KIND_FLOW then
         src_warn(sprintf_utf("Should not use flow control command "&COLYEL&"%s"&COLRED&" as condition for if",{s}),tree[i][TREE_TRUNK][CMD_POS])
       end if
-    elsif compare("do",parent)=0 or compare("then",parent)=0 or compare("else",parent)=0 then
+    elsif block_command(parent) then
       if kind=KIND_NUMBER then
         src_warn(sprintf_utf("Expected script, function, or flow control, but found an expression with value "&COLYEL&"%d"&COLRED&". It will do nothing here."
                  ,{id}),tree[i][TREE_TRUNK][CMD_POS])
       elsif kind=KIND_GLOBAL then
         src_warn(sprintf_utf("Expected script, function, or flow control, but found global variable "&COLYEL&"%s"&COLRED&". It will do nothing here."
                  ,{s}),tree[i][TREE_TRUNK][CMD_POS])
-      elsif kind=KIND_LOCAL then
+      elsif kind=KIND_LOCAL or kind=KIND_NONLOCAL then
         src_warn(sprintf_utf("Expected script, function, or flow control, but found local variable "&COLYEL&"%s"&COLRED&". It will do nothing here."
                  ,{vars[id][CMD_TEXT]}),tree[i][TREE_TRUNK][CMD_POS])
-      elsif kind=KIND_MATH and (id<=15 or id>=19) then
+      elsif kind=KIND_MATH and (id<=15 or id=19 or id>=22) then
+        -- setvariable, increment, decrement, logand, logor have side effects
         src_warn(sprintf_utf("Expected a statement but found built-in function "&COLYEL&"%s"&COLRED&", returning a value that is being discarded"
                  ,{s}),tree[i][TREE_TRUNK][CMD_POS])
       end if
@@ -3742,7 +4179,7 @@ end function
 
 ---------------------------------------------------------------------------
 
-function optimized_arg(sequence tree,sequence vars)
+function optimized_arg(Node tree, VarList vars)
   sequence kind_and_id
   integer kind
   atom id
@@ -3919,7 +4356,7 @@ end function
 ---------------------------------------------------------------------------
 
 --goes through a script simplifying expressions that always have the same value
-function optimize_script(sequence tree,sequence vars)
+function optimize_script(NodeList tree, VarList vars)
   object arg
   for i=1 to length(tree) do
     arg=optimized_arg(tree[i],vars)
@@ -3939,10 +4376,11 @@ end function
 
 ---------------------------------------------------------------------------
 
-procedure warn_unused_locals(sequence vars)
+--FIXME: if a local is used only in a subscript it is reported as unused
+procedure warn_unused_locals(VarList vars)
   if find('u',optlist) then
     for i=1 to length(vars) do
-      if not find(vars[i][CMD_TEXT],used_locals) then
+      if vars[i][VAR_FRAME]=0 and not find(vars[i][CMD_TEXT],used_locals) then
         src_warn(sprintf_utf("local variable "&COLYEL&"%s"&COLRED&" is never used",{vars[i][CMD_TEXT]}),vars[i][CMD_POS])
       end if
     end for
@@ -3965,21 +4403,53 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure compile_a_script(integer id,sequence trigger_data,sequence name_data,sequence arg_data,sequence script_data)
-  sequence script_tree
-  sequence local_vars
-  sequence binary
+--script_idx is all_scripts index
+procedure compile_a_script(integer script_idx)
+  Script script
+  NodeList script_tree
+  VarList local_vars
+  TokenList args
+  integer num_nonlocals
+  integer parent_idx
+  integer trigger_idx
   integer trigger
-  trigger=trigger_list[find(trigger_data[CMD_TEXT],column(trigger_list,PAIR_NAME))][PAIR_NUM]
-  current_script=name_data[CMD_TEXT]
-  local_vars=arg_data --start with argument names (so we can check for conflicts)
+
+  cur_script_num=script_idx
+  script=all_scripts[script_idx]
+  trigger_idx=find_in_column(script[SCRIPT_TRIGGER_TOK][CMD_TEXT],trigger_list,PAIR_NAME)
+  trigger=trigger_list[trigger_idx][PAIR_NUM]
+  current_script=script[SCRIPT_FULL_NAME]
+  parent_idx=script[SCRIPT_PARENT_IDX]
+
   reenter_timing_zone("gather_local_vars")
-  local_vars=gather_local_vars(local_vars,script_data)
+  if parent_idx then
+    local_vars=shift_variables_frame(all_scripts[parent_idx][SCRIPT_VARIABLES])
+  else
+    local_vars={}
+  end if
+  num_nonlocals=length(local_vars)
+  script&={
+     trigger          --trigger type
+    ,num_nonlocals
+  }
+  all_scripts[script_idx]=script
+  args=script[SCRIPT_ARG_TOKS] --The arguments are the first several local variables
+  for i=1 to length(args) do
+    --Check for name conflicts
+    local_vars=add_local_variable(local_vars,args[i])
+  end for
+  local_vars=gather_local_vars(local_vars,script[SCRIPT_BODY_TOKS])
+  if length(local_vars)-num_nonlocals > MAX_LOCALS then
+    simple_error(
+      sprintf_utf("Script "&COLYEL&"%s"&COLRED&" has %d arguments and variables but at most %d are supported",
+                  {script[SCRIPT_FULL_NAME],length(local_vars)-num_nonlocals,MAX_LOCALS})
+    )
+  end if
   exit_timing_zone()
+
   used_locals={}
-  reenter_timing_zone("compile_commands")
---puts(stdout,"C")
-  script_tree=compile_commands(script_data,local_vars)
+  reenter_timing_zone("build_ast")
+  script_tree=build_ast(script[SCRIPT_BODY_TOKS],local_vars)
   exit_timing_zone()
   reenter_timing_zone("convert_operators")
 --puts(stdout,"O")
@@ -4009,27 +4479,28 @@ procedure compile_a_script(integer id,sequence trigger_data,sequence name_data,s
     exit_timing_zone()
     warn_unused_locals(local_vars)
   end if
-  reenter_timing_zone("binary_compile")
-  binary=binary_compile(id,script_tree,local_vars)
-  exit_timing_zone()
-  all_scripts=append(all_scripts,{
-     id                   --id
-    ,trigger              --trigger type
-    ,name_data[CMD_TEXT]  --name
-    ,name_data[CMD_POS]   --source line
-    ,script_tree
+
+  script&={
+     script_tree
     ,local_vars
-    ,binary               --compiled data to go into the HSZ lumps
-  })
+    ,{}               --compiled data to go into the HSZ lumps
+  }
+  all_scripts[script_idx]=script
+  reenter_timing_zone("binary_compile")
+  all_scripts[script_idx][SCRIPT_BINARY]=binary_compile(script)
+  exit_timing_zone()
 
   current_script=""
+  cur_script_num=0
 end procedure
 
 ---------------------------------------------------------------------------
 
---Parse argument declarations in a script argument list
-function process_arglist(sequence args)
-  sequence arglist
+--Parse argument declarations (initially containing default values)
+--in a script argument list, returns {arg_names_list, default_vals_list} pair
+--where any default values have been removed from the argument names
+function process_arglist(TokenList args)
+  TokenList arglist
   sequence defaults
   integer i
   integer using_defaults
@@ -4069,47 +4540,49 @@ end function
 ---------------------------------------------------------------------------
 
 --Check that every declared script has been defined, with the same number of arguments,
---and each script appears exactly once. Basically, compare script_list and script_cmd
+--and each script appears exactly once. Basically, compare script_list and all_scripts
+--Also handle argument default values.
+--Before this function, scripts only have IDs (stored in script_list) if they are declared in a definescript.
+--Afterwards all scripts have IDs assigned (in all_scripts)
 procedure check_script_declarations()
   integer at
   sequence args_and_defaults
   sequence scripts_found
   sequence src_position
+  string fullname
+  srcpos script_pos
 
   scripts_found=repeat(false,length(script_list))
 
-  for i=1 to length(script_cmd) do
-    at=find(script_cmd[i][2][CMD_TEXT],column(script_list,PAIR_NAME))
+  for i=1 to length(all_scripts) do
+    fullname=all_scripts[i][SCRIPT_FULL_NAME]
+    current_script=fullname  --global
+    script_pos=all_scripts[i][SCRIPT_POS]
+    at=find(fullname,column(script_list,PAIR_NAME))
+    at=find_in_column(fullname,script_list,PAIR_NAME)
 
-    current_script=script_cmd[i][2][CMD_TEXT]
-    args_and_defaults=process_arglist(script_cmd[i][3])
+    args_and_defaults=process_arglist(all_scripts[i][SCRIPT_ARG_TOKS])
     if not at then
       --define script optional, add to script list
-      script_list=create_function(script_list,-1,script_cmd[i][2][CMD_TEXT],args_and_defaults[2],RESERVE_SCRIPT,script_cmd[i][2][CMD_POS])
+      script_list=create_function(script_list,-1,current_script,args_and_defaults[2],RESERVE_SCRIPT,script_pos)
+      at=length(script_list)
       scripts_found&={true}
     else
       if scripts_found[at]=true then
-        src_position=decode_srcpos(script_list[at][FUNC_POS])
-        src_error(
-          sprintf_utf(
-            "Script "&COLYEL&"%s"&COLRED&" appears more than once! It was previously defined on line %d of "&COLPNK&"%s"&COLRED
-            ,{script_cmd[i][2][CMD_TEXT],src_position[POS_LINE],src_position[POS_FILENAME]}
-          )
-          ,script_cmd[i][2][CMD_POS]
-        )
+        simple_error(sprintf("Compiler bug; two scripts named %s but this error not handled properly",{current_script}))
       end if
       scripts_found[at]=true
       --The srcpos stored for this script will be from definescript. Repoint it at the actual script
       --(doesn't really matter, all_scripts would have ended up with that srcpos anyway)
-      script_list[at][FUNC_POS]=script_cmd[i][2][CMD_POS]
+      script_list[at][FUNC_POS]=script_pos
 
-      if length(script_cmd[i][3]) != length(script_list[at][FUNC_ARGS]) then
+      if length(all_scripts[i][SCRIPT_ARG_TOKS]) != length(script_list[at][FUNC_ARGS]) then
         src_error(
           sprintf_utf(
             "Script "&COLYEL&"%s"&COLRED&" has %d arguments named, but has %d arguments in its declaration"
-            ,{script_cmd[i][2][CMD_TEXT],length(script_cmd[i][3]),length(script_list[at][FUNC_ARGS])}
+            ,{current_script,length(all_scripts[i][SCRIPT_ARG_TOKS]),length(script_list[at][FUNC_ARGS])}
           )
-          ,script_cmd[i][2][CMD_POS]
+          ,script_pos
         )
       end if
       for j=1 to length(script_list[at][FUNC_ARGS]) do
@@ -4117,21 +4590,22 @@ procedure check_script_declarations()
           src_warn(
             sprintf_utf(
               "Default value for argument "&COLYEL&"%s"&COLRED&" does not match default given in script definition, %d"
-              ,{script_cmd[i][3][j][CMD_TEXT],script_list[at][FUNC_ARGS][j]}
+              ,{all_scripts[i][SCRIPT_ARG_TOKS][j][CMD_TEXT],script_list[at][FUNC_ARGS][j]}
             )
-            ,script_cmd[i][2][CMD_POS]
+            ,script_pos
           )
         end if
       end for
     end if
-    script_cmd[i][3]=args_and_defaults[1]
+    all_scripts[i][SCRIPT_ARG_TOKS]=args_and_defaults[1]
+    all_scripts[i]&={script_list[at][PAIR_NUM]}  --append SCRIPT_ID
   end for
   current_script=""
 
   for i=1 to length(scripts_found) do
     if scripts_found[i]=false then
       src_error(
-        sprintf_utf("Script "&COLYEL&"%s"&COLRED&" was declared but is missing",{script_list[i][PAIR_NAME]})
+        sprintf_utf("Script "&COLYEL&"%s"&COLRED&" was declared using "&COLYEL&"define script"&COLRED&" but is missing.",{script_list[i][PAIR_NAME]})
         ,script_list[i][FUNC_POS]
       )
     end if
@@ -4142,7 +4616,6 @@ end procedure
 
 procedure compile_each_script()
   sequence count
-  integer at
   enter_timing_zone("Compiling scripts")
   color_print("compiling scripts",{})
   count=repeat(0,length(file_list))
@@ -4151,23 +4624,12 @@ procedure compile_each_script()
   check_script_declarations()
   exit_timing_zone()
 
-  for i=1 to length(script_cmd) do
-    at=find(script_cmd[i][2][CMD_TEXT],column(script_list,PAIR_NAME))
-
-   -- color_print("%s\n",{script_cmd[i][2][CMD_TEXT]})
-
+  for i=1 to length(all_scripts) do
+   -- color_print("%s\n",{all_scripts[i][SCRIPT_NAME]})
     reenter_timing_zone("compile_a_script")
-    cur_script_num=i
-    compile_a_script(
-      script_list[at][PAIR_NUM] --ID
-      ,script_cmd[i][1]          --trigger
-      ,script_cmd[i][2]          --Name
-      ,script_cmd[i][3]          --argnames
-      ,script_cmd[i][4]          --data
-    )
-    cur_script_num=0
+    compile_a_script(i)
     exit_timing_zone()
-    count[srcpos_file_number(script_cmd[i][2][CMD_POS])]+=1
+    count[srcpos_file_number(all_scripts[i][SCRIPT_POS])]+=1
 
     color_print(".",{})
   end for
@@ -4223,9 +4685,9 @@ function generate_scripts_dot_bin()
   result&=output_word(42)
 
   for i=1 to length(all_scripts) do
-    result&=output_word(all_scripts[i][1])  --id
-    result&=output_word(all_scripts[i][2])  --trigger type
-    encoded_name=encode_ohr(all_scripts[i][3],36)
+    result&=output_word(all_scripts[i][SCRIPT_ID])
+    result&=output_word(all_scripts[i][SCRIPT_TRIGGER_ID])  --trigger type
+    encoded_name=encode_ohr(all_scripts[i][SCRIPT_NAME],36)
     result&=output_word(length(encoded_name))
     result&=encoded_name
     result&=repeat(0,36-length(encoded_name))
@@ -4236,7 +4698,7 @@ end function
 ---------------------------------------------------------------------------
 
 --Returns a list of {id, encode_ohr(script_name)[1..36]} pairs
-function read_scripts_dot_bin(sequence filename)
+function read_scripts_dot_bin(string filename)
   object data
   integer header_size
   integer rec_size
@@ -4338,8 +4800,8 @@ end function
 ---------------------------------------------------------------------------
 
 procedure write_script_files(integer fh)
-  sequence fname
-  sequence temp
+  string fname
+  string temp
   --because script files with identical names in different directories can be
   --included, append a number to lump names which would be duplicate
   integer suffix
@@ -4367,7 +4829,7 @@ procedure write_output_file()
   integer fh
   object lh
   enter_timing_zone("Writing output file")
-  header=sprintf("HamsterSpeak\n%s\n%d\n%s\n%d\n%d\n",{COMPILER_VERSION & COMPILER_SUB_VERSION,HSP_FORMAT_VERSION,plotscr_version,SCRIPT_FORMAT_VERSION,max_used_function})
+  header=sprintf("HamsterSpeak\n%s\n%d\n%s\n%d\n%d\n",{COMPILER_VERSION & COMPILER_SUB_VERSION,HSP_FORMAT_VERSION,plotscr_version,HSZ_FORMAT_VERSION,max_used_function})
   if length(all_scripts) then
     fh=open(dest_file,"wb")
     if fh!=-1 then
@@ -4390,8 +4852,8 @@ procedure write_output_file()
       end if
       --write each script
       for i=1 to length(all_scripts) do
-        if write_lump(fh,sprintf("%d.hsz",{all_scripts[i][1]}),all_scripts[i][7])=false then
-          simple_error(sprintf_utf("unable to write script "&COLYEL&"%s"&COLRED,{all_scripts[i][3]}))
+        if write_lump(fh,sprintf("%d.hsz",{all_scripts[i][SCRIPT_ID]}),all_scripts[i][SCRIPT_BINARY])=false then
+          simple_error(sprintf_utf("internal problem: unable to write script "&COLYEL&"%s"&COLRED,{all_scripts[i][SCRIPT_NAME]}))
         end if
       end for
       if not find('n',optlist) then --no debug info
@@ -4421,7 +4883,7 @@ end procedure
 init()
 load_and_lex()
 show_source_info()
-primary_parse_pass()
+preliminary_parse_pass()
 parse_top_level()
 compile_each_script()
 dump_debug_report()

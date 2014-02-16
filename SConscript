@@ -7,6 +7,7 @@ import os
 import platform
 import shutil
 import shlex
+import itertools
 import re
 from ohrbuild import basfile_scan, verprint, android_source_files, get_run_command
 
@@ -17,13 +18,11 @@ if 'FBFLAGS' in os.environ:
 CC = os.environ.get ('CC')
 CXX = os.environ.get ('CXX')
 AS = os.environ.get ('AS')
-CFLAGS = '-g -Wall --std=c99'.split ()
+fbc = ARGUMENTS.get ('fbc','fbc')
+fbc = os.path.expanduser (fbc)  # expand ~
+CFLAGS = '-g -Wall --std=c99'.split ()  # These flags apply only to .c[pp] sources, NOT to CC invoked via gengcc=1
 CXXFLAGS = '-g -Wall -Wno-non-virtual-dtor'.split ()
-C_opt = True    # compile with optimisations?
-FB_exx = True   # compile with -exx?
-FB_g = True   # compile with -g?
 linkgcc = int (ARGUMENTS.get ('linkgcc', True))   # link using g++ instead of fbc?
-GCC_strip = False  # (linkgcc only) strip (link with -s)?
 envextra = {}
 FRAMEWORKS_PATH = "~/Library/Frameworks"  # Frameworks search path in addition to the default /Library/Frameworks
 
@@ -67,7 +66,7 @@ elif arch == 'x86':
     CFLAGS.append ('-m32')
     CXXFLAGS.append ('-m32')
     # Recent versions of GCC default to assuming the stack is kept 16-byte aligned
-    # (which a change in the Linux x86 ABI) but fbc is not yet updateed for that
+    # (which is a recent change in the Linux x86 ABI) but fbc's GAS backend is not yet updated for that
     CFLAGS.append ('-mpreferred-stack-boundary=2')
     CXXFLAGS.append ('-mpreferred-stack-boundary=2')
     # gcc -m32 on x86_64 defaults to enabling SSE and SSE2, so disable that,
@@ -75,32 +74,38 @@ elif arch == 'x86':
     if not mac:
         CFLAGS.append ('-mno-sse')
         CXXFLAGS.append ('-mno-sse')
+    #FBFLAGS += ["-arch", "686"]
+elif arch == 'x86_64':
+    CFLAGS.append ('-m64')
+    CXXFLAGS.append ('-m64')
+    # This also causes FB to default to -gen gcc, as -gen gas not supported
+    # (therefore we don't need to pass -mpreferred-stack-boundary=2)
+    FBFLAGS += ['-arch', 'x86_64']
 else:
     raise Exception('Unknown architecture %s' % arch)
 
 if 'asm' in ARGUMENTS:
     FBFLAGS += ["-r", "-g"]
 
-if 'gengcc' in ARGUMENTS:
-    # Due to FB bug #661, need to pass -m32 to gcc manually
-    FBFLAGS += ["-gen", "gcc", "-Wc", "-m32"]
-
-if 'deprecated' in ARGUMENTS:
-    FBFLAGS += ["-d", "LANG_DEPRECATED"]
-
-fbc = ARGUMENTS.get ('fbc','fbc')
+# There are three levels of debug here. Not specifying 'debug' is a happy medium
+debug = 0.5
 if 'debug' in ARGUMENTS:
-    GCC_strip = C_opt = not int (ARGUMENTS['debug'])
-    FB_g = FB_exx = int (ARGUMENTS['debug'])
-if 'profile' in ARGUMENTS:
+    debug = float (ARGUMENTS['debug'])
+optimisations = (debug <= 0.5)    # compile with compiler optimisations?
+FB_exx = (debug >= 0.5)   # compile with -exx?
+FB_g = (debug >= 0.5)   # compile with -g?
+GCC_strip = (debug == 0)  # (linkgcc only) strip (link with -s)?
+
+profile = int (ARGUMENTS.get ('profile', 0))
+if profile:
     FBFLAGS.append ('-profile')
     CFLAGS.append ('-pg')
     CXXFLAGS.append ('-pg')
     FB_g = True
     GCC_strip = False
-if 'scriptprofile' in ARGUMENTS:
+if int (ARGUMENTS.get ('scriptprofile', 0)):
     FBFLAGS += ['-d','SCRIPTPROFILE']
-if ARGUMENTS.get ('valgrind', 0):
+if int (ARGUMENTS.get ('valgrind', 0)):
     #-exx under valgrind is nearly redundant, and really slow
     FB_exx = False
     CFLAGS.append ('-DVALGRIND_ARRAYS')
@@ -108,11 +113,18 @@ if FB_exx:
     FBFLAGS.append ('-exx')
 if FB_g:
     FBFLAGS.append ('-g')
-if C_opt:
+if optimisations:
     CFLAGS.append ('-O3')
     CXXFLAGS.append ('-O3')
-    #if android or 'gengcc' in ARGUMENTS:
-    #    FBFLAGS += ["-O", "2"]
+    FBFLAGS += ["-O", "2"]
+if int (ARGUMENTS.get ('gengcc', 0)):
+    # Due to FB bug #661, need to pass -m32 to gcc manually (although recent versions of FB do pass it?)
+    if profile or debug >= 0.5:
+        # -O2 plus profiling crashes for me due to mandatory frame pointers being omitted.
+        # Also keep frame pointers unless explicit debug=0
+        FBFLAGS += ["-gen", "gcc", "-Wc", "-m32,-fno-omit-frame-pointer"]
+    else:
+        FBFLAGS += ["-gen", "gcc", "-Wc", "-m32"]
 
 # Backend selection.
 if mac:
@@ -130,9 +142,9 @@ music = ARGUMENTS.get ('music', os.environ.get ('OHRMUSIC','sdl'))
 music = [music.lower ()]
 
 env = Environment (FBFLAGS = FBFLAGS,
-                   FBLIBS = [],
+                   FBLINKFLAGS = [],
                    CFLAGS = CFLAGS,
-                   FBC = fbc + ' -lang fb',
+                   FBC = fbc,
                    CXXFLAGS = CXXFLAGS,
                    CXXLINKFLAGS = [],
                    VAR_PREFIX = '',
@@ -145,7 +157,7 @@ for var in 'PATH', 'DISPLAY', 'HOME', 'EUDIR':
         env['ENV'][var] = os.environ[var]
 
 if win32:
-    env['FBLIBS'] += ['-p', 'win32']
+    env['FBLINKFLAGS'] += ['-p', 'win32']
     env['CXXLINKFLAGS'] += ['-L', 'win32']
 
     w32_env = Environment ()
@@ -156,7 +168,7 @@ if win32:
 if mac:
     macsdk = ARGUMENTS.get ('macsdk', '')
     macSDKpath = ''
-    env['FBLIBS'] += ['-Wl', '-F,' + FRAMEWORKS_PATH]
+    env['FBLINKFLAGS'] += ['-Wl', '-F,' + FRAMEWORKS_PATH]
     env['CXXLINKFLAGS'] += ['-F', FRAMEWORKS_PATH]
     if macsdk:
         macSDKpath = 'MacOSX' + macsdk + '.sdk'
@@ -165,13 +177,13 @@ if mac:
         macSDKpath = '/Developer/SDKs/' + macSDKpath
         if not os.path.isdir(macSDKpath):
             raise Exception('Mac SDK ' + macsdk + ' not installed: ' + macSDKpath + ' is missing')
-        env['FBLIBS'] += ['-Wl', '-mmacosx-version-min=' + macsdk]
+        env['FBLINKFLAGS'] += ['-Wl', '-mmacosx-version-min=' + macsdk]
         env['CFLAGS'] += ['-mmacosx-version-min=' + macsdk]
         env['CXXFLAGS'] += ['-mmacosx-version-min=' + macsdk]
 
 if android:
     # liblog for __android_log_print/write
-    env['FBLIBS'] += ['-l', 'log']
+    env['FBLINKFLAGS'] += ['-l', 'log']
     env['CXXLINKFLAGS'] += ['-llog']
 
 def prefix_targets(target, source, env):
@@ -192,7 +204,7 @@ baso = Builder (action = '$FBC -c $SOURCE -o $TARGET $FBFLAGS',
 basmaino = Builder (action = '$FBC -c $SOURCE -o $TARGET -m ${SOURCE.filebase} $FBFLAGS',
                     suffix = '.o', src_suffix = '.bas', single_source = True,
                     source_factory = translate_rb)
-basexe = Builder (action = '$FBC $FBFLAGS -x $TARGET $SOURCES $FBLIBS',
+basexe = Builder (action = '$FBC $FBFLAGS -x $TARGET $SOURCES $FBLINKFLAGS',
                   suffix = exe_suffix, src_suffix = '.bas')
 
 basasm = Builder (action = '$FBC -c $SOURCE -o $TARGET $FBFLAGS -r -g',
@@ -234,7 +246,9 @@ if CXX:
     env.Replace (CXX = CXX)
 
 if linkgcc:
-    fbc_binary = ARGUMENTS.get ('fbc', env.WhereIs (fbc))
+    fbc_binary = fbc
+    if not os.path.isfile (fbc_binary):
+        fbc_binary = env.WhereIs (fbc)
     if not fbc_binary:
         raise Exception("FreeBasic compiler is not installed!")
     fbc_path = os.path.dirname(fbc_binary)
@@ -262,11 +276,12 @@ if linkgcc:
                   [fbc_path, '..', 'lib', 'freebasic'],
                   ['/usr/share/freebasic/lib'],
                   ['/usr/local/lib/freebasic']]
-    # FB since 0.25 doesn't seem to use a platform subdirectory in lib/
-    fblibpaths = sum([[pathparts, pathparts + [target]] for pathparts in fblibpaths], [])
+    # For each of the above possible library paths, check three possible target subdirectories:
+    targetdirs = [ [], [arch + '-' + target], [target] ]
+    # FB since 0.25 doesn't seem to use a platform subdirectory in lib ?
 
-    for path in fblibpaths:
-        libpath = os.path.join(*path)
+    for path, targetdir in itertools.product(fblibpaths, targetdirs):
+        libpath = os.path.join(*(path + targetdir))
         #print "Looking for FB libs in", libpath
         if os.path.isfile(os.path.join(libpath, 'fbrt0.o')):
             break
@@ -318,10 +333,12 @@ if linkgcc:
                     return env.BASO (obj)
             return obj
         return target, map(to_o, enumerate(source))
-
-    #basexe_gcc = Builder (action = '$CXX $CXXFLAGS -o $TARGET $SOURCES "-Wl,-(" $CXXLINKFLAGS "-Wl,-)"',
-    basexe_gcc = Builder (action = '$CXX $CXXFLAGS -o $TARGET $SOURCES $CXXLINKFLAGS',
-                  suffix = exe_suffix, src_suffix = '.bas', emitter = compile_main_module)
+    
+    if mac:
+        basexe_gcc_action = '$CXX $CXXFLAGS -o $TARGET $SOURCES $CXXLINKFLAGS'
+    else:
+        basexe_gcc_action = '$CXX $CXXFLAGS -o $TARGET $SOURCES "-Wl,-(" $CXXLINKFLAGS "-Wl,-)"'
+    basexe_gcc = Builder (action = basexe_gcc_action, suffix = exe_suffix, src_suffix = '.bas', emitter = compile_main_module)
 
     env['BUILDERS']['BASEXE'] = basexe_gcc
 
@@ -398,19 +415,19 @@ elif unix:
     commonenv['FBFLAGS'] += ['-d', 'DATAFILES=\'"/usr/share/games/ohrrpgce"\'']
 
 #CXXLINKFLAGS are used when linking with g++
-#FBLIBS are used when linking with fbc
+#FBLINKFLAGS are used when linking with fbc
 
 for lib in libraries:
     if mac and lib in ('SDL', 'SDL_mixer', 'Cocoa'):
         # Use frameworks rather than normal unix libraries
         commonenv['CXXLINKFLAGS'] += ['-framework', lib]
-        commonenv['FBLIBS'] += ['-Wl', '-framework,' + lib]
+        commonenv['FBLINKFLAGS'] += ['-Wl', '-framework,' + lib]
     else:
         commonenv['CXXLINKFLAGS'] += ['-l' + lib]
-        commonenv['FBLIBS'] += ['-l', lib]
+        commonenv['FBLINKFLAGS'] += ['-l', lib]
 
 commonenv['CXXLINKFLAGS'] += ['-L' + path for path in libpaths]
-commonenv['FBLIBS'] += Flatten ([['-p', v] for v in libpaths])
+commonenv['FBLINKFLAGS'] += Flatten ([['-p', v] for v in libpaths])
 
 
 # first, make sure the version is saved.
@@ -457,7 +474,9 @@ game_modules = ['game',
                 'yetmore',
                 'yetmore2',
                 'savegame.rbas',
-                'hsinterpreter']
+                'scripting',
+                'oldhsinterpreter',
+                'purchase.rbas']
 
 common_modules += ['filelayer.cpp']
 
@@ -470,14 +489,13 @@ if linkgcc:
         commonenv['CXXLINKFLAGS'] += ['-lgdi32', '-Wl,--subsystem,windows']
 
 else:
-    commonenv['FBLIBS'] += ['-l','stdc++'] #, '-l','gcc_s', '-l','gcc_eh']
+    commonenv['FBLINKFLAGS'] += ['-l','stdc++'] #, '-l','gcc_s', '-l','gcc_eh']
 
 # Note that base_objects are not built in commonenv!
-base_objects = [env.Object(a) for a in base_modules]
-common_objects += base_objects + [commonenv.Object(a) for a in common_modules]
+base_objects = sum ([env.Object(a) for a in base_modules], [])  # concatenate lists
+common_objects += base_objects + sum ([commonenv.Object(a) for a in common_modules], [])
 # Plus unique module included by utilities but not Game or Custom
-base_objects.append (env.Object ('common_base.bas'))
-
+base_objects.extend (env.Object ('common_base.bas'))
 
 gameenv = commonenv.Clone (VAR_PREFIX = 'game-', FBFLAGS = commonenv['FBFLAGS'] + \
                       ['-d','IS_GAME', '-m','game'])
@@ -488,18 +506,20 @@ editenv = commonenv.Clone (VAR_PREFIX = 'edit-', FBFLAGS = commonenv['FBFLAGS'] 
 
 gamesrc = common_objects[:]
 for item in game_modules:
-    gamesrc.append (gameenv.BASO (item))
+    gamesrc.extend (gameenv.BASO (item))
 for item in shared_modules:
-    gamesrc.append (gameenv.VARIANT_BASO (item))
+    gamesrc.extend (gameenv.VARIANT_BASO (item))
 
 editsrc = common_objects[:]
 for item in edit_modules:
-    editsrc.append (editenv.BASO (item))
+    editsrc.extend (editenv.BASO (item))
 for item in shared_modules:
-    editsrc.append (editenv.VARIANT_BASO (item))
+    editsrc.extend (editenv.VARIANT_BASO (item))
 
 # For reload utilities
-reload_objects = base_objects + [env.BASO (item) for item in ['reload', 'reloadext', 'lumpfile']]
+reload_objects = base_objects + sum ([env.BASO (item) for item in ['reload', 'reloadext', 'lumpfile']], [])
+
+base_objects_without_util = [a for a in base_objects if str(a) != 'util.o']
 
 gamename = 'ohrrpgce-game'
 editname = 'ohrrpgce-custom'
@@ -511,8 +531,8 @@ if win32:
     editname = 'custom'
     if linkgcc:
         # FIXME: This is a stopgap, it only works if the .rc files have previously been compiled
-        gamesrc += [gameenv.RC('gicon.rc')]
-        editsrc += [editenv.RC('cicon.rc')]
+        gamesrc += gameenv.RC('gicon.rc')
+        editsrc += editenv.RC('cicon.rc')
     else:
         gamesrc += ['gicon.rc']
         editsrc += ['cicon.rc']
@@ -535,11 +555,13 @@ x2rsrc = ['xml2reload.bas'] + reload_objects
 if win32:
     # Hack around our provided libxml2.a lacking a function. (Was less work than recompiling)
     x2rsrc.append (env.Object('win32/utf8toisolat1.c'))
-XML2RELOAD = env_exe ('xml2reload', source = x2rsrc, FBLIBS = env['FBLIBS'] + ['-l','xml2'], CXXLINKFLAGS = env['CXXLINKFLAGS'] + ['-lxml2'])
+XML2RELOAD = env_exe ('xml2reload', source = x2rsrc, FBLINKFLAGS = env['FBLINKFLAGS'] + ['-l','xml2'], CXXLINKFLAGS = env['CXXLINKFLAGS'] + ['-lxml2'])
 RELOAD2XML = env_exe ('reload2xml', source = ['reload2xml.bas'] + reload_objects)
 RELOADUTIL = env_exe ('reloadutil', source = ['reloadutil.bas'] + reload_objects)
 RBTEST = env_exe ('rbtest', source = [env.RB('rbtest.rbas'), env.RB('rbtest2.rbas')] + reload_objects)
 env_exe ('vectortest', source = ['vectortest.bas'] + base_objects)
+# Compile util.bas as a main module to utiltest.o to prevent its linkage in other binaries
+env_exe ('utiltest', source = env.BASMAINO('utiltest.o', 'util.bas') + base_objects_without_util)
 
 if android_source:
     # This is hacky and will be totally rewritten
@@ -563,7 +585,7 @@ if win32:
     # Enable exceptions, most warnings, unicode
     w32_env.Append (CPPFLAGS = ['/EHsc', '/W3'], CPPDEFINES = ['UNICODE', '_UNICODE'])
 
-    if int (ARGUMENTS.get ('debug', False)):
+    if optimisations == False:
         # debug info, runtime error checking, static link debugging VC9.0 runtime lib, no optimisation
         w32_env.Append (CPPFLAGS = ['/Zi', '/RTC1', '/MTd', '/Od'], LINKFLAGS = ['/DEBUG'])
     else:
@@ -593,7 +615,7 @@ INTERTEST = env.Command ('interactivetest', source = GAME, action =
 # (doesn't matter where g_debug.txt is actually placed)
 SideEffect ('g_debug.txt', [AUTOTEST, INTERTEST])
 
-testprogs = ['reloadtest', 'rbtest', 'vectortest']
+testprogs = ['reloadtest', 'rbtest', 'vectortest', 'utiltest']
 tests = [File(prog).abspath for prog in testprogs]
 # There has to be some better way to do this...
 TESTS = env.Command ('test', source = testprogs + [AUTOTEST, INTERTEST], action = tests)
@@ -619,11 +641,11 @@ Options:
   music=BACKEND       Music backend. Options:
                         """ + " ".join (music_map.keys ()) + """
                       Current (default) value: """ + "+".join (music) + """
-  debug=0|1           Debugging builds:
-                      Default: with -exx (FB error checking), debug symbols, and
-                               C/C++ optimisation
-                      debug=0: without -exx, with C/C++ optimisation, strip executable.
-                      debug=1: with -exx and without C/C++ optimisation
+  debug=0|0.5|1       Debugging builds:
+                      debug=0:   without -exx, with C/C++ optimisation, strip executable.
+                      debug=0.5: with -exx (FB error checking), debug symbols, and
+                       (default)   C/C++ optimisation
+                      debug=1:   with -exx and without C/C++ optimisation
   valgrind=1          valgrinding build.
   profile=1           Profiling build for gprof.
   scriptprofile=1     Script profiling build.
@@ -637,7 +659,6 @@ Options:
 Experimental options:
   raster=1            Include new graphics API and rasterizer.
   gengcc=1            Compile using GCC emitter.
-  deprecated=1        Compiles certain source files using the "deprecated" dialect
   linkgcc=0           Link using fbc instead of g++.
   android=1           Compile for android. Commandline programs only.
   android-source=1    Used as part of the Android build process for Game/Custom.
@@ -653,6 +674,7 @@ Targets:
   xml2reload
   reload2xml
   reloadutil
+  utiltest
   vectortest
   rbtest
   gfx_directx_test    (Non-automated) gfx_directx.dll test

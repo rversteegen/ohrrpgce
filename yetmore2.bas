@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "allmodex.bi"
 #include "common.bi"
@@ -20,7 +13,7 @@
 #include "loading.bi"
 #include "reload.bi"
 #include "reloadext.bi"
-#include "hsinterpreter.bi"
+#include "scripting.bi"
 #include "ver.txt"
 
 #include "game.bi"
@@ -441,17 +434,21 @@ FUNCTION titlescreen () as integer
  LOOP
 END FUNCTION
 
-SUB reloadnpc ()
+'Reset npc sprite slices to match npc definitions.
+'Used only when reloading all npcs. See set_walkabout_sprite documentation.
+'reset_npc_graphics is always called after visnpc (though it's not necessarily so),
+'which enables or disables npcs and also creates the slices for any npcs that were enabled.
+SUB reset_npc_graphics ()
  DIM npc_id as integer
  FOR i as integer = 0 TO UBOUND(npc)
   npc_id = npc(i).id - 1
   IF npc_id >= 0 THEN
    IF npc_id > UBOUND(npcs) THEN
-    debug "reloadnpc: ignore npc " & i & " because npc def " & npc_id & " is out of range (>" & UBOUND(npcs) & ")"
+    debug "reset_npc_graphics: ignore npc " & i & " because npc def " & npc_id & " is out of range (>" & UBOUND(npcs) & ")"
    ELSE
     'Update/load sprite
     set_walkabout_sprite npc(i).sl, npcs(npc_id).picture, npcs(npc_id).palette
-    set_walkabout_vis npc(i).sl, (npc(i).id > 0)
+    set_walkabout_vis npc(i).sl, YES
    END IF
   END IF
  NEXT i
@@ -561,7 +558,7 @@ SUB loadmapstate_npcd (byval mapnum as integer, prefix as string, byval dontfall
  'Evaluate whether NPCs should appear or disappear based on tags
  visnpc
  'load NPC graphics
- reloadnpc
+ reset_npc_graphics
 END SUB
 
 SUB loadmapstate_tilemap (byval mapnum as integer, prefix as string, byval dontfallback as integer = 0)
@@ -588,7 +585,7 @@ SUB loadmapstate_tilemap (byval mapnum as integer, prefix as string, byval dontf
   ELSE
    DIM errmsg as string = "tried to load saved tilemap state which is size " & statesize.wide & "*" & statesize.high & ", while the map is size " & propersize.wide & "*" & propersize.high
    IF insideinterpreter THEN
-    scripterr commandname(curcmd->value) + errmsg, 4
+    scripterr current_command_name() + errmsg, 4
    ELSE
     debug "loadmapstate_tilemap(" + filebase + "_t.tmp): " + errmsg
    END IF
@@ -613,7 +610,7 @@ SUB loadmapstate_passmap (byval mapnum as integer, prefix as string, byval dontf
   ELSE
    DIM errmsg as string = "tried to load saved passmap state which is size " & statesize.wide & "*" & statesize.high & ", while the map is size " & propersize.wide & "*" & propersize.high
    IF insideinterpreter THEN
-    scripterr commandname(curcmd->value) + errmsg, 4
+    scripterr current_command_name() + errmsg, 4
    ELSE
     debug "loadmapstate_passmap(" + filebase + "_p.tmp): " + errmsg
    END IF
@@ -636,7 +633,7 @@ SUB loadmapstate_zonemap (byval mapnum as integer, prefix as string, byval dontf
   IF zmap.wide <> mapsizetiles.x OR zmap.high <> mapsizetiles.y THEN
    DIM errmsg as string = "tried to load saved zonemap state which is size " & zmap.wide & "*" & zmap.high & ", while the map is size " & mapsizetiles.x & "*" & mapsizetiles.y
    IF insideinterpreter THEN
-    scripterr commandname(curcmd->value) + errmsg, 4
+    scripterr current_command_name() + errmsg, 4
    ELSE
     debug "loadmapstate_zonemap(" + filebase + "_z.tmp): " + errmsg
    END IF
@@ -783,7 +780,7 @@ SUB reloadmap_npcd()
  'Evaluate whether NPCs should appear or disappear based on tags
  visnpc
  'load NPC graphics
- reloadnpc
+ reset_npc_graphics
 END SUB
 
 SUB reloadmap_tilemap_and_tilesets(byval merge as integer)
@@ -1462,16 +1459,6 @@ SUB try_to_reload_files_onmap ()
   END IF
  WEND
 END SUB
-
-'return a video page which is a view on vpage that is 320x200 (or smaller) and centred
-FUNCTION compatpage() as integer
- DIM fakepage as integer
- DIM centreview as Frame ptr
- centreview = frame_new_view(vpages(vpage), (vpages(vpage)->w - 320) / 2, (vpages(vpage)->h - 200) / 2, 320, 200)
- fakepage = registerpage(centreview)
- frame_unload @centreview
- RETURN fakepage
-END FUNCTION
 
 FUNCTION lump_reload_mode_to_string (byval mode as integer) as string
  IF mode = loadmodeNever THEN RETURN "Never"

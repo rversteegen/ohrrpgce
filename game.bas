@@ -4,13 +4,6 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "udts.bi"
@@ -30,8 +23,9 @@
 #include "menustuf.bi"
 #include "bmodsubs.bi"
 #include "bmod.bi"
-#include "hsinterpreter.bi"
+#include "scripting.bi"
 #include "sliceedit.bi"
+#include "purchase.bi"
 #include "game.bi"
 #include "gfx.bi"
 
@@ -40,6 +34,7 @@
 DECLARE SUB checkdoors ()
 DECLARE SUB usedoor (byval door_id as integer)
 DECLARE SUB advance_text_box ()
+DECLARE FUNCTION immediate_showtextbox() as bool
 DECLARE FUNCTION want_to_check_for_walls(byval who as integer) as integer
 DECLARE SUB update_npcs ()
 DECLARE SUB pick_npc_action(npci as NPCInst, npcdata as NPCType)
@@ -61,7 +56,6 @@ DECLARE SUB misc_debug_menu()
 DECLARE SUB battle_formation_testing_menu()
 DECLARE SUB queue_music_change (byval song as integer)
 DECLARE SUB check_for_queued_music_change ()
-
 
 'Note: On Android exename is "sdl" and exepath is "" (currently unimplemented in FB and meaningless for an app anyway)
 
@@ -138,6 +132,7 @@ DIM gam as GameState
 DIM txt as TextBoxState
 REDIM gen(360) as integer
 DIM gen_reld_doc as DocPtr
+DIM persist_reld_doc as DocPtr
 REDIM tag(1000) as integer '16000 bitsets
 REDIM onetime(1000) as integer '16000 bitsets
 
@@ -237,15 +232,17 @@ REDIM backcompat_sound_slots(7) as integer
 DIM nowscript as integer
 DIM scriptret as integer
 DIM scriptctr as integer
-DIM numloadedscr as integer
-DIM totalscrmem as integer
+DIM numloadedscr as integer    'Number of loaded scripts
+DIM totalscrmem as integer     'Total memory used by all loaded scripts, in WORDs
+DIM scriptcachemem as integer  'Memory used by script cache, WORDs
 DIM scrwatch as integer
 DIM next_interpreter_check_time as double
 DIM interruption_grace_period as integer
 REDIM heap(maxScriptHeap) as integer
 REDIM global(maxScriptGlobals) as integer
 REDIM retvals(32) as integer
-REDIM scrat(maxScriptRunning) as ScriptInst
+REDIM scrat(maxScriptRunning) as OldScriptState
+REDIM scriptinsts(maxScriptRunning) as ScriptInst
 REDIM script(scriptTableSize - 1) as ScriptData Ptr
 REDIM plotstr(maxScriptStrings) as Plotstring
 REDIM lookup1_bin_cache(-1 TO -1) as TriggerData
@@ -258,7 +255,7 @@ DIM last_queued_script as QueuedScript ptr
 'incredibly frustratingly fbc doesn't export global array debugging symbols
 DIM globalp as integer ptr
 DIM heapp as integer ptr
-DIM scratp as ScriptInst ptr
+DIM scratp as OldScriptState ptr
 DIM scriptp as ScriptData ptr ptr
 DIM retvalsp as integer ptr
 DIM plotslicesp as slice ptr ptr
@@ -311,15 +308,14 @@ gp.R1 = scPageDown
 gp.L2 = scHome
 gp.R2 = scEnd
 remap_android_gamepad 0, gp
-DIM blank_gp as GamePadMap
+'Make all four gamepads use the same keys by default
 FOR i as integer = 1 to 3
- remap_android_gamepad i, blank_gp
+ remap_android_gamepad i, gp
 NEXT i
 
-'This only has effect on platforms that actually allow a virtual gamepad
-'(currently all Android except for OUYA)
-show_virtual_gamepad()
-
+'virtual gamepad stuff only has effect on platforms that actually allow
+' a virtual gamepad (currently all Android except for OUYA)
+hide_virtual_gamepad()
 remap_touchscreen_button 0, scEnter
 remap_touchscreen_button 1, scESC
 remap_touchscreen_button 2, 0
@@ -332,6 +328,7 @@ unhidemousecursor  'init mouse state
 
 gam.autorungame = NO
 usepreunlump = NO
+DIM rpg_browse_default as string = ""  'local variable
 
 '---get work dir and exe name---
 'DEBUG debug "setup directories"
@@ -376,8 +373,10 @@ ELSE  'NOT running_as_slave
    IF isfile(arg + SLASH + "archinym.lmp") THEN 'ok, accept it
     gam.autorungame = YES
     usepreunlump = YES
-    sourcerpg = arg
+    sourcerpg = trim_trailing_slashes(arg)
     workingdir = arg
+   ELSE
+    rpg_browse_default = arg
    END IF
    EXIT FOR
   ELSE
@@ -428,7 +427,9 @@ END IF
 
 IF gam.autorungame = NO THEN
  'DEBUG debug "browse for RPG"
- sourcerpg = browse(7, "", "*.rpg", tmpdir, 1, "game_browse_rpg")
+ show_virtual_gamepad()
+ sourcerpg = browse(7, rpg_browse_default, "*.rpg", tmpdir, 1, "game_browse_rpg")
+ hide_virtual_gamepad()
  IF sourcerpg = "" THEN exitprogram NO
  IF isdir(sourcerpg) THEN
   usepreunlump = YES
@@ -543,11 +544,14 @@ IF isfile(game + ".hsp") THEN unlump game + ".hsp", tmpdir
 fadeout 0, 0, 0
 queue_fade_in
 
-IF gen(genResolutionX) ANDALSO gen(genResolutionY) THEN
+IF gen(genResolutionX) > 0 OR gen(genResolutionY) > 0 THEN
  IF gfxbackend <> "sdl" THEN
   notification "This game requires use of the gfx_sdl backend; other graphics backends do not support customisable resolution"
  ELSE
-  setresolution(gen(genResolutionX), gen(genResolutionY))
+  IF gen(genResolutionX) <= 0 THEN gen(genResolutionX) = 320
+  IF gen(genResolutionY) <= 0 THEN gen(genResolutionY) = 200
+  set_resolution(gen(genResolutionX), gen(genResolutionY))
+  gfx_recenter_window_hint()
  END IF
 END IF
 
@@ -618,11 +622,16 @@ END IF
 resetg = NO
 'DEBUG debug "picked save slot " & load_slot
 queue_music_change -1  'stop music
-fadeout 0, 0, 0
-IF load_slot = -2 THEN EXIT DO 'resetg
+IF load_slot = -2 THEN
+ fadeout 0, 0, 0
+ EXIT DO 'resetg
+END IF
 IF load_slot >= 0 THEN
+ fadeout 0, 0, 0
  doloadgame load_slot
 ELSE
+ refresh_purchases()
+ fadeout 0, 0, 0
  clearpage 0
  clearpage 1
  addhero 1, 0
@@ -698,9 +707,17 @@ DO
    LOOP
   END IF
  END IF
- 'debug "before advance_text_box:"
- IF carray(ccUse) > 1 AND txt.fully_shown = YES AND readbit(gen(), genSuspendBits, suspendboxadvance) = 0 THEN
-  advance_text_box
+ IF txt.fully_shown = YES ANDALSO readbit(gen(), genSuspendBits, suspendboxadvance) = 0 THEN
+  IF use_touch_textboxes() THEN
+   DIM mouse as MouseInfo
+   mouse = readmouse()
+   IF (mouse.clickstick AND mouseLeft) THEN
+    advance_text_box
+   END IF
+  END IF
+  IF carray(ccUse) > 1 THEN
+   advance_text_box
+  END IF
  END IF
  'debug "after advance_text_box:"
  IF vstate.active THEN
@@ -918,7 +935,8 @@ SUB doloadgame(byval load_slot as integer)
  END IF
 
  party_change_updates
-
+ refresh_purchases()
+ 
 END SUB
 
 SUB displayall()
@@ -1153,8 +1171,15 @@ SUB update_heroes(byval force_step_check as integer=NO)
   IF gam.need_fade_in = NO AND readbit(gen(), genSuspendBits, suspendrandomenemies) = 0 THEN
    DIM battle_formation_set as integer
    battle_formation_set = readblock(foemap, catx(0) \ 20, caty(0) \ 20)
-   IF vstate.active = YES AND vstate.dat.random_battles > 0 THEN
-    battle_formation_set = vstate.dat.random_battles
+   IF vstate.active = YES THEN
+    '--Riding a vehicle
+    IF vstate.dat.random_battles > 0 THEN
+     '--This vehicle overrides the random battle formation set
+     battle_formation_set = vstate.dat.random_battles
+    ELSEIF vstate.dat.random_battles = -1 THEN
+     '--This vehicle disables random battles
+     battle_formation_set = 0
+    END IF
    END IF
    IF battle_formation_set > 0 THEN
     DIM formset as FormationSet
@@ -1554,190 +1579,229 @@ SUB npchitwall(npci as NPCInst, npcdata as NPCType)
  END IF
 END SUB
 
-SUB interpret()
-DIM as integer i, n, npcref, temp
+SUB process_wait_conditions()
+ WITH scriptinsts(nowscript)
 
-'It seems like it would be good to call this immediately before script_interpreter so that
-'the return values of fightformation and waitforkey are correct, however doing so might
-'break something?
-run_queued_scripts
+   ' Evaluate wait conditions, even if the fibre is paused (unimplemented),
+   ' as waiting for unpause first will just lead to bugs eg. due to map changes
+   ' (Note however that is the way the old one-script-at-a-time mode works: wait
+   ' conditions not considered until its turn to run)
 
-reentersub:
-IF nowscript >= 0 THEN
-WITH scrat(nowscript)
- SELECT CASE .state
-  CASE IS < stnone
-   scripterr "illegally suspended script", serrBug
-   .state = ABS(.state)
-  CASE stnone
-   scripterr "script " & nowscript & " became stateless", serrBug
-  CASE stwait
-   '--evaluate wait conditions
+   IF .waiting = waitingOnTick THEN
+    .waitarg -= 1
+    IF .waitarg <= 0 THEN script_stop_waiting()
+    EXIT SUB
+   END IF
+
    SELECT CASE .curvalue
     CASE 15, 35, 61'--use door, use NPC, teleport to map
-     .state = streturn
+     script_stop_waiting()
     CASE 16'--fight formation
-     scriptret = IIF(gam.wonbattle, 1, 0)
-     .state = streturn
+     script_stop_waiting(IIF(gam.wonbattle, 1, 0))
     CASE 1'--wait number of ticks
      .waitarg -= 1
      IF .waitarg < 1 THEN
-      .state = streturn
+      script_stop_waiting()
      END IF
     CASE 2'--wait for all
-     n = 0
-     FOR i = 0 TO 3
-      IF herow(i).xgo <> 0 OR herow(i).ygo <> 0 THEN n = 1
+     DIM unpause as bool = YES
+     FOR i as integer = 0 TO 3
+      IF herow(i).xgo <> 0 OR herow(i).ygo <> 0 THEN unpause = NO
      NEXT i
      IF readbit(gen(), genSuspendBits, suspendnpcs) = 1 THEN
-      FOR i = 0 TO 299
-       IF npc(i).id > 0 ANDALSO (npc(i).xgo <> 0 OR npc(i).ygo <> 0) THEN n = 1: EXIT FOR
+      FOR i as integer = 0 TO UBOUND(npc)
+       IF npc(i).id > 0 ANDALSO (npc(i).xgo <> 0 OR npc(i).ygo <> 0) THEN unpause = NO: EXIT FOR
       NEXT i
      END IF
-     IF gen(cameramode) = pancam OR gen(cameramode) = focuscam THEN n = 1
-     IF n = 0 THEN
-      .state = streturn
+     IF gen(cameramode) = pancam OR gen(cameramode) = focuscam THEN unpause = NO
+     IF unpause THEN
+      script_stop_waiting()
      END IF
     CASE 3'--wait for hero
      IF .waitarg < 0 OR .waitarg > 3 THEN
       scripterr "waiting for nonexistant hero " & .waitarg, serrBug  'should be bound by waitforhero
-      .state = streturn
+      script_stop_waiting()
      ELSE
       IF herow(.waitarg).xgo = 0 AND herow(.waitarg).ygo = 0 THEN
-       .state = streturn
+       script_stop_waiting()
       END IF
      END IF
     CASE 4'--wait for NPC
-     npcref = getnpcref(.waitarg, 0)
+     DIM npcref as integer = getnpcref(.waitarg, 0)
      IF npcref >= 0 ANDALSO .waitarg2 = gam.map.id THEN
       IF npc(npcref).xgo = 0 AND npc(npcref).ygo = 0 THEN
-       .state = streturn
+       script_stop_waiting()
       END IF
      ELSE
       '--no reference found, why wait for a non-existant npc?
-      .state = streturn
+      script_stop_waiting()
      END IF
     CASE 9'--wait for key
      IF .waitarg >= 0 AND .waitarg <= 5 THEN
       IF carray(.waitarg) > 1 THEN
-       .state = streturn
+       script_stop_waiting()
       END IF
       'Because carray(ccMenu) doesn't include it, and we don't want to break scripts
       'doing waitforkey(menu key) followed by looking for key:alt (== scUnfilteredAlt)
-      IF .waitarg = ccMenu AND keyval(scUnfilteredAlt) > 1 THEN .state = streturn
+      IF .waitarg = ccMenu AND keyval(scUnfilteredAlt) > 1 THEN script_stop_waiting()
      ELSE
       '.waitarg == anykey
-      scriptret = anykeypressed()
+      DIM temp as integer = anykeypressed()
       'Because anykeypressed doesn't check it, and we don't want to break scripts
       'doing waitforkey(any key) followed by looking for key:alt (== scUnfilteredAlt)
-      IF keyval(scUnfilteredAlt) > 1 THEN scriptret = scUnfilteredAlt
-      IF scriptret THEN
-       .state = streturn
+      IF keyval(scUnfilteredAlt) > 1 THEN temp = scUnfilteredAlt
+      IF temp THEN
+       script_stop_waiting(temp)
       END IF
      END IF
     CASE 244'--wait for scancode
      IF keyval(.waitarg) > 1 THEN
-      .state = streturn
+      script_stop_waiting()
      END IF
     CASE 42'--wait for camera
-     IF gen(cameramode) <> pancam AND gen(cameramode) <> focuscam THEN .state = streturn
+     IF gen(cameramode) <> pancam AND gen(cameramode) <> focuscam THEN script_stop_waiting()
     CASE 59'--wait for text box
      IF txt.showing = NO OR readbit(gen(), genSuspendBits, suspendboxadvance) = 1 THEN
-      .state = streturn
+      script_stop_waiting()
      END IF
     CASE 73, 234, 438'--game over, quit from loadmenu, reset game
     CASE 508'--wait for slice
      IF valid_plotslice(.waitarg, 2) THEN
       IF plotslices(.waitarg)->Velocity.X = 0 ANDALSO plotslices(.waitarg)->Velocity.Y = 0 ANDALSO plotslices(.waitarg)->TargTicks = 0 THEN
-       .state = streturn
+       script_stop_waiting()
       END IF
      ELSE
       'If the slice ceases to exist, we should stop waiting for it (after throwing our minor warning)
-      .state = streturn
+      script_stop_waiting()
      END IF
     CASE ELSE
      scripterr "illegal wait substate " & .curvalue, serrBug
-     .state = streturn
+     script_stop_waiting()
    END SELECT
-   IF .state = streturn THEN
-    '--this allows us to resume the script without losing a game cycle
-    wantimmediate = -1
+
+ END WITH
+END SUB
+
+SUB execute_script_fibres
+ WHILE nowscript >= 0
+  WITH scriptinsts(nowscript)
+   IF .waiting THEN
+    process_wait_conditions
    END IF
-  CASE ELSE
+   IF .waiting THEN
+    EXIT WHILE
+   END IF
+
    '--interpret script
    insideinterpreter = YES
+   wantimmediate = 0
+   'May set wantimmediate to -1 to indicate fibre finished, or -2 to indicate fibre
+   'finished in way that triggered bug 430
    scriptinterpreter
    insideinterpreter = NO
- END SELECT
- IF wantimmediate = -2 THEN
-'  IF nowscript < 0 THEN
-'   debug "wantimmediate ended on nowscript = -1"
-'  ELSE
-'   debug "wantimmediate would have skipped wait on command " & scrat(nowscript).curvalue & " in " & scriptname(scrat(nowscript).id) & ", state = " & scrat(nowscript).state
-'  END IF
-  wantimmediate = 0 'change to -1 to reenable bug
- END IF
- IF wantimmediate = -1 THEN
-  '--wow! I hope this doesnt screw things up!
-  wantimmediate = 0
-  GOTO reentersub
- END IF
-END WITH
-END IF
-script_log_tick
-gam.script_log.tick += 1
 
-'--do spawned text boxes, battles, etc.
-IF wantbox > 0 THEN
- loadsay wantbox
+   IF wantimmediate = -2 THEN
+    'IF nowscript < 0 THEN
+    ' debug "wantimmediate ended on nowscript = -1"
+    'ELSE
+    ' debug "wantimmediate would have skipped wait on command " & commandname(scrat(nowscript).curvalue) _
+    '       & " in " & scriptname(scrat(nowscript).id) & ", state = " & scrat(nowscript).state
+    'END IF
+    IF readbit(gen(), genBits2, 17) THEN
+     'Reenable bug 430 (see also bug 550), where if two scripts were triggered at once then
+     'when the top script ended it would cause the one below it to run for two ticks.
+     wantimmediate = -1
+    ELSE
+     wantimmediate = 0
+    END IF
+   END IF
+
+   IF wantimmediate = 0 THEN EXIT WHILE
+  END WITH
+ WEND
+END SUB
+
+SUB interpret()
+ 'It seems like it would be good to call this immediately before scriptinterpreter so that
+ 'the return values of fightformation and waitforkey are correct, however doing so might
+ 'break something?
+ run_queued_scripts
+
+ execute_script_fibres
+
+ script_log_tick
+ gam.script_log.tick += 1
+
+ 'Do spawned text boxes, battles, etc.
+ 'The actual need for these want* variables is now gone, but they are kept around for backcompat.
+ 'They could be removed and the implementations moved straight into the command handlers,
+ '(and the implicit waits made optional at the same time), but this makes things especially tricky
+ 'for concurrent fibres.
+ 'For example if a script changes the map (whether through a textbox, teleporttomap, or door use)
+ 'it currently prevents any other script from running for the rest of the tick, preventing the potentially
+ 'disasterous (for scripted games) situation where the map changes and other scripts run before the
+ 'map autorun script (which might contain important initialisation). 
+
+ 'Also note that now if two fibres run two commands like fightformation and usedoor the order in which
+ 'they occur is independent of the order in which they were called.
+
+ 'FIXME: 
+ 'Currently if a map changes (or even is a game is loaded) there is one tick on the new map
+ 'before the map autorun or any other scripts can make changes. This transition is hidden by screen fades
+ 'and now by the delayed music change. But if the map change happens without a fade (teleporttomap, or
+ 'if we make fades customisable) that one tick delay is undesired.
+ 'So consider delaying all calls to preparemap (and doloadgame) until the start of the next tick.
+
+ IF immediate_showtextbox = NO AND wantbox > 0 THEN
+  loadsay wantbox
+ END IF
  wantbox = 0
-END IF
-IF wantdoor > 0 THEN
- usedoor wantdoor - 1
- wantdoor = 0
-END IF
-IF wantbattle > 0 THEN
- fatal = NO
- gam.wonbattle = battle(wantbattle - 1)
- wantbattle = 0
- prepare_map YES
- gam.random_battle_countdown = range(100, 60)
- queue_fade_in 2 'FIXME: why 2 ticks?
- setkeys
-END IF
-IF wantteleport > 0 THEN
- wantteleport = 0
- prepare_map
- gam.random_battle_countdown = range(100, 60)
-END IF
-IF wantusenpc > 0 THEN
- usenpc 2, wantusenpc - 1
- wantusenpc = 0
-END IF
+ IF wantdoor > 0 THEN
+  usedoor wantdoor - 1
+  wantdoor = 0
+ END IF
+ IF wantbattle > 0 THEN
+  fatal = NO
+  gam.wonbattle = battle(wantbattle - 1)
+  wantbattle = 0
+  prepare_map YES
+  gam.random_battle_countdown = range(100, 60)
+  queue_fade_in 2 'FIXME: why 2 ticks?
+  setkeys
+ END IF
+ IF wantteleport > 0 THEN
+  wantteleport = 0
+  prepare_map
+  gam.random_battle_countdown = range(100, 60)
+ END IF
+ IF wantusenpc > 0 THEN
+  usenpc 2, wantusenpc - 1
+  wantusenpc = 0
+ END IF
+ 'ALSO wantloadgame
 END SUB
 
 'Script commands ('top level', rest is in yetmore.bas)
 SUB sfunctions(byval cmdid as integer)
-DIM menuslot as integer = ANY
-DIM mislot as integer = ANY
-DIM npcref as integer = ANY
-DIM i as integer = ANY
-scriptret = 0
-WITH scrat(nowscript)
+  DIM menuslot as integer = ANY
+  DIM mislot as integer = ANY
+  DIM npcref as integer = ANY
+  DIM i as integer = ANY
+  scriptret = 0
   'the only commands that belong at the top level are the ones that need
   'access to main-module shared variables (rather few of the commands actually here)
   SELECT CASE as CONST cmdid
    CASE 11'--Show Text Box (box)
-    wantbox = retvals(0)
+    'showtextbox(0) does nothing
+    wantbox = large(0, retvals(0))
+    IF immediate_showtextbox ANDALSO wantbox > 0 THEN loadsay wantbox: wantbox = 0
    CASE 15'--use door
     wantdoor = retvals(0) + 1
-    .waitarg = 0
-    .state = stwait
+    script_start_waiting(0)
    CASE 16'--fight formation
     IF retvals(0) >= 0 AND retvals(0) <= gen(genMaxFormation) THEN
      wantbattle = retvals(0) + 1
-     .waitarg = 0
-     .state = stwait
+     script_start_waiting(0)
     ELSE
      scriptret = -1
     END IF
@@ -1764,8 +1828,7 @@ WITH scrat(nowscript)
     npcref = getnpcref(retvals(0), 0)
     IF npcref >= 0 THEN
      wantusenpc = npcref + 1
-     .waitarg = 0
-     .state = stwait
+     script_start_waiting()
     END IF
    CASE 37'--use shop
     IF retvals(0) >= 0 AND retvals(0) <= gen(genMaxShop) THEN
@@ -1805,15 +1868,14 @@ WITH scrat(nowscript)
      catx(0) = retvals(1) * 20
      caty(0) = retvals(2) * 20
      wantteleport = 1
-     .waitarg = 0
-     .state = stwait
+     script_start_waiting(0)
     END IF
    CASE 63, 169'--resume random enemies
     setbit gen(), genSuspendBits, suspendrandomenemies, 0
     gam.random_battle_countdown = range(100, 60)
    CASE 73'--game over
     abortg = 1
-    .state = stwait
+    script_start_waiting()
    CASE 77'--show value
     scriptout = STR(retvals(0))
    CASE 78'--alter NPC
@@ -1899,7 +1961,7 @@ WITH scrat(nowscript)
     minimap catx(0), caty(0)
    CASE 153'--items menu
     wantbox = items_menu
-    'Note script not put into wait state if a textbox is shown
+    IF wantbox ANDALSO immediate_showtextbox THEN loadsay wantbox: wantbox = 0
    CASE 155, 170'--save menu
     'ID 155 is a backcompat hack
     scriptret = picksave(0) + 1
@@ -1916,7 +1978,7 @@ WITH scrat(nowscript)
     IF retvals(0) >= 1 AND retvals(0) <= 32 THEN
      IF save_slot_used(retvals(0) - 1) THEN
       wantloadgame = retvals(0)
-      .state = stwait
+      script_start_waiting()
      END IF
     END IF
    CASE 210'--show string
@@ -1927,12 +1989,13 @@ WITH scrat(nowscript)
     scriptret = picksave(1) + 1
     IF retvals(0) THEN
      IF scriptret = -1 THEN
+      'New Game
       abortg = 2  'don't go straight back to loadmenu!
-      .state = stwait
+      script_start_waiting()
       fadeout 0, 0, 0
      ELSEIF scriptret > 0 THEN
       wantloadgame = scriptret
-      .state = stwait
+      script_start_waiting()
      END IF
     END IF
    CASE 245'--save map state
@@ -2201,6 +2264,7 @@ WITH scrat(nowscript)
    CASE 320'--current text box
     scriptret = -1
     IF txt.showing = YES THEN scriptret = txt.id
+    IF immediate_showtextbox = NO ANDALSO wantbox > 0 THEN scriptret = wantbox
    CASE 432 '--use menu item
     mislot = find_menu_item_handle(retvals(0), menuslot)
     IF valid_menuslot_and_mislot(menuslot, mislot) THEN
@@ -2208,21 +2272,22 @@ WITH scrat(nowscript)
     END IF
    CASE 438 '--reset game
     resetg = YES
-    .state = stwait
+    script_start_waiting()
    CASE 490'--use item (id)
     scriptret = 0
     IF valid_item(retvals(0)) THEN
      IF use_item_by_id(retvals(0), wantbox) THEN
       scriptret = 1
      END IF
+     IF immediate_showtextbox ANDALSO wantbox > 0 THEN loadsay wantbox: wantbox = 0
     END IF
    CASE 491'--use item in slot (slot)
     scriptret = 0
     IF valid_item_slot(retvals(0)) THEN
-     DIM consumed as integer '--throwaway, this is not used for anything in this context. use_item_in_slot() just needs it.
-     IF use_item_in_slot(retvals(0), wantbox, consumed) THEN
+     IF use_item_in_slot(retvals(0), wantbox) THEN
       scriptret = 1
      END IF
+     IF immediate_showtextbox ANDALSO wantbox > 0 THEN loadsay wantbox: wantbox = 0
     END IF
    CASE 517'--menu item by true slot
     menuslot = find_menu_handle(retvals(0))
@@ -2242,11 +2307,15 @@ WITH scrat(nowscript)
     END IF
 
    CASE ELSE '--try all the scripts implemented in subs (insanity!)
-    scriptmisc cmdid
-    scriptstat cmdid
+    IF scriptmisc(cmdid) = NO THEN
+     IF scriptstat(cmdid) = NO THEN
+      'We ought to check the HSP header at load time to check there aren't unsupported commands
+      scripterr "Unsupported script command " & cmdid & " " & commandname(cmdid) & ". " _
+                "Try downloading the latest version of the OHRRPGCE.", serrError
+     END IF
+    END IF
     '---------
   END SELECT
-END WITH
 END SUB
 
 FUNCTION valid_item_slot(byval item_slot as integer) as integer
@@ -2265,7 +2334,7 @@ FUNCTION really_valid_hero_party(byval who as integer, byval maxslot as integer=
  'Defaults to a non-suppressed error
  IF bound_arg(who, 0, maxslot, "hero party slot", , , errlvl) = NO THEN RETURN NO
  IF hero(who) = 0 THEN
-  scripterr commandname(curcmd->value) + ": Party hero slot " & who & " is empty", errlvl
+  scripterr current_command_name() + ": Party hero slot " & who & " is empty", errlvl
   RETURN NO
  END IF
  RETURN YES
@@ -2309,7 +2378,7 @@ FUNCTION valid_door(byval id as integer) as integer
  IF bound_arg(id, 0, UBOUND(gam.map.door), "door", , , serrBadOp) = NO THEN RETURN NO
  IF readbit(gam.map.door(id).bits(), 0, 0) = 0 THEN
   'Door doesn't exist
-  scripterr commandname(curcmd->value) & ": invalid door id " & id, serrBadOp
+  scripterr current_command_name() & ": invalid door id " & id, serrBadOp
   RETURN NO
  END IF
  RETURN YES
@@ -2317,7 +2386,7 @@ END FUNCTION
 
 FUNCTION valid_tile_pos(byval x as integer, byval y as integer) as integer
  IF x < 0 OR y < 0 OR x >= mapsizetiles.x OR y >= mapsizetiles.y THEN
-  scripterr commandname(curcmd->value) + ": invalid map position " & x & "," & y & " -- map is " & mapsizetiles.x & "*" & mapsizetiles.y & " tiles", serrBadOp
+  scripterr current_command_name() + ": invalid map position " & x & "," & y & " -- map is " & mapsizetiles.x & "*" & mapsizetiles.y & " tiles", serrBadOp
   RETURN NO
  END IF
  RETURN YES
@@ -2358,7 +2427,7 @@ SUB loadmap_npcd(byval mapnum as integer)
  'Evaluate whether NPCs should appear or disappear based on tags
  visnpc
  'load NPC graphics
- reloadnpc
+ reset_npc_graphics
 END SUB
 
 SUB loadmap_tilemap(byval mapnum as integer)
@@ -2709,7 +2778,8 @@ FUNCTION activate_menu_item(mi as MenuDefItem, byval menuslot as integer) as int
        slot = picksave(0)
        IF slot >= 0 THEN savegame slot
       CASE 9 ' load
-       slot = picksave(1)
+       slot = picksave(1, NO, YES)  'No New Game option, beep if the menu doesn't display
+       '(Maybe it would be better to display the load menu even if there are no saves)
        IF slot >= 0 THEN
         wantloadgame = slot + 1
         FOR i as integer = topmenu TO 0 STEP -1
@@ -2722,6 +2792,8 @@ FUNCTION activate_menu_item(mi as MenuDefItem, byval menuslot as integer) as int
        verify_quit
       CASE 11 ' volume
        activated = NO
+      CASE 15 ' purchases
+       purchases_menu()
      END SELECT
     CASE 2 ' Menu
      open_other_menu = .sub_t
@@ -2804,6 +2876,7 @@ SUB check_menu_tags ()
      IF .t = 1 AND .sub_t = 7 AND gmap(2) = 0 THEN .disabled = YES 'Minimap disabled on this map
      IF .t = 1 AND .sub_t = 8 AND gmap(3) = 0 THEN .disabled = YES 'Save anywhere disabled on this map
      IF .t = 1 AND .sub_t = 14 AND NOT supports_safe_zone_margin() THEN .disabled = YES 'TV Safe Margin disabled on backends that don't support it
+     IF .t = 1 AND .sub_t = 15 AND NOT supports_in_app_purchases() THEN .disabled = YES 'Purchases disabled on platforms that don't have a supported store
      IF old <> .disabled THEN changed = YES
     END WITH
    NEXT i
@@ -3212,7 +3285,12 @@ SUB usedoor (byval door_id as integer)
  END WITH
 END SUB
 
+FUNCTION immediate_showtextbox() as bool
+ RETURN xreadbit(gen(), 18, genBits2)
+END FUNCTION
+
 SUB advance_text_box ()
+ update_virtual_gamepad_display YES
  IF txt.box.backdrop > 0 THEN
   '--backdrop needs resetting
   gen(genTextboxBackdrop) = 0
@@ -3319,6 +3397,7 @@ SUB advance_text_box ()
  ClearTextBox txt.box
  setkeys
  flusharray carray(), 7, 0
+ update_virtual_gamepad_display
 END SUB
 
 SUB init_default_text_colors()
@@ -4112,11 +4191,8 @@ END FUNCTION
 
 SUB cleanup_other_temp_files ()
 
- DIM tmp_tmp as string = tmpdir
- IF RIGHT(tmp_tmp, 1) = SLASH THEN tmp_tmp = LEFT(tmp_tmp, LEN(tmp_tmp) - 1)
-
- DIM tmp_parent as string = trimfilename(tmp_tmp)
- DIM tmp_cur as string = trimpath(tmp_tmp)
+ DIM tmp_parent as string = trimfilename(tmpdir)
+ DIM tmp_cur as string = trimpath(tmpdir)
  
  REDIM filelist() as string
  'Modern tmp dirs would match the pattern "ohrrpgce*.tmp" but this would miss old tmp dirs.
@@ -4168,3 +4244,48 @@ threshhold = -1
   END IF
  NEXT i
 END SUB
+
+SUB update_virtual_gamepad_display(byval advancing_text_now as bool=NO, byval in_battle as bool=NO)
+ 'Based on global state, of the current game, decide whether or not the virual gamepad should be displaying
+ IF calc_virtual_gamepad_state(advancing_text_now, in_battle) THEN
+  show_virtual_gamepad()
+ ELSE
+  hide_virtual_gamepad()
+ END IF
+END SUB
+
+FUNCTION calc_virtual_gamepad_state(byval advancing_text_now as bool=NO, byval in_battle as bool=NO) as bool
+ 'None of this matters unless we are running on a platform that actually uses a virtual gamepad
+ IF NOT running_on_mobile() THEN RETURN NO
+
+ 'The gamepad might be completely disabled for this game
+ IF should_disable_virtual_gamepad() THEN RETURN NO
+ 
+ 'Inside battle mode, force the gamepad visible
+ IF in_battle THEN RETURN YES
+
+ 'Special handling is required when advancing a textbox. This ensures
+ ' that battles, shops, and inns sandwiched between textboxes have
+ ' the virtual gamepad enabled, even if the text boxes do not.
+ IF advancing_text_now THEN RETURN YES
+ 
+ 'Now check and see if the virtual gamepad should be disabled because of textboxes
+ IF use_touch_textboxes() THEN
+  IF txt.showing THEN
+   'Make an exception when the current textbox has a choicebox
+   IF txt.box.choice_enabled THEN RETURN YES
+   IF topmenu >= 0 THEN
+    'If any menus are open, we need to check the top one
+    IF menus(topmenu).no_controls = NO THEN
+     'The top menu menu allows controls
+     RETURN YES
+    END IF
+   END IF
+   'No exceptions were found, proceed to hide the virtual gamepad for this textbox
+   RETURN NO
+  END IF
+ END IF
+ 
+ 'If no other conditions are met, enabled the virtual gamepad
+ RETURN YES
+END FUNCTION

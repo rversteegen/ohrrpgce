@@ -11,12 +11,33 @@
 #ENDIF
 
 TYPE bool as integer
+' Temporary, until we can declare bool as an int32
+TYPE bool32 as long
+
+'Even though long and integer are the same size on 32 bit platforms,
+'fbc considers them different types and throws warnings!
+#IFDEF __FB_64BIT__
+  #IFNDEF int32
+    TYPE int32 as long
+  #ENDIF
+  #IFNDEF uint32
+    TYPE uint32 as ulong
+  #ENDIF
+#ELSE
+  #IFNDEF int32
+    TYPE int32 as integer
+  #ENDIF
+  #IFNDEF uint32
+    TYPE uint32 as uinteger
+  #ENDIF
+#ENDIF
 
 '---For some crazy reason TRUE and FALSE don't work well as const even though they are not reserved
 CONST YES = -1
 CONST NO = 0
 
 #include "vector.bi"
+#include "crt/stddef.bi"
 
 
 '----------------------------------------------------------------------
@@ -275,11 +296,13 @@ CONST fileTypeFile = 1
 declare function hash_file(filename as string) as unsigned integer
 declare function normalize_path (filename as string) as string
 declare function simplify_path (pathname as string) as string
-declare FUNCTION simplify_path_further (pathname as string, fromwhere as string) as string
+declare function simplify_path_further (pathname as string, fromwhere as string) as string
+declare function trim_trailing_slashes (filename as string) as string
 declare function trimpath (filename as string) as string
 declare function trimfilename (filename as string) as string
 declare function trimextension (filename as string) as string
 declare function justextension (filename as string) as string
+declare function get_path_root (pathname as string) as string
 declare function is_absolute_path (sDir as string) as integer
 declare function absolute_path (pathname as string) as string
 declare function absolute_with_orig_path (file_or_dir as string, byval add_slash as integer = NO) as string
@@ -315,26 +338,31 @@ declare sub set_tmpdir ()
 'slight hackery to get more versatile read function
 '(fbc internally defines these functions differently from their actual prototypes,
 ' leading to conflicts with -gen gcc, so use the fbc prototype)
-'declare function fget alias "fb_FileGet" ( byval fnum as integer, byval pos as integer = 0, byval dst as any ptr, byval bytes as uinteger ) as integer
-'declare function fput alias "fb_FilePut" ( byval fnum as integer, byval pos as integer = 0, byval src as any ptr, byval bytes as uinteger ) as integer
+
+#IF __FB_VERSION__ < "0.91"
 declare function fget alias "fb_FileGet" ( byval fnum as integer, byval pos as uinteger = 0, byval dst as any ptr, byval bytes as integer ) as integer
 declare function fput alias "fb_FilePut" ( byval fnum as integer, byval pos as uinteger = 0, byval src as any ptr, byval bytes as integer ) as integer
-declare function fgetiob alias "fb_FileGetIOB" ( byval fnum as integer, byval pos as integer = 0, byval dst as any ptr, byval bytes as uinteger, byval bytesread as uinteger ptr ) as integer
+#ELSE
+declare function fget alias "fb_FileGet" ( byval fnum as long, byval pos as long = 0, byval dst as any ptr, byval bytes as size_t ) as long
+declare function fput alias "fb_FilePut" ( byval fnum as long, byval pos as long = 0, byval src as any ptr, byval bytes as size_t ) as long
+#ENDIF
+declare function fgetiob alias "fb_FileGetIOB" ( byval fnum as long, byval pos as long = 0, byval dst as any ptr, byval bytes as size_t, byval bytesread as size_t ptr ) as long
 
 
 '----------------------------------------------------------------------
 '                              Math
 
 
-'Why is crt/float.bi missing these?
+'crt/float.bi is missing these in FB 0.90.1 and earlier
 
-' Maximum double
-'FIXME: This is the true value, but produces an assembler error!
-'#define DBL_MAX 1.7976931348623157e+308
-#define DBL_MAX 1.7976931348623154e+308
-' Maximum single
-#define FLT_MAX 3.40282347e+38F
-
+#IF __FB_VERSION__ < "0.91"
+  ' Maximum double
+  'FIXME: This is the true value, but produces an assembler error!
+  '#define DBL_MAX 1.7976931348623157e+308
+  #define DBL_MAX 1.7976931348623154e+308
+  ' Maximum single
+  #define FLT_MAX 3.40282347e+38F
+#ENDIF
 
 UNION XYPair
   TYPE
@@ -427,6 +455,7 @@ declare function special_char_sanitize(s as string) as string
 declare function sign_string(n as integer, neg_str as string, zero_str as string, pos_str as string) as string
 declare function iif_string(byval condition as integer, s1 as string, s2 as string) as string
 declare function zero_default(n as integer, zerocaption as string="default", displayoffset as integer = 0) as string
+declare function blank_default(s as string, blankcaption as string="default") as string
 declare Function wordwrap(z as string, byval width as integer, sep as string = chr(10)) as string
 
 declare sub split(in as string, ret() as string, sep as string = chr(10))
@@ -451,8 +480,8 @@ declare sub flusharray (array() as integer, byval size as integer=-1, byval valu
 declare sub sort_integers_indices(indices() as integer, byval start as integer ptr, byval number as integer = 0, byval stride as integer = SIZEOF(integer))
 declare sub qsort_integers_indices(indices() as integer, byval start as integer ptr, byval number as integer, byval stride as integer)
 declare sub qsort_strings_indices(indices() as integer, byval start as string ptr, byval number as integer, byval stride as integer)
-declare function integer_compare cdecl (byval a as integer ptr, byval b as integer ptr) as integer
-declare function string_compare cdecl (byval a as string ptr, byval b as string ptr) as integer
+declare function integer_compare cdecl (byval a as integer ptr, byval b as integer ptr) as long
+declare function string_compare cdecl (byval a as string ptr, byval b as string ptr) as long
 declare sub invert_permutation overload (indices() as integer, inverse() as integer)
 declare sub invert_permutation overload (indices() as integer)
 
@@ -460,6 +489,7 @@ declare function strhash (hstr as string) as unsigned integer
 declare function starts_with(s as string, prefix as string) as integer
 declare function ends_with(s as string, suffix as string) as integer
 
+declare function string_index_in_array(s as string, a() as string, notfound as integer=-1) as integer
 
 '----------------------------------------------------------------------
 '                        Old allmodex functions

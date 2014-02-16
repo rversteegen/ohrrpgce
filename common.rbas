@@ -7,13 +7,6 @@
 ' Code that is not OHRRPGCE-specific that would be of general use
 ' to any FreeBasic program belongs in util.bas instead
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "const.bi"
@@ -41,13 +34,9 @@ DECLARE SUB fatal_error_shutdown ()
 #IFDEF IS_GAME
 #include "game_udts.bi"
 #include "gglobals.bi"
-
-DECLARE FUNCTION istag OVERLOAD (byval num as integer, byval zero as integer=NO) as integer
-DECLARE FUNCTION istag OVERLOAD (tagbits() as integer, byval num as integer, byval zero as integer=NO) as integer
-DECLARE SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
-DECLARE FUNCTION commandname (byval id as integer) as string
-DECLARE SUB exitprogram (byval need_fade_out as bool = NO, byval errorout as integer = 0)
-DECLARE SUB show_wrong_spawned_version_error
+#include "moresubs.bi"
+#include "scripting.bi"
+#include "yetmore2.bi"
 #ENDIF
 
 #IFDEF IS_CUSTOM
@@ -678,7 +667,7 @@ FUNCTION scriptname (byval num as integer) as string
  RETURN ret
 END FUNCTION
 
-Function seconds2str(byval sec as integer, f as string = "%m:%S") as string
+Function seconds2str(byval sec as integer, f as string = " %m: %S") as string
   dim ret as string
   dim as integer s, m, h
   s = sec mod 60
@@ -2285,6 +2274,36 @@ SUB playsongnum (byval songnum as integer)
   loadsong songfile
 END SUB
 
+'WARNING: This currently DOES NOT work. At all. Not even a little.
+FUNCTION open_url (url as string) as bool
+ 'Returns NO if there was an error or YES if everything seemed to work okay
+ DIM result as string
+#IFDEF __FB_DARWIN__
+ SHELL "open '" & url & "'"
+ 'Don't have a way of detecting if that worked
+ RETURN YES
+#ENDIF
+
+#IFDEF __FB_WIN32__
+ 'Not tested yet!
+ result = spawn_and_wait ("START", """" & url & """")
+ IF result = "" THEN
+  RETURN YES
+ ELSE
+  pop_warning "command failed with: " & result
+  RETURN NO
+ END IF
+#ENDIF
+
+ '--Try the unix way
+ DIM cmd as string
+ cmd = "xdg-open '" & url & "'"
+ SHELL cmd
+ '-Unfortunately we can't test if it worked, so just pretend that it did.
+ RETURN YES
+ 
+END FUNCTION
+
 FUNCTION spawn_and_wait (app as string, args as string) as string
  'Run a commandline program in a terminal emulator and wait for it to finish.
  'On Windows the program is run asynchronously and users are offered the option to kill it.
@@ -3796,10 +3815,29 @@ xbsave game + ".gen", gen(), 1000
 'wow! this is quite a big and ugly routine!
 END SUB
 
+'Initialise, if needed, a lump that is missing or has length <= headersize by padding the file with zeros so that
+'it has a header if any and one record.
+SUB fix_recordless_lump(lumpname as string, byref record_byte_size as integer, byval header_bytes as integer=0)
+ DIM fh as integer = FREEFILE
+ IF OPEN(lumpname FOR BINARY as #fh) THEN
+  debugc errError, "Error while opening " & lumpname
+  EXIT SUB
+ END IF
+ DIM total_bytes as integer = LOF(fh) - header_bytes
+ IF total_bytes <= 0 THEN
+  debuginfo "fix_recordless_lump: " & lumpname & " didn't exist or was length " & LOF(fh)
+  extendfile fh, header_bytes + record_byte_size
+ END IF
+ CLOSE #fh
+END SUB
+
+'Correct a variable holding number of fixed-length-records (last_rec_index + 1 + count_offset)
+'to the real amount in a file, and check that the file doesn't have any partial records.
+'NOTE: This doesn't fix a lump which is missing or zero length; use fix_recordless_lump for that.
 SUB fix_record_count(byref last_rec_index as integer, byref record_byte_size as integer, lumpname as string, info as string, byval skip_header_bytes as integer=0, byval count_offset as integer=0)
  DIM rec_count as integer = last_rec_index + 1 + count_offset
  IF NOT isfile(lumpname) THEN
-  debuginfo "fix_record_count: " & info & " lump " & trimpath(lumpname) & " does not exist." 
+  debuginfo "fix_record_count: " & info & " lump " & trimpath(lumpname) & " does not exist."
   EXIT SUB
  END IF
  DIM total_bytes as integer = filelen(lumpname) - skip_header_bytes
@@ -3841,6 +3879,8 @@ SUB fix_sprite_record_count(byval pt_num as integer)
  WITH sprite_sizes(pt_num)
   DIM bytes as integer = .size.x * .size.y * .frames / 2 '--we divide by 2 because there are 2 pixels per byte
   DIM lump as string = game & ".pt" & pt_num
+  '.pt7 and .pt8 don't exist in old games
+  fix_recordless_lump lump, bytes
   fix_record_count gen(.genmax), bytes, lump, .name & " sprites"
  END WITH
 END SUB
@@ -3968,14 +4008,12 @@ SUB rpg_sanity_checks
   WITH hs_header
    IF .valid = NO THEN
     pop_warning "The scripts in this game appear to be corrupt."
-   ELSEIF .hsp_format > CURRENT_HSP_VERSION OR .script_format > CURRENT_HSZ_VERSION THEN
+   ELSEIF .hsp_format > CURRENT_HSP_VERSION OR .script_format > CURRENT_HSZ_VERSION OR .max_function_id > maxScriptCmdID THEN
     debug "Future HS format: hspeak ver='" & .hspeak_version & "' plotscr ver='" & .plotscr_version _
-           & "' hsp ver=" & .hsp_format & " hsz ver=" & .script_format & " max func=" & .max_function_id
+           & "' hsp ver=" & .hsp_format & " (supported=" & CURRENT_HSP_VERSION & ") hsz ver=" & .script_format & " (supported=" _
+           & CURRENT_HSZ_VERSION & ") max func=" & .max_function_id & " (supported=" & maxScriptCmdID & ")"
     pop_warning "This game has scripts that are not supported in this version of the OHRRPGCE. Download the latest version at http://HamsterRepublic.com"
    END IF
-   'Could also check .max_function_id here (this is a good way to catch
-   'games made with a newer nightly, since all the other file format version
-   'numbers are rarely incremented).
   END WITH
  END IF
 
@@ -4026,10 +4064,10 @@ FUNCTION bound_arg(byval n as integer, byval min as integer, byval max as intege
  IF n < min OR n > max THEN
 #IFDEF IS_GAME
   IF fromscript THEN
-   IF *context = "" ANDALSO curcmd->kind = tyfunct THEN
-    scripterr commandname(curcmd->value) + ": invalid " & *argname & " " & n, errlvl
-   ELSE
+   IF LEN(*context) THEN
     scripterr *context & ": invalid " & *argname & " " & n, errlvl
+   ELSE 
+    scripterr interpreter_context_name() + "invalid " & *argname & " " & n, errlvl
    END IF
    RETURN NO
   END IF
@@ -4044,12 +4082,11 @@ SUB reporterr(msg as string, byval errlvl as scriptErrEnum = serrBadOp)
  'this is a placeholder for some more detailed replacement of debug, so scripterrs can be thrown from slices.bas
 #IFDEF IS_GAME
  IF insideinterpreter THEN
-  DIM msg2 as string = msg  'Don't modify passed-in strings
-  IF curcmd->kind = tyfunct THEN msg2 = commandname(curcmd->value) + ": " + msg2
-  scripterr msg2, errlvl
+  scripterr interpreter_context_name() & msg, errlvl
   EXIT SUB
  END IF
 #ENDIF
+ 'If not caused by a script, this error is a bug
  debugc errPromptBug, msg
 END SUB
 
@@ -4456,6 +4493,7 @@ SUB setup_sprite_sizes ()
   .size.x = 32
   .size.y = 40
   .frames = 8
+  .directions = 4
   .genmax = genMaxHeroPic
  END WITH
  WITH sprite_sizes(1)
@@ -4463,6 +4501,7 @@ SUB setup_sprite_sizes ()
   .size.x = 34
   .size.y = 34
   .frames = 1
+  .directions = 1
   .genmax = genMaxEnemy1Pic
  END WITH
  WITH sprite_sizes(2)
@@ -4470,6 +4509,7 @@ SUB setup_sprite_sizes ()
   .size.x = 50
   .size.y = 50
   .frames = 1
+  .directions = 1
   .genmax = genMaxEnemy2Pic
  END WITH
  WITH sprite_sizes(3)
@@ -4477,6 +4517,7 @@ SUB setup_sprite_sizes ()
   .size.x = 80
   .size.y = 80
   .frames = 1
+  .directions = 1
   .genmax = genMaxEnemy3Pic
  END WITH
  WITH sprite_sizes(4)
@@ -4484,6 +4525,7 @@ SUB setup_sprite_sizes ()
   .size.x = 20
   .size.y = 20
   .frames = 8
+  .directions = 4
   .genmax = genMaxNPCPic
  END WITH
  WITH sprite_sizes(5)
@@ -4491,6 +4533,7 @@ SUB setup_sprite_sizes ()
   .size.x = 24
   .size.y = 24
   .frames = 2
+  .directions = 1
   .genmax = genMaxWeaponPic
  END WITH
  WITH sprite_sizes(6)
@@ -4498,6 +4541,7 @@ SUB setup_sprite_sizes ()
   .size.x = 50
   .size.y = 50
   .frames = 3
+  .directions = 1
   .genmax = genMaxAttackPic
  END WITH
  WITH sprite_sizes(7)
@@ -4505,6 +4549,7 @@ SUB setup_sprite_sizes ()
   .size.x = 16
   .size.y = 16
   .frames = 16
+  .directions = 1
   .genmax = genMaxBoxBorder
  END WITH
  WITH sprite_sizes(8)
@@ -4512,6 +4557,7 @@ SUB setup_sprite_sizes ()
   .size.x = 50
   .size.y = 50
   .frames = 1
+  .directions = 1
   .genmax = genMaxPortrait
  END WITH
  WITH sprite_sizes(sprTypeMXS)  '9
@@ -4519,17 +4565,20 @@ SUB setup_sprite_sizes ()
   .size.x = 320
   .size.y = 200
   .frames = 1
+  .directions = 1
   .genmax = genNumBackdrops
   .genmax_offset = -1
  END WITH
  WITH sprite_sizes(sprTypeFrame)   '10
   .name = "Pixel array"
   .frames = 1
+  .directions = 1
  END WITH
  
  WITH sprite_sizes(-1) '--Only use for temporary use in the secret desting/debugging menu
   .name = "Experimental"
   .frames = 1
+  .directions = 1
   .genmax = -1 'this should throw an error rather than corrupting gen(0)
  END WITH
 END SUB
@@ -4551,22 +4600,47 @@ SUB unload_sprite_and_pal (byref img as GraphicPair)
  palette16_unload @img.pal
 END SUB
 
-FUNCTION decode_backslash_codes(s as string) as string
+'context describes the string string (eg line number)
+'If show_warnings is true, then warnings about the text encoding
+'related to icons in the font are displayed. You only want those
+'warnings displayed for imported text files, not for internal file
+'formats like slicelookup.txt though, because they may occur if the
+'user changes the font type.
+FUNCTION decode_backslash_codes(s as string, context as string = "", byref show_warnings as bool = NO) as string
  DIM result as string = ""
- DIM i as integer = 1
  DIM ch as string
  DIM mode as integer = 0
  DIM nstr as string
  DIM num as integer
- DO
+ DIM as integer icons_low, icons_high
+ DIM encoding_name as string
+ IF get_font_type(current_font()) = ftypeLatin1 THEN
+  icons_low = 127
+  icons_high = 160
+  encoding_name = "Latin-1"
+ ELSE
+  icons_low = 127
+  icons_high = 255
+  encoding_name = "7-bit ASCII"
+ END IF
+ DIM icon_warn as bool = NO
+
+ FOR i as integer = 1 TO LEN(s)
   ch = MID(s, i, 1)
   SELECT CASE mode
    CASE 0'--normal
     IF ch = "\" THEN
-      mode = 1
-      nstr = ""
+     mode = 1
+     nstr = ""
+    ELSEIF ch = !"\t" THEN
+     'Spaces to pad to column number that's a multiple of 4
+     result &= SPACE(4 - POSMOD(LEN(result), 4))
     ELSE
-      result &= ch
+     IF (ASC(ch) < 32 AND ASC(ch) <> 10) OR (ASC(ch) >= icons_low AND ASC(ch) <= icons_high) THEN
+      debuginfo "decode_backslash_codes: found nonprintable char " & ASC(ch)
+      icon_warn = YES
+     END IF
+     result &= ch
     END IF
    CASE 1'--parsing backslash
     SELECT CASE ch
@@ -4594,36 +4668,47 @@ FUNCTION decode_backslash_codes(s as string) as string
      CASE "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
       nstr &= ch
      CASE ELSE 'busted backslash code, print warning
-      debug "Bogus backslash ascii code in string """ & s & """"
+      visible_debug context & " Bogus backslash ascii escape code in string """ & s & """"
       mode = 0
     END SELECT
     IF LEN(nstr) >= 3 THEN
      num = str2int(nstr)
      IF num > 255 THEN
-      debug "Bogus backslash ascii code in string """ & s & """"
+      visible_debug context & " Bogus backslash ascii escape code (larger than 255) in string """ & s & """"
      ELSE
       result &= CHR(num)
      END IF
      mode = 0
     END IF
   END SELECT
-  i += 1
- LOOP UNTIL i > LEN(s)
+ NEXT
  IF mode <> 0 THEN
-  debug "decode_backslash_codes: exited while parsing a backslash code (mode=" & mode & ")"
+  visible_debug context & " Bogus backslash code (mode=" & mode & ") at end of string """ & s & """"
+ END IF
+ IF icon_warn AND show_warnings THEN
+  visible_debug context & " This string contains characters which apparently aren't in your font. Maybe your text editor saved the file using the wrong encoding? Expected " & encoding_name & !". (Press ESC to skip warnings)\n\n" & s
+  IF keyval(scESC) THEN show_warnings = NO
  END IF
  RETURN result
 END FUNCTION
 
+'The name is not totally correct, actually escapes non-printable characters and icons in the font,
+'which those are depends on the font type
 FUNCTION escape_nonprintable_ascii(s as string) as string
  DIM result as string = ""
  DIM nstr as string
  DIM ch as string
+ DIM as integer icons_low, icons_high
+ IF get_font_type(current_font()) = ftypeLatin1 THEN
+  icons_low = 127
+  icons_high = 160
+ ELSE
+  icons_low = 127
+  icons_high = 255
+ END IF
  FOR i as integer = 1 TO LEN(s)
   ch = MID(s, i, 1)
   SELECT CASE ASC(ch)
-   CASE 32 TO 91, 93 TO 126
-    result &= ch
    CASE 92 '--Backslash
     result &= "\\"
    CASE 10
@@ -4632,15 +4717,41 @@ FUNCTION escape_nonprintable_ascii(s as string) as string
     result &= "\r"
    CASE 9
     result &= "\t"
-   CASE ELSE
+   CASE 0 TO 31, icons_low TO icons_high
     nstr = STR(ASC(ch))
     WHILE LEN(nstr) < 3
      nstr = "0" & nstr
     WEND
     result &= "\" & nstr
+   'CASE 32 TO 91, 93 TO 126, latin_low TO latin_high
+   CASE ELSE
+    result &= ch
   END SELECT
  NEXT i
  RETURN result
+END FUNCTION
+
+'This is like escape_nonprintable_ascii except that it removes non printable characters and icons
+FUNCTION remove_nonprintable_ascii(s as string) as string
+ DIM as integer icons_low, icons_high
+ IF get_font_type(current_font()) = ftypeLatin1 THEN
+  icons_low = 127
+  icons_high = 160
+ ELSE
+  icons_low = 127
+  icons_high = 255
+ END IF
+ DIM ret as string
+ FOR i as integer = 0 TO LEN(s) - 1
+  SELECT CASE s[i]
+   CASE IS < 32
+    'Tabs ignored because OHR strings shouldn't contain them
+   CASE icons_low TO icons_high
+   CASE ELSE
+    ret &= CHR(s[i])
+  END SELECT
+ NEXT
+ RETURN ret
 END FUNCTION
 
 FUNCTION fixfilename (s as string) as string
@@ -4660,20 +4771,11 @@ FUNCTION fixfilename (s as string) as string
 END FUNCTION
 
 FUNCTION sanitize_script_identifier (ident as string, byval allow_whitespace as integer = YES) as string
- DIM tmp as string = exclude(ident, !"`!@#$%^&*()-+=[]{}\\|<>,.;/\"")  ' :_'~? allowed
- DIM lower_ascii_limit as integer = 32
- IF allow_whitespace THEN lower_ascii_limit = 31
- DIM ret as string
- FOR i as integer = 0 TO LEN(tmp) - 1
-  SELECT CASE tmp[i]
-   CASE IS <= lower_ascii_limit
-   CASE &h7f TO &hA0
-    '(Note, &hA1 and above may not be Latin-1, but oh well)
-   CASE ELSE
-    ret &= CHR(tmp[i])
-  END SELECT
- NEXT
- RETURN ret
+ ' :_'~? are allowed
+ DIM to_exclude as string = !"`!@#$%^&*()-+=[]{}\\|<>,.;/\""
+ IF allow_whitespace = NO THEN to_exclude &= " "
+ DIM tmp as string = exclude(ident, to_exclude)
+ RETURN remove_nonprintable_ascii(tmp)
 END FUNCTION
 
 FUNCTION inputfilename (query as string, ext as string, directory as string, helpkey as string, default as string="", byval allow_overwrite as integer=YES) as string
@@ -5231,20 +5333,6 @@ FUNCTION find_on_word_boundary(haystack as string, needle as string) as integer
  RETURN find_on_word_boundary_excluding(haystack, needle, "")
 END FUNCTION
 
-FUNCTION get_resolution_x() as integer
- IF gen(genResolutionX) ANDALSO gfxbackend = "sdl" THEN
-  RETURN gen(genResolutionX)
- END IF
- RETURN 320
-END FUNCTION
-
-FUNCTION get_resolution_y() as integer
- IF gen(genResolutionY) ANDALSO gfxbackend = "sdl" THEN
-  RETURN gen(genResolutionY)
- END IF
- RETURN 200
-END FUNCTION
-
 FUNCTION str_rect(s as string, byval x as integer, byval y as integer) as RectType
  DIM r as RectType
  r.x = x
@@ -5632,3 +5720,92 @@ FUNCTION cheezy_virtual_keyboard (arr as ArrowSet, default_str as string, max_le
  
  RETURN result
 END FUNCTION
+
+SUB progress_spinner (byval exit_condition_func as FnNoArgsBool, caption as string, byval timeout_seconds as double)
+ 'In contrast to a progress meter, a progress spinner has no idea how long this will take
+ 'so it just needs to animate untill it succeeds or times out.
+ 
+ 'exit_condition_func should take no arguments and return YES when the progress is complete.
+
+ DIM t as double = TIMER
+
+ DIM holdscreen as integer
+ holdscreen = allocatepage
+ copypage vpage, holdscreen
+ 
+ DIM root as Slice Ptr
+ root = NewSliceOfType(slSpecial)
+ WITH *root
+  .Fill = YES
+ END WITH
+ DrawSlice root, vpage
+ 
+ DIM rect_sl as Slice Ptr
+ rect_sl = NewSliceOfType(slRectangle, root)
+ WITH *rect_sl
+  .Width = 280
+  .Height = 50 ' updated again after the text is wrapped
+  .AnchorHoriz = 1
+  .AlignHoriz = 1
+  .AnchorVert = 1
+  .AlignVert = 1
+ END WITH
+ ChangeRectangleSlice rect_sl, 0
+ 
+ DIM text_sl as Slice Ptr
+ text_sl = NewSliceOfType(slText, rect_sl)
+ WITH *text_sl
+  .Y = 8
+  .Width = rect_sl->Width - 16
+  .AnchorHoriz = 1
+  .AlignHoriz = 1
+ END WITH
+ ChangeTextSlice text_sl, caption, uiLook(uiText), YES, YES
+ 
+ DIM bubbles(7) as Slice Ptr
+ FOR i as integer = 0 TO 7
+  bubbles(i) = NewSliceOfType(slEllipse, rect_sl)
+  WITH *bubbles(i)
+  .X = rect_sl->Width / 9 * (i+1)
+  .Y = -23
+  .Width = 10
+  .Height = 10
+  .AnchorHoriz = 1
+  .AlignVert = 1
+  .AnchorVert = 1
+  .AlignVert = 2
+  END WITH
+  ChangeEllipseSlice bubbles(i), uilook(uiHealthBar), uilook(uiHealthBarFlash)
+ NEXT i
+ 
+ rect_sl->Height = 8 + text_sl->Height + 8 + 30 + 8
+ 
+ DIM oscil as integer = 0
+ DIM bub_size as integer = 0
+
+ '--Display the spinner animation while waiting for the action to succeed (or time-out)
+ '  Spinner is displayed as a row of oscilating bubbles
+ 
+ setkeys YES
+ DO WHILE NOT exit_condition_func() ANDALSO TIMER - t < timeout_seconds
+  setwait 55
+  setkeys YES
+  
+  oscil = loopvar(oscil, 0, 29, 1)
+  
+  FOR i as integer = 0 TO 7
+   bub_size = ABS((oscil + i) MOD 30 - 15) + 5
+   bubbles(i)->Width = bub_size
+   bubbles(i)->Height = bub_size
+  NEXT i
+  
+  copypage holdscreen, vpage
+  DrawSlice root, vpage
+  setvispage vpage
+  dowait
+ LOOP
+
+ freepage holdscreen
+ DeleteSlice @root
+
+END SUB

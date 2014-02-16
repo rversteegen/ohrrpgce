@@ -39,6 +39,20 @@ TYPE HarmText 'FIXME: when battle display is converted to slices, this can go aw
  ticks as integer
 END TYPE
 
+'Names for hero battle sprite frames
+CONST frameSTAND = 0
+CONST frameVICTORYB = 0
+CONST frameSTEP = 1
+CONST frameLAND = 2
+CONST frameVICTORYA = 2
+CONST frameATTACKA = 2
+CONST frameATTACKB = 3
+CONST frameCAST = 4
+CONST frameJUMP = 4
+CONST frameHURT = 5
+CONST frameWEAK = 6
+CONST frameDEAD = 7
+
 TYPE BattleSprite
   name as string
   basex as integer
@@ -74,7 +88,7 @@ TYPE BattleSprite
   attack_succeeded as integer
   sprites as Frame ptr 'the graphic set
   sprite_num as integer 'how many frames
-  frame as integer 'the current frame
+  frame as integer 'the current frame (if a hero, one of the frame* constants)
   walk as integer 'used by heroes when animating walking
   anim_pattern as integer 'used by attack sprites
   anim_index as integer 'used by attack sprites
@@ -246,6 +260,7 @@ TYPE BattleState
  turn as TurnManager
  ticks as integer      'number of ticks since the battle was initialized
  acting as integer     'Hero or enemy who is currently taking their turn to act
+                       '(contains garbage if noone is acting... indicated by bat.atk.id < 0?)
  hero_turn as integer  '(MOVEME) Hero currently selecting an attack
  enemy_turn as integer '(MOVEME) Enemy currently selecting an attack
  next_hero as integer  '(MOVEME) counter that controls which ready hero will get their turn next

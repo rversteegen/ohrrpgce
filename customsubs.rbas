@@ -5,13 +5,6 @@
 '
 ' This file is for general purpose code use by CUSTOM but not by GAME.
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "allmodex.bi"
 #include "common.bi"
@@ -31,6 +24,9 @@ DECLARE SUB seekscript (byref temp as integer, byval seekdir as integer, byval t
 DECLARE SUB cond_editor (cond as Condition, byval default as integer = 0)
 DECLARE SUB platform_options_append_gamepad_button_menu_items (byval gamepad as NodePtr, menu as MenuDef, byval use_dpad as bool, buttons() as string, default_scancodes() as integer)
 DECLARE SUB edit_button_name_strings()
+DECLARE FUNCTION edit_purchase_enumgrabber(byval node as NodePtr, enumstr() as string) as bool
+DECLARE FUNCTION edit_purchase_enumbrowse(caption as string, byval node as NodePtr, enumstr() as string, helpkey as string) as bool
+DECLARE SUB edit_purchase_options_rebuild_menu(menu as MenuDef, st as MenuState, byval purchase_root as NodePtr, enabled() as bool)
 
 'Module-local variables
 DIM SHARED comp_strings() as string
@@ -1934,6 +1930,7 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as integer
  DIM warn_length as integer = 0
  DIM warn_skip as integer = 0
  DIM warn_append as integer = 0
+ DIM show_encoding_warnings as bool = YES
  DIM box as TextBox
  DIM index as integer = 0
  DIM getindex as integer = 0 
@@ -1946,7 +1943,7 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as integer
  DO WHILE NOT EOF(fh)
   line_number += 1
   LINE INPUT #1, s
-  s = decode_backslash_codes(s)
+  s = decode_backslash_codes(s, "Line " & line_number & ":", show_encoding_warnings)
   IF firstline THEN
    IF RTRIM(s) <> STRING(38, "=") THEN
     import_textboxes_warn warn, filename & " is not a valid text box file. Expected header row, found """ & s & """."
@@ -2435,8 +2432,8 @@ FUNCTION editbitset (array() as integer, byval wof as integer, byval last as int
    .spacing = 8
    .rect.x = 0
    .rect.y = 0
-   .rect.wide = get_resolution_x()
-   .rect.high = small(get_resolution_y(), (.size + 1) * .spacing)
+   .rect.wide = get_resolution_w()
+   .rect.high = small(get_resolution_h(), (.size + 1) * .spacing)
   END WITH
   SWAP vpage, dpage
   setvispage vpage
@@ -3242,6 +3239,7 @@ SUB edit_global_text_strings()
  GTS_add_to_menu menu, "Minimap",                    68, "Map", 10
  GTS_add_to_menu menu, "Volume",                     69, "Volume", 10
  GTS_add_to_menu menu, "Margins",                   308, "Margins", 10
+ GTS_add_to_menu menu, "Purchases",                 313, "Purchases", 10
 
  GTS_menu_header menu, "Item Menu:"
  GTS_add_to_menu menu, "Exit Item Menu",             35, "DONE", 10
@@ -3356,7 +3354,7 @@ SUB edit_global_text_strings()
  GTS_add_to_menu menu, "Plotscript: pick hero",      135, "Which Hero?", 20
  GTS_add_to_menu menu, "Hero name prompt",           137, "Name the Hero", 20
 
- '**** next unused index is 312
+ '**** next unused index is 313
 
  'NOTE: if you add global strings here, be sure to update the limit-checking on
  'the implementation of the "get global string" plotscripting command
@@ -3743,14 +3741,19 @@ SUB attack_preview_slice_defocus(byval sl as Slice Ptr)
 END SUB
 
 SUB fontedit (font() as integer)
- DIM f(255) as integer
+ DIM f(255) as integer  'Contains the character indices which should be shown (always 32-255)
  DIM copybuf(4) as integer
- DIM menu(3) as string
+ DIM menu(6) as string
+ DIM selectable(6) as bool
+ flusharray selectable(), , YES
 
  menu(0) = "Previous Menu"
  menu(1) = "Edit Font..."
  menu(2) = "Import Font..."
  menu(3) = "Export Font..."
+ selectable(4) = NO
+ menu(5) = ""  'Set below
+ selectable(6) = NO
 
  DIM i as integer
 
@@ -3760,6 +3763,9 @@ SUB fontedit (font() as integer)
   f(last) = i
  NEXT i
 
+ 'mode = -1: the menu
+ 'mode = 0:  select a character to edit
+ 'mode = 1:  editing a character
  DIM mode as integer = -1
 
  'This state is used for the menu, not the charpicker
@@ -3770,6 +3776,8 @@ SUB fontedit (font() as integer)
   .last = UBOUND(menu)
   .size = 22
  END WITH
+
+ DIM fonttype as fontTypeEnum = get_font_type(font())
 
  DIM linesize as integer = 14
  DIM pt as integer = -1 * linesize
@@ -3790,16 +3798,23 @@ SUB fontedit (font() as integer)
   SELECT CASE mode
    CASE -1
     IF keyval(scEsc) > 1 THEN EXIT DO
-    usemenu state
+    usemenu state, selectable()
     IF enter_space_click(state) THEN
      IF state.pt = 0 THEN EXIT DO
      IF state.pt = 1 THEN mode = 0
      IF state.pt = 2 THEN
       fontedit_import_font font()
+      fonttype = get_font_type(font())
       state.pt = 1
       mode = 0
      END IF
      IF state.pt = 3 THEN fontedit_export_font font()
+    END IF
+    IF state.pt = 5 THEN
+     IF intgrabber(fonttype, ftypeASCII, ftypeLatin1) THEN
+      set_font_type font(), fonttype
+      xbsave game + ".fnt", font(), 2048
+     END IF
     END IF
    CASE 0
     IF keyval(scEsc) > 1 THEN mode = -1
@@ -3848,6 +3863,15 @@ SUB fontedit (font() as integer)
   clearpage dpage
 
   IF mode = -1 THEN
+   menu(5) = "Font type: "
+   IF fonttype = ftypeASCII THEN
+    menu(5) &= "ASCII"
+    menu(6) = " (Characters 127-255 are icons)"
+   ELSEIF fonttype = ftypeLatin1 THEN
+    menu(5) &= "Latin1"
+    menu(6) = " (Characters 127-160 are icons)"
+   END IF
+
    standardmenu menu(), state, 0, 0, dpage
   END IF
 
@@ -3907,8 +3931,6 @@ SUB fontedit (font() as integer)
   setvispage vpage
   dowait
  LOOP
-EXIT SUB
-
 END SUB
 
 SUB fontedit_export_font(font() as integer)
@@ -4444,6 +4466,8 @@ CONST platformoptADDVBUTTON as integer = 5
 CONST platformoptTOGGLEMULTI as integer = 6
 CONST platformoptBUTTONNAMES as integer = 7
 CONST platformoptMARGINS as integer = 8
+CONST platformoptTOGGLETOUCHTEXTBOXES as integer = 9
+CONST platformoptPURCHASE as integer = 10
 
 SUB edit_platform_options ()
 
@@ -4482,6 +4506,16 @@ SUB edit_platform_options ()
   AppendChildNode(vgp, "button", scESC)
  END IF
 
+ DIM vgpb as NodePtr
+ IF mobile."virtual_gamepad_battle".exists THEN
+  vgpb = mobile."virtual_gamepad_battle".ptr
+ ELSE
+  'Node does not exist, create it and set defaults
+  vgpb = SetChildNode(mobile, "virtual_gamepad_battle")
+  AppendChildNode(vgpb, "button", scEnter)
+  AppendChildNode(vgpb, "button", scESC)
+ END IF
+
  DIM gamepad as NodePtr
  IF gen_root."gamepad".exists THEN
   gamepad = gen_root."gamepad".ptr
@@ -4493,7 +4527,7 @@ SUB edit_platform_options ()
  DIM ouya_buttons(...) as string = {"O", "A", "U", "Y", "L1", "R1", "L2", "R2", "UP", "RIGHT", "DOWN", "LEFT"}
  DIM xperia_buttons(...) as string = {"X?", "O?", "Square", "Triangle", "L1", "R1", "Doesn't Exist", "Doesn't Exist", "UP", "RIGHT", "DOWN", "LEFT"}
  DIM default_scancodes(...) as integer = {scEnter, scESC, scESC, scESC, scPageUp, scPageDown, scHome, scEnd, scUp, scRight, scDown, scLeft}
- DIM default_scancodes_multiplayer(...) as integer = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+ DIM default_scancodes_multiplayer(...) as integer = {scEnter, scESC, scESC, scESC, scPageUp, scPageDown, scHome, scEnd, scUp, scRight, scDown, scLeft}
  DIM player_who(...) as string = {"First", "Second", "Third", "Fourth"}
 
  DIM vbutton_count as integer = 0
@@ -4540,7 +4574,7 @@ SUB edit_platform_options ()
     menu.last->t = platformoptTOGGLEVGAMEPAD
  
     IF NOT mobile."disable_virtual_gamepad".exists THEN
-     append_menu_item menu, "Phone/Tablet virtual gamepad"
+     append_menu_item menu, "Phone/Tablet virtual gamepad (Normal)"
      menu.last->unselectable = YES
      menu.last->disabled = YES
      
@@ -4560,9 +4594,39 @@ SUB edit_platform_options ()
      IF vbutton_count < vbutton_max THEN
       append_menu_item menu, "Add another button"
       menu.last->t = platformoptADDVBUTTON
+      menu.last->dataptr = vgp
+     END IF
+
+     append_menu_item menu, "Phone/Tablet virtual gamepad (Battle Mode)"
+     menu.last->unselectable = YES
+     menu.last->disabled = YES
+     
+     vbutton_count = 0
+     READNODE vgpb
+      WITHNODE vgpb."button" as but
+       vbutton_count += 1
+       IF vbutton_count > 6 THEN
+        debug "WARNING: not allowed to have more than 6 mobile virtual gamepad buttons"
+       ELSE
+        append_menu_item menu, "Button " & vbutton_count - 1 & ": " & scancode_to_name(GetInteger(but))
+        menu.last->t = platformoptVBUTTON
+        menu.last->dataptr = but
+       END IF
+      END WITHNODE
+     END READNODE
+     IF vbutton_count < vbutton_max THEN
+      append_menu_item menu, "Add another button"
+      menu.last->t = platformoptADDVBUTTON
+      menu.last->dataptr = vgpb
      END IF
     
     END IF
+
+    append_menu_item menu, ""
+    menu.last->unselectable = YES
+
+    append_menu_item menu, "Touch Textboxes: " & yesorno(mobile."touch_textboxes".exists)
+    menu.last->t = platformoptTOGGLETOUCHTEXTBOXES
  
     append_menu_item menu, ""
     menu.last->unselectable = YES
@@ -4622,6 +4686,12 @@ SUB edit_platform_options ()
     END IF
     append_menu_item menu, cap
     menu.last->t = platformoptMARGINS
+
+    append_menu_item menu, ""
+    menu.last->unselectable = YES
+ 
+    append_menu_item menu, "In-App Purchases... (experimental)"
+    menu.last->t = platformoptPURCHASE
    
    LOOP WHILE st.need_update
 
@@ -4649,6 +4719,9 @@ SUB edit_platform_options ()
     CASE platformoptTOGGLEMULTI:
      ToggleChildNode gen_root, "multiplayer_gamepads"
      st.need_update = YES
+    CASE platformoptTOGGLETOUCHTEXTBOXES:
+     ToggleChildNode mobile, "touch_textboxes"
+     st.need_update = YES
     CASE platformoptBUTTON:
      sc = prompt_for_scancode()
      IF sc >= 0 THEN
@@ -4662,10 +4735,12 @@ SUB edit_platform_options ()
       st.need_update = YES
      END IF
     CASE platformoptADDVBUTTON:
-     AppendChildNode(vgp, "button", 0)
+     AppendChildNode(node, "button", 0)
      st.need_update = YES
     CASE platformoptBUTTONNAMES:
      edit_button_name_strings
+    CASE platformoptPURCHASE:
+     edit_purchase_options()
    END SELECT
   END IF
   
@@ -4678,6 +4753,11 @@ SUB edit_platform_options ()
    CASE platformoptTOGGLEMULTI:
     IF keyval(scLeft) > 1 ORELSE keyval(scRight) > 1 THEN
      ToggleChildNode gen_root, "multiplayer_gamepads"
+     st.need_update = YES
+    END IF
+   CASE platformoptTOGGLETOUCHTEXTBOXES:
+    IF keyval(scLeft) > 1 ORELSE keyval(scRight) > 1 THEN
+     ToggleChildNode mobile, "touch_textboxes"
      st.need_update = YES
     END IF
    CASE platformoptBUTTON:
@@ -5172,3 +5252,435 @@ SUB edit_button_name_strings()
  LOOP
 
 END SUB
+
+CONST editpurchEXIT as integer = 1
+CONST editpurchSTRING as integer = 2
+CONST editpurchTAGSET as integer = 3
+CONST editpurchADD as integer = 4
+CONST editpurchPROD as integer = 5
+CONST editpurchLONGSTRING as integer = 6
+CONST editpurchINT as integer = 7
+CONST editpurchSTOREDEFAULT as integer = 8
+CONST editpurchSTOREOUYA as integer = 9
+CONST editpurchTOGGLEREPEATABLE as integer = 10 'sucks that this is so specific
+CONST editpurchKEYDER as integer = 11
+
+SUB edit_purchase_options ()
+
+ DIM menu as MenuDef
+ 
+ DIM st as MenuState
+ st.active = YES
+ st.need_update = YES
+
+ REDIM enabled(0) as bool
+
+ DIM gen_root as NodePtr = get_general_reld()
+ DIM purchase_root as NodePtr = ChildNode(gen_root, "purchase_root")
+ DIM products as NodePtr = ChildNode(purchase_root, "products")
+ 
+ DIM t as integer
+ DIM sub_t as integer
+ DIM node as NodePtr
+ 
+ DIM default_stores(1) as string = {"disabled", "paypal"}
+ DIM ouya_stores(1) as string = {"disabled", "ouya"}
+
+ setkeys YES
+ DO
+  setwait 55
+  setkeys YES
+  IF keyval(scF1) > 1 THEN show_help "edit_purchase_options"
+  IF keyval(scEsc) > 1 THEN EXIT DO
+
+  IF st.need_update THEN
+   st.need_update = NO
+   edit_purchase_options_rebuild_menu menu, st, purchase_root, enabled()
+  END IF '--done updating menu
+
+  usemenu st, enabled()
+
+  t = menu.items[st.pt]->t
+  sub_t = menu.items[st.pt]->sub_t
+  node = menu.items[st.pt]->dataptr
+  
+  SELECT CASE t
+   CASE editpurchSTRING:
+    IF node THEN
+     DIM curstr as string
+     curstr = GetString(node)
+     IF strgrabber(curstr, sub_t) THEN
+      SetContent(node, curstr)
+      st.need_update = YES
+     END IF
+    END IF
+   CASE editpurchSTOREDEFAULT:
+    IF edit_purchase_enumgrabber(node, default_stores()) THEN st.need_update = YES
+   CASE editpurchSTOREOUYA:
+    IF edit_purchase_enumgrabber(node, ouya_stores()) THEN st.need_update = YES
+  END SELECT
+  
+  IF enter_space_click(st) THEN
+   SELECT CASE t
+    CASE editpurchEXIT: EXIT DO
+    CASE editpurchADD:
+     DIM newnode as NodePtr = AppendChildNode(products, "prod")
+     st.need_update = YES
+    CASE editpurchPROD:
+     edit_purchase_details node
+     st.need_update = YES
+    CASE editpurchSTOREDEFAULT:
+     IF edit_purchase_enumbrowse("Store for In-App Purchases", node, default_stores(), "edit_purchase_options") THEN st.need_update = YES
+    CASE editpurchSTOREOUYA:
+     IF edit_purchase_enumbrowse("Store for In-App Purchases", node, ouya_stores(), "edit_purchase_options") THEN st.need_update = YES
+    CASE editpurchKEYDER:
+     DIM key_der_file as string
+     key_der_file = browse(0, "", "key.der", "", 0, "edit_purchase_browse_ouya_key_der")
+     IF key_der_file <> "" THEN
+      IF isfile(key_der_file) THEN
+       SetContent(node, string_from_file(key_der_file))
+       st.need_update = YES
+      ELSE
+       pop_warning "Unable to read the file """ & key_der_file & """"
+      END IF
+     END IF
+   END SELECT
+  END IF
+  
+  IF keyval(scDelete) > 1 THEN
+   IF yesno("Delete the selected product?", NO, NO) THEN
+    FreeNode node
+    st.need_update = YES
+   END IF
+  END IF
+  
+  clearpage dpage
+  
+  draw_menu menu, st, dpage
+  edgeprint "Don't enable purchases unless all the", 0, 183, uilook(uiSelectedDisabled), dpage
+  edgeprint "content if your game is original!", 0, 191, uilook(uiSelectedDisabled), dpage
+  
+  SWAP vpage, dpage
+  setvispage vpage
+  
+  dowait
+ LOOP
+ 
+ ClearMenuData menu
+
+END SUB
+
+SUB edit_purchase_options_rebuild_menu(menu as MenuDef, st as MenuState, byval purchase_root as NodePtr, enabled() as bool)
+
+ DIM store_node as NodePtr = ChildNode(purchase_root, "stores_by_platform")
+ DIM ouya_node as NodePtr = ChildNode(purchase_root, "ouya")
+ DIM products as NodePtr = ChildNode(purchase_root, "products")
+
+ DIM node as NodePtr
+ DIM cap as string
+
+ ClearMenuData menu
+ WITH menu
+  .no_box = YES
+  .align = -1
+  .anchor.x = -1
+  .anchor.y = -1
+  .offset.x = -160
+  .offset.y = -100
+  .bordersize = -8
+ END WITH
+
+ append_menu_item menu, "Previous menu..."
+ menu.last->t = editpurchEXIT
+
+ append_menu_item menu, "(This menu is experimental!)"
+ menu.last->unselectable = YES
+ menu.last->disabled = YES
+
+ append_menu_item menu, "Enabled Stores:"
+ menu.last->unselectable = YES
+ menu.last->disabled = YES
+
+ node = ChildNode(store_node, "default")
+ append_menu_item menu, "Windows+Mac+Linux: " & blank_default(GetString(node), "disabled")
+ menu.last->t = editpurchSTOREDEFAULT
+ menu.last->dataptr = node
+
+ node = ChildNode(store_node, "ouya")
+ append_menu_item menu, "OUYA Console: " & blank_default(GetString(node), "disabled")
+ menu.last->t = editpurchSTOREOUYA
+ menu.last->dataptr = node
+
+ append_menu_item menu, "OUYA Developer ID:"
+ menu.last->unselectable = YES
+ menu.last->disabled = YES
+   
+ node = ChildNode(ouya_node, "developer_id")
+ append_menu_item menu, "> " & GetString(node)
+ menu.last->t = editpurchSTRING
+ menu.last->sub_t = 36
+ menu.last->dataptr = node
+
+ node = ChildNode(ouya_node, "key.der")
+ DIM key_der_size as integer = LEN(GetString(node))
+ IF key_der_size THEN
+  cap = "Replace OUYA key.der file (" & key_der_size & " bytes)"
+ ELSE
+  cap = "Import OUYA key.der file"
+ END IF
+ append_menu_item menu, cap
+ menu.last->t = editpurchKEYDER
+ menu.last->dataptr = node
+
+ append_menu_item menu, "Purchaseable Products"
+ menu.last->unselectable = YES
+ menu.last->disabled = YES
+
+ READNODE products
+  WITHNODE products."prod" as prod
+   DIM n as NodePtr
+   n = ChildNode(prod, "displayname")
+   append_menu_item menu, "Product: " & GetString(n)
+   menu.last->t = editpurchPROD
+   menu.last->dataptr = prod
+  END WITHNODE
+ END READNODE
+ 
+ append_menu_item menu, "Add a new product"
+ menu.last->t = editpurchADD
+
+ init_menu_state st, menu
+
+ REDIM enabled(menu.numitems - 1) as bool
+ FOR i as integer = 0 TO UBOUND(enabled)
+  WITH *menu.items[i]
+   enabled(i) = NOT .unselectable
+  END WITH
+ NEXT i
+END SUB
+
+FUNCTION edit_purchase_enumbrowse(caption as string, byval node as NodePtr, enumstr() as string, helpkey as string) as bool
+ DIM choice as integer
+ DIM old as integer
+ old = string_index_in_array(GetString(node), enumstr(), 0)
+ choice = multichoice(caption, enumstr(), old, old, helpkey)
+ IF choice <> old THEN
+  SetContent(node, enumstr(choice))
+  RETURN YES
+ END IF
+ RETURN NO
+END FUNCTION
+
+FUNCTION edit_purchase_enumgrabber(byval node as NodePtr, enumstr() as string) as bool
+ DIM choice as integer
+ choice = string_index_in_array(GetString(node), enumstr(), 0)
+ IF intgrabber(choice, 0, UBOUND(enumstr)) THEN
+  SetContent(node, enumstr(choice))
+  RETURN YES
+ END IF
+ RETURN NO
+END FUNCTION
+
+SUB edit_purchase_details (byval prod as NodePtr)
+
+ DIM menu as MenuDef
+ 
+ DIM st as MenuState
+ st.active = YES
+ st.need_update = YES
+
+ REDIM enabled(0) as bool
+ 
+ DIM t as integer
+ DIM sub_t as integer
+ DIM node as NodePtr
+
+ DIM n as NodePtr
+ DIM store as NodePtr
+ DIM buy_action as NodePtr
+ DIM cap as string
+ DIM num as integer
+
+ setkeys YES
+ DO
+  setwait 55
+  setkeys YES
+  IF keyval(scF1) > 1 THEN show_help "edit_purchase_details"
+  IF keyval(scEsc) > 1 THEN EXIT DO
+
+  IF st.need_update THEN
+   st.need_update = NO
+   ClearMenuData menu
+   WITH menu
+    .no_box = YES
+    .align = -1
+    .anchor.x = -1
+    .anchor.y = -1
+    .offset.x = -160
+    .offset.y = -100
+    .bordersize = -8
+   END WITH
+
+   append_menu_item menu, "Previous menu..."
+   menu.last->t = editpurchEXIT
+   
+   n = ChildNode(prod, "displayname")
+   append_menu_item menu, "Name: " & GetString(n)
+   menu.last->t = editpurchSTRING
+   menu.last->sub_t = 128
+   menu.last->dataptr = n
+
+   n = ChildNode(prod, "description")
+   append_menu_item menu, "Description: " & GetString(n)
+   menu.last->t = editpurchLONGSTRING
+   menu.last->sub_t = 99999
+   menu.last->dataptr = n
+
+   append_menu_item menu, "Can be purchased: " & IIF_string(prod."repeatable".exists, "Repeatedly", "Only Once")
+   menu.last->t = editpurchTOGGLEREPEATABLE
+   menu.last->dataptr = prod
+
+   n = ChildNode(prod, "already")
+   IF GetString(n) = "" THEN SetContent(n, "Already purchased")
+   append_menu_item menu, "Already caption: " & GetString(n)
+   menu.last->t = editpurchLONGSTRING
+   menu.last->sub_t = 99999
+   menu.last->dataptr = n
+   
+   append_menu_item menu, "OUYA Store Settings"
+   menu.last->unselectable = YES
+   menu.last->disabled = YES
+
+   store = ChildNode(prod, "ouya")
+   n = ChildNode(store, "identifier")
+   append_menu_item menu, "Identifier: " & GetString(n)
+   menu.last->t = editpurchSTRING
+   menu.last->sub_t = 128
+   menu.last->dataptr = n
+
+   append_menu_item menu, "Paypal Settings"
+   menu.last->unselectable = YES
+   menu.last->disabled = YES
+
+   store = ChildNode(prod, "paypal")
+   n = ChildNode(store, "button_id")
+   append_menu_item menu, "Button ID: " & GetString(n)
+   menu.last->t = editpurchSTRING
+   menu.last->sub_t = 128
+   menu.last->dataptr = n
+
+   append_menu_item menu, "Purchase Action"
+   menu.last->unselectable = YES
+   menu.last->disabled = YES
+
+   buy_action = ChildNode(prod, "buy_action")
+   
+   n = ChildNode(buy_action, "tag")
+   num = GetInteger(n)
+   cap = "Turn ON Tag "
+   IF num > 1 THEN
+    cap &= num & " (" & load_tag_name(num) & ")"
+   ELSEIF num = 1 THEN
+    cap &= num & " [Cannot be changed!]"
+   ELSE
+    cap &= "[None selected]"
+   END IF
+   append_menu_item menu, cap
+   menu.last->t = editpurchTAGSET
+   menu.last->dataptr = n
+   
+   n = ChildNode(buy_action, "global")
+   num = GetInteger(n)
+   cap = "+1 to Global Variable ID " & zero_default(num, "[None selected]")
+   append_menu_item menu, cap
+   menu.last->t = editpurchINT
+   menu.last->sub_t = maxScriptGlobals
+   menu.last->dataptr = n
+
+   n = ChildNode(buy_action, "thanks")
+   IF GetString(n) = "" THEN SetContent(n, "Thank you!")
+   append_menu_item menu, "Thanks Message: " & GetString(n)
+   menu.last->t = editpurchLONGSTRING
+   menu.last->sub_t = 99999
+   menu.last->dataptr = n
+
+   init_menu_state st, menu
+
+   REDIM enabled(menu.numitems - 1) as bool
+   FOR i as integer = 0 TO UBOUND(enabled)
+    WITH *menu.items[i]
+     enabled(i) = NOT .unselectable
+    END WITH
+   NEXT i
+   
+  END IF '--done updating menu
+
+  usemenu st, enabled()
+
+  t = menu.items[st.pt]->t
+  sub_t = menu.items[st.pt]->sub_t
+  node = menu.items[st.pt]->dataptr
+  
+  SELECT CASE t
+   CASE editpurchSTRING, editpurchLONGSTRING:
+    IF node THEN
+     DIM curstr as string
+     curstr = GetString(node)
+     IF strgrabber(curstr, sub_t) THEN
+      SetContent(node, curstr)
+      st.need_update = YES
+     END IF
+    END IF
+   CASE editpurchTAGSET:
+    IF node THEN
+     DIM curint as integer
+     curint = GetInteger(node)
+     IF intgrabber(curint, 0, 99999) THEN
+      SetContent(node, curint)
+      st.need_update = YES
+     END IF
+    END IF
+   CASE editpurchINT:
+    IF node THEN
+     DIM curint as integer
+     curint = GetInteger(node)
+     IF intgrabber(curint, 0, sub_t) THEN
+      SetContent(node, curint)
+      st.need_update = YES
+     END IF
+    END IF
+   CASE editpurchTOGGLEREPEATABLE:
+    IF enter_space_click(st) ORELSE keyval(scLeft) > 1 ORELSE keyval(scRight) > 1 THEN
+     ToggleChildNode node, "repeatable"
+     st.need_update = YES
+    END IF
+  END SELECT
+  
+  IF enter_space_click(st) THEN
+   SELECT CASE t
+    CASE editpurchEXIT: EXIT DO
+    CASE editpurchTAGSET:
+     SetContent(node, tags_menu(GetInteger(node), YES, NO))
+     st.need_update = YES
+   END SELECT
+  END IF
+  
+  IF keyval(scEnter) > 1 THEN
+   SELECT CASE t
+    CASE editpurchLONGSTRING:
+     SetContent(node, multiline_string_editor(GetString(node)))
+     st.need_update = YES
+   END SELECT
+  END IF
+  
+  clearpage dpage
+  
+  draw_menu menu, st, dpage
+  SWAP vpage, dpage
+  setvispage vpage
+  
+  dowait
+ LOOP
+ ClearMenuData menu
+END SUB
+

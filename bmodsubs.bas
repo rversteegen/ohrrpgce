@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "bmod.bi"
 #include "bmodsubs.bi"
@@ -411,7 +404,7 @@ FUNCTION inflict (byref h as integer, byref targstat as integer, byval attackers
    CASE 23 TO 34
     ap = target.stat.cur.sta(attack.base_atk_stat - 23)
    CASE 35 TO 46
-    ap = attacker.stat.max.sta(attack.base_atk_stat - 36)
+    ap = attacker.stat.max.sta(attack.base_atk_stat - 35)
    CASE 47 TO 58
     ap = target.stat.max.sta(attack.base_atk_stat - 47)
    CASE IS >= 59
@@ -1185,11 +1178,11 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
  DIM dy as integer = 0
  
  IF attack.attacker_anim < 3 OR (attack.attacker_anim > 6 AND attack.attacker_anim < 9) THEN ' strike, cast, dash, standing cast, teleport
-  anim_setframe who, 0
+  anim_setframe who, frameSTAND
   anim_wait 3 'wait 3 ticks
   
   IF attack.attacker_anim <> 1 AND attack.attacker_anim <> 7 THEN 'if it's not cast or standing cast
-   anim_setframe who, 2
+   anim_setframe who, frameATTACKA
   
    hx = gam.hero(who).hand_pos(0).x
    hy = gam.hero(who).hand_pos(0).y
@@ -1201,18 +1194,18 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
    anim_align2 24, who, 0, 0, dx, 16
    anim_setz 24, 16 - dy
   
-   anim_setframe 24, 0
+   anim_setframe 24, frameSTAND
    anim_appear 24
   END IF
  
   IF attack.attacker_anim = 1 OR attack.attacker_anim = 7 THEN 'if it's cast or standing cast
-   anim_setframe who, 4
+   anim_setframe who, frameCAST
   END IF
  
   anim_wait 3
  
   IF attack.attacker_anim <> 1 AND attack.attacker_anim <> 7 THEN 'if it's not cast or standing cast
-   anim_setframe who, 3
+   anim_setframe who, frameATTACKB
   
    hx = gam.hero(who).hand_pos(1).x
    hy = gam.hero(who).hand_pos(1).y
@@ -1224,7 +1217,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
    anim_align2 24, who, 0, 0, dx, 16
    anim_setz 24, 16 - dy
   
-   anim_setframe 24, 1
+   anim_setframe 24, frameSTEP
   END IF
  
  END IF
@@ -1239,23 +1232,23 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
  END IF
  
  IF attack.attacker_anim = 4 THEN ' Jump
-  anim_setframe who, 4
+  anim_setframe who, frameJUMP
   anim_relmove who, -40, 0, 7, 0
   anim_zmove who, 20, 10
   anim_waitforall
   anim_disappear who
-  anim_setframe who, 0
+  anim_setframe who, frameSTAND
  END IF
  
  IF attack.attacker_anim = 5 THEN ' Land
   anim_setz who, 200
-  anim_setframe who, 2
+  anim_setframe who, frameLAND
   anim_appear who
   anim_setcenter who, t(0), 0, 0
   anim_align who, t(0), dirDown, 0
   anim_zmove who, -10, 20
   anim_waitforall
-  anim_setframe who, 5
+  anim_setframe who, frameHURT
  END IF
 
 END SUB
@@ -1305,18 +1298,18 @@ SUB anim_retreat (byval who as integer, attack as AttackData, bslot() as BattleS
    anim_walktoggle who
    anim_setmove who, 5, 0, 4, 0
    anim_waitforall
-   anim_setframe who, 0
+   anim_setframe who, frameSTAND
   END IF
   IF attack.attacker_anim = 2 OR attack.attacker_anim = 5 THEN ' dash, land
-   anim_setframe who, 0
+   anim_setframe who, frameSTAND
    anim_walktoggle who
    anim_setz who, 0
    anim_absmove who, bslot(who).x, bslot(who).y, 6, 6
    anim_waitforall
-   anim_setframe who, 0
+   anim_setframe who, frameSTAND
   END IF
   IF attack.attacker_anim = 7 THEN
-   anim_setframe who, 0
+   anim_setframe who, frameSTAND
   END IF
  END IF
 END SUB

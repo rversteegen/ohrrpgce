@@ -126,7 +126,8 @@ plotscript,my first script,begin
 	# commands go here
 end</example>
 			<example># example of a script with arguments
-plotscript,my fancy script,fe=0,fi=0,fo=0,begin
+# (It can called with between 1 and 3 arguments.)
+plotscript,my fancy script,fe,fi=0,fo=0,begin
 	# commands go here,
 	# and they can use the aruments fe, fi, and fo
 	# that where passed to the script
@@ -135,16 +136,48 @@ end</example>
 		<command id="script">
 			<canon>script, name, argumentnames (statements)</canon>
 			<shortname>script</shortname>
-			<description>The script command contains a list of commands. Script starts with the keyword script, a comma, and then the name of the script. If there are any arguments to the script, you list their names separated by commas after the name of the script with default values. Then comes the text of the script. It is enclosed in <ref>begin</ref> and <ref>end</ref> statements. Scripts that are defined as script cannot be called directly from events in your game. They can only be called by name within other scripts. To make a script that can be run directly from your game, use <ref>plotscript</ref>.</description>
+			<description>The script command contains a list of commands. Script starts with the keyword script, a comma, and then the name of the script. If there are any arguments to the script, you list their names separated by commas after the name of the script with optional default values. Then comes the text of the script. It is enclosed in <ref>begin</ref> and <ref>end</ref> statements. Scripts that are defined as script cannot be called directly from events in your game. They can only be called by name within other scripts. To make a script that can be run directly from your game, use <ref>plotscript</ref>.</description>
 			<example># example of a simple script
 script,my first script,begin
 	# commands go here
 end</example>
-			<example># example of a script with arguments
-script,my fancy script,fe=0,fi=0,fo=0,begin
-	# commands go here,
+			<example># Example of a script with arguments
+# (It can called with between 1 and 3 arguments.)
+script,my fancy script,fe,fi=0,fo=0,begin
+	# Commands go here,
 	# and they can use the aruments fe, fi, and fo
-	# that where passed to the script
+	# that where passed to the script.
+end</example>
+		</command>
+		<command id="subscript">
+			<canon>subscript, name, argumentnames (statements)</canon>
+			<shortname>subscript</shortname>
+			<description><p>subscript</p> is just like <ref>script</ref> except that it must placed inside another script (or even inside another subscript). See <ref>script</ref> for details of its syntax. The difference from a regular script is that a subscript can only be called from its parent script, and it can directly access its parent script's variables in addition to its own arguments and variables. Subscripts can be useful when you have some piece of repeated code that you want to "de-duplicate" by moving into another script which you can call repeatedly, but without having to turn local variables into global variables.</description>
+			<example># Some nearby NPCs move into a line to the north of the hero
+plotscript, line up NPCs, begin
+	show textbox(32)  # "Yes sir!"
+	wait for textbox
+	suspend player
+	set hero direction(me, up)
+	variable (x, y)
+	x := hero X(me) -- 2
+	y := hero Y(me) -- 4
+	subscript, line up NPC, npc, begin
+		# Increment X to get next position in the line
+		x += 1
+		walk NPC to X(npc, x)
+		wait for NPC(npc)
+		walk NPC to Y(npc, y)
+		wait for NPC(npc)
+		set NPC direction(npc, down)
+	end
+	# NPCs move one at a time
+	line up NPC(1)
+	line up NPC(3)
+	line up NPC(11)
+	line up NPC(10)
+	line up NPC(5)
+	resume player
 end</example>
 		</command>
 		<command id="globalvariable">
@@ -318,7 +351,7 @@ resume NPC walls # back to mortality...</example>
 		<command id="suspendcaterpillar">
 			<canon>suspend caterpillar</canon>
 			<shortname>suspend caterpillar</shortname>
-			<description>Stops your other heroes from following the leader. This is useful when you want to control them individually with <ref>walkhero</ref> commands. In earlier versions this was misspelled as suspend catapillar. The old spelling still works for backwards compatibility.</description>
+			<description>Stops your other heroes from following the leader. This is useful when you want to control them individually with <ref>walkhero</ref> commands. In earlier versions this was misspelled as suspend catapillar. The old spelling still works for backwards compatibility. <note>If you want to set whether the other heroes in the party are visible, use <ref>setcaterpillarmode</ref>.</note></description>
 			<example>suspend caterpillar # cutscene
 # move heroes, probably fight a battle or two...
 resume caterpillar # normal game again.</example>
@@ -743,6 +776,11 @@ end</example>
 			<shortname>put npc</shortname>
 			<description>Moves an NPC to a location on the map in pixels. The first argument is and <ref>npcreference</ref> or an NPC ID number. The second and third arguments are the X,Y pixel position relative to the top left corner of the map. Be aware that using this command can mis-align your NPC with the tile-grid, preventing it from walking normally. To position the NPC by tile, use the <ref>setnpcposition</ref> command.</description>
 		</command>
+		<command id="npcisdisabled">
+			<canon>NPC is disabled (reference)</canon>
+			<shortname>NPC is disabled</shortname>
+			<description>This command returns true if the <ref>npcreference</ref> points to an NPC who does not exist, or has been disabled because of tags or one-time-use.</description>
+		</command>
 	</section>
 	<section title="Moving the Camera">
 		<command id="camerafollowshero">
@@ -913,8 +951,8 @@ wait for text box # wait until the player continues</example>
 			<canon>party money</canon>
 			<shortname>party money</shortname>
 			<description>Returns how much money your party has.</description>
-	</command>
-	<command id="getmoney">
+		</command>
+		<command id="getmoney">
 			<canon>get money (amount)</canon>
 			<shortname>get money</shortname>
 			<description>Adds the specified amount to your party&apos;s money</description>
@@ -923,7 +961,7 @@ wait for text box # wait until the player continues</example>
 			<canon>lose money (amount)</canon>
 			<shortname>lose money</shortname>
 			<description>Subtracts the specified amount from your party&apos;s money.</description>
-	</command>
+		</command>
 		<command id="setmoney">
 			<canon>set money (amount)</canon>
 			<shortname>set money</shortname>
@@ -1457,7 +1495,31 @@ end</example>
 		</command>
 	</section>
 	<section title="String Functions">
-		<description>When referring to a position in a string, <p>position</p> is a 1-based index into the string, not a 0-based index. For example, given a string "ABCDEFG", position=3 is "C", not "D". This is because the string commands are based on BASIC string commands, which are 1-based. This also means that position 0 is invalid. Beware!<lb/>There is no limit on string length (previously, they were limited to 40 characters, the width of the screen)</description>
+		<description>In HamsterSpeak, strings are special variables which hold pieces of text, and are referred to by their ID numbers. There are 100 string variables, with IDs 0 to 99. Strings variables can be displayed onscreen directly, or alternatively embedded in textboxes or dsiplayed with text slices. For more information, see the <a href="rpg.hamsterrepublic.com/ohrrpgce/Strings">wiki article on strings</a>.<lb/>
+You can set the value of a string directly with <ref>$string="..."</ref> and append to an existing string with <ref>$string+"..."</ref>.
+There is no limit on string length.<lb/>
+<note>When referring to a position in a string, <p>position</p> is a 1-based index into the string, not a 0-based index. For example, given a string "ABCDEFG", position=3 is "C", not "D". This is because the string commands are based on BASIC string commands, which are 1-based. This also means that position 0 is invalid. Beware!</note></description>
+		<command id="$string=&quot;...&quot;">
+			<canon>$id="some text"</canon>
+			<shortname>$id="..."</shortname>
+			<description>Sets the contents of a string variable given by <p>id</p>, which can be a constant like 0 or 1, a variable, or even an expression like a call to a script, to a piece of text. The previous contents are erased. The whole statement must be on a single line; you can't split the text onto multiple lines (use multiple <ref>$string+"..."</ref> statements instead). The value of the whole statement is equal to <p>id</p> for convenience (see the example). The text (which is called a string literal) can contain certain escape codes:<lb/>
+\\ turns into a single \<lb/>
+\" turns into a single " without signalling the end of the literal<lb/>
+\n is a new line character, which is useful in a textslice but doesn't cause a new line in textboxes or on-screen strings.<lb/>
+\t is a tab character (which isn't useful at all as it doesn't actually cause a tab)<lb/>
+\x## where ## is a two digit hexidecimal number adds an ASCII character to the string. For example \x4b is the letter K.</description>
+			<example># This displays Some text! in the corner of the screen
+$1 = "Some text!"
+showstring(1)
+
+# This displays "A quote" in the corner of the screen
+showstring($1="\"A quote\"")</example>
+		</command>
+		<command id="$string+&quot;...&quot;">
+			<canon>$id+"some text"</canon>
+			<shortname>$id+"..."</shortname>
+			<description>Appends a string literal to a string variable. This is the same as <ref>$string="..."</ref>, except that the existing contents of the string are preserved and appended to.</description>
+		</command>
 		<command id="showstring">
 			<canon>show string (ID)</canon>
 			<shortname>show string</shortname>
@@ -1477,14 +1539,52 @@ end</example>
 		<command id="appendascii">
 			<canon>append ascii (ID, char)</canon>
 			<shortname>append ascii</shortname>
-			<description>Appends the character with ascii code 'ascii' to the string with ID #ID. Remember: Numbers are 48 - 57, uppercase letters are 65 - 90, lowercase letters are 97 - 122.</description>
-			<seealso><ref>appendnumber</ref></seealso>
+			<description>Appends the character with ASCII code 'ascii' to the string with ID #ID. The font editor lists ASCII codes. For example numbers are 48 - 57, uppercase letters are 65 - 90, lowercase letters are 97 - 122.</description>
+			<seealso>
+				<ref>stringsprintf</ref>
+				<ref>appendnumber</ref>
+			</seealso>
 		</command>
 		<command id="appendnumber">
 			<canon>append number (ID, number)</canon>
 			<shortname>append number</shortname>
 			<description>Appends the textual representation of <p>number</p> to the string with ID #<p>ID</p>. For example, append number(1,65) will append "65", not "A".</description>
-			<seealso><ref>appendascii</ref></seealso>
+			<seealso>
+				<ref>appendascii</ref>
+				<ref>stringsprintf</ref>
+			</seealso>
+		</command>
+		<command id="stringsprintf">
+			<canon>string sprintf (dest string ID, format string ID, arguments...)</canon>
+			<shortname>string sprintf</shortname>
+			<description>Builds a string from a template (given by <p>format string ID</p>) and zero or more additional arguments, and puts the result in the string <p>dest string ID</p>. This is a restricted version of the sprintf function in other programming languages. This function takes at least 2 arguments. The format string is a mix of regular text and codes like %d. For each code, one argument is read and used to substitute for the code. The codes are:<lb/>
+<p>%d</p>: substituted with a number, printed as a decimal.<lb/>
+<p>%x</p>: substituted with a number, printed as a unsigned 32 bit hexidecimal, in lower case and without a leading 0x.<lb/>
+<p>%s</p>: substituted with a string. The argument should be a valid string ID.<lb/>
+<p>%c</p>: substituted with a single character. The argument should be an number between 0 and 255.<lb/>
+<p>%%</p>: substituted with a single %. In this case an argument is NOT used up.<lb/>
+More sophisticated codes like %-04d that are possible in other programming languages are not supported yet.
+</description>
+			<example># This displays some text like "HP: 30  MP: 12  $: 104" at the bottom of the screen
+$1 = "HP: %d  MP: %d  $: %d"
+string sprintf(0, 1, getherostat(me, stat:HP), getherostat(me, stat:MP), partymoney)
+show string(0)</example>
+			<example># This displays some text like "Ah Bob! You've brought me 5 apples."
+# in the centre of the screen, and waits for the player to press a key.
+$10 = "Ah %s! You've brought me %d apples."
+getheroname(11, findhero(leader))
+string sprintf(12, 10, 11, inventory(item:apple))
+center string at(12, 160, 100)
+wait for key(anykey)
+hide string(12)
+</example>
+			<example># This displays "1abcdef ffffffff A%"
+string sprintf(0, $1="%x %x %c%%", 28036591, -1, 65)
+show string(0)</example>
+			<seealso>
+				<ref>appendascii</ref>
+				<ref>appendnumber</ref>
+			</seealso>
 		</command>
 		<command id="numberfromstring">
 			<canon>number from string (ID, default)</canon>
@@ -1557,6 +1657,11 @@ get hero name (1, find hero (leader))
 			<canon>get item name (ID, item)</canon>
 			<shortname>get item name</shortname>
 			<description>This command will take the name of item #<p>item</p> and stick it in string #<p>ID</p>, overwriting its contents. This can be useful for "You got &lt;item&gt;!" type messages.</description>
+		</command>
+		<command id="getitemdescription">
+			<canon>get item description (ID, item)</canon>
+			<shortname>get item description</shortname>
+			<description>This command will take the description of item #<p>item</p> and stick it in string #<p>ID</p>, overwriting its contents.</description>
 		</command>
 		<command id="getmapname">
 			<canon>get map name (ID, map)</canon>
@@ -2365,10 +2470,20 @@ set menu on close script(m, @my menu exit handler)
 				<ref>getspriteframe</ref>
 			</seealso>
 		</command>
+		<command id="setspritesetnumber">
+			<canon>set sprite set number (handle, record)</canon>
+			<shortname>set sprite set number</shortname>
+			<description>Changes the record number of the spriteset of a slice sprite <p>handle</p>.</description>
+			<seealso>
+				<ref>getspritesetnumber</ref>
+				<ref>setspritepalette</ref>
+				<ref>setspriteframe</ref>
+			</seealso>
+		</command>
 		<command id="getspritesetnumber">
 			<canon>get sprite set number (handle)</canon>
 			<shortname>get sprite set number</shortname>
-			<description>Gets the number of the spriteset of a slice sprite <p>handle</p>.</description>
+			<description>Gets the record number of the spriteset of a slice sprite <p>handle</p>.</description>
 			<seealso>
 				<ref>getspritetype</ref>
 				<ref>getspritepalette</ref>
@@ -2391,6 +2506,15 @@ set menu on close script(m, @my menu exit handler)
 				<ref>getspritetype</ref>
 				<ref>getspritesetnumber</ref>
 				<ref>getspriteframe</ref>
+			</seealso>
+		</command>
+		<command id="getspritedefaultpal">
+			<canon>get sprite default pal (handle)</canon>
+			<shortname>get sprite default pal</shortname>
+			<description>Returns default palette of sprite <p>handle</p>. You don't need to use this when you want to set a sprite to its default palette, because a palette number of -1 will have that effect. This command is for finding out the real palette number of the palette that would be used if the sprite is set to -1</description>
+			<seealso>
+				<ref>getspritepalette</ref>
+				<ref>setspritepalette</ref>
 			</seealso>
 		</command>
 		<command id="setspriteframe">
@@ -3795,7 +3919,7 @@ end
 		<command id="setgridcolumns">
 			<canon>set grid columns (handle, columns)</canon>
 			<shortname>set grid columns</shortname>
-			<description>Changes the number of columns in a grid slice. Child slices will be automatically repositioned.</description>
+			<description>Changes the number of columns in a grid slice. Child slices will be automatically repositioned. 1 is the minimum number of columns. If you attempt to set columns to zero, nothing will happen.</description>
 			<seealso>
 				<ref>getgridcolumns</ref>
 				<ref>setgridrows</ref>
@@ -3815,7 +3939,7 @@ end
 		<command id="setgridrows">
 			<canon>set grid rows (handle, rows)</canon>
 			<shortname>set grid rows</shortname>
-			<description>Changes the number of rows in a grid slice. Child slices will be automatically repositioned.</description>
+			<description>Changes the number of rows in a grid slice. Child slices will be automatically repositioned. 1 is the minimum number of rows. If you attempt to set the rows to 0, nothing will happen.</description>
 			<seealso>
 				<ref>setgridcolumns</ref>
 				<ref>getgridcolumns</ref>
@@ -4699,7 +4823,7 @@ set timer (0, 300, 18, timer: game over, 0, (timerflag: battle, or, timerflag: m
   # Let's check whether there is at least one plip in this formation
   variable (number, plip slot)
   number := find enemy in formation (formation, enemy:plip, get count)
-  if (number >> 0) then (
+  if (number > 0) then (
     # We'll put a string onscreen where the plip appears in battle
     $31 = "Plip!"
     plip slot := find enemy in formation (formation, enemy:plip)
@@ -4913,32 +5037,32 @@ write pass block(15,3,pass)
 		<command id="add">
 			<canon>number + number</canon>
 			<shortname>add</shortname>
-			<description>Adds two values together and returns the result. This can also be written as add(number,number)</description>
+			<description>Adds two values together and returns the result. This can also be written as <p>add(number,number)</p></description>
 		</command>
 		<command id="subtract">
 			<canon>number -- number</canon>
 			<shortname>subtract</shortname>
-			<description>Subtracts the second number from the first number and returns the result. It is necessary to use the double minus so that HSPEAK.EXE can tell the difference between subtraction, and a minus sign that indicates a negative number. You can also write subtract(number,number)</description>
+			<description>Subtracts the second number from the first number and returns the result. It is necessary to use the double minus so that HSPEAK.EXE can tell the difference between subtraction, and a minus sign that indicates a negative number. You can also write <p>subtract(number,number)</p></description>
 		</command>
 		<command id="multiply">
 			<canon>number * number</canon>
 			<shortname>multiply</shortname>
-			<description>Multiplies two values together and returns the result. This can also be written as multiply(number,number)</description>
+			<description>Multiplies two values together and returns the result. This can also be written as <p>multiply(number,number)</p></description>
 		</command>
 		<command id="divide">
 			<canon>number / number</canon>
 			<shortname>divide</shortname>
-			<description>Divides the second number into the first number and returns the result. The result is rounded down to an integer. This can also be written as divide(number,number)</description>
+			<description>Divides the second number into the first number and returns the result. The result is rounded down to an integer. This can also be written as <p>divide(number,number)</p></description>
 		</command>
 		<command id="modulus">
 			<canon>number,mod,number</canon>
 			<shortname>mod</shortname>
-			<description>Divides the second number into the first number and returns the remainder. This can also be written as modulus(number,number)</description>
+			<description>Divides the second number into the first number and returns the remainder. This can also be written as <p>modulus(number,number)</p></description>
 		</command>
 		<command id="exponent">
 			<canon>number ^ power</canon>
 			<shortname>^</shortname>
-			<description>Raises a number to a power and returns the result. (If the result is too large and overflows no error occurs: the value is simply wrapped around a 32 bit signed integer.) This can also be written as exponent(number,power)</description>
+			<description>Raises a number to a power and returns the result. (If the result is too large and overflows no error occurs: the value is simply wrapped around a 32 bit signed integer.) This can also be written as <p>exponent(number,power)</p></description>
 		</command>
 		<command id="abs">
 			<canon>abs (number)</canon>
@@ -4958,32 +5082,32 @@ write pass block(15,3,pass)
 		<command id="equal">
 			<canon>number == number</canon>
 			<shortname>==</shortname>
-			<description>Checks to see if the two numbers are equal. If they are equal it returns true, otherwise it returns false. This can also be written as equal(number,number)</description>
+			<description>Checks to see if the two numbers are equal. If they are equal it returns true, otherwise it returns false. This can also be written as <p>equal(number,number)</p></description>
 		</command>
 		<command id="notequal">
 			<canon>number &lt;> number</canon>
 			<shortname>&lt;></shortname>
-			<description>Checks to see if the two numbers are not equal. If they are not equal it returns true. If they are equal it returns false. This can also be written as not equal(number,number)</description>
+			<description>Checks to see if the two numbers are not equal. If they are not equal it returns true. If they are equal it returns false. This can also be written as <p>not equal(number,number)</p></description>
 		</command>
 		<command id="lessthan">
-			<canon>number &lt;&lt; number</canon>
-			<shortname>&lt;&lt;</shortname>
-			<description>Checks to see if the first number is less than the second number. If it is, it returns true, otherwise it returns false. This can also be written as less than(number,number)</description>
+			<canon>number &lt; number</canon>
+			<shortname>&lt;</shortname>
+			<description>Checks to see if the first number is less than the second number. If it is, it returns true, otherwise it returns false. This can also be written as <p>less than(number,number)</p> and as <p>number &lt;&lt; number</p></description>
 		</command>
 		<command id="greaterthan">
-			<canon>number &gt;&gt; number</canon>
-			<shortname>&gt;&gt;</shortname>
-			<description>Checks to see if the first number is greater than the second number. If it is, it returns true, otherwise it returns false. This can also be written as greater than(number,number)</description>
+			<canon>number &gt; number</canon>
+			<shortname>&gt;</shortname>
+			<description>Checks to see if the first number is greater than the second number. If it is, it returns true, otherwise it returns false. This can also be written as <p>greater than(number,number)</p> and as <p>number &gt;&gt; number</p></description>
 		</command>
 		<command id="lessthanorequalto">
 			<canon>number &lt;= number</canon>
 			<shortname>&lt;=</shortname>
-			<description>Checks to see if the first number is less than or equal to the second number. If it is, it returns true, otherwise it returns false. This can also be written as less than or equal to(number,number)</description>
+			<description>Checks to see if the first number is less than or equal to the second number. If it is, it returns true, otherwise it returns false. This can also be written as <p>less than or equal to(number,number)</p></description>
 		</command>
 		<command id="greaterthanorequalto">
 			<canon>number >= number</canon>
 			<shortname>&gt;=</shortname>
-			<description>Checks to see if the first number is greater than or equal to the second number. If it is, it returns true, otherwise it returns false. This can also be written as greater than or equal to(number,number)</description>
+			<description>Checks to see if the first number is greater than or equal to the second number. If it is, it returns true, otherwise it returns false. This can also be written as <p>greater than or equal to(number,number)</p></description>
 		</command>
 		<command id="and">
 			<canon>value,and,value</canon>
@@ -5727,7 +5851,7 @@ end</example>
 		<command id="setcaterpillarmode">
 			<canon>set caterpillar mode (state)</canon>
 			<shortname>set caterpillar mode</shortname>
-			<description>Sets whether or not to display the whole party in "caterpillar" style. If the argument is <ref>off</ref> then only the leader will be displayed. If the argument is <ref>on</ref> then the whole party will be displayed. (do not confuse this with the <ref>suspendcaterpillar</ref> and <ref>resumecaterpillar</ref> commands, which only apply when caterpillar mode is ON)</description>
+			<description>Sets whether or not to display the whole party in "caterpillar" style. This sets the "Enable Caterpillar Party" general preference bitset. If the argument is <ref>off</ref> then only the leader will be displayed. If the argument is <ref>on</ref> then the whole active (battle) party will be displayed and will normally walk behind the leader. <note>Do not confuse this with the <ref>suspendcaterpillar</ref> and <ref>resumecaterpillar</ref> commands, which only apply when caterpillar mode is ON.</note></description>
 		</command>
 		<command id="setnohpleveluprestore">
 			<canon>set no HP level up restore (state)</canon>
@@ -5913,10 +6037,23 @@ trace value (hero X (me), hero Y (me))</example>
 				<ref>assert</ref>
 			</seealso>
 		</command>
+		<command id="scripterror">
+			<canon>script error (string id)</canon>
+			<shortname>script error</shortname>
+			<description>Shows an error message, like any other script error. This allows you to open the script debugger. The optional <p>string id</p> argument gives the error message to display.</description>
+			<example>if (x &lt; 0 || x &gt;= map width || y &lt; 0 || y &gt;= map height) then (
+  $0="Coordinates went off the edge of the map"
+  script error(0)
+)</example>
+			<seealso>
+				<ref>assert</ref>
+				<ref>tracevalue</ref>
+			</seealso>
+		</command>
 		<command id="assert">
 			<canon>assert (expression)</canon>
 			<shortname>assert</shortname>
-			<description>If <p>expression</p> is false, then writes the filename, line number and <p>expression</p> into the string given by the constant or global variable named <p>assert expression string</p>, and then calls the script named <p>assert failure</p>.</description>
+			<description>If <p>expression</p> is false, then writes the script filename, line number and <p>expression</p> into the string given by the constant or global variable named <p>assert expression string</p>, and then calls the script named <p>assert failure</p>. You can use this to detect bugs in your scripts, by checking that your assumptions about the state of the game are correct.</description>
 			<example># The following...
 assert (check tag (tag:initialised) == OFF)
 # ...is equivalent to something like
@@ -5927,14 +6064,14 @@ if (not (check tag (tag:initialised) == OFF)) then (
 			<example># Suggested usage:
 define constant(31, assert expression string)
 script, assert failure, begin
-  trace(31)
-  show text box(123)  # Error! ${S31}
+  script error(assert expression string)
 end
 
 # later...
-assert (something I really hope is true)
+assert (check tag (tag:initialised) == OFF)  # something ought to be true at this moment
 </example>
 			<seealso>
+				<ref>scripterror</ref>
 				<ref>tracevalue</ref>
 			</seealso>
 		</command>

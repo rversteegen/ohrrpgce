@@ -4,13 +4,6 @@
 '' Part of the OHRRPGCE - See LICENSE.txt for GNU GPL License details and disclaimer of liability
 ''
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "crt.bi"
 #include "gfx.bi"
@@ -18,6 +11,7 @@
 #include "common.bi"
 #include "scancodes.bi"
 '#define NEED_SDL_GETENV
+#undef uint32
 #include "SDL\SDL.bi"
 /'
 #ifdef __FB_WIN32__
@@ -43,10 +37,17 @@ declare sub SDL_ANDROID_set_java_gamepad_keymap(byval A as integer, byval B as i
 declare sub SDL_ANDROID_set_ouya_gamepad_keymap(byval player as integer, byval udpad as integer, byval rdpad as integer, byval ldpad as integer, byval ddpad as integer, byval O as integer, byval A as integer, byval U as integer, byval Y as integer, byval L1 as integer, byval R1 as integer, byval L2 as integer, byval R2 as integer, byval LT as integer, byval RT as integer)
 declare function SDL_ANDROID_SetScreenKeyboardButtonKey(byval buttonId as integer, byval key as integer) as integer
 declare function SDL_ANDROID_SetScreenKeyboardButtonDisable(byval buttonId as integer, byval disable as bool) as integer
+declare sub SDL_ANDROID_SetOUYADeveloperId (byval devId as zstring ptr)
+declare sub SDL_ANDROID_OUYAPurchaseRequest (byval identifier as zstring ptr, byval keyDer as zstring ptr, byval keyDerSize as integer)
+declare function SDL_ANDROID_OUYAPurchaseIsReady () as bool
+declare function SDL_ANDROID_OUYAPurchaseSucceeded () as bool
+declare sub SDL_ANDROID_OUYAReceiptsRequest (byval keyDer as zstring ptr, byval keyDerSize as integer)
+declare function SDL_ANDROID_OUYAReceiptsAreReady () as bool
+declare function SDL_ANDROID_OUYAReceiptsResult () as zstring ptr
 #ENDIF
 
-'why is this missing from crt.bi?
 DECLARE FUNCTION putenv (byval as zstring ptr) as integer
+DECLARE FUNCTION unsetenv (byval as zstring ptr) as integer
 
 'DECLARE FUNCTION SDL_putenv cdecl alias "SDL_putenv" (byval variable as zstring ptr) as integer
 'DECLARE FUNCTION SDL_getenv cdecl alias "SDL_getenv" (byval name as zstring ptr) as zstring ptr
@@ -80,6 +81,7 @@ DIM SHARED windowedmode as bool = YES
 DIM SHARED resizable as integer = NO
 DIM SHARED resizerequested as integer = NO
 DIM SHARED resizerequest as XYPair
+DIM SHARED waiting_for_resize as bool = NO
 DIM SHARED remember_windowtitle as STRING
 DIM SHARED rememmvis as integer = 1
 DIM SHARED keystate as Uint8 ptr = NULL
@@ -93,7 +95,7 @@ DIM SHARED forced_mouse_clipping as integer = NO
 DIM SHARED remember_mouserect as RectPoints = ((-1, -1), (-1, -1))
 'These are the actual zoomed clip bounds
 DIM SHARED as integer mxmin = -1, mxmax = -1, mymin = -1, mymax = -1
-DIM SHARED as integer privatemx, privatemy, lastmx, lastmy
+DIM SHARED as int32 privatemx, privatemy, lastmx, lastmy
 DIM SHARED keybdstate(127) as integer  '"real"time keyboard array
 DIM SHARED input_buffer as wstring * 128
 DIM SHARED mouseclicks as integer
@@ -264,7 +266,6 @@ FUNCTION gfx_sdl_init(byval terminate_signal_handler as sub cdecl (), byval wind
   IF running_as_slave = NO THEN   'Don't display the window straight on top of Custom's
     putenv("SDL_VIDEO_CENTERED=1")
   ELSE
-    putenv("SDL_VIDEO_CENTERED=0")
     putenv("SDL_VIDEO_WINDOW_POS=5,5")
   END IF
 
@@ -377,8 +378,14 @@ FUNCTION gfx_sdl_set_screen_mode(byval bitdepth as integer = 0) as integer
       debug "Failed to open display (windowed = " & windowedmode & "): " & *SDL_GetError
       RETURN 0
     END IF
+    waiting_for_resize = NO
+    'debuginfo "gfx_sdl: created screensurface with size " & screensurface->w & "*" & screensurface->h & " depth " _
+    '          & screensurface->format->BitsPerPixel & " flags " & HEX(screensurface->flags)
     EXIT DO
   LOOP
+  'Don't recenter the window as the user resizes it
+  '  putenv("SDL_VIDEO_CENTERED=0") does not work because SDL only tests whether the variable is defined
+  unsetenv("SDL_VIDEO_CENTERED")
 #ENDIF
   SDL_WM_SetCaption(remember_windowtitle, remember_windowtitle)
   IF windowedmode = NO THEN
@@ -408,9 +415,10 @@ FUNCTION gfx_sdl_getversion() as integer
 END FUNCTION
 
 FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byval h as integer, byval bitdepth as integer) as integer
+  'debuginfo "gfx_sdl_present_internal(w=" & w & ", h=" & h & ", bitdepth=" & bitdepth & ")"
 
   'variable resolution handling
-  IF framesize.w <> w OR framesize.h <> h THEN
+  IF waiting_for_resize OR framesize.w <> w OR framesize.h <> h THEN
     framesize.w = w
     framesize.h = h
     'A bitdepth of 0 indicates 'same as previous, otherwise default (native)'. Not sure if it's best to use
@@ -457,7 +465,7 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
     END IF
 
     'smoothzoomblit takes the pitch in pixels, not bytes!
-    smoothzoomblit_32_to_32bit(raw, cast(uinteger ptr, screensurface->pixels), w, h, screensurface->pitch \ 4, zoom, smooth)
+    smoothzoomblit_32_to_32bit(raw, cast(uint32 ptr, screensurface->pixels), w, h, screensurface->pitch \ 4, zoom, smooth)
     IF SDL_Flip(screensurface) THEN
       debug "gfx_sdl_present_internal: SDL_Flip failed: " & *SDL_GetError
     END IF
@@ -567,12 +575,24 @@ FUNCTION gfx_sdl_getwindowstate() as WindowState ptr
   RETURN @state
 END FUNCTION
 
-SUB gfx_sdl_setresizable(byval able as integer)
-  resizable = able
-  gfx_sdl_set_screen_mode()
-END SUB
+FUNCTION gfx_sdl_supports_variable_resolution() as bool
+  'Safe even in fullscreen, I think
+  RETURN YES
+END FUNCTION
 
-FUNCTION gfx_sdl_getresize(byref ret as XYPair) as integer
+FUNCTION gfx_sdl_set_resizable(byval enable as bool, min_width as integer, min_height as integer) as bool
+  'Ignore minimum width and height.
+  'See SDL_VIDEORESIZE handling for discussing of enforcing min window size.
+
+  resizable = enable
+  gfx_sdl_set_screen_mode()
+  IF screensurface THEN
+    RETURN (screensurface->flags AND SDL_RESIZABLE) <> 0
+  END IF
+  RETURN NO
+END FUNCTION
+
+FUNCTION gfx_sdl_get_resize(byref ret as XYPair) as integer
   IF resizerequested THEN
     ret = resizerequest
     resizerequested = NO
@@ -580,6 +600,12 @@ FUNCTION gfx_sdl_getresize(byref ret as XYPair) as integer
   END IF
   RETURN NO
 END FUNCTION
+
+SUB gfx_sdl_recenter_window_hint()
+  'Takes effect at the next SDL_SetVideoMode call, and it then removed
+  putenv("SDL_VIDEO_CENTERED=1")
+  '(Note this is overridden by SDL_VIDEO_WINDOW_POS)
+END SUB
 
 SUB gfx_sdl_set_zoom(byval value as integer)
   IF value >= 1 AND value <= 16 AND value <> zoom THEN
@@ -640,6 +666,52 @@ FUNCTION gfx_sdl_supports_safe_zone_margin() as bool
 #ELSE
  RETURN NO
 #ENDIF
+END FUNCTION
+
+SUB gfx_sdl_ouya_purchase_request(dev_id as string, identifier as string, key_der as string)
+#IFDEF __FB_ANDROID__
+ SDL_ANDROID_SetOUYADeveloperId(dev_id)
+ SDL_ANDROID_OUYAPurchaseRequest(identifier, key_der, LEN(key_der))
+#ENDIF
+END SUB
+
+FUNCTION gfx_sdl_ouya_purchase_is_ready() as bool
+#IFDEF __FB_ANDROID__
+ RETURN SDL_ANDROID_OUYAPurchaseIsReady() <> 0
+#ENDIF
+ RETURN YES
+END FUNCTION
+
+FUNCTION gfx_sdl_ouya_purchase_succeeded() as bool
+#IFDEF __FB_ANDROID__
+ RETURN SDL_ANDROID_OUYAPurchaseSucceeded() <> 0
+#ENDIF
+ RETURN NO
+END FUNCTION
+
+SUB gfx_sdl_ouya_receipts_request(dev_id as string, key_der as string)
+debug "gfx_sdl_ouya_receipts_request"
+#IFDEF __FB_ANDROID__
+ SDL_ANDROID_SetOUYADeveloperId(dev_id)
+ SDL_ANDROID_OUYAReceiptsRequest(key_der, LEN(key_der))
+#ENDIF
+END SUB
+
+FUNCTION gfx_sdl_ouya_receipts_are_ready() as bool
+#IFDEF __FB_ANDROID__
+ RETURN SDL_ANDROID_OUYAReceiptsAreReady() <> 0
+#ENDIF
+ RETURN YES
+END FUNCTION
+
+FUNCTION gfx_sdl_ouya_receipts_result() as string
+#IFDEF __FB_ANDROID__
+ DIM zresult as zstring ptr
+ zresult = SDL_ANDROID_OUYAReceiptsResult()
+ DIM result as string = *zresult
+ RETURN result
+#ENDIF
+ RETURN ""
 END FUNCTION
 
 SUB io_sdl_init
@@ -716,7 +788,11 @@ SUB gfx_sdl_process_events()
       CASE SDL_MOUSEBUTTONDOWN
         'note SDL_GetMouseState is still used, while SDL_GetKeyState isn't
         mouseclicks OR= SDL_BUTTON(evnt.button.button)
+#IF __FB_VERSION__ < "0.91"
       CASE SDL_ACTIVEEVENT
+#ELSE
+      CASE SDL_ACTIVEEVENT_
+#ENDIF
         'debug "SDL_ACTIVEEVENT " & evnt.active.state
         IF evnt.active.state AND SDL_APPINPUTFOCUS THEN
           IF evnt.active.gain = 0 THEN
@@ -745,9 +821,22 @@ SUB gfx_sdl_process_events()
       CASE SDL_VIDEORESIZE
         'debug "SDL_VIDEORESIZE: w=" & evnt.resize.w & " h=" & evnt.resize.h
         IF resizable THEN
+          waiting_for_resize = YES  'This is more of a sanity check
           resizerequested = YES
           resizerequest.w = evnt.resize.w / zoom
           resizerequest.h = evnt.resize.h / zoom
+          'Nothing happens until the engine calls gfx_get_resize,
+          'changes its internal window size (windowsize) as a result,
+          'and starts pushing Frames with the new size to gfx_showpage.
+
+          'Calling SDL_SetVideoMode changes the window size.  Unfortunately it's not possible
+          'to reliably override a user resize event with a different window size, at least with
+          'X11+KDE, because the window size isn't changed by SDL_SetVideoMode while the user is
+          'still dragging the window, and as far as I can tell there is no way to tell what the
+          'actual window size is, or whether the user still has the mouse button down while
+          'resizing (it isn't reported); usually they do hold it down until after they've
+          'finished moving their mouse.  One possibility would be to hook into X11, or to do
+          'some delayed SDL_SetVideoMode calls.
         END IF
     END SELECT
   WEND
@@ -880,18 +969,18 @@ SUB io_sdl_remap_android_gamepad(byval player as integer, gp as GamePadMap)
   CASE 1 TO 3
     SDL_ANDROID_set_ouya_gamepad_keymap ( _
     player, _
-    scOHR2SDL(gp.Ud, 0), _
-    scOHR2SDL(gp.Rd, 0), _
-    scOHR2SDL(gp.Dd, 0), _
-    scOHR2SDL(gp.Ld, 0), _
-    scOHR2SDL(gp.A, 0), _
-    scOHR2SDL(gp.B, 0), _
-    scOHR2SDL(gp.X, 0), _
-    scOHR2SDL(gp.Y, 0), _
-    scOHR2SDL(gp.L1, 0), _
-    scOHR2SDL(gp.R1, 0), _
-    scOHR2SDL(gp.L2, 0), _
-    scOHR2SDL(gp.R2, 0), _
+    scOHR2SDL(gp.Ud, SDLK_UP), _
+    scOHR2SDL(gp.Rd, SDLK_RIGHT), _
+    scOHR2SDL(gp.Dd, SDLK_DOWN), _
+    scOHR2SDL(gp.Ld, SDLK_LEFT), _
+    scOHR2SDL(gp.A, SDLK_RETURN), _
+    scOHR2SDL(gp.B, SDLK_ESCAPE), _
+    scOHR2SDL(gp.X, SDLK_ESCAPE), _
+    scOHR2SDL(gp.Y, SDLK_ESCAPE), _
+    scOHR2SDL(gp.L1, SDLK_PAGEUP), _
+    scOHR2SDL(gp.R1, SDLK_PAGEDOWN), _
+    scOHR2SDL(gp.L2, SDLK_HOME), _
+    scOHR2SDL(gp.R2, SDLK_END), _
     0, 0)
   CASE ELSE
    debug "WARNING: io_sdl_remap_android_gamepad: invalid player number " & player
@@ -930,8 +1019,8 @@ FUNCTION fix_buttons(byval buttons as integer) as integer
 END FUNCTION
 
 FUNCTION update_mouse() as integer
-  DIM x as integer
-  DIM y as integer
+  DIM x as int32
+  DIM y as int32
   DIM buttons as Uint8
 
   buttons = SDL_GetMouseState(@x, @y)
@@ -1092,13 +1181,21 @@ FUNCTION gfx_sdl_setprocptrs() as integer
   gfx_setwindowed = @gfx_sdl_setwindowed
   gfx_windowtitle = @gfx_sdl_windowtitle
   gfx_getwindowstate = @gfx_sdl_getwindowstate
-  gfx_getresize = @gfx_sdl_getresize
-  gfx_setresizable = @gfx_sdl_setresizable
+  gfx_supports_variable_resolution = @gfx_sdl_supports_variable_resolution
+  gfx_get_resize = @gfx_sdl_get_resize
+  gfx_set_resizable = @gfx_sdl_set_resizable
+  gfx_recenter_window_hint = @gfx_sdl_recenter_window_hint
   gfx_setoption = @gfx_sdl_setoption
   gfx_describe_options = @gfx_sdl_describe_options
   gfx_get_safe_zone_margin = @gfx_sdl_get_safe_zone_margin
   gfx_set_safe_zone_margin = @gfx_sdl_set_safe_zone_margin
   gfx_supports_safe_zone_margin = @gfx_sdl_supports_safe_zone_margin
+  gfx_ouya_purchase_request = @gfx_sdl_ouya_purchase_request
+  gfx_ouya_purchase_is_ready = @gfx_sdl_ouya_purchase_is_ready
+  gfx_ouya_purchase_succeeded = @gfx_sdl_ouya_purchase_succeeded
+  gfx_ouya_receipts_request = @gfx_sdl_ouya_receipts_request
+  gfx_ouya_receipts_are_ready = @gfx_sdl_ouya_receipts_are_ready
+  gfx_ouya_receipts_result = @gfx_sdl_ouya_receipts_result
   io_init = @io_sdl_init
   io_pollkeyevents = @io_sdl_pollkeyevents
   io_waitprocessing = @io_sdl_waitprocessing

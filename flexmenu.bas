@@ -4,13 +4,6 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "allmodex.bi"
 #include "common.bi"
@@ -265,6 +258,7 @@ atkbit(82) = "Do not cause target to flinch"
 atkbit(84) = "Delay doesn't block further actions"
 atkbit(85) = "Force victory"
 atkbit(86) = "Force battle exit (no run animation)"
+atkbit(87) = "Never trigger elemental counterattacks"
 '             ^---------------------------------------^
 '               the amount of room you have (39 chars)
 
@@ -2557,7 +2551,7 @@ SUB menu_editor_detail_keys(dstate as MenuState, mstate as MenuState, detail as 
     CASE 0: '--caption
      max = 1
     CASE 1: '--special
-     max = 14
+     max = 15
     CASE 2: '--menu
      max = gen(genMaxMenu)
     CASE 3: '--text box

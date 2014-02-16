@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "udts.bi"
@@ -697,6 +690,16 @@ SUB CleanTilemaps(layers() as TileMap, byval wide as integer, byval high as inte
   NEXT
 END SUB
 
+SUB CopyTilemap(dest as TileMap, src as TileMap)
+  'Copies the tiles from one TileMap to another, but not the layer number
+  WITH dest
+    .wide = src.wide
+    .high = src.high
+    .data = REALLOCATE(.data, .wide * .high)
+    memcpy(.data, src.data, sizeof(.data[0]) * .wide * .high)
+  END WITH
+END SUB
+
 PRIVATE SUB MergeTileMapData(mine as TileMap, theirs as TileMap, tmbase as TileMap)
   FOR i as integer = 0 TO mine.wide * mine.high - 1
     IF theirs.data[i] <> tmbase.data[i] THEN
@@ -706,6 +709,7 @@ PRIVATE SUB MergeTileMapData(mine as TileMap, theirs as TileMap, tmbase as TileM
 END SUB 
 
 SUB MergeTileMap(mine as TileMap, theirs_file as string, base_file as string)
+  'Do a three-way merge of changes to a TileMap
   DIM as TileMap tmbase, theirs
   LoadTileMap tmbase, base_file
   LoadTileMap theirs, theirs_file
@@ -723,6 +727,7 @@ SUB MergeTileMap(mine as TileMap, theirs_file as string, base_file as string)
 END SUB
 
 SUB MergeTileMaps(mine() as TileMap, theirs_file as string, base_file as string)
+  'Do a three-way merge of changes to an array of TileMap
   REDIM as TileMap tmbase(0), theirs(0)
   LoadTileMaps tmbase(), base_file
   LoadTileMaps theirs(), theirs_file
@@ -1296,7 +1301,7 @@ SUB DeserDoorLinks(filename as string, array() as doorlink)
 	close #f
 End SUB
 
-Sub SerDoorLinks(filename as string, array() as doorlink, byval withhead as integer = -1)
+Sub SerDoorLinks(filename as string, array() as doorlink, byval withhead as bool = YES)
 	dim as integer f = freefile, i
 	
 	if not fileiswriteable(filename) then exit sub
@@ -2606,6 +2611,7 @@ SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
   .nonblocking                    = xreadbit(buf(), 20, 65)
   .force_victory                  = xreadbit(buf(), 21, 65)
   .force_battle_exit              = xreadbit(buf(), 22, 65)
+  .never_trigger_elemental_counterattacks = xreadbit(buf(), 23, 65)
  END WITH
 END SUB
 
@@ -3244,7 +3250,7 @@ SUB load_string_list(array() as string, filename as string)
     REDIM PRESERVE array(lines) as string
    END IF
    '--store the string in the array
-   array(lines) = decode_backslash_codes(s)
+   array(lines) = decode_backslash_codes(s, trimpath(filename))
    '--ready for the next line
    lines += 1
   LOOP

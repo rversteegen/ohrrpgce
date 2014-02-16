@@ -72,28 +72,31 @@ End Enum
 'WARNING: don't add strings to this
 TYPE Palette16
 	col(15) as ubyte 'indices into the master palette
-	refcount as integer 'private
+	refcount as int32 'private
 END TYPE
 
 TYPE SpriteCacheEntryFwd as SpriteCacheEntry
 TYPE SpriteSetFwd as SpriteSet
 
-'sprites use this
-'don't forget to update definition in blit.c when changing this!!
+'An 8 bit, single frame of a sprite.
+'Don't forget to update definition in blit.c when changing this!!
+'As a rather ugly hack (TODO: remove), arrays of Frames are sometimes (for sprite sets) allocated contiguously,
+'with each having pointers to separate .image and .mask buffers. All will initially have .refcount = 1,
+'.arraylen set to the length of the array, and all but first will have .arrayelem ON.
 'WARNING: don't add strings to this
 type Frame
-	w as integer
-	h as integer
-	pitch as integer     'pixel (x,y) is at .image[.x + .pitch * .y]; mask and image pitch are the same!
+	w as int32
+	h as int32
+	pitch as int32     'pixel (x,y) is at .image[.x + .pitch * .y]; mask and image pitch are the same!
 	image as ubyte ptr
 	mask as ubyte ptr
-	refcount as integer  'see frame_unload in particular for documentation
-	arraylen as integer  'how many frames were contiguously allocated in this frame array
-	base as Frame ptr    'the Frame which actually owns this memory
+	refcount as int32  'see frame_unload in particular for documentation
+	arraylen as int32  'how many frames were contiguously allocated in this frame array
+	base as Frame ptr    'if a view, the Frame which actually owns this memory
 	cacheentry as SpriteCacheEntryFwd ptr
-	cached:1 as integer  '(not set for views onto cached sprites)
-	arrayelem:1 as integer  'not the first frame in a frame array
-	isview:1 as integer
+	cached:1 as int32  '(not set for views onto cached sprites)
+	arrayelem:1 as int32  'not the first frame in a frame array
+	isview:1 as int32
 
 	'used only by frames in a SpriteSet, for now
 	offset as XYPair
@@ -408,45 +411,71 @@ END TYPE
 
 'WARNING: don't add strings to this
 TYPE ScriptData
+  'Script attributes
   id as integer         'id number of script  (set to 0 to mark as unused slot)
+  ptr as integer ptr    'pointer to script commands
+  size as integer       'size of script data, in 4 byte words
+  vars as integer       'local variable (including arguments) count, not including nonlocals
+  nonlocals as integer  'number of nonlocal variables
+  args as integer       'number of arguments
+  strtable as integer   'pointer to string table (offset from start of script data in long ints)
+  nestdepth as integer  'nesting depth, 0 for scripts
+  parent as integer     'ID of parent or 0 for none
+
+  'Book keeping
   refcount as integer   'number of ScriptInst pointing to this data
   totaluse as integer   'total number of times this script has been requested since loading
   lastuse as integer
   totaltime as double   'time spent in here, in seconds. Used only if SCRIPTPROFILE is defined
   entered as integer    'number of times entered. Used only if SCRIPTPROFILE is defined
-  ptr as integer ptr    'pointer to script commands
-  size as integer       'size of script data, in 4 byte words
-  vars as integer       'variable (including arguments) count
-  args as integer       'number of arguments
-  strtable as integer   'pointer to string table (offset from start of script data in long ints)
 
   next as ScriptData ptr 'next in linked list, for hashtable
   backptr as ScriptData ptr ptr 'pointer to pointer pointing to this, in script(), or a .next pointer
                         'not your usual double linked list, because head of list is a script() element
 END TYPE
 
-TYPE ScriptInst
-  scr as ScriptData ptr 'script in script() hashtable
-  scrdata as integer ptr 'convenience pointer to scr->ptr
-  heap as integer       'position of the script's local vars in the buffer
+'Used by the old interpreter
+TYPE OldScriptFrame
+  heap as integer       'position of start of the local vars in the heap() buffer for a script
+END TYPE
+
+'State of an executing script, used by the old interpreter
+TYPE OldScriptState
+  scr as ScriptData ptr 'script in script() hashtable (duplicated from ScriptInst)
+  scrdata as integer ptr 'convenience pointer to .scr->ptr
+  frames(maxScriptNesting) as OldScriptFrame   'frame(0) points to local variables, others to variables of ancestor scripts
+  heapend as integer    'one-past-end of offsets on the heap used by this script (starts at frame(0).heap)
   stackbase as integer  'position where this script's stack data starts in scrst
   state as integer      'what the script is doing right now
   ptr as integer        'the execution pointer (in int32's from the start of the script data)
   ret as integer        'the scripts current return value
   curargn as integer    'current arg for current statement
   depth as integer      'stack depth of current script
-  id as integer         'id number of current script
+  id as integer         'id number of current script (duplicated from ScriptInst)
+END TYPE
+
+ENUM WaitTypeEnum
+  waitingOnNothing = 0  'The script isn't waiting
+  waitingOnCmd          'A command in the script triggered a wait (ScriptInst.curvalue says which)
+  waitingOnTick         'The script was externally made to wait; ScriptInst.waitarg gives the number of ticks
+END ENUM
+
+'Externally visible state of an executing script, used outside the interpreter
+TYPE ScriptInst
+  scr as ScriptData ptr 'script in script() hashtable
+  waiting as WaitTypeEnum  'Whether the script is waiting
   waitarg as integer    'wait state argument 1
   waitarg2 as integer   'wait state argument 2
   watched as bool       'true for scripts which are being logged
   started as bool       'used only if watched is true: whether the script has started
+  id as integer         'id number of script
 
-  'these 3 items are only current/correct for inactive scripts. The active script's current
-  'command is pointed to by the curcmd (ScriptCommand ptr) global, and copied here
-  'when a script is stopped (either suspended, or interpretloop is left)
+  'these 3 items are only updated when the script interpreter is left. While inside
+  'the script interpreter (command handlers) use the curcmd (ScriptCommand ptr) global.
+  'These are also updated when a script is stopped (either suspended, or interpretloop is left).
   curkind as integer    'kind of current statement
-  curvalue as integer   'value of current statement
-  curargc as integer    'number of args for current statement
+  curvalue as integer   'value/id of current statement
+  curargc as integer    'number of args for current statement  (used only in old script debugger...)
 END TYPE
 
 TYPE QueuedScript
@@ -463,7 +492,7 @@ TYPE ScriptCommand
   kind as integer
   value as integer
   argc as integer
-  args(999999) as integer
+  args(0) as integer
 END TYPE
 
 UNION RGBcolor
@@ -726,6 +755,7 @@ Type AttackData
 	targ_does_not_flinch as bool
 	do_not_exceed_targ_stat as bool
 	nonblocking as bool
+	never_trigger_elemental_counterattacks as bool
 End Type
 
 'An item in a hero's spell list definition (actual spell lists in spell() array of integers)
@@ -949,8 +979,9 @@ TYPE SpriteSize
  name as string
  size as XYPair
  frames as integer
- genmax as integer 'Offset in gen() where max record index is stored
- genmax_offset as integer 'if gen() actually stores num instead of max, this is -1
+ directions as integer
+ genmax as integer         'Offset in gen() where max record index is stored
+ genmax_offset as integer  'if gen() actually stores num instead of max, this is -1
 END TYPE
 
 TYPE DistribState

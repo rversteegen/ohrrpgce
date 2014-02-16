@@ -34,6 +34,7 @@ EXTERN master_channel as IPCChannel
 EXTERN modified_lumps as string vector
 EXTERN lump_reloading as LumpReloadOptions
 EXTERN force_prefsdir_save as integer
+EXTERN persist_reld_doc as DocPtr
 
 'Input handling globals
 EXTERN as integer carray(), csetup()
@@ -83,7 +84,8 @@ EXTERN gold as integer
 EXTERN script() as ScriptData Ptr
 EXTERN global() as integer
 EXTERN heap() as integer
-EXTERN scrat() as ScriptInst
+EXTERN scrat() as OldScriptState
+EXTERN scriptinsts() as ScriptInst
 EXTERN retvals() as integer
 EXTERN wantimmediate as integer
 EXTERN insideinterpreter as integer
@@ -92,6 +94,7 @@ EXTERN nowscript as integer
 EXTERN scriptret as integer
 EXTERN numloadedscr as integer
 EXTERN totalscrmem as integer
+EXTERN scriptcachemem as integer
 EXTERN scriptctr as integer
 EXTERN next_interpreter_check_time as double
 EXTERN interruption_grace_period as integer
@@ -104,7 +107,7 @@ EXTERN scrqLast() as QueuedScript
 'debugger aids
 EXTERN globalp as integer ptr
 EXTERN heapp as integer ptr
-EXTERN scratp as ScriptInst ptr
+EXTERN scratp as OldScriptState ptr
 EXTERN scriptp as ScriptData ptr ptr
 EXTERN retvalsp as integer ptr
 EXTERN plotslicesp as slice ptr ptr

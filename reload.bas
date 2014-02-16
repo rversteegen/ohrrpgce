@@ -3,13 +3,6 @@
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #define RELOADINTERNAL
 
 'if you find yourself debugging heap issues, define this. If the crashes go away, then I (Mike Caron)
@@ -89,7 +82,7 @@ Function RHeapDestroy(byval doc as docptr) as integer
 #endif
 end function
 
-Function RAllocate(byval s as integer, byval doc as docptr) as any ptr
+Function RCallocate(byval s as integer, byval doc as docptr) as any ptr
 	dim ret as any ptr
 	
 #if defined(__FB_WIN32__) and not defined(RELOAD_NOPRIVATEHEAP)
@@ -158,13 +151,15 @@ Function CreateDocument() as DocPtr
 		ret->root = null
 		
 		'The initial string table has one entry: ""
-		ret->strings = RAllocate(sizeof(StringTableEntry), ret)
-		ret->strings[0].str = RAllocate(1, ret)
+		ret->strings = RCallocate(sizeof(StringTableEntry), ret)
+		ret->strings[0].str = RCallocate(1, ret)
 		*ret->strings[0].str = "" 'this is technically redundant.
 		ret->numStrings = 1
 		ret->numAllocStrings = 1
 		ret->stringHash = CreateHashTable(ret, @HashZString)
 		ret->delayLoading = no
+		ret->nameIndexTable = NULL
+		ret->nameIndexTableLen = 0
 		
 		'add the blank string to the hash
 		AddItem(ret->stringHash, ret->strings[0].str, cast(any ptr, 0))
@@ -180,7 +175,7 @@ Function CreateNode(byval doc as DocPtr, nam as string) as NodePtr
 	
 	if doc = null then return null
 	
-	ret = RAllocate(sizeof(Node), doc)
+	ret = RCallocate(sizeof(Node), doc)
 	
 	ret->doc = doc
 	
@@ -372,7 +367,7 @@ Function LoadNode(byval f as FILE ptr, byval doc as DocPtr, byval force_recursiv
 		case rliString
 			dim mysize as integer
 			ret->strSize = cint(ReadVLI(f))
-			ret->str = RAllocate(ret->strSize + 1, doc)
+			ret->str = RCallocate(ret->strSize + 1, doc)
 			fread(ret->str, 1, ret->strSize, f)
 			ret->nodeType = rltString
 		case else
@@ -457,7 +452,7 @@ Sub LoadStringTable(byval f as FILE ptr, byval doc as docptr)
 	for i as integer = 1 to count
 		size = cint(ReadVLI(f))
 		'get #f, , size
-		doc->strings[i].str = RAllocate(size + 1, doc)
+		doc->strings[i].str = RCallocate(size + 1, doc)
 		dim zs as zstring ptr = doc->strings[i].str
 		if size > 0 then
 			fread(zs, 1, size, f)
@@ -575,18 +570,18 @@ Function AddStringToTable(st as string, byval doc as DocPtr) as integer
 	end if
 	
 	if doc->numAllocStrings = 0 then 'This should never run.
-		debug "ERROR! Unallocated string table!"
-		doc->strings = RAllocate(16 * sizeof(StringTableEntry), doc)
+		debugc errBug, "ERROR! Unallocated string table!"
+		doc->strings = RCallocate(16 * sizeof(StringTableEntry), doc)
 		doc->numAllocStrings = 16
 		
-		doc->strings[0].str = Rallocate(1, doc)
+		doc->strings[0].str = RCallocate(1, doc)
 		*doc->strings[0].str = ""
 	end if
 	
 	if doc->numStrings >= doc->numAllocStrings then 'I hope it's only ever equals...
 		dim s as StringTableEntry ptr = RReallocate(doc->strings, doc, sizeof(StringTableEntry) * (doc->numAllocStrings * 2))
 		if s = 0 then 'panic
-			debug "Error resizing string table"
+			debugc errPromptBug, "Error resizing string table"
 			return -1
 		end if
 		for i as integer = doc->numAllocStrings to doc->numAllocStrings * 2 - 1
@@ -599,7 +594,7 @@ Function AddStringToTable(st as string, byval doc as DocPtr) as integer
 	end if
 	
 	
-	doc->strings[doc->numStrings].str = RAllocate(len(st) + 1, doc)
+	doc->strings[doc->numStrings].str = RCallocate(len(st) + 1, doc)
 	*doc->strings[doc->numStrings].str = st
 	
 	AddItem(doc->stringHash, doc->strings[doc->numStrings].str, cast(any ptr, doc->numStrings))
@@ -611,21 +606,37 @@ end function
 
 'RELOADBASIC internal function
 sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval func_num as integer, byval func_bits_size as integer, byval signature as integer, byval total_num_names as integer)
+	'debug "BuildNameIndexTable, func_num = " & func_num & " doc->numStrings = " & doc->numStrings
+	dim allocated_table as bool = NO
+
 	if doc->RBSignature <> signature then
+		'We need to clear/recreate the nameIndexTable, and clear the RBFuncBits table,
+                'so that all functions will get their nodenames re-added to the table
 		doc->RBSignature = signature
 		RDeallocate(doc->nameIndexTable, doc)
 		'We might add more strings; worst case
 		doc->nameIndexTableLen = doc->numStrings + total_num_names
-		doc->nameIndexTable = RAllocate(doc->nameIndexTableLen * sizeof(short), doc)
+		doc->nameIndexTable = RCallocate(doc->nameIndexTableLen * sizeof(short), doc)
+		allocated_table = YES
 		'RDeallocate(doc->nameIndexTableBits, doc)
-		'doc->nameIndexTableBits = RAllocate(((doc->numStrings + 31) \ 32) * 4, doc)
+		'doc->nameIndexTableBits = RCallocate(((doc->numStrings + 31) \ 32) * 4, doc)
 		RDeallocate(doc->RBFuncBits, doc)
-		doc->RBFuncBits = RAllocate(func_bits_size, doc)
+		doc->RBFuncBits = RCallocate(func_bits_size, doc)
+
+		'debug "BuildNameIndexTable(signature=" & signature & ", func_num=" & func_num & ", doc=" & doc & "): creating new table, size=" & doc->nameIndexTableLen
 	end if
 
-	'If this function's nodenames table has been built before, skip
+	'Optimisation: If this function's nodenames table has been built before, skip
 	if doc->RBFuncBits[func_num \ 32] and (1 shl (func_num mod 32)) then exit sub
 	doc->RBFuncBits[func_num \ 32] or= (1 shl (func_num mod 32))
+
+	if allocated_table = NO then
+		'We might add more strings; worst case size
+		doc->nameIndexTableLen = doc->numStrings + total_num_names
+		doc->nameIndexTable = RReallocate(doc->nameIndexTable, doc, doc->nameIndexTableLen * sizeof(short))
+
+		'debug "BuildNameIndexTable(signature=" & signature & ", func_num=" & func_num & ", doc=" & doc & "): updating table, size=" & doc->nameIndexTableLen
+	end if
 
 	'memset(@table(0), &hff, sizeof(integer) * doc->numStrings)  'fills with -1
 
@@ -638,6 +649,7 @@ sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval fu
 			do while b
 				if *b->key = *.name then
 					doc->nameIndexTable[cast(integer, b->item)] = .nameindex
+					'debug "RB: mapping string " & *.name & ", namenum=" & cast(integer, b->item) & " nameidx=" & .nameindex
 					continue for
 				end if
 				b = b->nxt
@@ -645,7 +657,9 @@ sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval fu
 
 			'The string isn't in the table. Add it so that nameIndexTable doesn't
 			'become invalid if it is added.
-			doc->nameIndexTable[AddStringToTable(*.name, doc)] = .nameindex
+			dim namenum as integer = AddStringToTable(*.name, doc)
+			'debug "RB: adding new string " & *.name & ", namenum=" & namenum & " nameidx=" & .nameindex
+			doc->nameIndexTable[namenum] = .nameindex
 		end with
 	next
 end sub
@@ -887,7 +901,7 @@ sub SetContent (byval nod as NodePtr, dat as string)
 		nod->str = 0
 	end if
 	nod->nodeType = rltString
-	nod->str = RAllocate(len(dat) + 1, nod->doc)
+	nod->str = RCallocate(len(dat) + 1, nod->doc)
 	nod->strSize = len(dat)
 	*nod->str = dat
 end sub
@@ -901,7 +915,7 @@ sub SetContent(byval nod as NodePtr, byval zstr as zstring ptr, byval size as in
 		nod->str = 0
 	end if
 	nod->nodeType = rltString
-	nod->str = RAllocate(size + 1, nod->doc)
+	nod->str = RCallocate(size + 1, nod->doc)
 	nod->str[size] = 0
 	nod->strSize = size
 	if zstr <> NULL andalso size <> 0 then memcpy(nod->str, zstr, size)
@@ -1674,6 +1688,21 @@ Function AppendChildNode(byval parent as NodePtr, n as string, val as string) as
 	return ret
 end Function
 
+Function ChildByIndex(byval parent as NodePtr, byval index as integer) as NodePtr
+	'Return the index'th child node, or 0 if no such child exists
+	'This could be slow for long child lists, so don't use it unless you really need it
+	if parent = 0 then return 0
+	dim i as integer
+	dim ch as Node Ptr
+	ch = parent->children
+	do while ch
+		if i = index then return ch
+		ch = ch->nextsib
+		i += 1
+	loop
+	return 0 ' no child matches index
+end Function
+
 Function DocumentRoot(byval doc as DocPtr) as NodePtr
 	return doc->root
 end Function
@@ -1954,10 +1983,10 @@ end function
 
 
 Function CreateHashTable(byval doc as Docptr, byval hashFunc as hashFunction, byval b as integer) as ReloadHash ptr
-	dim ret as HashPtr = RAllocate(sizeof(ReloadHash), doc)
+	dim ret as HashPtr = RCallocate(sizeof(ReloadHash), doc)
 	
 	with *ret
-		.bucket = RAllocate(sizeof(ReloadHashItem ptr) * b, doc)
+		.bucket = RCallocate(sizeof(ReloadHashItem ptr) * b, doc)
 		.numBuckets = b
 		.numItems = 0
 		.doc = doc
@@ -2004,7 +2033,7 @@ End Function
 Sub AddItem(byval h as HashPtr, byval key as ZString ptr, byval item as any ptr)
 	dim hash as uinteger = h->hashFunc(key)
 	
-	dim as ReloadHashItem ptr b, newitem = RAllocate(sizeof(ReloadHashItem), h->doc)
+	dim as ReloadHashItem ptr b, newitem = RCallocate(sizeof(ReloadHashItem), h->doc)
 	
 	newitem->key = key
 	newitem->item = item

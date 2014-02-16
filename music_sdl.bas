@@ -4,18 +4,12 @@
 '' part of OHRRPGCE - see elsewhere for license details
 ''
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "music.bi"
 #include "util.bi"
 #include "common.bi"
 #include "file.bi"
 'warning: due to a FB bug, overloaded functions must be declared before SDL.bi is included
+#undef uint32
 #include "SDL\SDL.bi"
 #include "SDL\SDL_mixer.bi"
 
@@ -35,11 +29,11 @@ declare function Mix_LoadMUS_RW (byval rw as SDL_RWops ptr) as Mix_Music ptr
 'Debian and Ubuntu Linux. We distribute our own copy of SDL_mixer for Windows and Mac,
 'so we don't have to worry there.
 #ifndef __FB_LINUX__
-#define ENUMERATE_DECODERS 
-declare function Mix_GetNumMusicDecoders () as integer
-declare function Mix_GetNumChunkDecoders () as integer
-declare function Mix_GetMusicDecoder (byval index as integer) as zstring ptr
-declare function Mix_GetChunkDecoder (byval index as integer) as zstring ptr
+#define ENUMERATE_DECODERS
+declare function Mix_GetNumMusicDecoders () as Sint32
+declare function Mix_GetNumChunkDecoders () as Sint32
+declare function Mix_GetMusicDecoder (byval index as Sint32) as zstring ptr
+declare function Mix_GetChunkDecoder (byval index as Sint32) as zstring ptr
 #endif
 
 end extern
@@ -91,7 +85,7 @@ function music_get_info() as string
 	ret += ", SDL_Mixer " & ver->major & "." & ver->minor & "." & ver->patch
 
 	if music_on = 1 then
-		dim freq as integer, format as ushort, channels as integer
+		dim freq as int32, format as ushort, channels as int32
 		Mix_QuerySpec(@freq, @format, @channels)
 		ret += " (" & freq & "Hz"
 
@@ -325,7 +319,7 @@ end function
 
 '------------ Sound effects --------------
 
-DECLARE sub SDL_done_playing cdecl(byval channel as integer)
+DECLARE sub SDL_done_playing cdecl(byval channel as int32)
 
 TYPE sound_effect
 	used as bool        'whether this slot is free
@@ -573,7 +567,7 @@ Sub UnloadSound(byval slot as integer)
 	end with
 end Sub
 
-sub SDL_done_playing cdecl(byval channel as integer)
+sub SDL_done_playing cdecl(byval channel as int32)
 	sfx_slots(channel).playing = NO
 end sub
 

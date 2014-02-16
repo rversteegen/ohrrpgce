@@ -22,7 +22,7 @@ DECLARE SUB exitprogram (byval need_fade_out as bool = NO, byval errorout as int
 DECLARE SUB keyboardsetup
 DECLARE SUB verify_quit
 DECLARE FUNCTION titlescreen () as integer
-DECLARE SUB reloadnpc ()
+DECLARE SUB reset_npc_graphics ()
 DECLARE FUNCTION mapstatetemp(byval mapnum as integer, prefix as string) as string
 DECLARE SUB savemapstate_gmap(byval mapnum as integer, prefix as string)
 DECLARE SUB savemapstate_npcl OVERLOAD (byval mapnum as integer, prefix as string)
@@ -58,7 +58,6 @@ DECLARE SUB check_game_custom_versions_match ()
 DECLARE SUB receive_file_updates ()
 DECLARE SUB try_to_reload_files_onmap ()
 DECLARE SUB try_reload_lumps_anywhere ()
-DECLARE FUNCTION compatpage() as integer
 DECLARE SUB live_preview_menu ()
 
 

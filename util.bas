@@ -7,13 +7,6 @@
 ' any FreeBasic program. Nothing in here can depend on Allmodex, nor on any
 ' gfx or music backend, nor on any other part of the OHR
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 CONST STACK_SIZE_INC = 512 ' in integers
 
 #include "file.bi"   'FB header
@@ -23,6 +16,9 @@ CONST STACK_SIZE_INC = 512 ' in integers
 #include "cutil.bi"
 #include "os.bi"
 #include "common_base.bi"
+#ifdef __FB_MAIN__
+#include "testing.bi"
+#endif
 
 '#ifdef __FB_ANDROID__
 '#define DEBUG_FILE_IO
@@ -292,7 +288,7 @@ END FUNCTION
 
 'Returns the number of characters at the start of two strings that are equal
 FUNCTION length_matching(s1 as string, s2 as string) as integer
- DIM as ubyte ptr p1 = @s1[0], p2 = @s2[0]
+ DIM as byte ptr p1 = @s1[0], p2 = @s2[0]
  DIM as integer ret = 0
  WHILE *p1 AND *p2
   IF *p1 <> *p2 THEN RETURN ret
@@ -556,6 +552,11 @@ FUNCTION zero_default(n as integer, zerocaption as string="default", displayoffs
  RETURN "" & (n + displayoffset)
 END FUNCTION
 
+FUNCTION blank_default(s as string, blankcaption as string="default") as string
+ IF s = "" THEN RETURN blankcaption
+ RETURN s
+END FUNCTION
+
 'FIXME: Can be replaced by IIF in most recent FB version, once we switch to it
 FUNCTION iif_string(byval condition as integer, s1 as string, s2 as string) as string
  IF condition THEN RETURN s1 ELSE RETURN s2
@@ -727,24 +728,24 @@ SUB sort_integers_indices(indices() as integer, byval start as integer ptr, byva
  NEXT
 END SUB
 
-FUNCTION integer_compare CDECL (byval a as integer ptr, byval b as integer ptr) as integer
+FUNCTION integer_compare CDECL (byval a as integer ptr, byval b as integer ptr) as long
  IF *a < *b THEN RETURN -1
  IF *a > *b THEN RETURN 1
  'implicitly RETURN 0 (it's faster to omit the RETURN :-)
 END FUNCTION
 
-FUNCTION integerptr_compare CDECL (byval a as integer ptr ptr, byval b as integer ptr ptr) as integer
+FUNCTION integerptr_compare CDECL (byval a as integer ptr ptr, byval b as integer ptr ptr) as long
  IF **a < **b THEN RETURN -1
  IF **a > **b THEN RETURN 1
  'implicitly RETURN 0 (it's faster to omit the RETURN :-)
 END FUNCTION
 
 'a string ptr is a pointer to a FB string descriptor
-FUNCTION string_compare CDECL (byval a as string ptr, byval b as string ptr) as integer
+FUNCTION string_compare CDECL (byval a as string ptr, byval b as string ptr) as long
  'This is equivalent, but the code below can be adapted for case insensitive compare (and is faster (what, how?!))
  'RETURN fb_StrCompare( *a, -1, *b, -1)
 
- DIM as integer ret = 0, somenull = 0
+ DIM as long ret = 0, somenull = 0
  'Ah, brings back happy memories of C hacking, doesn'it?
  IF @((*a)[0]) = 0 THEN ret -= 1: somenull = 1
  IF @((*b)[0]) = 0 THEN ret += 1: somenull = 1
@@ -766,7 +767,7 @@ FUNCTION string_compare CDECL (byval a as string ptr, byval b as string ptr) as 
  RETURN 0
 END FUNCTION
 
-FUNCTION stringptr_compare CDECL (byval a as string ptr ptr, byval b as string ptr ptr) as integer
+FUNCTION stringptr_compare CDECL (byval a as string ptr ptr, byval b as string ptr ptr) as long
  RETURN string_compare(*a, *b)
 END FUNCTION
 
@@ -864,7 +865,7 @@ SUB remove_string_cache (cache() as IntStrPair, byval key as integer)
 END SUB
 
 FUNCTION strhash(hstr as string) as unsigned integer
- RETURN stringhash(cptr(ubyte ptr, strptr(hstr)), len(hstr))
+ RETURN stringhash(cptr(zstring ptr, strptr(hstr)), len(hstr))
 END FUNCTION
 
 
@@ -884,13 +885,13 @@ FUNCTION hash_file(filename as string) as unsigned integer
   hash += hash SHL 8
   DIM buf(4095) as ubyte
   WHILE size > 0
-    DIM readamnt as integer
+    DIM readamnt as uinteger
     fgetiob fh, , @buf(0), 4096, @readamnt
     IF readamnt < size AND readamnt <> 4096 THEN
       debug "hash_file: fgetiob failed!"
       RETURN 0
     END IF
-    hash xor= stringhash(@buf(0), readamnt)
+    hash xor= stringhash(cptr(zstring ptr, @buf(0)), readamnt)
     hash += ROT(hash, 5)
     size -= 4096
   WEND
@@ -909,32 +910,73 @@ FUNCTION normalize_path(filename as string) as string
   RETURN ret
 END FUNCTION
 
-FUNCTION trimpath(filename as string) as string
-  'Return the file/directory name without path, and without trailing slash
-  'Eg. "a/b/c/" -> "c"
-  DIM i as integer
+FUNCTION trim_trailing_slashes(filename as string) as string
   DIM retend as integer = LEN(filename)
-  DIM ch as byte
-  IF retend > 0 THEN
-    ch = filename[retend - 1]
-    IF ispathsep(ch) THEN retend -= 1
-  END IF
-  FOR i = retend TO 1 STEP -1
-    IF ispathsep(filename[i - 1]) THEN
-      RETURN MID(filename, i + 1, retend - (i + 1) + 1)
+  WHILE retend > 0
+    DIM ch as byte = filename[retend - 1]
+    IF ispathsep(ch) THEN
+      retend -= 1
+    ELSE
+      EXIT WHILE
     END IF
-  NEXT
+  WEND
   RETURN MID(filename, 1, retend)
 END FUNCTION
 
-FUNCTION trimfilename (filename as string) as string
-  'Return the path without the filename, and without trailing slash
-  'NOT the complement to trimpath:
-  'Eg. "a/b/c/" -> "a/b/c"
-  DIM i as integer
-  DIM ret as string = normalize_path(filename)
-  RETURN MID(ret, 1, large(0, INSTRREV(ret, SLASH) - 1))
+FUNCTION trimpath(filename as string) as string
+  'Return the file/directory name without path, and without trailing slash
+  'See testcases below
+  DIM temp as string = trim_trailing_slashes(filename)
+  FOR i as integer = LEN(temp) TO 1 STEP -1
+    IF ispathsep(temp[i - 1]) THEN
+      RETURN MID(temp, i + 1, LEN(temp) - (i + 1) + 1)
+    END IF
+  NEXT
+  RETURN temp
 END FUNCTION
+
+#IFDEF __FB_MAIN__
+#DEFINE testtrimp(path, expected) testEqual(trimpath(path), normalize_path(expected))
+
+startTest(trimpath)
+  testtrimp("a/b/cat//", "cat")
+  testtrimp("a/b/cat/",  "cat")
+  testtrimp("a/b/cat",   "cat")
+  testtrimp("cat/",      "cat")
+  testtrimp("/cat/",     "cat")
+  testtrimp("/",         ""   )
+  testtrimp("",          ""   )
+endTest
+#ENDIF
+
+FUNCTION trimfilename (filename as string) as string
+  'Trim the last component of a path (which may be a directory rather than file!)
+  'Return path without trailing slash. See testcases.
+  'This is the complement to trimpath
+  DIM ret as string = trim_trailing_slashes(normalize_path(filename))
+  ret = MID(ret, 1, large(0, INSTRREV(ret, SLASH) - 1))
+  IF is_absolute_path(filename) AND is_absolute_path(ret) = NO THEN
+    RETURN get_path_root(filename)
+  END IF
+  return ret
+END FUNCTION
+
+#IFDEF __FB_MAIN__
+#DEFINE testtrimf(path, expected) testEqual(trimfilename(path), normalize_path(expected))
+
+startTest(trimfilename)
+  testtrimf("a/b/cat//", "a/b")
+  testtrimf("a/b/cat/",  "a/b")
+  testtrimf("a/b/cat",   "a/b")
+  testtrimf("cat/",      "")
+  testtrimf("/cat/",     "/")
+  #IFDEF __FB_WIN32__
+    testtrimf("c:/vak",          "c:\")
+    testtrimf("c:\vak/",         "c:\")
+    testtrimf("c:\",             "c:\")
+  #ENDIF
+endTest
+#ENDIF
 
 FUNCTION trimextension (filename as string) as string
   'Return the filename (including path) without extension
@@ -966,20 +1008,23 @@ FUNCTION justextension (filename as string) as string
   END IF
 END FUNCTION
 
-FUNCTION get_driveletter (pathname as string) as string
+'If a path is absolute return the root directory: / on Unix, X:/ or X:\ or / or \ on Windows
+'Otherwise return ""
+'FIXME: should handle network paths on Windows too
+FUNCTION get_path_root (pathname as string) as string
 #IFDEF __FB_WIN32__
   DIM first as string = LCASE(LEFT(pathname, 1))
-  IF first >= "a" ANDALSO first <= "z" ANDALSO MID(pathname, 2, 2) = ":\" THEN RETURN MID(pathname, 1, 3)
+  DIM temp as string = MID(pathname, 2, 2)
+  IF first >= "a" ANDALSO first <= "z" ANDALSO (temp = ":\" OR temp = ":/") THEN
+    RETURN MID(pathname, 1, 3)
+  END IF
 #ENDIF
+  IF LEN(pathname) ANDALSO ispathsep(pathname[0]) THEN RETURN MID(pathname, 1, 1)
   RETURN ""
 END FUNCTION
 
 FUNCTION is_absolute_path (sDir as string) as integer
-  IF left(sDir, 1) = SLASH THEN RETURN -1
-#IFDEF __FB_WIN32__
-  IF LEN(get_driveletter(sDir)) THEN RETURN -1
-#ENDIF
-  RETURN 0
+  RETURN LEN(get_path_root(sDir)) <> 0
 END FUNCTION
 
 'Make a path absolute. See also absolute_with_orig_path
@@ -996,19 +1041,18 @@ FUNCTION absolute_with_orig_path(file_or_dir as string, byval add_slash as integ
 END FUNCTION
 
 'Remove redundant ../, ./, // in a path. Handles both relative and absolute paths
-'Result has normalised slashes
+'Result has normalised slashes and no trailing slash (unless it's the root /).
+'See testcases below
 FUNCTION simplify_path(sDir as string) as string
   DIM piecesarray() as string
   DIM pieces as string vector
   DIM pathname as string = normalize_path(sDir)
   DIM isabsolute as integer = is_absolute_path(pathname)
   'remove drive letter
-  DIM driveletter as string = get_driveletter(pathname)
-  DIM ret as string = driveletter
-  IF LEN(driveletter) THEN
-   pathname = MID(pathname, 3)
-  ELSEIF isabsolute THEN
-   ret = SLASH
+  DIM ret as string = get_path_root(pathname)
+  'Trim everything except the final slash of the root
+  IF LEN(ret) THEN
+   pathname = MID(pathname, LEN(ret))
   END IF
 
   split pathname, piecesarray(), SLASH
@@ -1042,6 +1086,25 @@ FUNCTION simplify_path(sDir as string) as string
   RETURN ret
 END FUNCTION
 
+#IFDEF __FB_MAIN__
+#DEFINE testsimplify(path, expected) testEqual(simplify_path(path), normalize_path(expected))
+
+startTest(simplify_path)
+  testsimplify("testcases",         "testcases")
+  testsimplify(".././../foo/",      "../../foo")
+  testsimplify(".././a/../../foo/", "../../foo")
+  testsimplify("/..",   "/")
+  testsimplify("",      ".")
+  testsimplify(".",     ".")
+  testsimplify("/../.", "/")
+  testsimplify("./../../../../a",   "../../../../a")
+  testsimplify("//.//../a/../c/b/../d", "/c/d")
+  '? simplify_path(absolute_path(".."))
+  '? "curdir=" & curdir
+  '? "reallysimplify('" & path & "')=" + simplify_path_further(absolute_path("a/b/.svn"), curdir)
+endTest
+#ENDIF
+
 'Make a path relative if it's below 'fromwhere' (which is a path, not a file)
 'It would be possible to also possibly return something starting with some ../'s, but it's more trouble
 FUNCTION simplify_path_further(pathname as string, fromwhere as string) as string
@@ -1070,26 +1133,6 @@ FUNCTION simplify_path_further(pathname as string, fromwhere as string) as strin
   END IF
   RETURN path
 END FUNCTION
-
-
-'sub testsim(path as string)
-'  ? "simplify('" & path & "')=" + simplify_path(path)
-'end sub
-'
-'startTest
-'  sim("testcases")
-'  sim(absolute_path(".."))
-'  sim(".././../foo/")
-'  sim(".././a/../../foo/")
-'  sim("/..")
-'  sim("")
-'  sim(".")
-'  sim("/../.")
-'  sim("./../../../../a")
-'  sim("//.//../a/../c/b/../d")
-'  ? "curdir=" & curdir
-'  ? "reallysimplify('" & path & "')=" + simplify_path_further(absolute_path("a/b/.svn"), curdir)
-'endTest
 
 'Go up a number of directories. Simplifies and normalises.
 'pathname is interpreted as a directory even if missing the final slash!
@@ -1138,7 +1181,7 @@ END FUNCTION
 
 FUNCTION escape_filenamec CDECL (byval filename as zstring ptr) as zstring ptr
   DIM ret as string = escape_filename(*filename)
-  DIM retz as zstring ptr = malloc(LEN(ret) + 1)
+  DIM retz as zstring ptr = ALLOCATE(LEN(ret) + 1)
   strcpy retz, cstring(ret)
   RETURN retz
 END FUNCTION
@@ -1841,6 +1884,10 @@ SUB xbsave (filename as string, array() as integer, bsize as integer)
 	CLOSE #ff
 END SUB
 
+'bb(): bit array, 16 bits per integer (rest ignored)
+'w:    index in bb() to start at (index where bits 0-15 are)
+'b:    bit number (counting from bb(w))
+'v:    value, zero or nonzero
 SUB setbit (bb() as integer, byval w as integer, byval b as integer, byval v as integer)
 	dim mask as uinteger
 	dim woff as integer
@@ -1863,7 +1910,9 @@ SUB setbit (bb() as integer, byval w as integer, byval b as integer, byval v as 
 	end if
 end SUB
 
-FUNCTION readbit (bb() as integer, byval w as integer, byval b as integer)  as integer
+'Returns 0 or 1. Use xreadbit if you want NO or YES instead.
+'See setbit for full documentation
+FUNCTION readbit (bb() as integer, byval w as integer, byval b as integer) as integer
 	dim mask as uinteger
 	dim woff as integer
 	dim wb as integer
@@ -2112,4 +2161,11 @@ FUNCTION ini_value_int (s as string, byval default as integer=0) as integer
  END IF
  DIM tail as string = MID(s, eqpos + 1)
  RETURN str2int(tail, -1)
+END FUNCTION
+
+FUNCTION string_index_in_array(s as string, a() as string, notfound as integer=-1) as integer
+ FOR i as integer = 0 TO UBOUND(a)
+  IF a(i) = s THEN RETURN i
+ NEXT i
+ RETURN notfound
 END FUNCTION

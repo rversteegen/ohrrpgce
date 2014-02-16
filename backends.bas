@@ -2,13 +2,6 @@
 '(C) Copyright 1997-2005 James Paige and Hamster Republic Productions
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 
-#ifdef LANG_DEPRECATED
- #define __langtok #lang
- __langtok "deprecated"
- OPTION STATIC
- OPTION EXPLICIT
-#endif
-
 #include "config.bi"
 #include "ver.txt"
 #include "common.bi"
@@ -54,14 +47,22 @@ dim gfx_screenshot as function (byval fname as zstring ptr) as integer
 dim gfx_setwindowed as sub (byval iswindow as integer)
 dim gfx_windowtitle as sub (byval title as zstring ptr)
 dim gfx_getwindowstate as function () as WindowState ptr
-dim gfx_getresize as function (byref ret as XYPair) as integer
-dim gfx_setresizable as sub (byval able as integer)
+dim gfx_supports_variable_resolution as function () as bool
+dim gfx_get_resize as function (byref ret as XYPair) as integer
+dim gfx_set_resizable as function (enable as bool, min_width as integer, min_height as integer) as bool
+dim gfx_recenter_window_hint as sub ()
 dim gfx_setoption as function (byval opt as zstring ptr, byval arg as zstring ptr) as integer
 dim gfx_describe_options as function () as zstring ptr
 dim gfx_printchar as sub (byval ch as integer, byval x as integer, byval y as integer)
 dim gfx_get_safe_zone_margin as function () as single
 dim gfx_set_safe_zone_margin as sub (byval margin as single)
 dim gfx_supports_safe_zone_margin as function () as bool
+dim gfx_ouya_purchase_request as sub(dev_id as string, identifier as string, key_der as string)
+dim gfx_ouya_purchase_is_ready as function() as bool
+dim gfx_ouya_purchase_succeeded as function() as bool
+dim gfx_ouya_receipts_request as sub (dev_id as string, key_der as string)
+dim gfx_ouya_receipts_are_ready as function () as bool
+dim gfx_ouya_receipts_result as function () as string
 dim io_init as sub ()
 dim io_pollkeyevents as sub ()
 dim io_waitprocessing as sub ()
@@ -166,11 +167,20 @@ dim as string gfxbackend, musicbackend
 dim as string gfxbackendinfo, musicbackendinfo
 dim as string systeminfo
 
-function gfx_dummy_getresize(byref ret as XYPair) as integer : return NO : end function
-sub gfx_dummy_setresizable(byval able as integer) : end sub
+function gfx_dummy_supports_variable_resolution() as bool : return NO : end function
+function gfx_dummy_get_resize(byref ret as XYPair) as integer : return NO : end function
+function gfx_dummy_set_resizable(enable as bool, min_width as integer, min_height as integer) as bool : return NO : end function
+sub gfx_dummy_recenter_window_hint() : end sub
 function gfx_dummy_get_safe_zone_margin() as single : return 0.0 : end function
 sub gfx_dummy_set_safe_zone_margin(byval margin as single) : end sub
 function gfx_dummy_supports_safe_zone_margin() as bool : return NO : end function
+sub gfx_dummy_ouya_purchase_request(dev_id as string, identifier as string, key_der as string) : end sub
+function gfx_dummy_ouya_purchase_is_ready() as bool : return YES : end function 'returns YES because we don't want to wait for the timeout
+function gfx_dummy_ouya_purchase_succeeded() as bool : return NO : end function
+sub gfx_dummy_ouya_receipts_request(dev_id as string, key_der as string) : end sub
+function gfx_dummy_ouya_receipts_are_ready() as bool : return YES : end function 'returns YES because we don't want to wait for the timeout
+function gfx_dummy_ouya_receipts_result() as string : return "" : end function
+
 sub io_dummy_waitprocessing() : end sub
 sub io_dummy_pollkeyevents() : end sub
 sub io_dummy_updatekeys(byval keybd as integer ptr) : end sub
@@ -193,12 +203,20 @@ sub set_default_gfx_function_ptrs
 	default_gfx_render_procs()
 	gfx_getversion = NULL
 	gfx_setdebugfunc = NULL
-	gfx_getresize = @gfx_dummy_getresize
-	gfx_setresizable = @gfx_dummy_setresizable
+	gfx_supports_variable_resolution = @gfx_dummy_supports_variable_resolution
+	gfx_get_resize = @gfx_dummy_get_resize
+	gfx_set_resizable = @gfx_dummy_set_resizable
+	gfx_recenter_window_hint = @gfx_dummy_recenter_window_hint
 	gfx_printchar = NULL
 	gfx_set_safe_zone_margin = @gfx_dummy_set_safe_zone_margin
 	gfx_get_safe_zone_margin = @gfx_dummy_get_safe_zone_margin
 	gfx_supports_safe_zone_margin = @gfx_dummy_supports_safe_zone_margin
+	gfx_ouya_purchase_request = @gfx_dummy_ouya_purchase_request
+	gfx_ouya_purchase_is_ready = @gfx_dummy_ouya_purchase_is_ready
+	gfx_ouya_purchase_succeeded = @gfx_dummy_ouya_purchase_succeeded
+	gfx_ouya_receipts_request = @gfx_dummy_ouya_receipts_request
+	gfx_ouya_receipts_are_ready = @gfx_dummy_ouya_receipts_are_ready
+	gfx_ouya_receipts_result = @gfx_dummy_ouya_receipts_result
 	io_pollkeyevents = @io_dummy_pollkeyevents
 	io_waitprocessing = @io_dummy_waitprocessing
 	io_keybits = @io_amx_keybits   'Special handling when missing, see gfx_load_library
@@ -268,6 +286,12 @@ function gfx_load_library(byval backendinfo as GfxBackendStuff ptr, filename as 
 	TRYLOAD (gfx_get_safe_zone_margin)
 	TRYLOAD (gfx_set_safe_zone_margin)
 	TRYLOAD (gfx_supports_safe_zone_margin)
+	TRYLOAD (gfx_ouya_purchase_request)
+	TRYLOAD (gfx_ouya_purchase_is_ready)
+	TRYLOAD (gfx_ouya_purchase_succeeded)
+	TRYLOAD (gfx_ouya_receipts_request)
+	TRYLOAD (gfx_ouya_receipts_are_ready)
+	TRYLOAD (gfx_ouya_receipts_result)
 
 #ifdef USE_RASTERIZER
 	'New rendering API (FIXME: complete this)
