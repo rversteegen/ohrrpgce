@@ -1,4 +1,4 @@
--- HamsterSpeak Compiler
+-- HamsterSpeak Compiler, HSPP preprocessor fork
 
 --(C) Copyright 2002 James Paige and Hamster Republic Productions
 -- Please read LICENSE.txt for GPL License details and disclaimer of liability
@@ -9,6 +9,15 @@
 -- This code is written in Euphoria 4.0. You can get the Free Open-Source
 -- Euphoria compiler from http://OpenEuphoria.com . I also highly recommend
 -- David Cuny's EE editor
+
+
+-- Changes from Hspeak:
+-- Additional betweenable operators <-, -> (free to define; <- dangerous), as well as %, !+ (hspp internal use only)
+-- readglobal(constant) is optimised
+-- globalindex and len keywords:
+-- a[b] and a.b translated to globalindex(a,b) by hspp
+-- len(a) is tranlated to read/writeglobal(a-1 [,...])
+-- You can't use increment or decrement on those three.
 
 ---------------------------------------------------------------------------
 

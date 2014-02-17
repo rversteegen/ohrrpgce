@@ -1,6 +1,25 @@
 --(C) Copyright 2011 Ralph Versteegen, James Paige and Hamster Republic Productions
 -- Please read LICENSE.txt for GPL License details and disclaimer of liability
 
+-- To compile:
+-- scons hspeak
+-- mv hspeak hspeak_true
+-- makehspp.sh
+
+-- See hspeak.exw for further info
+-- The % operator is inserted instead of globalindex keyword, for a.b or a[b]
+-- var is short for variable
+-- a whole bunch of timer stuff
+-- 'setsizeof typename, sizeof, heapname'  where sizeof is an integer, heapname used as:
+-- 'alloc: typename' becomes some heap stuff, assumes global named 'heap HEAPNAME free list'
+-- 'dealloc: typename(ptr)' becomes something similar
+-- ! allows casting:  foo!typename[n] becomes foo !+ (sizeof(typename)*n)
+--   where !+ is an alias for + with higher precedence than +
+--   This appears to be broken: shouldn't it spit out % instead of !+?
+-- sizeof is NOT anything. Use a constant (in the above sizeof(T) translates to a the value given to setsizeof)
+-- 
+-- Looks like I started implementing & for string concatenation, didn't get far
+
 ---------------------------------------------------------------------------
 
 without warning       --to avoid annoying warnings
@@ -655,13 +674,13 @@ function lex_line(sequence s,integer i,integer stop,srcpos pos)
         tokens=append(tokens,{"begin",(pos+i)*power(2,9)+1})
       elsif state=LEX_END then
         tokens=append(tokens,{"end",(pos+i)*power(2,9)+1})
-      elsif state=LEX_BEGINA then
+      elsif state=LEX_BEGINA then  --[ token, not used
         tokens=append(tokens,{"%",virtual_pos((pos+i)*power(2,9))})   --zero len
         tokens=append(tokens,{"begin",virtual_pos((pos+i)*power(2,9)+1)})
-      elsif state=LEX_ENDA then
+      elsif state=LEX_ENDA then   --] token, also not used
         tokens=append(tokens,{"end",virtual_pos((pos+i)*power(2,9)+1)})
       elsif state=LEX_COMMA then
-      elsif state=LEX_DOT then
+      elsif state=LEX_DOT then  --. token, not used
         tokens=append(tokens,{"%",virtual_pos((pos+i)*power(2,9)+1)})
 		ident="obj:"
         textstart=i
@@ -969,7 +988,7 @@ function get_typeinfo(sequence typename, integer what)
   return typeinfo[at][what]
 end function
 
-function translate_timer_waits(sequence tokens)
+function do_preprocessing(sequence tokens)
   srcpos pos, vpos
   sequence text
   sequence new_tokens
@@ -1047,6 +1066,8 @@ if (npc is walking (%s)) then (
 
 	-- eats  ! TYPENAME [
 	----->  !+ ( SIZEOF * (
+        -- for example  foo!typename[n]  becomes foo !+ (sizeof(typename) * n))
+        -- where !+ is an alias for add
     if equal("!",text) then
 	  extra_brackets &= {1}
 
@@ -1314,9 +1335,9 @@ procedure preprocess_file(sequence filename)
       --cmd&=translate_plotstrings(tokens)
     end if
 
-    --process
+    --process: this is where all the good stuff is
     --new_tokens=translate_string_concat(tokens)
-    new_tokens=translate_timer_waits(tokens)
+    new_tokens=do_preprocessing(tokens)
 
     --do depth counting, so that we know when we're outside a script
     --also records the name of a script
