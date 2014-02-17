@@ -9,6 +9,7 @@
 -- See hspeak.exw for further info
 -- The % operator is inserted instead of globalindex keyword, for a.b or a[b]
 -- var is short for variable
+-- Translate $"..." to $NS="..."
 -- a whole bunch of timer stuff
 -- 'setsizeof typename, sizeof, heapname'  where sizeof is an integer, heapname used as:
 -- 'alloc: typename' becomes some heap stuff, assumes global named 'heap HEAPNAME free list'
@@ -1063,6 +1064,13 @@ if (npc is walking (%s)) then (
 	  continue
     end if
 
+    -- Translate $"..." to $NS="..."
+    if equal("$",text) and equal(tokens[i+1][CMD_TEXT][1],'\"') then
+	  new_tokens &= { tokens[i], {"NS",vpos}, {"=",vpos} }
+	  i+=1
+	  continue
+    end if
+
 
 	-- eats  ! TYPENAME [
 	----->  !+ ( SIZEOF * (
@@ -1388,5 +1396,5 @@ else
   color_print("No .hspp file found, passing through to HSpeak...\n",{})
 end if
 
-system(compiler_dir&"hspeak_true -y " & dest_file, 2)
+system(compiler_dir&"hspeak_true -y" & optlist & " " & dest_file, 2)
 --opt_wait_for_key()

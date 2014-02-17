@@ -17,7 +17,7 @@
 -- globalindex and len keywords:
 -- a[b] and a.b translated to globalindex(a,b) by hspp
 -- len(a) is tranlated to read/writeglobal(a-1 [,...])
--- You can't use increment or decrement on those three.
+-- You can only increment or dec globalindex, not len.
 
 ---------------------------------------------------------------------------
 
@@ -3096,12 +3096,15 @@ function expand_macros(NodeList tree, sequence vars)
   NodeList newtree
   NodeList newargs
   string new_string
+  string nodename
   Token string_token
   sequence src_position
   sequence temp
   sequence vartree
   sequence kind_and_id
   srcpos pos
+  string oper
+  Node address, oldvalue, newvalue
   integer ptr
   integer kind, id
   ptr=1
@@ -3134,12 +3137,35 @@ function expand_macros(NodeList tree, sequence vars)
       end if
     end if
 
-    --increment(globalindex(a,b),c)    -> setvariable(__temp,add(a,b)), writeglobal(__temp,add(readglobal(__temp),c))
---    if equal("increment",tree[ptr][TREE_TRUNK][CMD_TEXT])
---       or equal("decrement",tree[ptr][TREE_TRUNK][CMD_TEXT]) then
+    --<s> increment(globalindex(a,b),c)    -> setvariable(__temp,add(a,b)), writeglobal(__temp,add(readglobal(__temp),c))  </s>
+    
+    --increment(globalindex(a,b),c)    -> writeglobal(add(a,b),add(readglobal(add(a,b)),c))
 
---    end if
+   nodename = tree[ptr][TREE_TRUNK][CMD_TEXT]
+   if equal("increment",nodename) or equal("decrement",nodename) then
+      vartree=tree[ptr][TREE_BRANCHES][1]
+      if equal(vartree[TREE_TRUNK][CMD_TEXT],"globalindex") then
+        if equal("increment",nodename) then
+          oper = "add"
+        else
+          oper = "subtract"
+        end if
+        
+        tree[ptr][TREE_TRUNK][CMD_TEXT]="writeglobal"
 
+        address = tree[ptr][TREE_BRANCHES][1]  -- address == globalindex(a,b)
+        address[TREE_TRUNK][CMD_TEXT]="add"    -- address == add(a,b)
+
+        pos=vartree[TREE_TRUNK][CMD_POS]
+        oldvalue = { {"readglobal",pos}, {address} }
+
+        --add/sub(readglobal(add(a,b)),c)
+        newvalue={ {oper,pos}, { oldvalue, tree[ptr][TREE_BRANCHES][2] } }
+
+        tree[ptr][TREE_TRUNK][CMD_TEXT]="writeglobal"
+        tree[ptr][TREE_BRANCHES] = {address, newvalue}
+      end if
+    end if
 
     --recurse first, because tree[ptr] might be split up (as in 'assert')
     if length(tree[ptr][TREE_BRANCHES]) then
@@ -4637,7 +4663,9 @@ procedure compile_each_script()
   exit_timing_zone()
 
   for i=1 to length(all_scripts) do
-   -- color_print("%s\n",{all_scripts[i][SCRIPT_NAME]})
+    if find('s',optlist) then
+      color_print("%s\n",{all_scripts[i][SCRIPT_NAME]})
+    end if
     reenter_timing_zone("compile_a_script")
     compile_a_script(i)
     exit_timing_zone()
