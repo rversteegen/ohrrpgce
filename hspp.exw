@@ -14,7 +14,7 @@
 -- 'setsizeof typename, sizeof, heapname'  where sizeof is an integer, heapname used as:
 -- 'alloc: typename' becomes some heap stuff, assumes global named 'heap HEAPNAME free list'
 -- 'dealloc: typename(ptr)' becomes something similar
--- ! allows casting:  foo!typename[n] becomes foo !+ (sizeof(typename)*n)
+-- ~ allows casting:  foo~typename[n] becomes foo !+ (sizeof(typename)*n)
 --   where !+ is an alias for + with higher precedence than +
 --   This appears to be broken: shouldn't it spit out % instead of !+?
 -- sizeof is NOT anything. Use a constant (in the above sizeof(T) translates to a the value given to setsizeof)
@@ -93,7 +93,7 @@ sequence include_stack    include_stack={}
 
 sequence separator_list   separator_list={
                              "+=","-=","$+","$=","$","+","--","/","*","^^","^"
-                             ,"==","<>",">>","<<","<=",">=",":=","=","&&","||","&","%",".","[","]","!"
+                             ,"==","<>",">>","<<","<=",">=",":=","=","&&","||","&","%",".","[","]","~"
                           }
 sequence lexer_table      lexer_table={}
 sequence lexer_table_key2 lexer_table_key2={}
@@ -1076,7 +1076,7 @@ if (npc is walking (%s)) then (
 	----->  !+ ( SIZEOF * (
         -- for example  foo!typename[n]  becomes foo !+ (sizeof(typename) * n))
         -- where !+ is an alias for add
-    if equal("!",text) then
+    if equal("~",text) then
 	  extra_brackets &= {1}
 
 	  typename=tokens[i+1][CMD_TEXT]
