@@ -3436,8 +3436,8 @@ sub draw_line_fragment(byval dest as Frame ptr, byref state as PrintStrState, by
 end sub
 
 
-'Draw a string. You will normally want to use one of the friendlier overloads for this,
-'probably the most complicated function in the engine.
+'Internal routine for drawing a string (PrintStrState is not public).
+'Use printstr or edgeprint instead.
 '
 'Arguments:
 '
@@ -3574,7 +3574,7 @@ sub render_text (byval dest as Frame ptr, byref state as PrintStrState, text as 
 end sub
 
 'Calculate size of part of a block of text when drawn, returned in retsize
-sub text_layout_dimensions (byval retsize as StringSize ptr, z as string, byval endchar as integer = 999999, byval maxlines as integer = 999999, byval wide as integer = 999999, byval fontnum as integer, byval withtags as bool = YES, byval withnewlines as bool = YES)
+sub text_layout_dimensions (byval retsize as StringSize ptr, z as string, byval endchar as integer = 999999, byval wide as integer = 999999, byval fontnum as integer, byval withtags as bool = YES, byval withnewlines as bool = YES)
 'debug "DIMEN char " & endchar
 	dim state as PrintStrState
 	with state
@@ -3624,7 +3624,7 @@ end sub
 'Returns the length in pixels of the longest line of a *non-autowrapped* string.
 function textwidth(z as string, byval fontnum as integer = 0, byval withtags as bool = YES, byval withnewlines as bool = YES) as integer
 	dim retsize as StringSize
-	text_layout_dimensions @retsize, z, len(z), , , fontnum, withtags, withnewlines
+	text_layout_dimensions @retsize, z, len(z), , fontnum, withtags, withnewlines
 'debug "width of '" & z & "' is "
 	return retsize.w
 end function
@@ -3856,7 +3856,7 @@ sub font_create_edged (byval newfont as Font ptr, byval basefont as Font ptr)
 	'This is a hack; create a size*1 size frame, which we use as a buffer for pixel data
 	font->layers(0)->spr = frame_new(size, 1, , YES)
 
-	font->h = basefont->h  '+ 2
+	font->h = basefont->h
 	font->offset = basefont->offset
 	font->cols = basefont->cols + 1
 	font->outline_col = font->cols
@@ -3865,7 +3865,7 @@ sub font_create_edged (byval newfont as Font ptr, byval basefont as Font ptr)
 	'Stuff currently hardcoded to keep edged font working as before
 	font->offset.x = 1
 	font->offset.y = 1
-	'font->h += 2
+	font->h += 2
 
 	'dim as ubyte ptr maskp = basefont->layers(0)->spr->mask
 	dim as ubyte ptr sptr

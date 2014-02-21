@@ -1009,21 +1009,100 @@ Sub WrapTextSlice(byval sl as slice ptr, lines() as string)
  dat->line_count = UBOUND(lines) + 1
 End sub
 
-Sub DrawTextSlice(byval sl as slice ptr, byval p as integer)
+/'
+Sub NewDrawTextSlice(byval sl as slice ptr, byval p as integer)
+ 'All string indices within this function are 0-based
+
  if sl = 0 then exit sub
  if sl->SliceData = 0 then exit sub
 
  dim dat as TextSliceData ptr = cptr(TextSliceData ptr, sl->SliceData)
- 
- dim lines() as string
- WrapTextSlice sl, lines()
+
+dim withtags as integer = yes
+
+ with *dat
+
+  dim chars_until_wait as integer = .chars_per_tick
+
+  'Process tags
+  .waitticks = large(0, .waitticks - 1)
+  if .waitticks = 0 then
+   while .curchar < len(.s) - 1
+
+    if withtags ANDALSO memcmp(@.s[.curchar], @"${", 2) = 0 then
+     dim action as string
+     dim intarg as integer
+     dim closebrace as integer = parse_tag(.s, .curchar, @action, @intarg)
+     if closebrace then
+      if action = "W" then
+
+      else
+       goto badtexttag
+      end if
+
+'      .curchar = closebrace + 1
+'      continue for
+     end if
+    end if
+    badtexttag:
+
+    'This is only reached if a tag was not processed
+
+    'Check wait conditions
+    if isspace(.s[.curchar]) = 0 then
+     if .ticks_per_char then .waitticks = .ticks_per_char
+     'if chars_until_wait is 0, this never waits
+     chars_until_wait -= 1
+     if chars_until_wait = 0 then .waitticks = 1
+    end if
+    if .s[.curchar] = asc(!"\n") then .waitticks = .ticks_per_line
+
+    if .waitticks then exit while
+    .curchar += 1
+   wend
+  end if
+
+  'Display text
+  dim col as integer = iif(.col = 0, uilook(uiText), .col)
+  dim fontnum as integer = iif(.outline, 1, 0)
+  textcolor col, .bgcol
+
+  dim wide as integer = 0
+  if .wrap then
+   if sl->width > 7 then
+    wide = sl->width
+   elseif sl->width <= 7 then
+    wide = vpages(page)->w - sl->X
+   end if
+  end if
+
+
+  printstr vpages(p), .s, sl->screenx, sl->screeny, wide, fontnum, YES, .startline, .curchar, YES
+
+ end with
+End sub
+'/
+
+
+Sub DrawTextSlice(byval sl as slice ptr, byval page as integer)
+ if sl = 0 then exit sub
+ if sl->SliceData = 0 then exit sub
+
+ dim dat as TextSliceData ptr = cptr(TextSliceData ptr, sl->SliceData)
 
  dim col as integer = dat->col
  if col = 0 then col = uilook(uiText)
- dim chars as integer = 0
+
+
+ 'dim lines() as string
+ 'WrapTextSlice sl, lines()
+
+ 'dim chars as integer = 0
  dat->insert_tog = dat->insert_tog xor 1
  dim insert_size as integer = 8
  if dat->outline then insert_size = 9
+
+/'
  dim last_line as integer = ubound(lines)
  if dat->line_limit <> 0 then last_line = small(last_line, dat->first_line + dat->line_limit - 1)
  dim ypos as integer
@@ -1041,13 +1120,69 @@ Sub DrawTextSlice(byval sl as slice ptr, byval p as integer)
    end if
    chars += len(lines(i)) + 1
   end if
-  if dat->outline then
-   edgeprint lines(i), sl->screenx, sl->screeny + ypos, col, p
-  else
-   textcolor col, dat->bgcol
-   printstr lines(i), sl->screenx, sl->screeny + ypos, p
-  end if
+  ' if dat->outline then
+  '  edgeprint lines(i), sl->screenx, sl->screeny + ypos, col, p
+  ' else
+  '  textcolor col, dat->bgcol
+  '  printstr lines(i), sl->screenx, sl->screeny + ypos, p
+  ' end if
  next
+'/
+ 'NEW STUFF
+' End Sub
+
+' Sub DrawTextSlice(byval sl as slice ptr, byval page as integer)
+'  if sl = 0 then exit sub
+'  if sl->SliceData = 0 then exit sub
+
+'  dim dat as TextSliceData ptr = cptr(TextSliceData ptr, sl->SliceData)
+
+'  if dat
+
+'  dim col as integer = dat->col
+'  if col = 0 then col = uilook(uiText)
+
+
+  dim fontnum as integer = iif(dat->outline, 1, 0)
+  textcolor col, dat->bgcol
+
+  dim wide as integer
+  if dat->wrap then
+   if sl->width > 7 then
+    wide = sl->width
+   elseif sl->width <= 7 then
+    wide = vpages(page)->w - sl->X
+   end if
+  else
+   wide = 9999999
+  end if
+
+dim withtags as bool = YES
+dim withnewlines as bool = YES
+
+  if dat->show_insert then
+
+   dim retsize as StringSize
+   text_layout_dimensions @retsize, dat->s, dat->insert, wide, fontnum, withtags, withnewlines
+
+   'FIXME:if off end of line, don't go to next line
+
+   ' FIXME: should find out the size of this character rather than using insert_size
+   rectangle sl->screenx + retsize.lastw, sl->screeny + retsize.h - insert_size, insert_size, insert_size, uilook(uiHighlight + dat->insert_tog), page
+
+  end if
+
+  ' FIXME: this yoffset shouldn't be calculated like this
+  DIM yoffset as integer =dat->first_line * 10
+
+  DIM oldclip as ClipState
+  saveclip oldclip
+  setclip sl->screenx, sl->screeny, 9999, sl->screeny + sl->Height
+
+  printstr vpages(page), dat->s, sl->screenx, sl->screeny - yoffset, wide, fontnum, withtags, withnewlines
+  loadclip oldclip
+
+
 end sub
 
 Sub UpdateTextSlice(byval sl as slice ptr)
@@ -1055,7 +1190,41 @@ Sub UpdateTextSlice(byval sl as slice ptr)
  if sl->SliceData = 0 then exit sub
  
  dim dat as TextSliceData ptr = cptr(TextSliceData ptr, sl->SliceData)
- 
+
+ ' Only compute the width of the text if not wrapping.
+ ' When wrapping the width of the SLICE must be fixed.
+  dim wide as integer
+  if dat->wrap then
+   if sl->width > 7 then
+    wide = sl->width
+   elseif sl->width <= 7 then
+    'NOTE: that this depends on the X position is a long standing bug
+    wide = get_resolution_w() - sl->X
+   end if
+  else
+   wide = 9999999
+  end if
+
+  'However we compute the height always. And the height when
+  'wrapping depends on the width AND the position of the slice!!!
+
+
+dim withtags as bool = YES
+dim withnewlines as bool = YES
+	dim retsize as StringSize
+	text_layout_dimensions @retsize, dat->s, , wide, 0, withtags, withnewlines
+        debug "UpdateTextSlice: text_layout_dimensions('" & shorten_to_right(dat->s, 500) & "') is w="& retsize.w & " h=" & retsize.h & " lines=" & retsize.lines & " lastw=" & retsize.lastw & " lasth=" & retsize.lasth
+
+' FIXME: The only place line_limit is actually used for anything other then
+' trimming the slice to fit is for the 'fade in' textbox effect. But mostly
+' we should get rid of this and replace with clipping instead.
+sl->Height = retsize.h
+ if dat->line_limit > 0 then
+  sl->Height = small(sl->Height, dat->line_limit * 10)
+ end if
+
+ dat->line_count = retsize.h / 10    ' FIXME
+/'
  '--Note that automatic setting of wrapped text height doesn't matter if this slice is set ->Fill = YES the parent fill height will override
  dim lines() as string
  WrapTextSlice sl, lines()
@@ -1065,9 +1234,11 @@ Sub UpdateTextSlice(byval sl as slice ptr)
   high = small(high, dat->line_limit)
  end if
  sl->Height = high * 10
- 
+'/ 
+
  if dat->Wrap = NO then
-  sl->Width = textWidth(dat->s)
+  'sl->Width = textWidth(dat->s)
+  sl->Width = retsize.w
  else
   '--Wrapped text does not change the slice width. Do that manually (or by setting ->Fill = YES)
  end if

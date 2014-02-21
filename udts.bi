@@ -592,7 +592,7 @@ End Type
 Type StringSize
 	h as integer         'Height (in pixels)
 	w as integer         'Greatest width of any line
-	endchar as integer   'For when maxlines is specified: one character past last line
+	endchar as integer   'One character past last line
 	lastw as integer     'Width of last line fragment
 	lasth as integer     'Height of last line fragment
 	lines as integer     'Number of lines (always at least 1)   FIXME:  not true
@@ -600,7 +600,7 @@ Type StringSize
 End Type
 
 Type StringCharPos
-	charnum as integer   'offset in string; equal to len(text) if off the end
+	charnum as integer   '0-based offset in string; equal to len(text) if off the end
 	exacthit as bool     'whether actually on this character, or just the nearest (eg. off end of line)
 	x as integer         'position is in screen coordinates
 	y as integer

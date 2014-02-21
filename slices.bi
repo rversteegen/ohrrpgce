@@ -207,6 +207,17 @@ Type TextSliceData
  line_limit as integer 'use to stop wrapping text from flowing too far down. 0 is no limit
                        '-1 can be used to hide all lines
  line_count as integer 'automatically populated when the slice changes
+
+ autowrap as integer   'Automatically wrap lines, always true except for old textboxes
+
+ 'state for text tags
+ waitticks as integer  'The number of ticks to wait
+ startline as integer  'The first line printed (0-based)
+ curchar as integer    'The last character printed, tags past this point are yet to be processed (0-based)
+ 'Only one of these 3 should be nonzero
+ ticks_per_char as integer
+ chars_per_tick as integer
+ ticks_per_line as integer
 End Type
 
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!
