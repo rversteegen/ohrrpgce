@@ -53,7 +53,8 @@ CONST SL_MAP_LAYER7           = -101007
 'Next lookup code: -100020
 
 Enum SliceTypes
- slRoot
+ slInvalid = -1
+ slRoot = 0
  slSpecial
  slContainer
  slRectangle
@@ -286,7 +287,8 @@ DECLARE Sub SwapSiblingSlices(byval sl1 as slice ptr, byval sl2 as slice ptr)
 DECLARE Function LookupSlice (byval lookup_code as integer, byval start_sl as slice ptr = NULL) as slice ptr
 DECLARE Function LastChild(byval parent as slice ptr) as slice ptr
 DECLARE Function VerifySliceLineage(byval sl as slice ptr, parent as slice ptr) as integer
-DECLARE Function UpdateScreenSlice() as integer
+DECLARE Function UpdateRootSliceSize(sl as slice ptr) as bool
+DECLARE Function UpdateScreenSlice() as bool
 DECLARE Sub RefreshSliceScreenPos(byval sl as slice ptr)
 DECLARE Function SliceXAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceYAnchor(byval sl as Slice Ptr) as integer
@@ -412,10 +414,10 @@ DECLARE Sub ChangeScrunchSlice(byval sl as slice ptr,_
                       byval subpixels as integer=1)
 
 '--Saving and loading slices
-DECLARE Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
-DECLARE Sub SliceSaveToFile(byval sl as Slice Ptr, filename as string)
-DECLARE Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
-DECLARE Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string)
+DECLARE Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles as bool=NO)
+DECLARE Sub SliceSaveToFile(byval sl as Slice Ptr, filename as string, save_handles as bool=NO)
+DECLARE Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handles as bool=NO)
+DECLARE Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string, load_handles as bool=NO)
 
 
 EXTERN as SliceTable_ SliceTable

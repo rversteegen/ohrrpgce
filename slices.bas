@@ -10,11 +10,13 @@
 #include "const.bi"
 #include "scrconst.bi"
 #include "uiconst.bi"
+#include "reloadext.bi"
 
 #include "slices.bi"
 
 #ifdef IS_GAME
-extern plotslices() as slice ptr
+ extern plotslices() as slice ptr
+ DECLARE SUB set_plotslice_handle(byval sl as Slice Ptr, handle as integer)
 #endif
 
 '==============================================================================
@@ -55,8 +57,8 @@ WITH *ScreenSlice
  .Y = 0
  .ScreenX = 0
  .ScreenY = 0
- .Width = 320
- .Height = 200
+ .Width = get_resolution_w()
+ .Height = get_resolution_h()
 END WITH
 
 'frame_new_view changes the position of the origin. This is the transform needed to translate
@@ -212,7 +214,8 @@ FUNCTION SliceTypeByName (s as string) as SliceTypes
   CASE "Ellipse":        RETURN slEllipse
   CASE "Scrunch":        RETURN slScrunch
  END SELECT
- debug "Unrecognized slice name """ & s & """"
+ debugc errError, "Unrecognized slice name """ & s & """"
+ RETURN slInvalid
 END FUNCTION
 
 END EXTERN
@@ -302,8 +305,8 @@ FUNCTION NewSliceOfType (byval t as SliceTypes, byval parent as Slice Ptr=0, byv
     'size even if DrawSlice has not been called on it yet. This
     'is needed to make second-level roots .Fill=YES work correctly
     'in the transitional phase when root is not yet drawn
-    .Width = 320
-    .Height = 200
+    .Width = get_resolution_w()
+    .Height = get_resolution_h()
    END WITH
   CASE slSpecial:
    newsl = NewSlice(parent)
@@ -995,7 +998,7 @@ Sub WrapTextSlice(byval sl as slice ptr, lines() as string)
  if dat->wrap AND sl->width > 7 then
   d = wordwrap(dat->s, int(sl->width / 8))
  elseif dat->wrap AND sl->width <= 7 then
-  d = wordwrap(dat->s, int((320 - sl->X) / 8))
+  d = wordwrap(dat->s, int((get_resolution_w() - sl->X) / 8))
  else
   d = dat->s
  end if
@@ -2274,15 +2277,24 @@ Sub DrawSliceAt(byval s as slice ptr, byval x as integer, byval y as integer, by
  end if
 end sub
 
-Function UpdateScreenSlice() as integer
- 'Match ScreenSlice size to window size; returns true if the size changed
+Function UpdateRootSliceSize(sl as slice ptr) as bool
+ 'Update the size fo a slice to match the window size.
+ 'Normally the root slice is set to fill; calling this function is only needed
+ 'when it isn't.
+ 'Returns true if the size changed
+ if sl = 0 then return NO
  dim changed as integer = NO
- with *ScreenSlice
+ with *sl
   changed = (.Width <> get_resolution_w()) or (.Height <> get_resolution_h())
   .Width = get_resolution_w()
   .Height = get_resolution_h()
  end with
  return changed
+end function
+
+Function UpdateScreenSlice() as bool
+ 'Match ScreenSlice size to window size; returns true if the size changed
+ return UpdateRootSliceSize(ScreenSlice)
 end function
 
 Sub RefreshSliceScreenPos(byval s as slice ptr)
@@ -2484,7 +2496,7 @@ End Sub
 
 Extern "C"
 
-Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
+Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles as bool=NO)
  if sl = 0 then debug "SliceSaveToNode null slice ptr": Exit Sub
  if node = 0 then debug "SliceSaveToNode null node ptr": Exit Sub
  if Reload.NumChildren(node) <> 0 then debug "SliceSaveToNode non-empty node has " & Reload.NumChildren(node) & " children"
@@ -2528,6 +2540,14 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
  SaveProp node, "extra1", sl->Extra(1)
  SaveProp node, "extra2", sl->Extra(2)
  SaveProp node, "type", SliceTypeName(sl)
+ #IFDEF IS_GAME
+  if save_handles then
+   ' This only occurs when saving a game.
+   if sl->TableSlot then
+    SaveProp node, "tableslot_handle", sl->TableSlot
+   end if
+  end if
+ #ENDIF
  '--Save properties specific to this slice type
  sl->Save(sl, node)
  '--Now save all the children
@@ -2542,13 +2562,13 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
   do while ch_slice <> 0
    ch_node = Reload.CreateNode(children, "")
    Reload.AddChild(children, ch_node)
-   SliceSaveToNode ch_slice, ch_node
+   SliceSaveToNode ch_slice, ch_node, save_handles
    ch_slice = ch_slice->NextSibling
   loop
  end if
 End sub
 
-Sub SliceSaveToFile(byval sl as Slice Ptr, filename as string)
+Sub SliceSaveToFile(byval sl as Slice Ptr, filename as string, save_handles as bool=NO)
  
  'First create a reload document
  dim doc as Reload.DocPtr
@@ -2562,7 +2582,7 @@ Sub SliceSaveToFile(byval sl as Slice Ptr, filename as string)
  dim node as Reload.Nodeptr
  node = Reload.CreateNode(doc, "")
  Reload.SetRootNode(doc, node)
- SliceSaveToNode sl, node
+ SliceSaveToNode sl, node, save_handles
  
  'Write the reload document to the file
  Reload.SerializeBin filename, doc
@@ -2588,7 +2608,7 @@ Function LoadPropBool(node as Reload.Nodeptr, propname as string, byval defaultv
  return Reload.GetChildNodeBool(node, propname, defaultval)
 End function
 
-Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
+Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handles as bool=NO)
  if sl = 0 then debug "SliceLoadFromNode null slice ptr": Exit Sub
  if node = 0 then debug "SliceLoadFromNode null node ptr": Exit Sub
  if sl->NumChildren > 0 then debug "SliceLoadFromNode slice already has " & sl->numChildren & " children"
@@ -2622,12 +2642,21 @@ Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
  sl->Extra(0) = LoadProp(node, "extra0")
  sl->Extra(1) = LoadProp(node, "extra1")
  sl->Extra(2) = LoadProp(node, "extra2")
+ #IFDEF IS_GAME
+  if load_handles then
+   ' This only occurs when loading a saved game.
+   ' Slice handles should never be loaded from a collection in the middle of a game!
+   dim tableslot as integer = LoadProp(node, "tableslot_handle")
+   if tableslot then set_plotslice_handle(sl, tableslot)
+  end if
+ #ENDIF
  'now update the type
  dim typestr as string = LoadPropStr(node, "type")
- if typestr = "" then
-  debug "Bad type while loading slice from node"
+ dim typenum as SliceTypes = SliceTypeByName(typestr)
+ if typenum = slInvalid then
+  debugc errPromptError, "Could not load slice (invalid type): " & Reload.Ext.GetNodePath(node)
+  exit sub
  else
-  dim typenum as integer = SliceTypeByName(typestr)
   dim newsl as Slice Ptr = NewSliceOfType(typenum)
   ReplaceSliceType sl, newsl
   '--Load properties specific to this slice type
@@ -2642,13 +2671,13 @@ Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr)
   dim ch_node as Reload.NodePtr = Reload.FirstChild(children)
   do while ch_node <> 0
    ch_slice = NewSlice(sl)
-   SliceLoadFromNode ch_slice, ch_node
+   SliceLoadFromNode ch_slice, ch_node, load_handles
    ch_node = Reload.NextSibling(ch_node)
   loop
  end if
 End sub
 
-Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string)
+Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string, load_handles as bool=NO)
  
  'First create a reload document
  dim doc as Reload.DocPtr
@@ -2661,7 +2690,7 @@ Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string)
  'Populate the slice tree with data from the reload tree
  dim node as Reload.Nodeptr
  node = Reload.DocumentRoot(doc)
- SliceLoadFromNode sl, node
+ SliceLoadFromNode sl, node, load_handles
  
  Reload.FreeDocument(doc)
 
