@@ -89,6 +89,7 @@ sequence compiler_dir     compiler_dir=""
 sequence source_file      source_file=""
 sequence dest_file        dest_file=""
 sequence optlist          optlist={}
+sequence extra_args       extra_args=""
 sequence include_stack    include_stack={}
 
 sequence separator_list   separator_list={
@@ -305,13 +306,19 @@ function init()
   optlist={}
   index=3
   while index<=length(args) do
-    if args[index][1]='-' then
+    if equal(args[index],"--reuse-ids") then
+      color_print("Reusing script ID numbers from previous compile\n",{})
+      extra_args&=" --reuse-ids " & args[index+1]
+      args=delete_element(args,index)
+      args=delete_element(args,index)
+    elsif args[index][1]='-' then
       optlist=optlist&hs_lower(args[index][2..length(args[index])])
       args=delete_element(args,index)
     else
       index+=1  
     end if
   end while
+color_print(optlist, {})
   check_arg_count(args)
   source_file=normalize_filename(args[3])
 --  if equal(extension_only(source_file),"hspp")=0 then
@@ -1396,5 +1403,6 @@ else
   color_print("No .hspp file found, passing through to HSpeak...\n",{})
 end if
 
-system(compiler_dir&"hspeak_true -y" & optlist & " " & dest_file, 2)
+
+system(compiler_dir&"hspeak_true -y" & optlist & extra_args & " " & dest_file, 2)
 --opt_wait_for_key()
