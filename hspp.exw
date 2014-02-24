@@ -39,8 +39,8 @@ include std/search.e
 constant false=0
 constant true=1
 
-constant COMPILER_VERSION=1
-constant COMPILER_SUB_VERSION=".3"
+constant COMPILER_VERSION=140
+constant COMPILER_SUB_VERSION=""
 constant COPYRIGHT_DATE="2011"
 
 --these constants are color-flags. May add more colors, up to 254
@@ -240,7 +240,7 @@ end procedure
 --prints out the copyright info, usage info, and command-line options
 procedure check_arg_count(sequence args)
   if length(args)=2 then
-    wrap_print("HamsterSpeak preprocessor v%d%s (C)2011 Ralph Versteegen, James Paige\n",{COMPILER_VERSION,COMPILER_SUB_VERSION,COPYRIGHT_DATE})
+    wrap_print("HamsterSpeak preprocessor v%d (C)2011 Ralph Versteegen, James Paige\n",{COMPILER_VERSION,COPYRIGHT_DATE})
     wrap_print("Please read LICENSE.txt for GPL License details and disclaimer of liability",{})
     wrap_print(COLYEL&"%s [-ckwx] source.hss"&COLWHI&"\n\n",{hs_upper(file_only(args[2]))})
     color_print("   -k do not wait for a keypress when finished\n",{})

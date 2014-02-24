@@ -577,7 +577,7 @@ FUNCTION compilescripts(fname as string) as string
    'don't start calling the wrong scripts due to ID remapping
    hspeak_ver = get_hspeak_version(hspeak)
    'debug "hspeak version '" & hspeak_ver & "'"
-   IF 0 AND (hspeak_ver = "" ORELSE strcmp(STRPTR(hspeak_ver), STRPTR("3Pa")) < 0) THEN
+   IF (hspeak_ver = "" ORELSE strcmp(STRPTR(hspeak_ver), STRPTR("3Pa")) < 0) THEN
     'If get_hspeak_version failed (returning ""), then spawn_and_wait should as well
     IF LEN(hspeak_ver) THEN
      notification "Your copy of HSpeak is out of date. You should use the latest version."
