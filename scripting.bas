@@ -17,6 +17,7 @@
 #include "yetmore.bi"
 #include "yetmore2.bi"
 #include "scripting.bi"
+#include "sliceedit.bi"
 #include "string.bi" 'for format
 
 
@@ -977,12 +978,10 @@ FUNCTION commandname (byval id as integer) as string
  RETURN ret
 END FUNCTION
 
-'For use inside a script command handler only
+'Returns script command name if inside a script command handler
 FUNCTION current_command_name() as string
  IF insideinterpreter = NO ORELSE curcmd->kind <> tyfunct THEN
-  'Best not to display a bug since we're probably about to report an error anyway
-  debugc errBug, "current_command_name called in bad context"
-  RETURN ""
+  RETURN "(no command)"
  END IF
  RETURN commandname(curcmd->value)
 END FUNCTION
@@ -1029,9 +1028,11 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
  DIM as string errtext()
  DIM as integer scriptcmdhash
 
+ 'err_suppress_lvl is always at least serrIgnore
+ IF errorlevel <= err_suppress_lvl THEN EXIT SUB
+
  debug "Scripterr(" & errorlevel & "): " + e
 
- IF errorlevel <= err_suppress_lvl THEN EXIT SUB
  IF nowscript >= 0 THEN
   scriptcmdhash = scrat(nowscript).id * 100000 + scrat(nowscript).ptr * 10 + scrat(nowscript).depth
   IF int_array_find(ignorelist(), scriptcmdhash) <> -1 THEN EXIT SUB
@@ -1055,15 +1056,17 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
 
  append_menu_item menu, "Ignore"
  append_menu_item menu, "Don't display any more script errors"
- append_menu_item menu, "Set error suppression level to " & errorlevel
+ 'append_menu_item menu, "Set error suppression level to " & errorlevel
+ append_menu_item menu, "Stop this script"
  append_menu_item menu, "Suppress errors from this source"
  append_menu_item menu, "Exit game (without saving)"
+ append_menu_item menu, "Enter slice debugger"
  IF recursivecall = 1 THEN  'don't reenter the debugger if possibly already inside!
   IF scrwatch <> 0 THEN
-   append_menu_item menu, "Return to debugger"
-   state.pt = 5
+   append_menu_item menu, "Return to script debugger"
+   state.pt = 6
   ELSE
-   append_menu_item menu, "Enter debugger"
+   append_menu_item menu, "Enter script debugger"
   END IF
   IF running_as_slave THEN append_menu_item menu, "Reload scripts"
  END IF
@@ -1093,22 +1096,30 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
   IF enter_or_space() THEN
    SELECT CASE state.pt
     CASE 0 'ignore
+     EXIT DO
     CASE 1 'hide errors (but not engine bugs)
      err_suppress_lvl = serrError
-    CASE 2 'hide some errors
-     err_suppress_lvl = errorlevel
+     EXIT DO
+    ' CASE 2 'hide some errors
+    '  err_suppress_lvl = errorlevel
+    CASE 2
+     killscriptthread
+     EXIT DO
     CASE 3 'hide errors from this command
      int_array_append(ignorelist(), scriptcmdhash)
+     EXIT DO
     CASE 4
      debug "scripterr: User opted to quit"
      exitprogram NO
     CASE 5
+     slice_editor SliceTable.Root
+    CASE 6 'Script debugger
      scrwatch = 2
      scriptwatcher scrwatch, 0 'clean mode, script state view mode
-    CASE 6 'reload scripts
+    CASE 7 'reload scripts
      reload_scripts
+     EXIT DO
    END SELECT
-   EXIT DO
   END IF
   
   usemenu state
@@ -1133,10 +1144,10 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
 
   draw_menu menu, state, vpage
 
-  IF state.pt = 5 THEN
+  IF state.pt = 6 THEN
    textcolor uilook(uiSelectedItem), 0 
-   printstr "The debugger is a usability train-wreck!", 0, 184, vpage
-   printstr "Press F1 inside the debugger to see help", 0, 192, vpage
+   printstr "The debugger is a usability train-wreck!", 0, vpages(vpage)->h - 16, vpage
+   printstr "Press F1 inside the debugger to see help", 0, vpages(vpage)->h - 8, vpage
   END IF
   setvispage vpage
 
