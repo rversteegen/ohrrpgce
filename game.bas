@@ -547,12 +547,10 @@ fadeout 0, 0, 0
 'and main loop all override it
 queue_fade_in
 
-IF gen(genResolutionX) > 0 OR gen(genResolutionY) > 0 THEN
+IF gen(genResolutionX) <> 320 OR gen(genResolutionY) <> 200 THEN
  IF gfxbackend <> "sdl" THEN
   notification "This game requires use of the gfx_sdl backend; other graphics backends do not support customisable resolution"
  ELSE
-  IF gen(genResolutionX) <= 0 THEN gen(genResolutionX) = 320
-  IF gen(genResolutionY) <= 0 THEN gen(genResolutionY) = 200
   set_resolution(gen(genResolutionX), gen(genResolutionY))
   gfx_recenter_window_hint()
  END IF
@@ -943,7 +941,38 @@ SUB doloadgame(byval load_slot as integer)
 END SUB
 
 SUB displayall()
+ ' We need to update walkabout slice positions before calling
+ ' setmapxy, in the case where the camera is following a hero
+ ' or NPC, but this is pretty wasteful. One alternative
+ ' is to only update a single slice as required from setmapxy,
+ ' or to stop using walkabout slices there.
  update_walkabout_slices()
+
+ ' Update camera position
+ setmapxy
+ WITH *(SliceTable.MapRoot)
+  .X = mapx * -1
+  .Y = mapy * -1
+ END WITH
+
+ ' Walkabout slice positions (other than the hero/NPC being
+ ' followed) also depend on the camera position, so need to be
+ ' repositioned after the camera is updated.
+ ' TODO: I think that ideally slices could be set to wrap their children,
+ ' that way slices manually parented to a map layer will always
+ ' draw in the correct position, whereas currently this breaks on wrapping
+ ' maps. This would also remove the need for this
+ ' second update_walkabout_slices call.
+ update_walkabout_slices()
+
+ 'Map layers edge handling
+ SELECT CASE gmap(5)
+  CASE 1 'Wrap
+   setoutside -1
+  CASE 0, 2 'Crop, use default edge tile
+   'We set an edge tile on crop maps in case the map is smaller than the screen
+   setoutside gmap(6)
+ END SELECT
 
  IF readbit(gen(), genSuspendBits, suspendoverlay) THEN
   ChangeMapSlice SliceTable.MapLayer(0), , , , 0   'draw all
@@ -952,11 +981,6 @@ SUB displayall()
   ChangeMapSlice SliceTable.MapLayer(0), , , , 1   'draw non-overhead only
   SliceTable.ObsoleteOverhead->Visible = YES
  END IF
- setmapxy  'Update camera position
- WITH *(SliceTable.MapRoot)
-  .X = mapx * -1
-  .Y = mapy * -1
- END WITH
  update_backdrop_slice
 
  DrawSlice(SliceTable.Root, dpage)
@@ -964,7 +988,7 @@ SUB displayall()
  'The order in which we update and draw things is a little strange; I'm just preserving what it was
  animatetilesets tilesets()
  IF harmtileflash = YES THEN
-  rectangle 0, 0, 320, 200, gmap(10), dpage
+  rectangle 0, 0, vpages(dpage)->w, vpages(dpage)->h, gmap(10), dpage
   harmtileflash = NO
  END IF
  IF txt.showing = YES THEN update_textbox
@@ -974,11 +998,11 @@ SUB displayall()
  FOR i as integer = 0 TO topmenu
   draw_menu menus(i), mstates(i), dpage
  NEXT i
- edgeprint scriptout, 0, 190, uilook(uiText), dpage
+ edgeprint scriptout, 0, vpages(dpage)->h - 10, uilook(uiText), dpage
  showplotstrings
  IF gam.showtext_ticks > 0 THEN
   gam.showtext_ticks -= 1
-  edgeprint gam.showtext, xstring(gam.showtext, 160), 180, uilook(uiText), dpage
+  edgeprint gam.showtext, xstring(gam.showtext, vpages(dpage)->w \ 2), vpages(dpage)->h - 20, uilook(uiText), dpage
  END IF
  IF gam.debug_npc_info THEN npc_debug_display
  IF gam.debug_showtags THEN tagdisplay
@@ -2403,13 +2427,6 @@ SUB loadmap_gmap(byval mapnum as integer)
 
  loadmaptilesets tilesets(), gmap()
  refresh_map_slice_tilesets
-
- SELECT CASE gmap(5) '--outer edge wrapping
-  CASE 0, 1'--crop edges or wrap
-   setoutside -1
-  CASE 2
-   setoutside gmap(6)
- END SELECT
 END SUB
 
 SUB loadmap_npcl(byval mapnum as integer)
@@ -3415,11 +3432,15 @@ SUB init_text_box_slices(txt as TextBoxState)
   '--free any already-loaded textbox
   DeleteSlice @(txt.sl)
  END IF
+
+ 'The textbox root slice is parent to the box and choicebox
  txt.sl = NewSliceOfType(slContainer, SliceTable.TextBox, SL_TEXTBOX_ROOT)
  WITH *txt.sl
-  '.Fill = YES
-  .Width = 320
-  .Height = 200
+  'Should not be set to fill, as scripts may expect to be able to move it around.
+  'Set the width and height according to SliceTable.TextBox's size and padding.
+  .Fill = YES
+  .Parent->ChildRefresh(.Parent, txt.sl)
+  .Fill = NO
  END WITH
 
  '--Create a new slice for the text box
@@ -3436,7 +3457,7 @@ SUB init_text_box_slices(txt as TextBoxState)
 
  '--position and size the text box
  WITH *text_box
-  .X = 4
+  .X = 0
   .Y = 4 + txt.box.vertical_offset * 4
   .Width = 312
   .Height = get_text_box_height(txt.box)
@@ -3444,6 +3465,11 @@ SUB init_text_box_slices(txt as TextBoxState)
   .PaddingRight = 4
   .PaddingTop = 3
   .PaddingBottom = 3
+  'Horizontal centering
+  .AlignHoriz = 1
+  .AnchorHoriz = 1
+  .AnchorVert = 0
+  .AlignVert = 0
  END WITH
 
  '--Set up the actual text
@@ -3529,7 +3555,7 @@ SUB init_text_box_slices(txt as TextBoxState)
    '--FIXME: This hackyness just reproduces the old method of positioning the choicebox.
    '--FIXME: eventually the game author should have control over this.
    .Y = text_box->Y + text_box->Height + 12
-   IF .Y > vpages(dpage)->h - (.Height + 4) THEN .Y = 32
+   IF .Y > txt.sl->Height - (.Height + 4) THEN .Y = 32
   END WITH
   ChangeRectangleSlice choice_box, txt.box.boxstyle
   REDIM choice_sl(1) as Slice Ptr
