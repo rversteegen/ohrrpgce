@@ -1001,7 +1001,7 @@ SUB sort_menu_and_select_visible_item(menu as MenuDef, state as MenuState)
 END SUB
 
 ' Returns index in menu.items[]
-FUNCTION append_menu_item(byref menu as MenuDef, caption as string, byval t as integer=0, byval sub_t as integer=0, byval dataptr as ANY ptr=0) as integer
+FUNCTION append_menu_item(byref menu as MenuDef, caption as string, byval t as integer=0, byval sub_t as integer=0, byval dataptr as any ptr=0, byval extra0 as integer=0) as integer
  DIM i as integer
  DIM item as MenuDefItem ptr
  item = NEW MenuDefItem
@@ -1010,6 +1010,7 @@ FUNCTION append_menu_item(byref menu as MenuDef, caption as string, byval t as i
   .t = t
   .sub_t = sub_t
   .dataptr = dataptr
+  .extra(0) = extra0
  END WITH
 
  dlist_append(menu.itemlist, item) 'updates .numitems

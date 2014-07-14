@@ -2021,7 +2021,7 @@ SUB script_functions(byval cmdid as integer)
   IF bound_arg(retvals(0), 0, UBOUND(plotstr), "string ID", !"$# = \"...\"") THEN
    WITH *scriptinsts(nowscript).scr
     DIM stringp as integer ptr = .ptr + .strtable + retvals(1)
-    IF .strtable + retvals(1) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
+    IF retvals(1) >= .strtablelen ORELSE retvals(1) + (stringp[0] + 3) \ 4 >= .strtablelen THEN
      scripterr "script corrupt: illegal string offset", serrError
     ELSE
      plotstr(retvals(0)).s = read32bitstring(stringp)
@@ -2034,6 +2034,7 @@ SUB script_functions(byval cmdid as integer)
    WITH *scriptinsts(nowscript).scr
     DIM stringp as integer ptr = .ptr + .strtable + retvals(1)
     IF .strtable + retvals(1) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
+    IF retvals(1) >= .strtablelen ORELSE retvals(1) + (stringp[0] + 3) \ 4 >= .strtablelen THEN
      scripterr "script corrupt: illegal string offset", serrError
     ELSE
      plotstr(retvals(0)).s += read32bitstring(stringp)
@@ -3017,7 +3018,7 @@ SUB script_functions(byval cmdid as integer)
     IF i <> 0 THEN result &= ", "
     WITH *scriptinsts(nowscript).scr
      DIM stringp as integer ptr = .ptr + .strtable + retvals(i)
-     IF .strtable + retvals(i) >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
+     IF retvals(i) >= .strtablelen ORELSE retvals(i) + (stringp[0] + 3) \ 4 >= .strtablelen THEN
       scripterr "script corrupt: illegal string offset", serrError
      ELSE
       result &= read32bitstring(stringp) & " = "

@@ -28,8 +28,7 @@ DECLARE SUB subdoarg (byref si as OldScriptState)
 DECLARE SUB subreturn (byref si as OldScriptState)
 DECLARE SUB unwindtodo (byref si as OldScriptState, byval levels as integer)
 DECLARE SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk as Stack, byref i as integer)
-DECLARE FUNCTION localvariablename (byval value as integer, byval scriptargs as integer) as string
-DECLARE FUNCTION mathvariablename (byval value as integer, byval scriptargs as integer) as string
+DECLARE FUNCTION mathvariablename (value as integer, scr as ScriptData) as string
 DECLARE FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = -1) as string
 DECLARE FUNCTION readscriptvar (byval id as integer) as integer
 DECLARE SUB writescriptvar (byval id as integer, byval newval as integer)
@@ -867,6 +866,30 @@ SUB scriptmath
  END SELECT
 END SUB
 
+'returns the srcpos of the current command of the given script (in nowscript), or 0 if that debug info not available
+FUNCTION script_current_srcpos(selectedscript as integer) as uinteger
+ WITH scrat(nowscript)
+  .curkind = curcmd->kind
+  .curvalue = curcmd->value
+  .curargc = curcmd->argc
+ END WITH
+
+ WITH scrat(selectedscript)
+debug "script_current_srcpos: hassrcpos = " & .scr->hassrcpos & "  kind = " & .curkind & " ptr = " & .ptr & " argc = " & .curargc
+if .scrdata <> .scr->ptr then debug "oh dear"
+
+  IF .scr->hassrcpos THEN
+   IF .curkind = tyflow OR .curkind = tymath OR .curkind = tyfunct OR .curkind = tyscript THEN
+    RETURN .scrdata[.ptr + .curargc + 3]
+   ELSE
+    TODO!!!: fall back to parent command
+   END IF
+  END IF
+ END WITH
+ RETURN 0
+END FUNCTION
+
+'Dump interpreter state of nowscript to g_debug.txt
 SUB scriptdump (header as string)
  DIM statestr(9) as string
  statestr(0) = "none"
@@ -1014,7 +1037,7 @@ STATIC selectedscript as integer
 STATIC bottom as integer
 STATIC viewmode as integer
 STATIC lastscript as integer
-'viewmode: 0 = script state, 1 = local variables, 2 = global variables, 3 = strings, 4 = timers
+'viewmode: 0 = script state, 1 = local variables, 2 = global variables, 3 = strings, 4 = timers, 5 = advanced state dump (scriptstate)
 'mode: 0 = do nothing, 1 = non-interactive (display over game), 2 >= clean and sane
 '2 = interactive (display game and step on input), 3 = clean and sane
 
@@ -1023,6 +1046,7 @@ DIM marginstr as string
 ' Displayed lines in the plotstring view mode. The last element of the array is ignored
 REDIM stringlines(0 TO 0) as string
 DIM linelen as integer
+DIM posdata as ScriptTokenPos
 DIM page as integer
 
 DIM resetpal as integer = NO  'need setpal master()
@@ -1103,17 +1127,39 @@ IF nowscript >= 0 THEN
  END SELECT
 END IF
 
-'Note: the colours here are fairly arbitrary
-rectangle 0, 0, 320, 4, uilook(uiBackground), page
-rectangle 0, 0, (320 / scriptmemMax) * totalscrmem, 2, uilook(uiSelectedItem), page
-rectangle 0, 2, (320 / maxScriptHeap) * scrat(nowscript + 1).heapend, 2, uilook(uiSelectedItem + 1), page
+ol = 0
+
+IF mode > 1 THEN
+ 'Note: the colours here are fairly arbitrary
+ edgeprint "F1:Help", 0, 0, uilook(uiDescription), page
+ edgeprint "Extended script debug mode", 72, 0, uilook(uiText), page
+ ol = 9
+END IF
+
+rectangle 0, ol, 320, 4, uilook(uiBackground), page
+rectangle 0, ol, (320 / scriptmemMax) * totalscrmem, 2, uilook(uiSelectedItem), page
+rectangle 0, ol + 2, (320 / maxScriptHeap) * scrat(nowscript + 1).heapend, 2, uilook(uiSelectedItem + 1), page
 
 DIM ol as integer = 191
 
 IF mode > 1 AND viewmode = 0 THEN
  IF nowscript = -1 THEN
-  edgeprint "Extended script debug mode: no scripts", 0, ol, uilook(uiDescription), page
-  ol -= 9
+  edgeprint "No scripts", 0, ol, uilook(uiDescription), page
+ ELSE
+  IF get_script_line_info(posdata, selectedscript) THEN
+   print_script_line posdata, ol - 36, 4, NO, page
+  ELSE
+   edgeprint "Script line number unknown. Recompile", 0, ol - 27, uilook(uiDescription), page
+   edgeprint "your scripts with a newer version of", 0, ol - 18, uilook(uiDescription), page
+   edgeprint "HSpeak, or recompile", 0, ol - 9, uilook(uiDescription), page
+   edgeprint "with debug info enabled.", 0, ol, uilook(uiDescription), page
+  END IF
+ END IF
+END IF
+
+IF mode > 1 AND viewmode = 5 THEN
+ IF nowscript = -1 THEN
+  edgeprint "No scripts", 0, ol, uilook(uiDescription), page
  ELSE
   DIM decmpl as string = scriptstate(selectedscript)
   IF LEN(decmpl) > 200 THEN decmpl = "..." & RIGHT(decmpl, 197)
@@ -1147,7 +1193,7 @@ IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
     FOR j as integer = 2 TO 0 STEP -1  'reverse order so the var name is what gets overwritten
      localno = localsscroll + i * 3 + j
      IF localno < numlocals THEN
-      temp = localvariablename(localno, scriptargs) & "="
+      temp = localvariablename(localno, *.scr) & "="
       edgeprint temp, j * 96, ol, uilook(uiText), page
       edgeprint STR(heap(.frames(0).heap + localno)), j * 96 + 8 * LEN(temp), ol, uilook(uiDescription), page
      END IF
@@ -1242,7 +1288,7 @@ DIM lastarg as integer
 DIM col as integer
 DIM waitcause as string
 
-IF mode > 1 AND (viewmode = 0 OR viewmode = 1) THEN
+IF mode > 1 AND (viewmode = 0 OR viewmode = 1 OR viewmode = 5) THEN
  'show scripts list
 
  '6 rows up
@@ -1252,11 +1298,11 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1) THEN
  ol -= 9
  
  IF mode = 1 THEN
-  bottom = nowscript - (ol - 6) \ 9
+  bottom = nowscript - (ol - 10) \ 9
   selectedscript = nowscript
  ELSE
   bottom = small(bottom, selectedscript)
-  bottom = large(bottom, selectedscript - (ol - 6) \ 9)
+  bottom = large(bottom, selectedscript - (ol - 10) \ 9)
  END IF
  
  FOR i as integer = large(bottom, 0) TO nowscript
@@ -1296,7 +1342,7 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1) THEN
    edgeprint STR(scriptinsts(i).curvalue), 280, ol, col, page
   END IF
   ol = ol - 9
-  IF ol < 6 THEN EXIT FOR
+  IF ol < 10 THEN EXIT FOR
  NEXT i
 
 END IF 'end drawing scripts list
@@ -1311,7 +1357,7 @@ IF mode > 1 AND drawloop = 0 THEN
   clearpage page
   setvispage page
  END IF
- IF w = scV THEN viewmode = loopvar(viewmode, 0, 4, 1): GOTO redraw
+ IF w = scV THEN viewmode = loopvar(viewmode, 0, 5, 1): GOTO redraw
  IF w = scPageUp THEN
   selectedscript += 1
   localsscroll = 0
@@ -1415,33 +1461,34 @@ SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk 
  i -= 2
 END SUB
 
-FUNCTION localvariablename (byval value as integer, byval scriptargs as integer) as string
- 'get a variable name from a local/nonlocal variable number
- 'locals (and args) numbered from 0
+FUNCTION localvariablename (value as integer, scrdat as ScriptData) as string
+ 'Get a variable name from a ScriptCommand local/nonlocal variable number
+ 'Locals (and args) numbered from 0
+
+ DIM ret as string
+ ret = get_script_var_name(value, scrdat)
+ IF ret <> "" THEN RETURN ret
+
  IF scriptargs = 999 THEN
-  'old HS file
+  'old HS file: don't know the number of arguments
   RETURN "local" & value
- ELSEIF value < scriptargs THEN
+ ELSEIF value < scrdat.args THEN
   RETURN "arg" & value
  ELSEIF value >= 256 THEN
-  RETURN "nonloc" & (value SHR 8) & "_" & (value AND 255)
+  RETURN "nonlocal" & (value SHR 8) & "_" & (value AND 255)
  ELSE
-  RETURN "var" & (value - scriptargs)
+  'Not an arg
+  RETURN "var" & (value - scrdat.args)
  END IF
 END FUNCTION
 
-FUNCTION mathvariablename (byval value as integer, byval scriptargs as integer) as string
+FUNCTION mathvariablename (value as integer, scrdat as ScriptData) as string
  'get a variable name from an variable id number passed to a math function or for
  'locals (and args) numbered from 0
  IF value >= 0 THEN
-  mathvariablename = "global" & value
- ELSEIF scriptargs = 999 THEN
-  'old HS file
-  mathvariablename = "local" & (-value - 1)
- ELSEIF -value <= scriptargs THEN
-  mathvariablename = "arg" & (-value - 1)
+  RETURN "global" & value
  ELSE
-  mathvariablename = "var" & (-value - scriptargs - 1)
+  RETURN localvariablename (-value - 1, scrdat)
  END IF
 END FUNCTION
 
@@ -1461,7 +1508,6 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  'recurse 2 = all scripts, including suspended ones
  'recurse 3 = only the specified script
 
- DIM flowname(15) as string
  DIM flowtype(15) as integer
  DIM flowbrakbrk(15) as integer
  DIM state as OldScriptState
@@ -1469,24 +1515,18 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  DIM node as ScriptCommand
  DIM lastnode as ScriptCommand
 
- flowtype(0) = 0:	flowname(0) = "do"
- flowtype(3) = 1:	flowname(3) = "return"
- flowtype(4) = 3:	flowname(4) = "if":		flowbrakbrk(4) = 1
- flowtype(5) = 0:	flowname(5) = "then"
- flowtype(6) = 0:	flowname(6) = "else"
- flowtype(7) = 2:	flowname(7) = "for":		flowbrakbrk(7) = 4
- flowtype(10) = 2:	flowname(10) = "while":		flowbrakbrk(10) = 1
- flowtype(11) = 1:	flowname(11) = "break"
- flowtype(12) = 1:	flowname(12) = "continue"
- flowtype(13) = 1:	flowname(13) = "exit"
- flowtype(14) = 1:	flowname(14) = "exitreturn"
- flowtype(15) = 3:	flowname(15) = "switch"
-
- DIM mathname(22) as string = {_
-         "random", "exponent", "mod", "divide", "multiply", "subtract"_
-         ,"add", "xor", "or", "and", "equal", "!equal", "<<", ">>"_
-         ,"<=", ">=", "setvar", "inc", "dec", "not", "&&", "||", "^^"_
- }
+ flowtype(flowdo) = 0
+ flowtype(flowreturn) = 1
+ flowtype(flowif) = 3:     flowbrakbrk(flowif) = 1
+ flowtype(flowthen) = 0
+ flowtype(flowelse) = 0
+ flowtype(flowfor) = 2:    flowbrakbrk(flowfor) = 4
+ flowtype(flowwhile) = 2:  flowbrakbrk(flowwhile) = 1
+ flowtype(flowbreak) = 1
+ flowtype(flowcontinue) = 1
+ flowtype(flowexit) = 1
+ flowtype(flowexitreturn) = 1
+ flowtype(flowswitch) = 3
 
  DIM stkbottom as integer = -(scrst.pos - scrst.bottom)  'pointer arithmetic seems to be 31-bit signed (breakage on negative diff)!
  DIM stkpos as integer = 0
@@ -1552,15 +1592,15 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
   jmpnext:
   jmpread:
 
-  cmd = ""
+  cmd = scriptcmdname(node.kind, node.value, *scrinst.scr)
   hidearg = 0
   IF hideoverride THEN hidearg = -1: hideoverride = 0
   SELECT CASE node.kind
-    CASE tynumber
-     outstr = STR(node.value)
+    CASE tynumber, tyglobal, tylocal
+     outstr = cmd
+     cmd = ""
      hidearg = -1
     CASE tyflow
-     cmd = flowname(node.value)
      hidearg = -3
      IF state.depth = 0 THEN cmd = scriptname(state.id)
      IF state.state = ststart THEN hidearg = -1
@@ -1597,24 +1637,6 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
        END IF
       END IF
      END IF
-    CASE tyglobal
-     outstr = "global" & node.value
-     hidearg = -1
-    CASE tylocal, tynonlocal
-     'locals can only appear in the topmost script, which we made sure is loaded
-     outstr = localvariablename(node.value, scrinst.scr->args)
-     hidearg = -1
-    CASE tymath
-     cmd = mathname(node.value)
-    CASE tyfunct
-     cmd = commandname(node.value)
-    CASE tyscript
-     'IF recurse < 3 AND state.curargn >= node.argc THEN
-      'currently executing this script (must have already printed it out)
-      'cmd = "==>>"
-     'ELSE
-      cmd = scriptname(node.value)
-     'END IF
    END SELECT
    'debug "kind = " + STR(node.kind)
    'debug "cmd = " + cmd
@@ -1635,7 +1657,7 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
       FOR i as integer = 1 TO state.curargn
        IF i = 1 ANDALSO ((node.kind = tymath AND node.value >= 16 AND node.value <= 18) _
                          ORELSE (node.kind = tyflow AND node.value = flowfor)) THEN
-        cmd += mathvariablename(readstack(scrst, stkpos + i), scrinst.scr->args)
+        cmd += mathvariablename(readstack(scrst, stkpos + i), *scrinst.scr)
        ELSE
         cmd += STR(readstack(scrst, stkpos + i))
        END IF
