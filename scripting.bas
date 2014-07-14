@@ -680,7 +680,7 @@ PRIVATE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptD
    scripterr "script " & id & " seems to be corrupt; invalid version " & .scrformat & " with header size " & skip, serrError
    DELETE ret
    RETURN NULL
-  END IF   
+  END IF
   IF .scrformat > CURRENT_HSZ_VERSION THEN
    scripterr "script " & id & " is in an unsupported format.", serrError
    DELETE ret
@@ -704,7 +704,7 @@ PRIVATE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptD
    scripterr "script " & n & " corrupt: unaligned string table", serrError
    DELETE ret
    RETURN NULL
-  END IF   
+  END IF
   IF .strtable THEN .strtable = (.strtable - skip) \ 4
 
   IF skip >= 14 THEN
@@ -1335,6 +1335,7 @@ FUNCTION get_script_var_name(var_id as integer, scrdat as ScriptData) as string
     RETURN "(unknown)"
    END IF
    IF i = var_id THEN RETURN read32bitstring(table_ptr)
+   DIM strlength as integer = table_ptr[0]
    table_ptr += strlength + 1
   NEXT
 
@@ -1445,7 +1446,7 @@ END FUNCTION
 FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integer) as bool
  DIM as uinteger srcpos, charpos
 
- srcpos = scriptsrcpos(selectedscript)
+ srcpos = script_current_srcpos(selectedscript)
  debug "get_script_line_info: srcpos = " & srcpos
  IF srcpos = 0 THEN RETURN NO
 
@@ -1526,7 +1527,7 @@ FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integ
   'copy a chunk of file
   fgetiob fh, , bufr, 4096, @chunksize
   'loadamount -= chunksize
-  FOR i = 0 TO chunksize - 1
+  FOR i as integer = 0 TO chunksize - 1
    amountread += 1
    IF amountread = charpos THEN posdata.col = LEN(posdata.linetext) + 1  '1-based
    IF bufr[i] = 10 THEN   'LF
@@ -1663,7 +1664,8 @@ END FUNCTION
 
 'Returns string describing call chain.
 'trim_front: if true, limit string length.
-FUNCTION script_call_chain (trim_front as integer = YES) as string
+'errorlevel: optional, relevant only to scripterr
+FUNCTION script_call_chain (trim_front as integer = YES, errorlevel as integer = 0) as string
  IF nowscript < 0 THEN
   RETURN "(No scripts running)"
  END IF
@@ -1733,7 +1735,7 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp)
  IF errorlevel = serrError THEN errtext = "Script data may be corrupt or unsupported:" + CHR(10) + errtext
  IF errorlevel >= serrBug THEN errtext = "PLEASE REPORT THIS POSSIBLE ENGINE BUG" + CHR(10) + errtext
 
- errtext += CHR(10) + CHR(10) + "  Call chain (current script last):" + CHR(10) + script_call_chain()
+ errtext &= !"\n\n  Call chain (current script last):\n" & script_call_chain(YES, errorlevel)
 
  IF nowscript >= 0 THEN
   DIM as ScriptTokenPos posdata
