@@ -202,11 +202,11 @@ SUB start_script_trigger_log
  print #fh, "(...as above...) means that a script continues waiting multiple ticks for the same reason."
  print #fh,
  print #fh, " Symbols in front of script names:"
- print #fh, "+ -- A script was triggered (queued), possibly also started, possibly also finished" 
+ print #fh, "+ -- A script was triggered (queued), possibly also started, possibly also finished"
  print #fh, "! -- As above, but triggered as a side effect of something the script above it did,"
  print #fh, "     such as running ""close menu"", interrupting that script."
  print #fh, "     (Note: ! is used only if the command didn't cause an implicit 'wait')"
- print #fh, "* -- A queued script was started, possibly also finished" 
+ print #fh, "* -- A queued script was started, possibly also finished"
  print #fh, "- -- A previously started script finished"
  print #fh,
  CLOSE #fh
@@ -581,6 +581,7 @@ END FUNCTION
 LOCAL FUNCTION loadscript_open_script (n as integer, expect_exists as bool = YES) as integer
  DIM scriptfile as string = tmpdir & n & ".hsz"
  IF NOT isfile(scriptfile) THEN
+  'Format 0 scripts used a different extension
   scriptfile = tmpdir & n & ".hsx"
   IF NOT isfile(scriptfile) THEN
    '--because TMC once suggested that preunlumping the .hsp lump would be a good way to reduce (SoJ) loading time
@@ -653,7 +654,8 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
    RETURN NULL
   END IF
 
-  GET #fh, 1, shortvar
+  'Get the header size in bytes
+  GET #fh, 1+0, shortvar
   DIM skip as integer = shortvar
   .headerlen = skip
 
@@ -667,24 +669,31 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   'fields may be added to the end of the header; if they are mandatory the version number
   'should be incremented.
 
-  GET #fh, 3, shortvar
+  GET #fh, 1+2, shortvar
   'some HSX files seem to have an illegal negative number of variables
   .vars = shortvar
   .vars = bound(.vars, 0, 256)
 
   IF skip >= 6 THEN
-   GET #fh, 5, shortvar
+   GET #fh, 1+4, shortvar
    .args = bound(shortvar, 0, .vars)
   ELSE
-   .args = 999
+   .args = 999  'Note: This is a marker value
   END IF
 
   IF skip >= 8 THEN
-   GET #fh, 7, shortvar
+   GET #fh, 1+6, shortvar
    .scrformat = shortvar
   ELSE
    .scrformat = 0
   END IF
+  IF .scrformat < 0 OR (.scrformat = 0 AND .skip > 8) THEN
+   'Disallow format 0 from have more recent features (it's a nuisance to support 16-bit
+   'words for everything).
+   scripterr "script " & id & " seems to be corrupt; invalid version " & .scrformat & " with header size " & skip, serrError
+   DELETE ret
+   RETURN NULL
+  END IF   
   IF .scrformat > CURRENT_HSZ_VERSION THEN
    scripterr "script " & id & " is in an unsupported format. Try using an up-to-date OHRRPGCE version.", serrError
    DELETE ret
@@ -693,24 +702,32 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   DIM wordsize as integer
   IF .scrformat >= 1 THEN wordsize = 4 ELSE wordsize = 2
 
+  .size = (LOF(fh) - skip + (wordsize - 1)) \ wordsize
+
   IF skip >= 12 THEN
-   GET #fh, 9, .strtable
-   IF .strtable THEN .strtable = (.strtable - skip) \ wordsize
+   GET #fh, 1+8, .strtable
   ELSEIF skip = 10 THEN
-   GET #fh, 9, shortvar
-   IF shortvar THEN .strtable = (shortvar - skip) \ wordsize
+   GET #fh, 1+8, shortvar
+   .strtable = shortvar
   ELSE
    .strtable = 0
   END IF
+  IF (.strtable - skip) MOD 4 THEN
+   'Position must be a multiple of 4
+   scripterr "script " & n & " corrupt: unaligned string table", serrError
+   DELETE ret
+   RETURN NULL
+  END IF   
+  IF .strtable THEN .strtable = (.strtable - skip) \ 4
 
   IF skip >= 14 THEN
-   GET #fh, 13, shortvar
+   GET #fh, 1+12, shortvar
    .parent = shortvar
   ELSE
    .parent = 0
   END IF
   IF skip >= 16 THEN
-   GET #fh, 15, shortvar
+   GET #fh, 1+14, shortvar
    .nestdepth = shortvar
    IF .nestdepth > maxScriptNesting THEN
     scripterr "Corrupt or unsupported script data with nestdepth=" & .nestdepth & "; should be impossible", serrError
@@ -719,16 +736,43 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
    .nestdepth = 0
   END IF
   IF skip >= 18 THEN
-   GET #fh, 17, shortvar
+   GET #fh, 1+16, shortvar
    .nonlocals = shortvar
   ELSE
    .nonlocals = 0
   END IF
 
-  .size = (LOF(fh) - skip) \ wordsize
+  'String table length, which is always a multiple of 4 bytes
+  IF skip >= 22 THEN
+   GET #fh, 1+18, .strtablelen
+  ELSE
+   'By default, string table extends to end of lump
+   .strtablelen = 0
+   IF .strtable THEN .strtablelen = .size - .strtable
+  END IF
 
-  IF .strtable < 0 OR .strtable > .size THEN
-   scripterr "Script " & id & " corrupt; bad string table offset", serrError
+  DIM bitsets as ushort
+  IF skip >= 24 THEN
+   GET #fh, 1+22, bitsets
+  ELSE
+   bitsets = 0
+  END IF
+  .hassrcpos = (bitsets AND 1) <> 0
+
+  'We ignore the variable names here; they are loaded if needed by get_script_var_name
+  .varnamestable = 0
+  IF skip >= 28 THEN
+   GET #fh, 1+24, .varnamestable
+  END IF
+
+  IF .strtable < 0 OR .strtablelen < 0 OR .strtable + .strtablelen > .size THEN
+   scripterr "Script " & id & " corrupt; bad string table offset/size", serrError
+   DELETE ret
+   RETURN NULL
+  END IF
+
+  IF .varnamestable < 0 OR .varnamestable >= .size THEN
+   scripterr "Script " & id & " corrupt; bad variable-name table offset", serrError
    DELETE ret
    RETURN NULL
   END IF
@@ -1425,6 +1469,285 @@ END SUB
 
 
 '==========================================================================================
+'                                   Script debug info
+'==========================================================================================
+
+
+'Read a local variable name from the 
+FUNCTION get_script_var_name(var_id as integer, scrdat as ScriptData) as string
+ WITH scrdat
+  IF var_id < 0 OR var_id >= .vars THEN
+   scripterr __FUNCTION__ ": illegal variable id " & var_id
+   RETURN ""
+  END IF
+  IF .varnamestable = 0 THEN RETURN ""
+
+  'Walk through the variable name table to reach the i-th one.
+  DIM table_ptr as int32 ptr = .ptr + .varnamestable
+  FOR i as integer = 0 TO var_id
+   IF table_ptr + (table_ptr[0] + 3) \ 4 >= .ptr + .size THEN
+    scripterr "Script variable name table corrupt (too short)", serrError
+    RETURN "(unknown)"
+   END IF
+   IF i = var_id THEN RETURN read32bitstring(table_ptr)
+   table_ptr += strlength + 1
+  NEXT
+
+/'
+  'Walk through the variable name table, which is composed of null-terminated C
+  'strings back to back, to reach the i-th one.
+  DIM table_ptr as zstring ptr = cast(zstring ptr, .ptr + .varnamestable)
+  DIM table_end as zstring ptr = cast(zstring ptr, .ptr + .size)
+  FOR i = 0 TO var_id
+   DIM strlength as integer = strnlen(table_ptr, table_end - table_ptr)
+   IF strlength = table_end - table_ptr THEN
+    'We hit the end without encountering a null
+    scripterr "Script variable name table corrupt (too short)", serrError
+    RETURN "(unknown)"
+   END IF
+   IF i = var_id THEN RETURN *table_ptr
+   table_ptr += strlength + 1
+  NEXT
+'/
+ END WITH
+END FUNCTION
+
+/'
+FUNCTION get_script_var_name(n as integer, scrdat as ScriptData) as string
+ 'Caching the names for a script within this function seems simplest
+ STATIC cachegame as string, cacheid as integer
+
+ 'This is the correct way to declare a dynamic static array. Also, you have to REDIM it before use!
+ STATIC cache() as string
+ REDIM PRESERVE cache(UBOUND(cache)) as string
+
+ WITH scrdat
+  IF n < 0 OR n >= .vars OR .varnamestable = 0 THEN RETURN ""
+
+  IF cachegame = game AND .id = cacheid THEN
+   RETURN cache(n)
+  ELSE
+   cachegame = game
+   cacheid = .id
+  END IF
+  REDIM cache(.vars - 1) as string
+
+  DIM as string filename = find_script_lump(.id)
+  DIM as integer fh
+  fh = FREEFILE
+  OPEN filename FOR BINARY AS fh
+
+  DIM as ubyte c
+  SEEK #fh, .varnamestable
+  FOR i = 0 TO .vars - 1
+   GET #fh, , c
+   WHILE c <> 0 AND EOF(fh) = 0
+    cache(i) &= CHR(c)
+    GET #fh, , c
+   WEND
+  NEXT
+
+  CLOSE fh
+
+  RETURN cache(n)
+ END WITH
+END FUNCTION
+'/
+
+FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as string
+ 'Trying to use compact names
+ STATIC mathname(25) as zstring ptr = {_
+         @"random", @"exponent", @"mod", @"divide", @"multiply", @"subtract",_
+         @"add", @"xor", @"or", @"and", @"equal", @"!equal", @"<", @">",_
+         @"<=", @">=", @"setvar", @"inc", @"dec", @"not", @"&&", @"||", @"^^",_
+         @"abs", @"sign", @"sqrt"_
+ }
+
+ STATIC flowname(16) as zstring ptr = {_
+         @"do", @"begin", @"end", @"return", @"if", @"then", @"else", @"for",_
+         @"", @"", @"while", @"break", @"continue", @"exit", @"exitreturn",_
+         @"switch", @"case"_
+ }
+
+ SELECT CASE kind
+  CASE tynumber
+   RETURN STR(id)
+  CASE tyflow
+   IF (id >= 0 AND id <= UBOUND(flowname)) ANDALSO LEN(*flowname(id)) THEN
+    RETURN *flowname(id)
+   ELSE
+    debug "scriptcmdname: bad flow " & id
+    RETURN "unknown_flow" & id
+   END IF
+  CASE tyglobal
+   RETURN "global" & id
+  CASE tylocal
+   RETURN localvariablename(id, scrdat)
+  CASE tymath
+   IF id >= 0 AND id <= UBOUND(mathname) THEN
+    RETURN *mathname(id)
+   ELSE
+    debug "scriptcmdname: bad math " & id
+    RETURN "unknown_math" & id
+   END IF
+  CASE tyfunct
+   RETURN commandname(id)
+  CASE tyscript
+   RETURN scriptname(id)
+ END SELECT
+END FUNCTION
+
+FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integer) as bool
+ DIM as uinteger srcpos, charpos
+
+ srcpos = scriptsrcpos(selectedscript)
+ debug "get_script_line_info: srcpos = " & srcpos
+ IF srcpos = 0 THEN RETURN NO
+
+ posdata.length = srcpos MOD (2 ^ 8)
+ charpos = srcpos SHR 9
+ posdata.isvirtual = (srcpos SHR 8) AND 1
+
+ 'IF isfile(tmpdir & "source.lumped") = NO THEN RETURN NO
+
+ '-- Read srcfiles.txt to find the file that this srcpos is in, and grab needed info
+
+ DIM as integer fh
+ fh = FREEFILE
+ IF OPEN(tmpdir & "srcfiles.txt" AS #fh) THEN RETURN NO
+
+ DIM as string lumpname, filename
+ DIM as integer flength, offset
+
+ offset = -1
+ flength = -1
+ WHILE NOT EOF(fh)
+  DIM as string in
+  DIM as integer at
+  INPUT #fh, in
+  at = INSTR(in, "=")
+  IF at THEN
+   DIM as string tag, value
+   tag = LCASE(MID(in, 1, at - 1))
+   value = MID(in, at + 1)
+   SELECT CASE tag
+    CASE "file"
+     '-- Starts a new file entry. But before moving onto it, see whether the previous entry was the target
+     IF charpos >= offset AND charpos <= offset + flength THEN EXIT WHILE
+     offset = -1
+     flength = -1
+     filename = value
+    CASE "lump"
+     lumpname = value
+    CASE "offset"
+     offset = str2int(value)
+    CASE "length"
+     flength = str2int(value)
+   END SELECT
+  END IF
+ WEND
+ CLOSE fh
+
+ IF charpos < offset OR charpos > offset + flength THEN RETURN NO
+ charpos -= offset
+
+ posdata.filename = trimpath(filename)
+
+ '-- Unlump that source file
+
+ IF isfile(tmpdir & lumpname) = 0 THEN
+  unlump tmpdir & "source.lumped", tmpdir
+  IF isfile(tmpdir & lumpname) = 0 THEN
+   debug "Couldn't unlump " & lumpname & " from source.lumped"
+   RETURN NO
+  END IF
+ END IF
+
+ '-- Now find the line of text (and line number) in the source
+
+ fh = FREEFILE
+ IF OPEN(tmpdir & lumpname FOR BINARY AS #fh) THEN RETURN NO
+
+ DIM as integer loadamount, chunksize, amountread
+ DIM as ubyte ptr bufr
+
+ posdata.linenum = 1
+ posdata.linetext = ""
+
+ bufr = ALLOCATE(4096)
+' loadamount = flength
+ WHILE NOT EOF(fh) 'loadamount > 0
+  chunksize = small(4096, loadamount)
+  'copy a chunk of file
+  fgetiob fh, , bufr, 4096, @chunksize
+  'loadamount -= chunksize
+  FOR i = 0 TO chunksize - 1
+   amountread += 1
+   IF amountread = charpos THEN posdata.col = LEN(posdata.linetext) + 1  '1-based
+   IF bufr[i] = 10 THEN   'LF
+    IF amountread > charpos THEN EXIT WHILE
+    posdata.linenum += 1
+    posdata.linetext = ""
+   ELSE
+    posdata.linetext += CHR(bufr[i])
+   END IF
+  NEXT
+ WEND
+ DEALLOCATE(bufr)
+ CLOSE fh
+
+ RETURN YES
+END FUNCTION
+
+'Format the line and statement that a script is currently at,
+'or returns 0 if debugging information unavailable.
+'maxchars is the maximum number of characters to print, if it's a very long line.
+'Text flicker won't work in script debugger, so 'flicker' enables it
+FUNCTION highlighted_script_line(posdata as ScriptTokenPos, maxchars as integer, flicker as bool) as string
+ DIM start as integer
+ DIM highlightcol as integer
+ DIM texttmp as string
+ STATIC tog as integer
+ tog = tog XOR 1
+ IF flicker = NO THEN tog = 0
+
+ 'IF get_script_line_info(posdata, selectedscript) = 0 THEN debug "get script line failure!" : RETURN NO
+ WITH posdata
+  debug "posdata.linenum = " & posdata.linenum
+  debug "posdata.col = " & posdata.col
+'  debug "posdata.length = " & posdata.length
+'  debug "posdata.linetext = " & posdata.linetext
+'  debug "posdata.filename = " & posdata.filename
+ END WITH
+
+ highlightcol = IIF(posdata.isvirtual, uilook(uiSelectedDisabled + tog), uilook(uiSelectedItem + tog))
+
+ start = large(1, posdata.col - large(4, (maxchars - posdata.length) \ 2))
+
+debug "start = " & start & " mid = " & MID(posdata.linetext, start, 40)
+
+ texttmp = MID(posdata.linetext, start, maxchars)
+
+ ' Highlight the part of the line indicated by posdata
+ DIM relcol as integer = 1 + posdata.col - (start - 1)
+ DIM length  as integer = bound(posdata.length, 1, maxchars)
+ DIM token as string = MID(texttmp, relcol, length)
+ MID(texttmp, relcol, length) = fgtag(highlightcol, token)
+
+ IF start > 1 THEN MID(texttmp, 1, 3) = "..."  'This can't overlap with 'token'
+ IF LEN(texttmp) < LEN(posdata.linetext) - (start - 1) THEN texttmp &= "..."
+
+ DIM infostr as string
+' IF posdata.isvirtual THEN
+'  infostr = "In the line " & posdata.linenum & " of " & posdata.filename & ":"
+' ELSE
+  infostr = "On line " & posdata.linenum & " of " & posdata.filename & !":\n"
+' END IF
+ RETURN infostr + texttmp
+END FUNCTION
+
+
+'==========================================================================================
 '                                    Other Interfaces
 '==========================================================================================
 
@@ -1433,8 +1756,9 @@ END SUB
 FUNCTION script_string_constant(scriptinsts_slot as integer, offset as integer) as string
  WITH *scriptinsts(scriptinsts_slot).scr
   DIM stringp as integer ptr = .ptr + .strtable + offset
-  IF .strtable + offset >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
-   scripterr "script data corrupt: illegal string offset", serrError
+  'IF .strtable + offset >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
+  IF offset >= .strtablelen ORELSE offset + (stringp[0] + 3) \ 4 >= .strtablelen THEN
+   scripterr "script corrupt: illegal string offset", serrError
   ELSE
    RETURN read32bitstring(stringp)
   END IF
@@ -1507,7 +1831,9 @@ FUNCTION interpreter_context_name() as string
  RETURN ""
 END FUNCTION
 
-FUNCTION script_call_chain (byval trim_front as bool = YES) as string
+'Returns string describing call chain.
+'trim_front: if true, limit string length.
+FUNCTION script_call_chain (trim_front as bool = YES) as string
  IF nowscript < 0 THEN
   RETURN "(No scripts running)"
  END IF
@@ -1518,7 +1844,12 @@ FUNCTION script_call_chain (byval trim_front as bool = YES) as string
   IF scrat(i).state < 0 THEN EXIT FOR 'suspended: not part of the call chain
   scriptlocation = scriptname(scriptinsts(i).id) + " -> " + scriptlocation
  NEXT
- IF trim_front AND LEN(scriptlocation) > 150 THEN scriptlocation = " ..." + RIGHT(scriptlocation, 150)
+
+ 'If a serious error occurred, the call chain is useless, and less screen space is available
+ DIM as integer cchainlimit
+ cchainlimit = IIF(errorlevel >= serrError, 50, 120)
+ IF trim_front AND LEN(scriptlocation) > cchainlimit THEN scriptlocation = " ..." + RIGHT(scriptlocation, cchainlimit - 4)
+
  RETURN scriptlocation
 END FUNCTION
 
@@ -1544,13 +1875,12 @@ END FUNCTION
 'NOTE: this function can get called with errors which aren't caused by scripts,
 'for example findhero() called from a textbox conditional.
 'context_slice is which slice to show in the slice editor
-SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
+SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
  'mechanism to handle scriptwatch throwing errors
  STATIC as integer recursivecall
 
  STATIC as integer ignorelist()
 
- DIM as string errtext()
  DIM as integer scriptcmdhash, errmsghash
 
  'err_suppress_lvl is always at least serrIgnore
@@ -1563,7 +1893,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
  IF display = YES ORELSE error_count < 50 THEN
   DIM as string call_chain
   IF insideinterpreter THEN call_chain = script_call_chain(NO)
-  debug "Scripterr(" & errorlevel & "): " + call_chain + ": " + e
+  debug "Scripterr(" & errorlevel & "): " + call_chain + ": " + errmsg
  ELSEIF error_count = 50 THEN
   debug "Ignoring further script errors"
  END IF
@@ -1577,7 +1907,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
   scriptcmdhash = scrat(nowscript).id * 100000 + scrat(nowscript).ptr
   IF a_find(ignorelist(), scriptcmdhash) <> -1 THEN EXIT SUB
  END IF
- errmsghash = strhash(e)
+ errmsghash = strhash(errmsg)
  IF a_find(ignorelist(), errmsghash) <> -1 THEN EXIT SUB
 
  ' OK, decided to show the error
@@ -1585,16 +1915,27 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
 
  recursivecall += 1
 
- IF errorlevel = serrError THEN e = "Script data may be corrupt or unsupported:" + CHR(10) + e
+ DIM errtext as string = errmsg
 
- e = e + CHR(10) + CHR(10) + "  Call chain (current script last):" + CHR(10) + script_call_chain()
- split(wordwrap(e, large(80, vpages(vpage)->w - 16) \ 8), errtext())
+ IF errorlevel = serrError THEN errtext = "Script data may be corrupt or unsupported:" + CHR(10) + errtext
+
+ errtext += CHR(10) + CHR(10) + "  Call chain (current script last):" + CHR(10) + script_call_chain()
+
+ IF nowscript >= 0 THEN
+  DIM as ScriptTokenPos posdata
+  IF get_script_line_info(posdata, nowscript) THEN
+   errtext &= !"\n" & fgtag(uilook(uiDescription)) & highlighted_script_line(posdata, 120, YES)
+  END IF
+ END IF
+
+' split(wordwrap(errmsg, large(80, vpages(vpage)->w - 16) \ 8), errtext())
 
  DIM state as MenuState
  state.pt = 0
  DIM menu as MenuDef
  menu.anchorvert = alignTop
- menu.offset.y = -100 + 38 + 10 * UBOUND(errtext) 'menus are always offset from the center of the screen
+ menu.alignvert = alignTop
+ menu.offset.y = 38
  menu.bordersize = -4
 
  append_menu_item menu, "Ignore once", 0
@@ -1614,6 +1955,11 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
  ELSE
   append_menu_item menu, "Enter slice editor/debugger", 5
  END IF
+
+ append_menu_item menu, "Stop this script", , , , 2
+ append_menu_item menu, "Suppress errors from this source", , , , 3
+ append_menu_item menu, "Exit game (without saving)", , , , 4
+ append_menu_item menu, "Enter slice debugger", , , , 5
  IF recursivecall = 1 THEN  'don't reenter the debugger if possibly already inside!
   IF gam.debug_scripts <> 0 THEN
    state.pt = append_menu_item(menu, "Return to script debugger", 6)
@@ -1634,7 +1980,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
   setkeys
 
   IF keyval(ccCancel) > 1 THEN 'ignore
-   EXIT DO 
+   EXIT DO
   END IF
 
   IF keyval(scF1) > 1 THEN show_help("game_scripterr")
@@ -1689,10 +2035,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
    printstr header, pCentered, 7, vpage
   END IF
 
-  FOR i as integer = 0 TO UBOUND(errtext)
-   printstr errtext(i), 8, 25 + 10 * i, vpage
-  NEXT
-
+  wrapprint errtext, 8, 25, vpage, rWidth - 16
   draw_menu menu, state, vpage
 
   IF menu.items[state.pt]->t = 6 THEN
@@ -1719,9 +2062,11 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
  'Not worth worrying about this.
 END SUB
 
+'Called to interrupt interpreter if unresponsive.
+'Returns true if current interpreter block (e.g. while-do) should be aborted.
 'TODO: there's a lot of code duplicated between this and scripterr
-FUNCTION script_interrupt () as integer
- DIM as integer ret = NO
+FUNCTION script_interrupt () as bool
+ DIM as bool ret = NO
  DIM as string errtext()
  DIM as string msg
 
@@ -1757,7 +2102,7 @@ FUNCTION script_interrupt () as integer
   setkeys
 
   IF keyval(ccCancel) > 1 THEN 'continue
-   EXIT DO 
+   EXIT DO
   END IF
 
   IF keyval(scF1) > 1 THEN show_help("game_script_interrupt")

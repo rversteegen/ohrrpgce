@@ -54,13 +54,20 @@ DECLARE SUB reload_scripts (force_full_message as bool = YES)
 DECLARE SUB load_hsp ()
 
 DECLARE FUNCTION script_string_constant(scriptinsts_slot as integer, offset as integer) as string
+
+DECLARE FUNCTION get_script_var_name (n as integer, scrdat as ScriptData) as string
+DECLARE FUNCTION localvariablename (value as integer, scrdat as ScriptData) as string
+DECLARE FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as string
+DECLARE FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integer) as bool
+DECLARE SUB print_script_line(posdata as ScriptTokenPos, y as integer, lines as integer, flicker as integer, page as integer)
+
 DECLARE FUNCTION commandname (byval id as integer) as string
 DECLARE FUNCTION current_command_name() as string
 DECLARE FUNCTION interpreter_context_name() as string
 DECLARE FUNCTION script_call_chain (byval trim_front as bool = YES) as string
 DECLARE FUNCTION should_display_error_to_user(byval errorlevel as scriptErrEnum) as bool
-DECLARE SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
-DECLARE FUNCTION script_interrupt () as integer
+DECLARE SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
+DECLARE FUNCTION script_interrupt () as bool
 
 ' The following are in oldhsinterpreter.bas
 
@@ -68,6 +75,8 @@ DECLARE FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr
 DECLARE SUB scriptinterpreter ()
 DECLARE SUB breakpoint (byref mode as integer, byval callspot as integer)
 DECLARE SUB scriptwatcher (byref mode as integer, byval drawloop as bool = NO)
+DECLARE SUB scriptdump (header as string)
+DECLARE FUNCTION script_current_srcpos (selectedscript as integer) as uinteger
 DECLARE SUB setScriptArg (byval arg as integer, byval value as integer)
 DECLARE FUNCTION ancestor_script_id(scriptslot as integer, depth as integer) as integer
 
