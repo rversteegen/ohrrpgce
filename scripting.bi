@@ -64,7 +64,7 @@ DECLARE SUB print_script_line(posdata as ScriptTokenPos, y as integer, lines as 
 DECLARE FUNCTION commandname (byval id as integer) as string
 DECLARE FUNCTION current_command_name() as string
 DECLARE FUNCTION interpreter_context_name() as string
-DECLARE FUNCTION script_call_chain (byval trim_front as bool = YES) as string
+DECLARE FUNCTION script_call_chain (trim_front as bool = YES, errorlevel as scriptErrEnum = 0) as string
 DECLARE FUNCTION should_display_error_to_user(byval errorlevel as scriptErrEnum) as bool
 DECLARE SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
 DECLARE FUNCTION script_interrupt () as bool
