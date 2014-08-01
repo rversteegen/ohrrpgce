@@ -558,7 +558,7 @@ CUSTOM = editenv.BASEXE (rootdir + editname, source = editsrc, FBFLAGS = editfla
 GAME = GAME[0]  # first element of NodeList is the executable
 CUSTOM = CUSTOM[0]
 env_exe ('bam2mid')
-env_exe ('miditest')
+env_exe ('miditest', source = ['miditest.bas', 'common_base.o', 'miscc.o'])
 env_exe ('unlump', source = ['unlump.bas', 'lumpfile.o'] + base_objects)
 env_exe ('relump', source = ['relump.bas', 'lumpfile.o'] + base_objects)
 env_exe ('dumpohrkey', source = ['dumpohrkey.bas'] + base_objects)
