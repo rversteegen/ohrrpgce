@@ -712,13 +712,15 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   ELSE
    .strtable = 0
   END IF
-  IF (.strtable - skip) MOD 4 THEN
-   'Position must be a multiple of 4
-   scripterr "script " & n & " corrupt: unaligned string table", serrError
-   DELETE ret
-   RETURN NULL
+  IF .strtable THEN
+   IF (.strtable - skip) MOD 4 THEN
+    'Position must be a multiple of 4
+    scripterr "script " & n & " corrupt: unaligned string table", serrError
+    DELETE ret
+    RETURN NULL
+   END IF
+   .strtable = (.strtable - skip) \ 4
   END IF
-  IF .strtable THEN .strtable = (.strtable - skip) \ 4
 
   IF skip >= 14 THEN
    GET #fh, 1+12, shortvar
@@ -1473,9 +1475,12 @@ END SUB
 '==========================================================================================
 
 
-'Read a local variable name from the 
+'Read a local variable name from a script's variable name table if available,
+'otherwise returns ""
 FUNCTION get_script_var_name(var_id as integer, scrdat as ScriptData) as string
  WITH scrdat
+  debug "get_script_var_name(" & var_id & ", script " & scriptname(scrdat.id) & "), size = " & .size
+
   IF var_id < 0 OR var_id >= .vars THEN
    scripterr __FUNCTION__ ": illegal variable id " & var_id
    RETURN ""
@@ -1485,13 +1490,16 @@ FUNCTION get_script_var_name(var_id as integer, scrdat as ScriptData) as string
   'Walk through the variable name table to reach the i-th one.
   DIM table_ptr as int32 ptr = .ptr + .varnamestable
   FOR i as integer = 0 TO var_id
-   IF table_ptr + (table_ptr[0] + 3) \ 4 >= .ptr + .size THEN
+   'debug "  var " & i & " offset " & table_ptr - .ptr & " len " & table_ptr[0]
+   'debug "    '" & read32bitstring(table_ptr) & "'"
+
+   DIM length_ints as integer = (table_ptr[0] + 3) \ 4
+   IF table_ptr + length_ints >= .ptr + .size THEN
     scripterr "Script variable name table corrupt (too short)", serrError
     RETURN "(unknown)"
    END IF
    IF i = var_id THEN RETURN read32bitstring(table_ptr)
-   DIM strlength as integer = table_ptr[0]
-   table_ptr += strlength + 1
+   table_ptr += length_ints + 1
   NEXT
 
 /'
