@@ -11,6 +11,7 @@
 #include "util.bi"
 #include "misc.bi"
 #include "udts.bi"
+#include "loading.bi"
 #include "scrconst.bi"
 #include "gglobals.bi"
 #include "allmodex.bi"
@@ -883,13 +884,13 @@ FUNCTION script_current_srcpos(selectedscript as integer) as uinteger
   debug "script_current_srcpos: hassrcpos = " & .scr->hassrcpos & "  kind/id = " & curnode->kind & "/" & curnode->value & " ptr = " & .ptr & " argc = " & curnode->argc
   IF .scr->hassrcpos THEN
    WITH *curnode
-    IF .kind = tyflow OR .kind = tymath OR .kind = tyfunct OR .kind = tyscript THEN
+'    IF .kind = tyflow OR .kind = tymath OR .kind = tyfunct OR .kind = tyscript THEN
      'Isn't a leaf node
-     RETURN .args(.argc)  'Follows arg list
+     RETURN (@.args(0))[.argc]  'Follows arg list (can't index .args() directly)
      'RETURN cast(int32 ptr, curnode)[3 + .argc]
-    ELSE
-     ''''''''''''''''''''''''''''''''''''''''''''''TODO!!!: fall back to parent command
-    END IF
+    ' ELSE
+    '  ''''''''''''''''''''''''''''''''''''''''''''''TODO!!!: fall back to parent command
+    ' END IF
    END WITH
   END IF
  END WITH
@@ -1034,7 +1035,7 @@ scriptwatcher mode, 0
 
 END SUB
 
-'The following function is an atrocious mess. Don't worry too much; it'll be totally replaced.
+'The following function is an atrocious, atrocious, atrocious mess. Don't worry too much; it'll be totally replaced.
 SUB scriptwatcher (byref mode as integer, byval drawloop as integer)
 STATIC localsscroll as integer
 STATIC globalsscroll as integer
@@ -1044,7 +1045,7 @@ STATIC selectedscript as integer
 STATIC bottom as integer
 STATIC viewmode as integer
 STATIC lastscript as integer
-'viewmode: 0 = script state, 1 = local variables, 2 = global variables, 3 = strings, 4 = timers, 5 = advanced state dump (scriptstate)
+'viewmode: 0 = script state, 1 = local variables, 2 = global variables, 3 = strings, 4 = timers, 5 = old script state (scriptstate())
 'mode: 0 = do nothing, 1 = non-interactive (display over game), 2 >= clean and sane
 '2 = interactive (display game and step on input), 3 = clean and sane
 
@@ -1134,14 +1135,26 @@ IF nowscript >= 0 THEN
  END SELECT
 END IF
 
-' Draw stuff at top of screen
+'Number of lines of text (9 pixels high) that can fit below the header at the top.
+CONST displaylines = 19
+
+' Draw header at top of screen
 DIM ol as integer = 0   'Next y position to draw at
 
 IF mode > 1 THEN
  'Note: the colours here are fairly arbitrary
- edgeprint "F1:Help", 0, 0, uilook(uiDescription), page
- edgeprint "Extended script debug mode", 72, 0, uilook(uiText), page
- ol = 9
+ edgeprint "F1   F2      F3   F4      F5      F6", 0, 0, uilook(uiDescription), page
+ DIM tabnames(...) as string = {"Help", "Scripts", "Vars", "Globals", "Strings", "Timers"}
+ DIM tabconcat as string
+ FOR idx as integer = 0 TO UBOUND(tabnames)
+  IF idx - 1 = viewmode THEN
+   tabconcat += hilite(tabnames(idx)) + " "
+  ELSE
+   tabconcat += tabnames(idx) + " "
+  END IF
+ NEXT
+ edgeprint tabconcat, 0, 9, uilook(uiText), page, YES
+ ol = 18
 END IF
 
 rectangle 0, ol, 320, 4, uilook(uiBackground), page
@@ -1158,10 +1171,20 @@ IF mode > 1 AND viewmode = 0 THEN
   IF get_script_line_info(posdata, selectedscript) THEN
    print_script_line posdata, ol - 36, 4, NO, page
   ELSE
-   edgeprint "Script line number unknown. Recompile", 0, ol - 27, uilook(uiDescription), page
-   edgeprint "your scripts with a newer version of", 0, ol - 18, uilook(uiDescription), page
-   edgeprint "HSpeak, or recompile", 0, ol - 9, uilook(uiDescription), page
-   edgeprint "with debug info enabled.", 0, ol, uilook(uiDescription), page
+   edgeprint "Script line number unknown.", 0, ol - 18, uilook(uiDescription), page
+
+   DIM hs_header as HSHeader
+   load_hsp_header tmpdir & "hs", hs_header
+   IF strcmp(STRPTR(hs_header.hspeak_version), STRPTR("3T ")) < 0 THEN
+    'Didn't support line numbers
+    edgeprint "Recompile your scripts with a", 0, ol - 27, uilook(uiDescription), page
+    edgeprint "more recent version of HSpeak.", 0, ol - 18, uilook(uiDescription), page
+   ELSE
+    edgeprint "Recompile your scripts without", 0, ol - 27, uilook(uiDescription), page
+    edgeprint "disabling debug info.", 0, ol - 18, uilook(uiDescription), page
+   END IF
+   edgeprint "Press F7 to see fall-back", 0, ol - 9, uilook(uiDescription), page
+   edgeprint "script position description.", 0, ol, uilook(uiDescription), page
   END IF
  END IF
 END IF
@@ -1212,7 +1235,9 @@ IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
    IF scriptargs = 999 THEN
     edgeprint .scr->vars & " local variables and args:", 0, ol, uilook(uiText), page
    ELSE
-    edgeprint scriptargs & " args and " & (numlocals - scriptargs) & " locals (excluding " & .scr->nonlocals & " non-locals):", 0, ol, uilook(uiText), page
+    temp = scriptargs & " args, " & (numlocals - scriptargs) & " locals"
+    IF .scr->nonlocals > 0 THEN temp += "; excluding " & .scr->nonlocals & " nonlocals:"
+    edgeprint temp, 0, ol, uilook(uiText), page
    END IF
    ol -= 9
   END IF
@@ -1224,8 +1249,8 @@ END IF
 
 DIM globalno as integer
 IF mode > 1 AND viewmode = 2 THEN
- 'display 60 global variables at a time
- FOR i as integer = 19 TO 0 STEP -1
+ 'display global variables
+ FOR i as integer = displaylines - 1 TO 0 STEP -1
   FOR j as integer = 2 TO 0 STEP -1   'reverse order so the var name is what gets overwritten
    globalno = globalsscroll + i * 3 + j
    edgeprint globalno & "=", j * 96, ol, uilook(uiText), page
@@ -1238,8 +1263,8 @@ IF mode > 1 AND viewmode = 2 THEN
 END IF
 
 IF mode > 1 AND viewmode = 3 THEN
- 'display stringlines, 20 lines at a time
- FOR i as integer = 19 TO 0 STEP -1
+ 'display stringlines
+ FOR i as integer = displaylines - 1 TO 0 STEP -1
   IF MID(stringlines(i + stringsscroll), 1, 1) <> " " THEN
    'string number text
    edgeprint MID(stringlines(i + stringsscroll), 1, 3), 0, ol, uilook(uiText), page
@@ -1253,10 +1278,10 @@ IF mode > 1 AND viewmode = 3 THEN
 END IF
 
 IF mode > 1 AND viewmode = 4 THEN
- 'display timers, 19 lines at a time
+ 'display timers
  edgeprint "ID Count Speed Flags Str Trigger", 0, ol, uilook(uiText), page
  ol -= 9
- FOR i as integer = small(UBOUND(timers), 18) TO 0 STEP -1
+ FOR i as integer = small(UBOUND(timers), displaylines - 1) TO 0 STEP -1
   DIM id as integer = i + timersscroll
   DIM as string text, flags
   WITH timers(id)
@@ -1351,7 +1376,7 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1 OR viewmode = 5) THEN
    edgeprint STR(scriptinsts(i).curvalue), 280, ol, col, page
   END IF
   ol = ol - 9
-  IF ol < 10 THEN EXIT FOR
+  IF ol < 20 THEN EXIT FOR
  NEXT i
 
 END IF 'end drawing scripts list
@@ -1366,7 +1391,7 @@ IF mode > 1 AND drawloop = 0 THEN
   clearpage page
   setvispage page
  END IF
- IF w = scV THEN viewmode = loopvar(viewmode, 0, 5, 1): GOTO redraw
+
  IF w = scPageUp THEN
   selectedscript += 1
   localsscroll = 0
@@ -1390,14 +1415,35 @@ IF mode > 1 AND drawloop = 0 THEN
    numlocals = 0
   END IF
 
+  'Locals only display in a few lines at the bottom
   IF viewmode = 1 THEN localsscroll = small(large(numlocals - 8, 0), localsscroll + 3): GOTO redraw
-  IF viewmode = 2 THEN globalsscroll = small(maxScriptGlobals - 59, globalsscroll + 21): GOTO redraw
-  IF viewmode = 3 THEN stringsscroll = small(stringsscroll + 1, (UBOUND(stringlines) - 1) - 19): GOTO redraw
-  IF viewmode = 4 THEN timersscroll = small(timersscroll + 4, UBOUND(timers) - 18): GOTO redraw
+  IF viewmode = 2 THEN globalsscroll = small(maxScriptGlobals - (displaylines * 3 - 1), globalsscroll + 21): GOTO redraw
+  IF viewmode = 3 THEN stringsscroll = small(stringsscroll + 1, (UBOUND(stringlines) - 1) - (displaylines - 1)): GOTO redraw
+  'Timers have an extra 1 line header
+  IF viewmode = 4 THEN timersscroll = small(timersscroll + 4, UBOUND(timers) - (displaylines - 2)): GOTO redraw
  END IF
 
  IF w = scF1 THEN
   show_help("game_script_debugger")
+  GOTO redraw
+ ELSEIF w = scF2 THEN
+  viewmode = 0
+  GOTO redraw
+ ELSEIF w = scF3 THEN
+  viewmode = 1
+  GOTO redraw
+ ELSEIF w = scF4 THEN
+  viewmode = 2
+  GOTO redraw
+ ELSEIF w = scF5 THEN
+  viewmode = 3
+  GOTO redraw
+ ELSEIF w = scF6 THEN
+  viewmode = 4
+  GOTO redraw
+ ELSEIF w = scF7 THEN
+  'Old scriptstate() display (purposefully omitted from header)
+  viewmode = 5
   GOTO redraw
  END IF
 
@@ -1664,6 +1710,7 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
       END IF
       cmd += "("
       FOR i as integer = 1 TO state.curargn
+       'setvariable, increment, decrement, for
        IF i = 1 ANDALSO ((node.kind = tymath AND node.value >= 16 AND node.value <= 18) _
                          ORELSE (node.kind = tyflow AND node.value = flowfor)) THEN
         cmd += mathvariablename(readstack(scrst, stkpos + i), *scrinst.scr)
