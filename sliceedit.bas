@@ -253,9 +253,8 @@ SUB slice_editor (byval group as integer = SL_COLLECT_USERDEFINED)
   .Fill = YES
  END WITH
 
- IF isfile(slice_editor_filename(ses)) THEN
-  SliceLoadFromFile edslice, slice_editor_filename(ses)
- END IF
+ 'Load default if missing
+ load_slice_collection edslice, ses.collection_group_number, ses.collection_number
 
  slice_editor ses, edslice, YES, specialcodes()
 
@@ -1459,6 +1458,8 @@ SUB load_slice_collection (byval sl as Slice Ptr, byval collection_kind as integ
   SliceLoadFromFile sl, filename
  ELSE
   SELECT CASE collection_kind
+   CASE SL_COLLECT_USERDEFINED:
+    'No default
    CASE SL_COLLECT_STATUSSCREEN:
     default_status_screen sl
    CASE SL_COLLECT_STATUSSTATPLANK:
