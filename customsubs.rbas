@@ -2274,11 +2274,61 @@ FUNCTION tag_condition_caption(byval n as integer, prefix as string="Tag", zeroc
  RETURN base_tag_caption(n, prefix, "=" & onoroff(n), zerocap, onecap, negonecap, YES)
 END FUNCTION
 
+Type EditBitsetState
+
+ ret as integer
+
+ state as MenuState
+
+ menu(-1 to last) as string vector
+ bits(-1 to last) as integer vector
+ bitnames as string vector
+
+ helpkey as string
+
+ Declare Constructor(array() as integer, array_offset as integer, last as integer, names() as string, helpkey as string="editbitset", byref remem_pt as integer = -2, byval immediate_quit as integer = NO)
+ Declare Destructor()
+ Declare Sub handle_input()
+ Declare Sub draw_screen(page as integer)
+End Type
+
+Constructor EditBitsetState(array() as integer, array_offset as integer, last as integer, names() as string, helpkey as string="editbitset", byref remem_pt as integer = -2, byval immediate_quit as integer = NO)
+
+ menu
+
+End Constructor
+
+Destructor EditBitsetState
+
+End Destructor
+
 'Edit array of bits. The bits don't have to be consecutive, but they do have to be in ascending order.
 'The bits corresponding to any blank entries in names() are skipped over.
 'if remem_pt is not -2 (initialise to -1) it is used to store the selected bit (index in names())
 'If immediate_quit is true, then toggling a bit causes the menu to quit immediately and return YES (otherwise NO)
-FUNCTION editbitset (array() as integer, byval wof as integer, byval last as integer, names() as string, helpkey as string="editbitset", byref remem_pt as integer = -2, byval immediate_quit as integer = NO) as integer
+FUNCTION editbitset (array() as integer, array_offset as integer, last as integer, names() as string, helpkey as string="editbitset", byref remem_pt as integer = -2, byval immediate_quit as integer = NO) as integer
+
+ DIM edstate as EditBitsetState
+ edstate.Constructor(array(), array_offset, last, names(), helpkey, )
+ setkeys
+ DO
+  setwait 55
+  setkeys
+  edstate.handle_input()
+  edstate.draw_screen(dpage)
+  SWAP vpage, dpage
+  setvispage vpage
+  dowait
+ LOOP
+ IF remem_pt <> -2 THEN
+  IF edstate.state.pt = -1 THEN
+   remem_pt = -1
+  ELSE
+   remem_pt = edstate.bits[edstate.state.pt]
+  END IF
+ END IF 
+ RETURN edstate.ret
+END FUNCTION
 
  '---DIM AND INIT---
  DIM state as MenuState
@@ -2317,15 +2367,15 @@ FUNCTION editbitset (array() as integer, byval wof as integer, byval last as int
   usemenu state
   IF state.pt >= 0 THEN
    IF keyval(scLeft) > 1 OR keyval(scComma) > 1 THEN
-    setbit array(), wof, bits(state.pt), 0
+    setbit array(), array_offset, bits(state.pt), 0
     IF immediate_quit THEN ret = YES: EXIT DO
    END IF
    IF keyval(scRight) > 1 OR keyval(scPeriod) > 1 THEN
-    setbit array(), wof, bits(state.pt), 1
+    setbit array(), array_offset, bits(state.pt), 1
     IF immediate_quit THEN ret = YES: EXIT DO
    END IF
    IF enter_space_click(state) THEN
-    setbit array(), wof, bits(state.pt), readbit(array(), wof, bits(state.pt)) XOR 1
+    setbit array(), array_offset, bits(state.pt), readbit(array(), array_offset, bits(state.pt)) XOR 1
     IF immediate_quit THEN ret = YES: EXIT DO
    END IF
   ELSE
@@ -2335,8 +2385,8 @@ FUNCTION editbitset (array() as integer, byval wof as integer, byval last as int
   draw_fullscreen_scrollbar state, , dpage
   FOR i as integer = state.top TO small(state.top + state.size, state.last)
    IF i >= 0 THEN
-    col = IIF(readbit(array(), wof, bits(i)), uilook(uiMenuItem), uilook(uiDisabledItem))
-    IF state.pt = i THEN col = IIF(readbit(array(), wof, bits(i)), uilook(uiSelectedItem + state.tog), uilook(uiSelectedDisabled + state.tog))
+    col = IIF(readbit(array(), array_offset, bits(i)), uilook(uiMenuItem), uilook(uiDisabledItem))
+    IF state.pt = i THEN col = IIF(readbit(array(), array_offset, bits(i)), uilook(uiSelectedItem + state.tog), uilook(uiSelectedDisabled + state.tog))
    ELSE
     col = uilook(uiMenuItem)
     IF state.pt = i THEN col = uilook(uiSelectedItem + state.tog)
