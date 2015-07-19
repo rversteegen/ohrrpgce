@@ -2859,7 +2859,7 @@ Function SliceContains(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr) as intege
  return NO
 end function
 
-Function FindSliceCollision(byval parent as Slice Ptr, byval sl as Slice Ptr, byref num as integer, byval descend as integer) as Slice Ptr
+Function FindSliceCollision(parent as Slice Ptr, sl as Slice Ptr, byref num as integer, descend as bool, top_to_bottom as bool) as Slice Ptr
  'We don't call RefreshSliceScreenPos for efficiency; we expect the calling code to do that
  if parent = 0 or sl = 0 then debug "FindSliceCollision null ptr": return 0
  DIM as Slice Ptr s, temp
@@ -2869,7 +2869,7 @@ Function FindSliceCollision(byval parent as Slice Ptr, byval sl as Slice Ptr, by
    with *s
     parent->ChildRefresh(parent, s)
  
-    if .SliceType <> slSpecial and SliceCollide(s, sl) then  '--impossible to encounter the root
+    if .SliceType <> slSpecial and SliceCollide(s, sl) then  '--impossible to encounter containers like the root
      if num = 0 then return s
      num -= 1
     end if
@@ -2885,7 +2885,7 @@ Function FindSliceCollision(byval parent as Slice Ptr, byval sl as Slice Ptr, by
  return NULL
 end function
 
-Function FindSliceAtPoint(byval parent as Slice Ptr, byval x as integer, byval y as integer, byref num as integer, byval descend as integer) as Slice Ptr
+Function FindSliceAtPoint(parent as Slice Ptr, x as integer, y as integer, byref num as integer, descend as bool, top_to_bottom as bool) as Slice Ptr
  'We don't call RefreshSliceScreenPos for efficiency; we expect the calling code to do that
  if parent = 0 then debug "FindSliceAtPoint null ptr": return 0
  DIM as Slice Ptr s, temp
@@ -2894,7 +2894,7 @@ Function FindSliceAtPoint(byval parent as Slice Ptr, byval x as integer, byval y
   with *s
    parent->ChildRefresh(parent, s)
 
-   if .SliceType <> slSpecial and SliceCollidePoint(s, x, y) then  '--impossible to encounter the root
+   if .SliceType <> slSpecial and SliceCollidePoint(s, x, y) then  '--impossible to encounter containers like the root
     if num = 0 then return s
     num -= 1
    end if

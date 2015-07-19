@@ -2614,21 +2614,27 @@ SUB sfunctions(byval cmdid as integer)
   IF valid_plottextslice(retvals(0)) THEN
    ChangeTextSlice plotslices(retvals(0)), , ,(retvals(1)<>0)
   END IF
- CASE 433'--slice at pixel(parent, x, y, num, descend)
+ CASE 433'--slice at pixel(parent, x, y, num, descend, [top-to-bottom-iteration])
   IF valid_plotslice(retvals(0)) THEN
+   DIM top_to_bottom as bool = NO
+   'New argument
+   IF curcmd->argc >= 6 THEN top_to_bottom = retvals(5)
    RefreshSliceScreenPos plotslices(retvals(0))
    IF retvals(3) <= -1 THEN
     DIM slnum as integer = -1
-    FindSliceAtPoint(plotslices(retvals(0)), retvals(1), retvals(2), slnum, retvals(4))
+    FindSliceAtPoint(plotslices(retvals(0)), retvals(1), retvals(2), slnum, retvals(4), top_to_bottom)
     scriptret = -slnum - 1
    ELSE
-    scriptret = find_plotslice_handle(FindSliceAtPoint(plotslices(retvals(0)), retvals(1), retvals(2), retvals(3), retvals(4)))
+    scriptret = find_plotslice_handle(FindSliceAtPoint(plotslices(retvals(0)), retvals(1), retvals(2), retvals(3), retvals(4), top_to_bottom))
    END IF
   END IF
- CASE 434'--find colliding slice(parent, handle, num, descend)
+ CASE 434'--find colliding slice(parent, handle, num, descend, [top-to-bottom-iteration])
   IF valid_plotslice(retvals(0)) AND valid_plotslice(retvals(1)) THEN
    RefreshSliceScreenPos plotslices(retvals(0))
    RefreshSliceScreenPos plotslices(retvals(1))
+   DIM top_to_bottom as bool = NO
+   'New argument
+   IF curcmd->argc >= 5 THEN top_to_bottom = retvals(4)
    IF retvals(2) <= -1 THEN
     DIM slnum as integer = -1
     FindSliceCollision(plotslices(retvals(0)), plotslices(retvals(1)), slnum, retvals(3))
