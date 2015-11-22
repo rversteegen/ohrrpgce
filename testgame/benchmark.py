@@ -142,10 +142,16 @@ def benchmark_crappy_sqrt():
 def run_benchmark(script, loops):
     times = timeit.repeat(script, repeat=NUM_RUNS, number=1)
     print script.__name__
-    #print times
-    print " Best microseconds per run:", min(times) * 1e6
+    print len(times)
+    if loops > 1:
+        unit = 1e9
+        unitname = "nanoseconds per loop"
+    else:
+        unit = 1e6
+        unitname = "microseconds per run"
+    print " Best %s:" % unitname, unit * min(times)
     times = sorted(times)[:len(times)/2]
-    print " average microseconds (excl. outliers):", 1e6 * sum(times) / len(times)
+    print " average %s (excl. outliers):" % unitname, unit * sum(times) / len(times)
 
 ########################################################################
 

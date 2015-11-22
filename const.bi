@@ -307,6 +307,12 @@ Enum fontTypeEnum
   ftypeLatin1 = 1 'Characters between 127 and 160 inclusive are assumed to be icons
 End Enum
 
+'The following is INCOMPLETE documentation of the uses of special characters 0-31
+'in the font.
+' 0: Bit 0 indicates whether a Latin-1 font
+' 1: Used as x (times) symbol in shops
+
+
 'Constants for debugc
 'NOTE: errorlevel.h MUST be updated when this is changed!
 Enum errorLevelEnum

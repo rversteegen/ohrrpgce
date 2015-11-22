@@ -1111,7 +1111,8 @@ Sub UpdateTextSlice(byval sl as slice ptr)
  
  dim dat as TextSliceData ptr = cptr(TextSliceData ptr, sl->SliceData)
  
- '--Note that automatic setting of wrapped text height doesn't matter if this slice is set ->Fill = YES the parent fill height will override
+ '--Note that automatic setting of wrapped text height doesn't matter if this slice is set ->Fill = YES,
+ '--as the parent fill height will override it.
  dim lines() as string
  WrapTextSlice sl, lines()
  dim high as integer

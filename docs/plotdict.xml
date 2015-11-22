@@ -565,10 +565,13 @@ The <p>exit returning</p> command works exactly the same as the <ref>return</ref
 			</seealso>
 		</command>
 		<command id="break">
-			<canon>break</canon>
+			<canon>break(levels)</canon>
 			<shortname>break</shortname>
 			<added>ubersetzung</added>
-			<description>Breaks out of a <ref>for</ref> or <ref>while</ref> loop or <ref>switch</ref> and continues the script after the end of the <ref>do</ref> block.</description>
+			<description>
+				Breaks out of a <ref>for</ref> or <ref>while</ref> loop or <ref>switch</ref> and continues the script after the end of the <ref>do</ref> block.
+				<p>levels</p> is optional (defaulting to 1), and says how many nested loops/blocks to break out of.
+			</description>
 		</command>
 		<command id="continue">
 			<canon>continue</canon>

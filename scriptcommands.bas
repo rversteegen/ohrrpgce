@@ -2300,11 +2300,17 @@ SUB sfunctions(byval cmdid as integer)
    IF plotslices(retvals(0))->SliceType = slRectangle THEN scriptret = 1
   END IF
  CASE 372 '--set slice width
-  IF valid_resizeable_slice(retvals(0), NO, YES) THEN
-   plotslices(retvals(0))->Width = retvals(1)
+  IF valid_resizeable_slice(retvals(0), NO, YES, NO) THEN
+   DIM sl as Slice Ptr = plotslices(retvals(0))
+   sl->Width = retvals(1)
+   ' Changing wrapping a text slice's width causes its height to change. Recalculate immediately
+   IF sl->SliceType = slText THEN
+    UpdateTextSlice sl
+    debug "recalced height after set width = " & retvals(1) & " h = " & sl->Height
+   END IF
   END IF
  CASE 373 '--set slice height
-  IF valid_resizeable_slice(retvals(0), YES, NO) THEN
+  IF valid_resizeable_slice(retvals(0), YES, NO, YES) THEN
    plotslices(retvals(0))->Height = retvals(1)
   END IF
  CASE 374 '--get rect style
@@ -2437,7 +2443,7 @@ SUB sfunctions(byval cmdid as integer)
    scriptret = plotslices(retvals(0))->PaddingRight
   END IF
  CASE 400 '--fill parent
-  IF valid_resizeable_slice(retvals(0), YES, YES) THEN
+  IF valid_resizeable_slice(retvals(0), YES, YES, NO) THEN
    plotslices(retvals(0))->Fill = (retvals(1) <> 0)
   END IF
  CASE 401 '--is filling parent
@@ -4273,6 +4279,15 @@ END FUNCTION
 '==========================================================================================
 
 
+'handle 
+SUB slice_bad_op(handle as integer, message as string, errlev as scriptErrEnum = serrBadOp)
+ DIM typename as string
+ DIM sl as Slice ptr
+ 
+ IF sl THEN typename = SliceTypeName(sl)
+ scripterr current_command_name() & ": " & typename & " slice (handle=" & handle & ") " & message, errLvl
+END SUB
+
 FUNCTION valid_spriteslice_dat(byval sl as Slice Ptr) as integer
  IF sl = 0 THEN scripterr "null slice ptr in valid_spriteslice_dat", serrBug : RETURN NO
  DIM dat as SpriteSliceData Ptr = sl->SliceData
@@ -4285,22 +4300,22 @@ END FUNCTION
 
 FUNCTION valid_plotslice(byval handle as integer, byval errlev as scriptErrEnum = serrBadOp) as integer
  IF handle < LBOUND(plotslices) OR handle > UBOUND(plotslices) THEN
-  scripterr current_command_name() & ": invalid slice handle " & handle, errlev
+  scripterr "invalid slice handle " & handle, errlev
   RETURN NO
  END IF
  IF plotslices(handle) = 0 THEN
-  scripterr current_command_name() & ": slice handle " & handle & " has already been deleted", errlev
+  slice_bad_op handle, "has already been deleted", errlev
   RETURN NO
  END IF
  IF ENABLE_SLICE_DEBUG THEN
   IF SliceDebugCheck(plotslices(handle)) = NO THEN
-   scripterr current_command_name() & ": slice " & handle & " " & plotslices(handle) & " is not in the slice debug table!", serrBug
+   slice_bad_op "is not in the slice debug table!", serrBug
    RETURN NO
   END IF
  END IF
  RETURN YES
 END FUNCTION
-
+ 
 FUNCTION valid_plotsprite(byval handle as integer) as integer
  IF valid_plotslice(handle) THEN
   IF plotslices(handle)->SliceType = slSprite THEN
@@ -4308,7 +4323,7 @@ FUNCTION valid_plotsprite(byval handle as integer) as integer
     RETURN YES
    END IF
   ELSE
-   scripterr current_command_name() & ": slice handle " & handle & " is not a sprite", serrBadOp
+   slice_bad_op "is not a sprite"
   END IF
  END IF
  RETURN NO
@@ -4319,7 +4334,7 @@ FUNCTION valid_plotrect(byval handle as integer) as integer
   IF plotslices(handle)->SliceType = slRectangle THEN
    RETURN YES
   ELSE
-   scripterr current_command_name() & ": slice handle " & handle & " is not a rect", serrBadOp
+   slice_bad_op "is not a rect"
   END IF
  END IF
  RETURN NO
@@ -4329,12 +4344,12 @@ FUNCTION valid_plottextslice(byval handle as integer) as integer
  IF valid_plotslice(handle) THEN
   IF plotslices(handle)->SliceType = slText THEN
    IF plotslices(handle)->SliceData = 0 THEN
-    scripterr current_command_name() & ": text slice handle " & handle & " has null data", serrBug
+    slice_bad_op "has null data", serrBug
     RETURN NO
    END IF
    RETURN YES
   ELSE
-   scripterr current_command_name() & ": slice handle " & handle & " is not text", serrBadOp
+   slice_bad_op "is not a text slice"
   END IF
  END IF
  RETURN NO
@@ -4345,7 +4360,7 @@ FUNCTION valid_plotgridslice(byval handle as integer) as integer
   IF plotslices(handle)->SliceType = slGrid THEN
    RETURN YES
   ELSE
-   scripterr current_command_name() & ": slice handle " & handle & " is not a grid", serrBadOp
+   slice_bad_op "is not a grid"
   END IF
  END IF
  RETURN NO
@@ -4373,7 +4388,7 @@ FUNCTION valid_plotscrollslice(byval handle as integer) as integer
  RETURN NO
 END FUNCTION
 
-FUNCTION valid_resizeable_slice(byval handle as integer, byval horiz_fill_ok as bool=NO, byval vert_fill_ok as bool=NO) as integer
+FUNCTION valid_resizeable_slice(handle as integer, horiz_fill_ok as bool=NO, vert_fill_ok as bool=NO, setting_height as bool=NO) as bool
  IF valid_plotslice(handle) THEN
   DIM sl as Slice Ptr
   sl = plotslices(handle)
@@ -4389,20 +4404,22 @@ FUNCTION valid_resizeable_slice(byval handle as integer, byval horiz_fill_ok as 
      CASE 2 'Filling vert only
       IF vert_fill_ok THEN RETURN YES
     END SELECT
-    scripterr current_command_name() & ": slice handle " & handle & " cannot be resized while filling parent", serrBadOp
+    slice_bad_op "cannot be resized while filling parent"
    END IF
   ELSE
    IF sl->SliceType = slText THEN
     DIM dat as TextSliceData ptr
     dat = sl->SliceData
-    IF dat = 0 THEN scripterr "sanity check fail, text slice " & handle & " has null data", serrBug : RETURN NO
-    IF dat->wrap = YES THEN
+    IF dat = 0 THEN slice_bad_op "has null data: sanity check fail", serrBug : RETURN NO
+    IF dat->wrap = YES AND setting_height = NO THEN
      RETURN YES
+    ELSEIF dat->wrap = NO THEN
+     slice_bad_op "cannot be resized unless wrap is enabled"
     ELSE
-     scripterr current_command_name() & ": text slice handle " & handle & " cannot be resized unless wrap is enabled", serrBadOp
+     slice_bad_op "height can never be set directly"
     END IF
    ELSE
-    scripterr current_command_name() & ": slice handle " & handle & " is not resizeable", serrBadOp
+    slice_bad_op "is not a resizable type of slice"
    END IF
   END IF
  END IF
@@ -4508,7 +4525,7 @@ SUB change_rect_plotslice(byval handle as integer, byval style as integer=-2, by
   IF sl->SliceType = slRectangle THEN
    ChangeRectangleSlice sl, style, bgcol, fgcol, border, translucent
   ELSE
-   scripterr current_command_name() & ": " & SliceTypeName(sl) & " is not a rect", serrBadOp
+   slice_bad_op "is not a rect"
   END IF
  END IF
 END SUB

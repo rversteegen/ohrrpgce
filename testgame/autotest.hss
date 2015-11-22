@@ -2548,13 +2548,53 @@ script, slice tests, begin
   assert(get rect trans(sl) == trans:fuzzy)
   assert(get rect fuzziness(sl) == 50)
   free slice(sl)
+  
+  text slice tests
+end
 
-  # Text slices
-  $2="fee Fi\n \n foe"
+########################################################################
+
+script, text slice tests, begin
+  $0="Text Slice tests"
+
+  # Check initial state as expected
+  variable(sl)
   sl := create text
-  set slice text(sl, 3)
   get slice text(2, sl)
+  assert(string length(2) == 0)
+  assert(get wrap(sl) == false)
+  assert(get outline(sl) == false)
+  assert(get text color(sl) == 0)  # which means uiText
+  assert(get text bg(sl) == 0)
+  
+  $2="fee Fi\n \n foe"
+  set slice text(sl, 2)
+  get slice text(3, sl)
   assert(string compare(2, 3))
+
+  # Non-wrapping slices have fixed size
+  tracevalue(slice width(sl),slice height(sl))
+  assert(slice width(sl) == 48)
+  assert(slice height(sl) == 30)  # 3 lines
+  #set slice width(sl, 10)  # throws an error
+  #set slice height(sl, 10)  # throws an error
+  assert(slice width(sl) == 48)
+  assert(slice height(sl) == 30)  # 3 lines
+
+  # Wrapping slices have recompute height based on width
+  set wrap(sl, true)
+  assert(get wrap(sl) == true)
+  assert(slice width(sl) == 48) # shouldn't have changed
+  set slice width(sl, 35)
+  assert(slice width(sl) == 35)
+  assert(slice height(sl) == 40)  # Recomputes immediately
+  set slice height(sl, 10)  # does nothing (should really throw an error)
+  assert(slice height(sl) == 40)
+  set wrap(sl, false)
+  assert(slice width(sl) == 48)  # Recomputes immediately
+
+  # TODO: test recomputing of embed codes
+
   $2=""
   $3=""
   free slice(sl)

@@ -6304,6 +6304,7 @@ function frame_dissolved(byval spr as frame ptr, byval tlength as integer, byval
 				end if
 			next
 			if state then frame_clear(cpy)
+		case 11 '
 	end select
 
 	return cpy

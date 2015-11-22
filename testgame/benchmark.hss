@@ -179,7 +179,7 @@ script, run benchmark, script id, loops, begin
 
   ) else (
     # Micro-benchmark
-    $2 = " best nanoseconds per run: "
+    $2 = " best nanoseconds per loop: "
     append decimal 100 (2, 100000 * best / loops)
   )
   trace (2)
@@ -214,11 +214,11 @@ script, run benchmark, script id, loops, begin
 
   if (loops == 1) then (
     # General benchmark
-    $2 = " average microseconds (excl. outliers): "
+    $2 = " average microseconds per run (excl. outliers): "
     append decimal 100 (2, avg)
   ) else (
     # Micro-benchmark
-    $2 = " average nanoseconds (excl. outliers): "
+    $2 = " average nanoseconds per loop (excl. outliers): "
     append decimal 100 (2, 1000 * avg / loops)
   )
   trace (2)
