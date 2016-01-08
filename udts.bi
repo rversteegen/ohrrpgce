@@ -9,6 +9,8 @@
 TYPE SliceFwd as Slice
 
 TYPE MouseInfo
+  inwindow as bool   'Whether inside the (client area of the) window frame.
+                     'If false, then position isn't updated and most other data isn't filled in!
   x as integer
   y as integer
   moved as bool      'Whether mouse has moved since last readmouse call.
