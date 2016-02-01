@@ -22,6 +22,7 @@
 #endif
 
 #include "SDL\SDL.bi"
+#include "SDL\SDL_loadso.bi"
 #include "SDL\SDL_mixer.bi"
 
 ' External functions
@@ -87,6 +88,29 @@ sub quit_sdl_audio()
 	end if
 end sub
 
+sub check_mikmod_version(ret as string)
+	dim lib_handle as any ptr
+	#if defined(__FB_WIN32__)
+		lib_handle = SDL_LoadObject("SDL_mixer.dll")
+	#else
+		lib_handle = SDL_LoadObject("libSDL_mixer.so")
+	#endif
+
+	if lib_handle = NULL then
+		exit sub
+	end if
+
+        dim MikMod_GetVersion as function() as int32
+	MikMod_GetVersion = SDL_LoadFunction(lib_handle, "MikMod_GetVersion")
+	if MikMod_GetVersion = NULL then exit sub
+
+	dim mikmod_ver as integer = MikMod_GetVersion()
+	ret += " MikMod version " & _
+	   ((mikmod_ver shr 16) and 255) & "." & _
+	   ((mikmod_ver shr 8) and 255) & "." & _
+	   (mikmod_ver and 255)
+end sub
+
 function music_get_info() as string
 	dim ver as const SDL_version ptr
 	dim ret as string = "music_sdl"
@@ -98,6 +122,8 @@ function music_get_info() as string
 
 	ver = Mix_Linked_Version()
 	ret += ", SDL_Mixer " & ver->major & "." & ver->minor & "." & ver->patch
+
+	check_mikmod_version ret
 
 	if music_on = 1 then
 		dim freq as int32, format as ushort, channels as int32
