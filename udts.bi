@@ -254,10 +254,10 @@ TYPE MenuState
   size      as integer 'number of elements to display at a time - 1
   need_update as bool  'menu needs some kind of update
   tog       as bool    'For flashing cursor
-  '--populated when the menu is drawn
+  '--The following are populated when the menu is drawn by standardmenu/draw_menu: these are OVERWRITTEN
   has_been_drawn as bool
-  rect as RectType
-  spacing as integer
+  rect as RectType     'For standardmenu the width/height is garbage
+  spacing as integer   'Height of a line, NOT like MenuDef.itemspacing.
 END TYPE
 
 'A set of rendering options which can be passed to standardmenu.

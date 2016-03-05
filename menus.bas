@@ -39,7 +39,7 @@ SUB init_menu_state (byref state as MenuState, menu() as SimpleMenuItem)
  WITH state
   .first = 0
   .last = UBOUND(menu)
-  IF .size <= 0 THEN .size = 20
+  IF .size <= 0 THEN .size = get_resolution_h() \ 9 - 1 - 1  'used to be 20... to leave one extra line clear?
   .pt = bound(.pt, .first, .last)  '.first <= .last
   IF menu(.pt).unselectable THEN
    .pt = -1  'explicitly -1 when nothing selectable
@@ -63,7 +63,7 @@ SUB init_menu_state (byref state as MenuState, byval menu as BasicMenuItem vecto
  WITH state
   .first = 0
   .last = v_len(menu) - 1
-  IF .size <= 0 THEN .size = 20
+  IF .size <= 0 THEN .size = get_resolution_h() \ 9 - 1 - 1  'used to be 20... to leave one extra line clear?
   .pt = bound(.pt, .first, .last)  '.first <= .last
   IF v_at(menu, .pt)->unselectable THEN
    .pt = -1  'explicitly -1 when nothing selectable
@@ -396,11 +396,12 @@ SUB standardmenu (byval menu as BasicMenuItem vector, state as MenuState, byval 
  DIM wide as integer
  wide = small(menuopts.wide, vpages(page)->w - x)
 
+ 'Draw scrollbar... why is rect subtly different from state.rect?
  DIM rect as RectType
  rect.x = x
  rect.y = y
  rect.wide = wide
- rect.high = (state.size + 1) * 8
+ rect.high = (state.size + 1) * state.spacing
  IF menuopts.scrollbar THEN
   draw_scrollbar state, rect, 0, page
  ELSEIF menuopts.fullscreen_scrollbar THEN
@@ -415,12 +416,15 @@ SUB standardmenu (byval menu as BasicMenuItem vector, state as MenuState, byval 
   IF i < v_len(menu) THEN
    WITH *v_at(menu, i)
 
+    DIM drawy as integer
+    drawy = y + (i - state.top) * state.spacing
     DIM linewidth as integer = textwidth(.text)
     IF .bgcol THEN
-     rectangle x + 0, y + (i - state.top) * 8, wide, 8, .bgcol, page
+     ' This 8 is the font height, not the line spacing.
+     rectangle x + 0, drawy, wide, 8, .bgcol, page
     END IF
     IF state.pt = i AND state.active AND menuopts.highlight <> NO THEN
-     rectangle x + 0, y + (i - state.top) * 8, IIF(linewidth, linewidth, 9999), 8, uilook(uiHighlight), page
+     rectangle x + 0, drawy, IIF(linewidth, linewidth, 9999), 8, uilook(uiHighlight), page
     END IF
     DIM col as integer = .col
     IF .disabled THEN
@@ -431,16 +435,17 @@ SUB standardmenu (byval menu as BasicMenuItem vector, state as MenuState, byval 
      IF state.pt = i AND state.active THEN col = uilook(uiSelectedItem + state.tog)
     END IF
     DIM drawx as integer = x
+    ' Show the right end of the selected menu item, if it's too long.
     IF linewidth > wide AND state.active THEN
      IF state.pt = i OR menuopts.showright THEN
       drawx = x + wide - linewidth
      END IF
     END IF
     IF menuopts.edged THEN
-     edgeprint .text, drawx, y + (i - state.top) * 8, col, page, YES
+     edgeprint .text, drawx, drawy, col, page, YES
     ELSE
      textcolor col, 0
-     printstr .text, drawx, y + (i - state.top) * 8, page, YES
+     printstr .text, drawx, drawy, page, YES
     END IF
 
    END WITH
@@ -780,7 +785,7 @@ SUB init_menu_state (byref state as MenuState, menu() as string)
  WITH state
   .first = LBOUND(menu)
   .last = UBOUND(menu)
-  .size = small(.last - .first, cint(int(get_resolution_h() / 8)))
+  .size = small(.last - .first, get_resolution_h() \ 8 - 1)
   .pt = small(large(.pt, .first), .last)  'explicitly -1 when empty
   IF .pt <> -1 THEN .top = bound(.top, .pt - .size, .pt)
   .top = bound(.top, 0, large(.last - .size, 0))
@@ -793,7 +798,14 @@ SUB init_menu_state (byref state as MenuState, menu as MenuDef)
   .first = 0
   .last = count_menu_items(menu) - 1
   .size = menu.maxrows - 1
-  IF .size = -1 THEN .size = 17
+  IF .size = -1 THEN   '.size = 17
+   'Compute number of menu items that can fit on the screen
+   DIM border as integer
+   border = 2 * (8 + menu.bordersize)
+   'When N items are visible there are only N-1 gaps between them where .itemspacing is added
+   border -= menu.itemspacing
+   .size = (get_resolution_h() - border) \ (10 + menu.itemspacing) - 1
+  END IF
   .pt = small(large(.pt, .first), .last)  'explicitly -1 when empty
   IF .pt <> -1 THEN .top = bound(.top, .pt - .size, .pt)
   .top = bound(.top, 0, large(.last - .size, 0))
