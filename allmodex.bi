@@ -236,6 +236,7 @@ declare function Palette16_load_uncached(fil as string, num as integer) as Palet
 declare sub palette16_unload(byval p as palette16 ptr ptr)
 declare sub palette16_empty_cache(freeleaks as bool = NO)
 declare sub palette16_update_cache(num as integer)
+declare sub Palette16_update_defpal_cache()
 
 declare sub show_virtual_keyboard()
 declare sub hide_virtual_keyboard()

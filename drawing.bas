@@ -2012,9 +2012,11 @@ DO
  IF keyval(scRight) > 1 THEN ss.framenum = small(ss.framenum + 1, ss.perset - 1)
  IF keyval(scLeftBrace) > 1 THEN
   changepal poffset(state.pt), -1, workpal(), state.pt - state.top
+  savedefaultpals ss.fileset, poffset(), sets  'Instant update for live-previewing
  END IF
  IF keyval(scRightBrace) > 1 THEN
   changepal poffset(state.pt), 1, workpal(), state.pt - state.top
+  savedefaultpals ss.fileset, poffset(), sets  'Instant update for live-previewing
  END IF
  '--copying
  IF copy_keychord() THEN 

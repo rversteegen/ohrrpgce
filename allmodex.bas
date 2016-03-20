@@ -6992,6 +6992,30 @@ sub Palette16_add_cache(key as Palette16CacheKey, pal as Palette16 ptr, from_idx
 	Palette16_add_cache(key, pal, i)
 end sub
 
+' Reload all default palette values, updating every indirect palette in the palette cache.
+sub Palette16_update_defpal_cache()
+	for idx as integer = 0 to ubound(palcache)
+		with palcache(idx)
+			if .pal <> 0 andalso .pal->truepal then
+				'Is an indirect palette
+				if .pal->refcount = 0 then
+					'Just throw away instead of reloading
+					Palette16_delete @.pal
+				else
+					'Reload the .truepal ptr
+					dim as integer num = getdefaultpal(.key.sprtype, .key.sprset)
+					if num = -1 then
+						debug "Couldn't load default palette"
+						continue for
+					end if
+					Palette16_unload @.pal->truepal
+					.pal->truepal = Palette16_load(num)
+				end if
+			end if
+		end with
+	next
+end sub
+
 function Palette16_new() as Palette16 ptr
 	dim ret as Palette16 ptr
 	'--create a new palette which is not connected to any data file

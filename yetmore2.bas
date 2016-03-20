@@ -1073,6 +1073,7 @@ SUB receive_file_updates ()
    channel_write_line(master_channel, line_in)
 
   ELSEIF LEFT(line_in, 4) = "PAL " THEN  'palette changed (path of least resistance...)
+   'Note defpal#.bin is handled separately
    DIM palnum as integer = str2int(MID(line_in, 5))
    palette16_update_cache(palnum)
 
@@ -1179,8 +1180,8 @@ SUB reload_MAP_lump()
  END WITH
 END SUB
 
-'Check whether a lump is a .PT#, .MXS or .TIL lump. Reload them.
-FUNCTION try_reload_gfx_lump(extn as string) as integer
+'Check whether a lump is a .PT#, .MXS, .TIL or DEFPAL#.BIN lump. Reload them.
+FUNCTION try_reload_gfx_lump(basename as string, extn as string) as integer
  IF extn = "til" THEN
   sprite_update_cache sprTypeTileset
   RETURN YES
@@ -1193,6 +1194,9 @@ FUNCTION try_reload_gfx_lump(extn as string) as integer
    sprite_update_cache ptno
    RETURN YES
   END IF
+ ELSEIF LEFT(basename, 6) = "defpal" and extn = "bin" THEN
+  Palette16_update_defpal_cache
+  RETURN YES
  END IF
  RETURN NO
 END FUNCTION
@@ -1373,7 +1377,7 @@ SUB try_reload_lumps_anywhere ()
    'Cause cache in getmenuname to be dropped
    game_unique_id = STR(randint(INT_MAX))
 
-  ELSEIF try_reload_gfx_lump(extn) THEN                                   '.PT#, .TIL, .MXS
+  ELSEIF try_reload_gfx_lump(basename, extn) THEN                         '.PT#, .TIL, .MXS, DEFPAL#.BIN
    handled = YES
 
   ELSEIF extn = "fnt" THEN                                                '.FNT
