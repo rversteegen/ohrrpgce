@@ -529,6 +529,9 @@ elif unix:  # Linux & BSD
     if gfx != ['console']:
         # All graphical gfx backends need the X11 libs
         common_libraries += 'X11 Xext Xpm Xrandr Xrender'.split (' ')
+        if 'sdl' in gfx:
+            # Using both X11 and SDL
+            commonenv['CFLAGS'] += ['-DGFX_SDL_X11']
     commonenv['FBFLAGS'] += ['-d', 'DATAFILES=\'"' + prefix + '/share/games/ohrrpgce"\'']
 
 

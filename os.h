@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include "common.h"
 
 #ifdef _WIN32
 
@@ -60,6 +61,7 @@ void cleanup_process (ProcessHandle *processp);
 int get_process_id();
 
 void os_get_screen_size(int *wide, int *high);
+boolint gfx_sdl_x11_maximise_window();
 
 #ifdef __cplusplus
 }

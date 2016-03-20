@@ -96,6 +96,11 @@ DECLARE SUB internal_set_mouserect(byval xmin as integer, byval xmax as integer,
 DECLARE SUB internal_disable_virtual_gamepad()
 DECLARE FUNCTION scOHR2SDL(byval ohr_scancode as integer, byval default_sdl_scancode as integer=0) as integer
 
+#IFDEF __X11__
+DECLARE FUNCTION gfx_sdl_x11_maximise_window() as boolint
+
+#ENDIF
+
 #IFDEF __FB_DARWIN__
 
 '--These wrapper functions in mac/SDLMain.m call various Cocoa methods
@@ -582,6 +587,9 @@ FUNCTION gfx_sdl_screenshot(byval fname as zstring ptr) as integer
 END FUNCTION
 
 SUB gfx_sdl_setwindowed(byval iswindow as integer)
+print "hell"
+gfx_sdl_x11_maximise_window()
+exit sub
 #IFDEF __FB_DARWIN__
   IF iswindow = NO THEN
     'Zoom 3 or 4 look better in fullscreen, so change to one of those temporarily
@@ -699,6 +707,7 @@ SUB gfx_sdl_set_zoom(byval value as integer)
       END IF
     END WITH
   END IF
+
 END SUB
 
 FUNCTION gfx_sdl_setoption(byval opt as zstring ptr, byval arg as zstring ptr) as integer

@@ -88,6 +88,9 @@ dim vpages() as Frame ptr
 dim vpagesp as Frame ptr ptr  'points to vpages(0) for debugging: fbc outputs typeless debugging symbol
 
 #IFDEF __X11__
+extern "C"
+DECLARE FUNCTION gfx_sdl_x11_maximise_window() as boolint
+end extern
  'As a workaround for bug 2005, we disable native text input by default
  'on X11 (Linux/BSD). This can be removed when we figure out a better fix for that bug
  dim disable_native_text_input as bool = YES
@@ -1751,6 +1754,8 @@ private sub allmodex_controls()
 
 	if real_keyval(scCtrl) > 0 and real_keyval(scTilde) and 4 then
 		showfps xor= 1
+debug "ret = " & gfx_sdl_x11_maximise_window() 
+
 	end if
 
 	fps_multiplier = base_fps_multiplier
