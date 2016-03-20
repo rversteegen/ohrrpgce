@@ -3244,10 +3244,17 @@ Function LoadPropFloat(node as Reload.Nodeptr, propname as string, byval default
  return Reload.GetChildNodeFloat(node, propname, defaultval)
 End function
 
-Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handles as bool=NO)
- if sl = 0 then debug "SliceLoadFromNode null slice ptr": Exit Sub
- if node = 0 then debug "SliceLoadFromNode null node ptr": Exit Sub
- if sl->NumChildren > 0 then debug "SliceLoadFromNode slice already has " & sl->numChildren & " children"
+Function SliceLoadFromNode(node as Reload.Nodeptr, load_handles as bool=NO) as Slice ptr
+ if node = 0 then debug "SliceLoadFromNode null node ptr": return null
+
+ dim typestr as string = LoadPropStr(node, "type")
+ dim typenum as SliceTypes = SliceTypeByName(typestr)
+ if typenum = slInvalid then
+  debugc errPromptError, "Could not load slice (invalid type): " & Reload.Ext.GetNodePath(node)
+  return null
+ end if
+ dim sl as Slice Ptr = NewSliceOfType(typenum)
+
  '--Load standard slice properties
  sl->lookup = LoadProp(node, "lookup")
  sl->x = LoadProp(node, "x")
@@ -3287,51 +3294,43 @@ Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handle
    if tableslot then set_plotslice_handle(sl, tableslot)
   end if
  #ENDIF
- 'now update the type
- dim typestr as string = LoadPropStr(node, "type")
- dim typenum as SliceTypes = SliceTypeByName(typestr)
- if typenum = slInvalid then
-  debugc errPromptError, "Could not load slice (invalid type): " & Reload.Ext.GetNodePath(node)
-  exit sub
- else
-  dim newsl as Slice Ptr = NewSliceOfType(typenum)
-  ReplaceSliceType sl, newsl
-  '--Load properties specific to this slice type
-  sl->Load(sl, node)
- end if
+ '--Load properties specific to this slice type
+ sl->Load(sl, node)
  '--Now load all the children
  dim children as Reload.NodePtr
  children = Reload.GetChildByName(node, "children")
  if children then
   'now loop through the children of this node and create a new slice for each one
-  dim ch_slice as Slice Ptr
   dim ch_node as Reload.NodePtr = Reload.FirstChild(children)
   do while ch_node <> 0
-   ch_slice = NewSlice(sl)
-   SliceLoadFromNode ch_slice, ch_node, load_handles
+   dim ch_slice as Slice Ptr
+   ch_slice = SliceLoadFromNode(ch_node, load_handles)
+   SliceSetParent ch_slice, sl
    ch_node = Reload.NextSibling(ch_node)
   loop
  end if
-End sub
+ return sl
+End Function
 
-Sub SliceLoadFromFile(byval sl as Slice Ptr, filename as string, load_handles as bool=NO)
+Function SliceLoadFromFile(filename as string, load_handles as bool=NO) as Slice ptr
  
  'First create a reload document
  dim doc as Reload.DocPtr
  doc = Reload.LoadDocument(filename, optNoDelay)
  if doc = null then 'the root node will never be null -- Mike
-   debug "Reload.LoadDocument failed in SliceLoadFromFile"
-   exit sub
+   debugc errError, "Reload.LoadDocument failed in SliceLoadFromFile"
+   return null
  end if
  
  'Populate the slice tree with data from the reload tree
  dim node as Reload.Nodeptr
  node = Reload.DocumentRoot(doc)
- SliceLoadFromNode sl, node, load_handles
- 
- Reload.FreeDocument(doc)
+ dim sl as Slice ptr
+ sl = SliceLoadFromNode(node, load_handles)
 
-End sub
+ Reload.FreeDocument(doc)
+ return sl
+End Function
 
 '--slice debug stuff
 

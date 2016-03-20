@@ -161,8 +161,6 @@ FUNCTION edrun_create_widget_slice(byval widget as NodePtr) as Slice Ptr
   pop_warning("can't create slice for null widget!")
   RETURN 0
  END IF
- DIM sl as Slice Ptr
- sl = NewSliceOfType(slSpecial)
  DIM kind as string
  kind = GetString(widget)
  DIM dirname as string
@@ -171,16 +169,19 @@ FUNCTION edrun_create_widget_slice(byval widget as NodePtr) as Slice Ptr
   pop_warning("Can't find widget data dir!")
   RETURN 0
  END IF
+ DIM sl as Slice Ptr
  DIM filename as string
  filename =  dirname & SLASH & kind & ".widget.slice"
  IF isfile(filename) THEN
-  SliceLoadFromFile sl, filename
-  IF sl THEN
-  ELSE
+  sl = SliceLoadFromFile(filename)
+  IF sl = NULL THEN
    debuginfo "edrun_create_widget_slice: slice load failed"
   END IF
  ELSE
   debuginfo "edrun_create_widget_slice: no widget file for " & kind
+ END IF
+ IF sl = NULL THEN
+  sl = NewSliceOfType(slSpecial)
  END IF
  RETURN sl
 END FUNCTION

@@ -2844,12 +2844,19 @@ SUB sfunctions(byval cmdid as integer)
   END IF
  CASE 461 '--load slice collection
   DIM sl as Slice Ptr
-  IF isfile(workingdir & SLASH & "slicetree_0_" & retvals(0) & ".reld") THEN
-   sl = NewSliceOfType(slContainer, SliceTable.scriptsprite)
-   SliceLoadFromFile sl, workingdir & SLASH & "slicetree_0_" & retvals(0) & ".reld"
-   scriptret = create_plotslice_handle(sl)
+  DIM collection_file as string
+  collection_file = workingdir & SLASH & "slicetree_0_" & retvals(0) & ".reld"
+  IF isfile(collection_file) THEN
+   sl = SliceLoadFromFile(collection_file)
+   IF sl THEN
+    SliceSetParent sl, SliceTable.scriptsprite
+    scriptret = create_plotslice_handle(sl)
+   ELSE
+    scripterr "load slice collection: couldn't load slice collection " & retvals(0) & "; data probably corrupt", serrError
+    scriptret = 0
+   END IF
   ELSE
-   scripterr current_command_name() & ": invalid slice collection id " & retvals(0), serrBadOp
+   scripterr "load slice collection: invalid slice collection id " & retvals(0), serrBadOp
    scriptret = 0
   END IF
  CASE 462 '--set slice edge x

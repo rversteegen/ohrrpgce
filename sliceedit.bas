@@ -268,14 +268,16 @@ SUB slice_editor (byval group as integer = SL_COLLECT_USERDEFINED)
  init_slice_editor_for_collection_group(ses, group, specialcodes())
 
  DIM edslice as Slice Ptr
- edslice = NewSlice
- WITH *edslice
-  .SliceType = slContainer
-  .Fill = YES
- END WITH
 
  IF isfile(slice_editor_filename(ses)) THEN
-  SliceLoadFromFile edslice, slice_editor_filename(ses)
+  edslice = SliceLoadFromFile(slice_editor_filename(ses))
+  IF edslice = NULL THEN EXIT SUB
+ ELSE 
+  edslice = NewSlice
+  WITH *edslice
+   .SliceType = slContainer
+   .Fill = YES
+  END WITH
  END IF
 
  ses.draw_root = create_draw_root()
@@ -709,12 +711,14 @@ END FUNCTION
 SUB slice_editor_load(byref ses as SliceEditState, byref edslice as Slice Ptr, filename as string, specialcodes() as SpecialLookupCode)
  DIM newcollection as Slice Ptr
  newcollection = NewSlice
- WITH *newcollection  'Defaults only
-  .SliceType = slContainer
-  .Fill = YES
- END WITH
  IF isfile(filename) THEN
-  SliceLoadFromFile newcollection, filename
+  newcollection = SliceLoadFromFile(filename)
+  IF newcollection = NULL THEN EXIT SUB
+ ELSE
+  WITH *newcollection
+   .SliceType = slContainer
+   .Fill = YES
+  END WITH
  END IF
  '--You can export slice collections from the in-game slice debugger. These
  '--collections are full of forbidden slices, so we must detect these and
@@ -1565,11 +1569,11 @@ FUNCTION slice_color_caption(byval n as integer, ifzero as string="0") as string
 END FUNCTION
 
 'This wrapper around SliceLoadFromFile falls back to a default for the various special slice collections
-SUB load_slice_collection (byval sl as Slice Ptr, byval collection_kind as integer, byval collection_num as integer=0)
+FUNCTION load_slice_collection (collection_kind as integer, collection_num as integer=0) as Slice ptr
  DIM filename as string
  filename = workingdir & SLASH & "slicetree_" & collection_kind & "_" & collection_num & ".reld"
  IF isfile(filename) THEN
-  SliceLoadFromFile sl, filename
+  RETURN SliceLoadFromFile(filename)
  ELSE
   SELECT CASE collection_kind
    CASE SL_COLLECT_STATUSSCREEN:
@@ -1591,6 +1595,7 @@ SUB load_slice_collection (byval sl as Slice Ptr, byval collection_kind as integ
    CASE ELSE
     debug "WARNING: no default slice collection for collection kind " & collection_kind
   END SELECT
+  RETURN sl
  END IF
 END SUB
 

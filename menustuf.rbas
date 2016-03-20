@@ -1848,13 +1848,12 @@ SUB status_screen (byval slot as integer)
 
  DIM st as StatusScreenState
  st.slot = slot
- st.sl = NewSliceOfType(slRoot)
- st.sl->Fill = YES
+ st.sl = load_slice_collection(SL_COLLECT_STATUSSCREEN)
+' st.sl->Fill = YES
  RefreshSliceScreenPos st.sl
 
  DIM holdscreen as integer = duplicatepage(vpage)
 
- load_slice_collection st.sl, SL_COLLECT_STATUSSCREEN
  status_screen_refresh st
  
  show_virtual_gamepad()
@@ -2015,8 +2014,8 @@ SUB item_screen_refresh(byref st as ItemScreenState)
  
  plank_menu_clear st.ps.m, SL_ITEM_ITEMLIST
 
- DIM collection as Slice Ptr = NewSliceOfType(slRoot)
- load_slice_collection collection, SL_COLLECT_ITEMPLANK
+ DIM collection as Slice Ptr
+ collection = load_slice_collection(SL_COLLECT_ITEMPLANK)
  IF collection = 0 THEN debug "item_screen_refresh: plank collection not found": EXIT SUB
 
  DIM pl as Slice Ptr
@@ -2181,15 +2180,15 @@ FUNCTION item_screen () as integer
 'Returns 0, or ID of textbox to open (box 0 can't be opened)
 
  DIM st as ItemScreenState
- st.ps.m = NewSliceOfType(slRoot)
- st.ps.m->Fill = YES
- RefreshSliceScreenPos st.ps.m
  st.ps.is_plank_callback = @is_item_plank
  st.ps.state_callback = @set_item_plank_state
 
  DIM holdscreen as integer = duplicatepage(vpage)
 
- load_slice_collection st.ps.m, SL_COLLECT_ITEMSCREEN
+ st.ps.m = load_slice_collection(SL_COLLECT_ITEMSCREEN)
+ IF st.ps.m = NULL THEN RETURN 0
+' st.ps.m->Fill = YES
+ RefreshSliceScreenPos st.ps.m
  item_screen_refresh st
 
  show_virtual_gamepad()
@@ -2346,8 +2345,8 @@ SUB spell_screen_refresh(byref st as SpellScreenState)
 
  'expand_slice_text_insert_codes st.ps.m, @ExpandTextSpellScreen, st.ps.cur
 
- 'DIM collection as Slice Ptr = NewSliceOfType(slRoot)
- 'load_slice_collection collection, SL_COLLECT_ITEMPLANK
+ 'DIM collection as Slice Ptr
+ 'collection = load_slice_collection(SL_COLLECT_ITEMPLANK)
  'IF collection = 0 THEN debug "item_screen_refresh: plank collection not found": EXIT SUB
 '
 ' DIM pl as Slice Ptr
@@ -2390,13 +2389,12 @@ END SUB
 SUB spell_screen (byval slot as integer)
 
  DIM st as SpellScreenState
- st.ps.m = NewSliceOfType(slRoot)
- st.ps.m->Fill = YES
- RefreshSliceScreenPos st.ps.m
-
  DIM holdscreen as integer = duplicatepage(vpage)
 
- load_slice_collection st.ps.m, SL_COLLECT_SPELLSCREEN
+ st.ps.m = load_slice_collection(SL_COLLECT_SPELLSCREEN)
+ IF st.ps.m = NULL THEN EXIT SUB
+' st.ps.m->Fill = YES
+ RefreshSliceScreenPos st.ps.m
  spell_screen_refresh st
  
  show_virtual_gamepad()
@@ -3620,14 +3618,14 @@ END SUB
 FUNCTION touch_virtual_keyboard (default_str as string, max_length as integer=-1, prompt as string="") as string
 
  DIM st as VirtualKeyboardScreenState
- st.sl = NewSliceOfType(slRoot)
- st.sl->Fill = YES
- RefreshSliceScreenPos st.sl
  st.result = default_str
  st.max_length = max_length
  st.prompt = prompt
 
- load_slice_collection st.sl, SL_COLLECT_VIRTUALKEYBOARDSCREEN
+ st.sl = load_slice_collection(SL_COLLECT_VIRTUALKEYBOARDSCREEN)
+ IF st.sl = NULL THEN RETURN default_str
+' st.sl->Fill = YES
+ RefreshSliceScreenPos st.sl
  expand_slice_text_insert_codes st.sl, @ExpandTextVirtualKeyboard, @st
  virtual_keyboard_refresh_array st
 
