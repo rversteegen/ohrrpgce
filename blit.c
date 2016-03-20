@@ -39,6 +39,9 @@ void blitohr(struct Frame *spr, struct Frame *destspr, struct Palette16 *pal, in
 	destp = destspr->image + startx + starty * destspr->pitch;
 	destlineinc = destspr->pitch - (endx - startx + 1);
 
+	if (pal && pal->truepal)
+		pal = pal->truepal;
+
 	if (pal != NULL && trans != 0) {
 		for (i = starty; i <= endy; i++) {
 			//loop unrolling copied from below, but not nearly as effective
@@ -124,7 +127,10 @@ void blitohrscaled(struct Frame *spr, struct Frame *destspr, struct Palette16 *p
 	if (spr->mask == 0) {
 		mptr = spr->image;
 	}
-	
+ 
+	if (pal && pal->truepal)
+		pal = pal->truepal;
+
 	//ty = starty
 	if (trans == 0) {
 		for (ty = starty; ty <= endy; ty++) {

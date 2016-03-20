@@ -1074,7 +1074,7 @@ SUB receive_file_updates ()
 
   ELSEIF LEFT(line_in, 4) = "PAL " THEN  'palette changed (path of least resistance...)
    DIM palnum as integer = str2int(MID(line_in, 5))
-   palette16_update_cache(game + ".pal", palnum)
+   palette16_update_cache(palnum)
 
   ELSEIF LEFT(line_in, 1) = "Q" THEN   'quit!
    music_stop

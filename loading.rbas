@@ -2993,7 +2993,7 @@ IF foffset >= 0 THEN '--never write a negative file offset
  storerecord buf(), f, 8, 1 + foffset
 END IF
 
-Palette16_update_cache f, foffset
+Palette16_update_cache foffset
 #IFDEF IS_CUSTOM
  IF slave_channel <> NULL_CHANNEL THEN channel_write_line slave_channel, "PAL " & foffset
 #ENDIF

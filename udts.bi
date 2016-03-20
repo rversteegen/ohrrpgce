@@ -73,9 +73,12 @@ Enum SpriteType
 End Enum
 
 'WARNING: don't add strings to this
+'Don't forget to update definition in allmodex.h when changing this!!
 TYPE Palette16
-	col(15) as ubyte 'indices into the master palette
-	refcount as int32 'private
+	col(15) as ubyte          'indices into the master palette
+	truepal as Palette16 ptr  'When this is nonzero, use this palette instead of col().
+	                          'truepal is used when you load a default palette.
+	refcount as int32         'Unlike Frames, unused cached palettes have a refcount of 0
 END TYPE
 
 TYPE SpriteCacheEntryFwd as SpriteCacheEntry

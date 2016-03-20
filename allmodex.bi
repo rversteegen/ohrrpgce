@@ -231,11 +231,11 @@ declare function frame_describe(byval p as frame ptr) as string
 
 declare function palette16_new() as palette16 ptr
 declare function palette16_new_from_buffer(pal() as integer, byval po as integer) as Palette16 ptr
-declare function palette16_load overload (byval num as integer, byval autotype as integer = 0, byval spr as integer = 0) as palette16 ptr
-declare function palette16_load(fil as string, byval num as integer, byval autotype as integer = 0, byval spr as integer = 0) as palette16 ptr
+declare function Palette16_load(num as integer, sprtype as SpriteType = 0, sprset as integer = 0) as Palette16 ptr
+declare function Palette16_load_uncached(fil as string, num as integer) as Palette16 ptr
 declare sub palette16_unload(byval p as palette16 ptr ptr)
-declare sub palette16_empty_cache()
-declare sub palette16_update_cache(fil as string, byval num as integer)
+declare sub palette16_empty_cache(freeleaks as bool = NO)
+declare sub palette16_update_cache(num as integer)
 
 declare sub show_virtual_keyboard()
 declare sub hide_virtual_keyboard()

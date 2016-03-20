@@ -11,8 +11,10 @@ struct XYPair {
 };
 
 struct Palette16 {
-	unsigned char col[16];  //indicies into the master palette
-	int refcount; //private
+	unsigned char col[16];      //indices into the master palette
+	struct Palette16 *truepal;  //When this is nonzero, use this palette instead of col().
+	                            //truepal is used when you load a default palette.
+	int refcount;               //Unlike Frames, unused cached palettes have a refcount of 0
 };
 
 typedef	uint32_t RGBcolor;
