@@ -2165,7 +2165,6 @@ SUB check_menu_tags ()
  DIM old as integer
  DIM changed as integer
  DIM remember as integer
- DIM selecteditem as MenuDefItem ptr
  FOR j = 0 TO topmenu
   WITH menus(j)
    changed = NO
@@ -2188,16 +2187,34 @@ SUB check_menu_tags ()
         IF fullscreen = NO ANDALSO .sub_t = 17 THEN .disabled = NO
        END IF
       END IF
+      IF i = mstates(j).pt AND .disabled THEN
+'              IF i > 0 THEN mstates(j).pt -= 1
+       ' FOR idx as integer = 0 TO menus(j).numitems - 1
+       '  WITH *menus(j).items[idx]
+       '   IF .t = 1 AND (.sub_t = 16 OR .sub_t = 17) AND .disabled = NO THEN mstates(j).pt = idx: changed = YES
+       '  END WITH
+       ' NEXT
+      END IF
+      WITH *.trueorder.prev
+              IF .t = 1 AND (.sub_t = 16 OR .sub_t = 17) THEN mstates(j).pt = idx: changed = YES
+        IF trueorder.prev->sub_t 
+      END IF
      END IF
      IF old <> .disabled THEN changed = YES
     END WITH
    NEXT i
    'FIXME: the following is meant to be handled by init_menu_state... in fact usemenu already does this
    IF changed = YES THEN
+    ' The following elaborate show is so that if something is added/removed from above .pt, .pt
+    ' getsmoved up/down to compensate.
+    DIM selecteditem as MenuDefItem ptr
+    DIM remember as integer
     IF mstates(j).pt >= 0 THEN
      selecteditem = .items[mstates(j).pt]
+     remember = mstates(j).pt
     ELSE
      selecteditem = NULL
+     remember = -1
     END IF
     SortMenuItems menus(j)
     IF selecteditem THEN
@@ -2208,6 +2225,17 @@ SUB check_menu_tags ()
        IF .items[i] = selecteditem THEN mstates(j).pt = i
       NEXT i
      WEND
+
+
+     WHILE idx <
+selecteditem ANDALSO (selecteditem->disabled AND selecteditem->hide_if_disabled)
+      selecteditem = selecteditem->trueorder.next
+     FOR i = 0 TO .numitems - 1
+      IF .items[i] = selecteditem THEN mstates(j).pt = i
+      NEXT i
+     WEND
+
+
      IF selecteditem = NULL THEN
       'then try last visible (ie, look backwards), finally give up
       mstates(j).pt = -1
