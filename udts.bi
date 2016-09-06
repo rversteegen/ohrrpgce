@@ -384,6 +384,7 @@ TYPE ScriptInst
   watched as bool       'true for scripts which are being logged (fibre roots only)
   started as bool       'used only if watched is true: whether the script has started
   id as integer         'id number of script
+  'fibre as ScriptFibre ptr  'only set for first script in fibre, NULL otherwise
 
   'these 3 items are only updated when the script interpreter is left. While inside
   'the script interpreter (command handlers) use the curcmd (ScriptCommand ptr) global.
@@ -392,6 +393,12 @@ TYPE ScriptInst
   curvalue as integer   'value/id of current statement
   curargc as integer    'number of args for current statement  (used only in old script debugger...)
 END TYPE
+
+'  root as integer       'Index in scriptinsts of root (initial) script, or -1 if none (because of an error)
+  ' waitarg as integer    'wait state argument 1
+  ' waitarg2 as integer   'wait state argument 2
+  ' blockable as bool     'Only on blockable fibre may be active
+'  priority as integer   'Determines ordering. Default to 0, higher runs earlier.
 
 TYPE ScriptFibre
   id as integer         'Triggers pre-decoded

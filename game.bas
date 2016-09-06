@@ -3836,6 +3836,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
    gam.script_log.enabled = NO
    gam.showtext = "Script logging disabled."
   ELSE
+   notification "Script logging is a broken in nightly builds."
    gam.showtext = "Logging to " & trimpath(gam.script_log.filename)
    start_script_trigger_log
   END IF

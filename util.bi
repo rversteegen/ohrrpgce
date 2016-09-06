@@ -214,7 +214,6 @@ ENDGENERIC
 
 'DList function 'item' arguments are pointers to objects containing DListItem instances.
 'You have to provide the offset of the DListItem as itemoffset to dlist_construct.
-'Pass
 declare sub dlist_construct (byref this as DoubleList(Any), byval itemoffset as integer)
 
 'NULL as beforeitem inserts at end

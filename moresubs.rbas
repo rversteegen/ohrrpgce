@@ -1396,7 +1396,7 @@ SUB remap_virtual_gamepad(nodename as string)
    remap_touchscreen_button button_id, GetInteger(but)
    button_id += 1
   END WITHNODE
- END READNODE
+ END READNODE   'moresubs.rbas:1348, in remap_virtual_gamepad: unexpected node vgp:/button
  FOR i as integer = button_id TO 5
   remap_touchscreen_button i, 0
  NEXT i

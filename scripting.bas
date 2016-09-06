@@ -49,6 +49,20 @@ DIM SHARED timeroverhead as double
 '==========================================================================================
 
 
+ ' DIM insertpos as integer
+ ' FOR insertpos = 0 TO v_len(fibregroup) - 1
+ '  IF fibregroup[insertpos]->priority <= priority THEN EXIT FOR
+ ' NEXT
+ ' v_insert fibregroup, insertpos, NEW ScriptFibre()
+'with:
+'  .priority = priority
+''  .root = nowscript
+
+' scriptinsts(nowscript).fibre = last_triggered_fibre
+' FIXME: check failed fibres handling
+' TODO: switch from vectors to dlists
+
+
 SUB trigger_script (id as integer, numargs as integer, double_trigger_check as bool, scripttype as string, trigger_loc as string, byref fibregroup as ScriptFibre ptr vector, priority as integer = 0)
  'Add a script to one of the script queues, unless already inside the interpreter.
  'In that case, run immediately.
@@ -511,6 +525,8 @@ WITH scriptinsts(index)
  .id = n
  .watched = NO
  .started = NO
+ '.fibre = NULL
+
  .waiting = waitingOnNothing
  .waitarg = 0
  .waitarg2 = 0
