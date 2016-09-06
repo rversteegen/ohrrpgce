@@ -1950,11 +1950,6 @@ SUB execute_script_fibres
 END SUB
 
 SUB interpret()
- 'It seems like it would be good to call this immediately before scriptinterpreter so that
- 'the return values of fightformation and waitforkey are correct, however doing so might
- 'break something?
- run_queued_scripts
-
  execute_script_fibres
 
  script_log_tick

@@ -167,7 +167,7 @@ end extern
   'Changes the length of a vector. Elements are deleted or constructed as needed
   declare sub v_resize overload alias "array_resize" (byref this as T vector, byval len as int32)
 
-  'Increases the number of elements of a vector. Returns a pointer to the first new element created
+  'Increases or decreases the number of elements of a vector. Returns a pointer to the first new element created
   declare function v_expand overload alias "array_expand" (byref this as T vector, byval amount as int32 = 1) as T ptr
 
   'Return pointer to some element. Throws a fatal error if out of range. Useful for polymorphism.

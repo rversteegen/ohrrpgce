@@ -468,10 +468,6 @@ DO
    END SELECT
    IF scrwatch AND breakstnext THEN breakpoint scrwatch, 2
    GOTO interpretloop 'new WITH pointer
-  CASE sttriggered'---special initial state used just for script trigger logging
-   IF gam.script_log.enabled THEN watched_script_triggered *last_queued_script
-   scriptinsts(nowscript).started = YES
-   .state = ststart
   CASE sterror'---some error has occurred, crash and burn
    '--note that there's no thought out plan for handling errors
    killallscripts
@@ -576,6 +572,7 @@ nowscript = nowscript - 1
 
 IF nowscript < 0 THEN
  functiondone = 1'--no scripts are running anymore
+ fibre_finished  'scrat(nowscript + 1).fibre
 ELSE
  DIM state as OldScriptState ptr = @scrat(nowscript)
 
@@ -585,8 +582,9 @@ ELSE
   'debug "  resuming fibre in slot " & nowscript
   state->state = ABS(state->state)
   IF scriptinsts(nowscript).watched THEN watched_script_resumed
-  functiondone = 2'--reactivating a supended fibre
   IF scriptprofiling THEN start_fibre_timing
+  fibre_finished  'scrat(nowscript + 1).fibre
+  functiondone = 2'--reactivating a supended fibre
  ELSE
   scriptret = scrat(nowscript + 1).ret
   state->state = streturn'---return

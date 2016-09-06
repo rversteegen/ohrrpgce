@@ -366,6 +366,9 @@ SUB process_wait_conditions()
    ' as waiting for unpause first will just lead to bugs eg. due to map changes
    ' (Note however that is the way the old one-script-at-a-time mode works: wait
    ' conditions not considered until its turn to run)
+   ' FIXME: the return values of fightformation and waitforkey may be incorrect if another
+   ' script is triggered overtop and before the original script resumes another battle is
+   ' started or a wait occurs (wiping the keyboard state).
 
    IF .waiting = waitingOnTick THEN
     .waitarg -= 1

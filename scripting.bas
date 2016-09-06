@@ -23,6 +23,7 @@
 
 '------------ Local functions -------------
 
+DECLARE SUB trigger_script_finished ()
 DECLARE SUB freescripts (byval mem as integer)
 DECLARE FUNCTION loadscript_open_script(n as integer) as integer
 DECLARE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptData ptr
@@ -38,7 +39,7 @@ DEFINE_VECTOR_OF_TYPE(ScriptFibre ptr, ScriptFibre_ptr)
 
 'Used by trigger_script
 DIM SHARED trigger_script_failure as bool
-DIM SHARED last_queued_script as ScriptFibre ptr
+DIM SHARED last_triggered_fibre as ScriptFibre ptr
 
 DIM SHARED timeroverhead as double
 
@@ -61,94 +62,63 @@ SUB trigger_script (id as integer, numargs as integer, double_trigger_check as b
  'trigger_loc:  specific script trigger cause, eg "map 5"
  'fibregroup:   a vector of ScriptFibre ptrs, usually mainFibreGroup
 
- STATIC dummy_queued_script as ScriptFibre
-
- IF insideinterpreter THEN
-  DIM rsr as integer
-  rsr = runscript(id, YES, double_trigger_check, scripttype)
-  trigger_script_failure = (rsr <> 1)
-  IF gam.script_log.enabled = NO THEN EXIT SUB
-
-  'Can't call watched_script_triggered until after the trigger_script_args calls
-  scriptinsts(nowscript).watched = YES
-  scrat(nowscript).state = sttriggered
-  last_queued_script = @dummy_queued_script
- ELSE
-  last_queued_script = NEW ScriptFibre
-  v_append fibregroup, last_queued_script
+ IF last_triggered_fibre THEN
+  debugc errPromptBug, "Missing trigger_script_arg calls following " & last_triggered_fibre->scripttype _
+         & " " & last_triggered_fibre->log_line & ")" 
  END IF
 
+ DIM rsr as integer
+ rsr = runscript(id, YES, double_trigger_check, scripttype)
+ trigger_script_failure = (rsr <> 1)
+
+ last_triggered_fibre = NEW ScriptFibre
+ v_append fibregroup, last_triggered_fibre
+
  'Save information about this script, for use by trigger_script_arg()
- WITH *last_queued_script
-  id = decodetrigger(id)
-  .id = id
+ WITH *last_triggered_fibre
+  .id = decodetrigger(id)
   .scripttype = scripttype
   .log_line = scriptname(id) & "("
   .trigger_loc = trigger_loc
-  .double_trigger_check = double_trigger_check
   .argc = numargs
-  IF numargs > UBOUND(.args) + 1 THEN fatalerror "trigger_script: too many args: " & numargs
  END WITH
+
+ IF numargs = 0 THEN trigger_script_finished
 END SUB
 
-SUB trigger_script_arg (byval argno as integer, byval value as integer, byval argname as zstring ptr = NULL)
+SUB trigger_script_arg (argno as integer, value as integer, argname as zstring ptr = NULL)
  'Set one of the args for a script that was just triggered. They must be in the right order, and all provided.
- 'Note that after calling trigger_script, script queuing can be in three states:
- 'inside interpreter, trigger_script_failure = NO
- '    triggered a script which started immediately
- 'inside interpreter, trigger_script_failure = YES
- '    triggered a script which there was an error starting
- 'not inside interpreter:
- '    queued a script, can now set the arguments
+ 'Note that if trigger_script_failure = YES, we continue reading the args, log the script, and then delete the fibre.
 
- IF insideinterpreter THEN
-  IF trigger_script_failure = NO THEN
-   setScriptArg argno, value
-  END IF
-  IF gam.script_log.enabled = NO THEN EXIT SUB
+ IF last_triggered_fibre = NULL THEN fatalerror "Missing trigger_script call"
+
+ IF trigger_script_failure = NO THEN
+  setScriptArg argno, value
  END IF
 
- WITH *last_queued_script
+ WITH *last_triggered_fibre
   IF argno >= .argc THEN fatalerror .scripttype & " triggering is broken: trigger_script_arg bad arg num " & argno
-  .args(argno) = value
   IF gam.script_log.enabled THEN
    IF argno <> 0 THEN .log_line += ", "
    IF argname THEN .log_line += *argname + "="
    .log_line &= value
   END IF
+
+  IF argno = .argc - 1 THEN
+   ' All args provided, done.
+   trigger_script_finished
+  END IF
  END WITH
 END SUB
 
-PRIVATE SUB run_queued_script (script as ScriptFibre)
- DIM rsr as integer
- rsr = runscript(script.id, YES, script.double_trigger_check, script.scripttype)
- IF rsr = 1 THEN
-  FOR argno as integer = 0 TO script.argc - 1
-   setScriptArg argno, script.args(argno)
-  NEXT
+PRIVATE SUB trigger_script_finished
+ IF gam.script_log.enabled THEN watched_script_triggered *last_triggered_fibre
+
+ IF trigger_script_failure THEN
+  'Never started, delete it.
+  fibre_finished 'last_triggered_fibre
  END IF
-
- IF gam.script_log.enabled THEN watched_script_triggered script
-END SUB
-
-SUB run_queued_scripts
- 'Load the queued scripts into the interpreter.
-
- FOR i as integer = 0 TO v_len(mainFibreGroup) - 1
-  run_queued_script(*mainFibreGroup[i])
- NEXT
-
- dequeue_scripts
-END SUB
-
-SUB dequeue_scripts
- 'Wipe the script queue
- last_queued_script = NULL
- IF mainFibreGroup = NULL THEN EXIT SUB  'During startup when not initialised yet
- FOR idx as integer = 0 TO v_len(mainFibreGroup) - 1
-  DELETE mainFibreGroup[idx]
- NEXT
- v_resize mainFibreGroup, 0
+ last_triggered_fibre = NULL
 END SUB
 
 
@@ -233,11 +203,13 @@ FUNCTION script_log_indent (byval upto as integer = -1, byval spaces as integer 
  RETURN indent
 END FUNCTION
 
-'Called after runscript when running a script which should be watched
+'Called after runscript when running a script which should be watched,
+'OR after a triggered script fails to start
 SUB watched_script_triggered(script as ScriptFibre)
  scriptinsts(nowscript).watched = YES
  IF gam.script_log.last_logged > -1 ANDALSO scriptinsts(gam.script_log.last_logged).started = NO THEN
   script_log_out " (queued)"
+  'FIXME: not correct if a script fails to trigger
  END IF
 
  DIM logline as string
@@ -260,9 +232,16 @@ SUB watched_script_triggered(script as ScriptFibre)
  IF LEN(script.trigger_loc) THEN
   logline &= ", " & script.trigger_loc
  END IF
+ IF trigger_script_failure THEN
+  logline &= " (error while starting)"
+ END IF
  script_log_out logline
 
- gam.script_log.last_logged = nowscript
+ IF trigger_script_failure THEN
+  gam.script_log.last_logged = -1
+ ELSE
+  gam.script_log.last_logged = nowscript
+ END IF
 
 END SUB
 
@@ -342,6 +321,8 @@ END SUB
 SUB killscriptthread
  IF insideinterpreter = NO THEN fatalerror "Inappropriate killscriptthread"
 
+ stop_fibre_timing
+
  'Hack: in case this function is called from within the interpreter we set the new state of the
  'old script so that the main loop sees it using a stale WITH pointer.
  'Come to think of it, there's no good reason for the interpreter state to be stored in scrat instead
@@ -350,17 +331,30 @@ SUB killscriptthread
 
  WHILE nowscript >= 0
   WITH scrat(nowscript)
-   IF .state < 0 THEN EXIT WHILE
+   IF .state < 0 THEN EXIT WHILE  'bottom of fibre
    IF .scr <> NULL THEN deref_script(.scr)
   END WITH
   nowscript -= 1
  WEND
  gam.script_log.last_logged = -1
 
- 'Go back a script, let functiondone handle the script exit
+ 'Go back a script, let functiondone handle the script exit (it handles fibre deletion)
  nowscript += 1
  setstackposition(scrst, scrat(nowscript).stackbase)
+END SUB
 
+SUB delete_fibres(byref fibregroup as ScriptFibre ptr vector)
+ IF fibregroup = NULL THEN EXIT SUB  'During startup when not initialised yet
+ FOR idx as integer = 0 TO v_len(fibregroup) - 1
+  DELETE fibregroup[idx]
+ NEXT
+ v_resize fibregroup, 0
+END SUB
+
+SUB fibre_finished  '(fibre as ScriptFibre ptr)
+ 'Placeholder
+ DELETE v_end(mainFibreGroup)[-1]
+ v_expand mainFibreGroup, -1
 END SUB
 
 SUB killallscripts
@@ -378,10 +372,9 @@ SUB killallscripts
  NEXT
  nowscript = -1
  gam.script_log.last_logged = -1
-
+ last_triggered_fibre = NULL
+ delete_fibres mainFibreGroup
  setstackposition(scrst, 0)
-
- dequeue_scripts
 END SUB
 
 SUB resetinterpreter

@@ -6,8 +6,6 @@
 DECLARE SUB trigger_script (id as integer, numargs as integer, double_trigger_check as bool, scripttype as string, trigger_loc as string, byref fibregroup as ScriptFibre ptr vector, priority as integer = 0)
 
 DECLARE SUB trigger_script_arg (byval argno as integer, byval value as integer, byval argname as zstring ptr = NULL)
-DECLARE SUB dequeue_scripts ()
-DECLARE SUB run_queued_scripts ()
 
 DECLARE SUB start_script_trigger_log ()
 DECLARE SUB script_log_tick ()
@@ -27,6 +25,8 @@ DECLARE SUB script_return_timing ()
 DECLARE SUB killallscripts ()
 DECLARE SUB killscriptthread ()
 DECLARE SUB resetinterpreter ()
+
+DECLARE SUB fibre_finished ()
 
 DECLARE SUB script_start_waiting(waitarg1 as integer = 0, waitarg2 as integer = 0)
 DECLARE SUB script_start_waiting_ticks(whichscript as integer, ticks as integer)

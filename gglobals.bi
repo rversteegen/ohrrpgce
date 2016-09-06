@@ -98,7 +98,6 @@ EXTERN next_interpreter_check_time as double
 EXTERN interruption_grace_period as integer
 EXTERN scrst as Stack
 EXTERN curcmd as ScriptCommand ptr
-EXTERN last_queued_script as ScriptFibre ptr
 EXTERN mainFibreGroup as ScriptFibre ptr vector
 'debugger aids
 EXTERN globalp as integer ptr
