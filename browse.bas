@@ -11,6 +11,35 @@
 #include "loading.bi"
 #include "reload.bi"
 #include "os.bi"
+#include "datetime.bi"  'for date serials
+#include "string.bi"
+
+#include "config.bi"
+#include "datetime.bi"  'for date serials
+#include "string.bi"  'for date serials
+#include "ver.txt"
+#include "udts.bi"
+#include "const.bi"
+#include "allmodex.bi"
+#include "matrixMath.bi"
+#include "common.bi"
+#include "loading.bi"
+#include "customsubs.bi"
+#include "flexmenu.bi"
+#include "slices.bi"
+#include "cglobals.bi"
+#include "uiconst.bi"
+#include "scrconst.bi"
+#include "sliceedit.bi"
+#include "reloadedit.bi"
+#include "editedit.bi"
+#include "os.bi"
+#include "distribmenu.bi"
+
+' Argument is a timeserial
+FUNCTION format_date(timeser as double) as string
+ RETURN FORMAT(timeser, "yyyy mmm dd hh:mm:ss")
+END FUNCTION
 
 Enum BrowseEntryKind
 	bkDrive = 0       'Windows only
@@ -457,6 +486,19 @@ FOR i as integer = 0 TO UBOUND(filelist)
   copylump filename, "browse.txt", br.tmp, YES
   tree(br.mstate.last).caption = load_gamename(br.tmp & "browse.txt")
   tree(br.mstate.last).about = load_aboutline(br.tmp & "browse.txt")
+  copylump filename, "archinym.lmp", br.tmp, YES
+
+  dim vers as string = "", archinym as string = ""
+ DIM lines() as string
+ lines_from_file lines(), br.tmp & SLASH & "archinym.lmp", NO
+ IF UBOUND(lines) >= 1 THEN vers = lines(1)
+ archinym = readarchinym(br.tmp, "nil.rpg")
+
+  dim as double mtime = FILEDATETIME(filename)
+  debug " Game :: " & filename & " :: " & archinym & " :: size  " & filelen(filename) & " :: modified " & mtime & " " & format_date(mtime) & " :: " & vers
+  debug "  " & tree(br.mstate.last).caption & " :: " & tree(br.mstate.last).about
+
+  safekill br.tmp & "archinym.lmp"
   safekill br.tmp & "browse.txt"
   IF tree(br.mstate.last).caption = "" THEN tree(br.mstate.last).caption = tree(br.mstate.last).filename
  END IF
