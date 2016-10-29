@@ -23,22 +23,30 @@
 
 # Run compile-using-toolchain.sh to generate this, or you can probably
 # point it inside the NDK without needing a standalone toolchain.
-#TOOLCHAIN=~/local/android-toolchain-r8
+TOOLCHAIN=~/local/android-toolchain-r8
 TOOLCHAIN=~/local/android-toolchain
+TOOLCHAIN=~/local/android-toolchain-r8e-api9-x86
+TOOLCHAIN=~/local/android-toolchain-r12b-api17-x86
+
+ARCH=arm
+ARCH=x86
+
+TARGET=arm-linux-androideabi
+TARGET=i686-linux-android
 
 NDK=/opt/android-ndk-r12b
 #NDK=/opt/android-ndk-r8e
 
 # For new NDKs, e.g. r12
 OLDNDK=
-# For older NDKs, e.g. r8
+## For older NDKs, e.g. r8
 #OLDNDK=YES
 
 # DESTDIR is the location on the device/emulator where files will be pushed to
 DESTDIR=/data/HWUserData/freebasic
 #DESTDIR=/storage/freebasic
 
-DEBUG_PORT=5011
+DEBUG_PORT=5012
 ADB_FLAGS=
 GDBTEMP=gdbtemp
 
@@ -52,7 +60,8 @@ fi
 PROG=$1
 
 if [ $OLDNDK ]; then
-    GDBCLIENT=$TOOLCHAIN/bin/arm-linux-androideabi-gdb
+    GDBCLIENT=$TOOLCHAIN/bin/$TARGET-gdb
+echo $GDBCLIENT
 else
     GDBCLIENT=$TOOLCHAIN/bin/gdb-orig
 fi
@@ -64,7 +73,7 @@ fi
 
 # If the device doesn't already have gdbserver, we can push it too
 # (but I think the emulator images at least always have it?)
-#GDBSERVER=$NDK/prebuilt/android-arm/gdbserver/gdbserver
+GDBSERVER=$NDK/prebuilt/android-$ARCH/gdbserver/gdbserver
 REMOTE_GDBSERVER=gdbserver
 
 mkdir -p $GDBTEMP
@@ -108,8 +117,11 @@ if [ "$GDBSERVER_PID" != "0" ]; then
 fi
 
 # Older gdbservers are broken. Push a modern one.
-# adb_cmd push $GDBSERVER $DESTDIR
-# REMOTE_GDBSERVER=$DESTDIR/gdbserver
+REMOTE_GDBSERVER=$DESTDIR/gdbserver
+if [ -z $(adb_cmd shell [ -e $REMOTE_GDBSERVER ] "&&" echo "found") ]; then
+    log "Pushing gdbserver"
+    adb_cmd push $GDBSERVER $DESTDIR
+fi
 
 # Launch gdbserver now
 #adb_cmd shell run-as $PACKAGE_NAME lib/gdbserver +$DEBUG_SOCKET --attach $PID &
@@ -119,7 +131,7 @@ if [ $? != 0 ] ; then
     echo "ERROR: Could not launch gdbserver on the device?"
     exit 1
 fi
-log "Launched gdbserver succesfully."
+log "Launched gdbserver successfully."
 sleep 0.5
 
 adb_cmd forward tcp:$DEBUG_PORT tcp:$DEBUG_PORT
@@ -134,6 +146,7 @@ echo "file $PROG" > $GDBSETUP
 echo "target remote :$DEBUG_PORT" >> $GDBSETUP
 
 if [ $OLDNDK ]; then
+    log "Pulling binaries from device/emulator"
     # Get binaries from the device
     adb_cmd pull /system/bin/linker $GDBTEMP/linker
     log "Pulled linker from device/emulator."
@@ -146,4 +159,4 @@ fi
 
 #$GDBCLIENT -x `native_path $GDBSETUP`
 $GDBCLIENT -x $GDBSETUP
-rm -rf $GDBTEMP
+#rm -rf $GDBTEMP

@@ -1,3 +1,9 @@
+# ndk r11:
+# Changed ARM standalone toolchains to default to arm7.
+
+#     You can restore the old behavior by passing specifying the -target option as armv5te-linux-androideabi.
+
+
 #!/usr/bin/env python
 """Main scons build script for OHRRPGCE
 Run "scons -h" to print help.
@@ -354,7 +360,8 @@ if android:
     # A workaround is to use a tool to load a PIE executable as a library
     # and run it on older Android:
     #https://chromium.googlesource.com/chromium/src/+/32352ad08ee673a4d43e8593ce988b224f6482d3/tools/android/run_pie/run_pie.c
-    CXXLINKFLAGS += ["-pie"]
+#    CXXLINKFLAGS += ["-no_pie"]
+    pass
 
 # We set gengcc=True if FB will default to it; we need to know whether it's used
 if arch != 'x86' and 'mingw32' not in target:
@@ -408,7 +415,7 @@ if gengcc:
     gccversion = int(gccversion.replace('.', ''))  # Convert e.g. 4.9.2 to 492
     #print "GCC version", gccversion
     # NOTE: You can only pass -Wc (which passes flags on to gcc) once to fbc; the last -Wc overrides others!
-    gcc_flags = []
+    gcc_flags = ['-fno-PIC']
     # -exx especially results in a lot of labelled goto use, which confuses gcc 4.8+, which tries harder to throw this warning.
     # (This flag only in recent gcc)
     if gccversion >= 480:
@@ -431,7 +438,8 @@ if linkgcc:
 
     # Find the directory where the FB libraries are kept.
     if fbcversion >= 1030:
-        libpath = get_command_output (fbc, ["-print", "fblibdir"] + FBFLAGS)
+        fbflags = [x for x in FBFLAGS if x != '-v']  # FB would print version info instead
+        libpath = get_command_output (fbc, ["-print", "fblibdir"] + fbflags)
         checkfile = os.path.join (libpath, 'fbrt0.o')
         if not os.path.isfile (checkfile):
             print "Error: This installation of FreeBASIC doesn't support this target-arch combination;\n" + repr(checkfile) + " is missing."
