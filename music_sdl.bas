@@ -33,15 +33,17 @@ declare sub safe_RWops_close (byval rw as SDL_RWops ptr)
 
 extern "C"
 
+declare function omMix_InitOgg() as long
+
 declare function SDL_RWFromLump(byval lump as Lump ptr) as SDL_RWops ptr
 
 'The decoder enum functions are only available in SDL_mixer > 1.2.8 which is the version shipped with
 'Debian 6.0 Squeeze and hence older Ubuntu. Squeeze was superceded by 7.0 Wheezy in May 2013.
 'We distribute our own copy of SDL_mixer for Windows and Mac,
 'so we don't have to worry there.
-#ifndef __FB_LINUX__
+'#ifndef __FB_LINUX__
 	#define ENUMERATE_DECODERS
-#endif
+'#endif
 
 ' Older FB have out of date SDL headers
 #if __FB_VERSION__ < "1.04"
@@ -169,6 +171,8 @@ sub music_init()
 			'end if
 		end if
 
+'                ? omMix_InitOgg()
+
 		music_vol = 64
 		music_on = 1
 		music_paused = 0
@@ -215,6 +219,16 @@ end sub
 sub music_play(byval lump as Lump ptr, byval fmt as MusicFormatEnum)
 
 end sub
+
+' dim shared mix_samples as integer
+
+' extern "C"
+' sub mix_hook(udata as any ptr, stream as ubyte ptr, len as integer)
+
+' end extern
+
+   ' Mix_SetPostMix(&mix_hookvoid (*mix_func)
+   '                           (void *udata, Uint8 *stream, int len), void *arg);
 
 sub music_play(songname as string, byval fmt as MusicFormatEnum)
 	if music_on = 1 then
@@ -309,6 +323,18 @@ sub music_resume()
 		end if
 	end if
 end sub
+
+' sub music_seek(mpos as double)
+' 	if music_song <> 0 then
+'                 Mix_SetMusicPosition(mpos)
+'         end if
+' end sub
+
+' function music_tell() as double
+' 	if music_song <> 0 then
+'                 return 
+'         end if
+' end function
 
 sub music_stop()
 	if music_song <> 0 then
