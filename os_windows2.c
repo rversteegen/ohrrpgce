@@ -9,13 +9,7 @@
 
 //fb_stub.h MUST be included first, to ensure fb_off_t is 64 bit
 #include "fb/fb_stub.h"
-#ifndef HOST_CYGWIN
-	// For dir()
-	#include <direct.h>
-#endif
-
 #include <windows.h>
-
 #include <locale.h>
 #include "os.h"
 #include "common.h"
@@ -61,13 +55,8 @@ void os_get_screen_size(int *wide, int *high) {
 typedef struct {
 	int in_use;
 	int attrib;
-#ifdef HOST_CYGWIN
 	WIN32_FIND_DATA data;
 	HANDLE handle;
-#else
-	struct _finddata_t data;
-	long handle;
-#endif
 } FB_DIRCTX;
 
 // In the original, each thread has its own FB_DIRCTX in TLS.
@@ -76,11 +65,7 @@ FB_DIRCTX DIRctx;
 static void close_dir ( void )
 {
 	FB_DIRCTX *ctx = &DIRctx;
-#ifdef HOST_MINGW
-	_findclose( ctx->handle );
-#else
 	FindClose( ctx->handle );
-#endif
 	ctx->in_use = FALSE;
 }
 
@@ -89,22 +74,6 @@ static char *find_next ( int *attrib )
 	char *name = NULL;
 	FB_DIRCTX *ctx = &DIRctx;
 
-#ifdef HOST_MINGW
-	do
-	{
-		if( _findnext( ctx->handle, &ctx->data ) )
-		{
-			close_dir( );
-			name = NULL;
-			break;
-		}
-		name = ctx->data.name;
-	}
-	while( ctx->data.attrib & ~ctx->attrib );
-
-	*attrib = ctx->data.attrib & ~0xFFFFFF00;
-
-#else
 	do {
 		if( !FindNextFile( ctx->handle, &ctx->data ) ) {
 			close_dir();
@@ -115,7 +84,6 @@ static char *find_next ( int *attrib )
 	} while( ctx->data.dwFileAttributes & ~ctx->attrib );
 
 	*attrib = ctx->data.dwFileAttributes & ~0xFFFFFF00;
-#endif
 
 	return name;
 }
@@ -141,13 +109,8 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 		if( ctx->in_use )
 			close_dir( );
 
-#ifdef HOST_MINGW
-		ctx->handle = _findfirst( filespec->data, &ctx->data );
-		handle_ok = ctx->handle != -1;
-#else
 		ctx->handle = FindFirstFile( filespec->data, &ctx->data );
 		handle_ok = ctx->handle != INVALID_HANDLE_VALUE;
-#endif
 		if( handle_ok )
 		{
 			/* Handle any other possible bits different Windows versions could return */
@@ -157,15 +120,6 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 			if( (attrib & 0x10) == 0 )
 				ctx->attrib |= 0x20;
 
-#ifdef HOST_MINGW
-			if( ctx->data.attrib & ~ctx->attrib )
-				name = find_next( out_attrib );
-			else
-			{
-				name = ctx->data.name;
-				*out_attrib = ctx->data.attrib & ~0xFFFFFF00;
-			}
-#else
 			if( ctx->data.dwFileAttributes & ~ctx->attrib )
 				name = find_next( out_attrib );
 			else
@@ -173,7 +127,6 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 				name = ctx->data.cFileName;
 				*out_attrib = ctx->data.dwFileAttributes & ~0xFFFFFF00;
 			}
-#endif
 			if( name )
 				ctx->in_use = TRUE;
 		}
