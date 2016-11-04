@@ -74,6 +74,9 @@ type IPCChannel as NamedPipeInfoFwd ptr
 
 declare function open_document (filename as string) as string
 
+' Modified version of DIR
+declare function fb_DirUnicode( filespec as string, attrib as long = 33, out_attrib as long ptr = NULL ) as string
+
 #else
 
 type ProcessInfo

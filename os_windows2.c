@@ -54,6 +54,10 @@ void os_get_screen_size(int *wide, int *high) {
 }
 
 
+//==========================================================================================
+//                                    Replacement for DIR
+//==========================================================================================
+
 typedef struct {
 	int in_use;
 	int attrib;
@@ -66,10 +70,12 @@ typedef struct {
 #endif
 } FB_DIRCTX;
 
+// In the original, each thread has its own FB_DIRCTX in TLS.
+FB_DIRCTX DIRctx;
 
 static void close_dir ( void )
 {
-	FB_DIRCTX *ctx = FB_TLSGETCTX( DIR );
+	FB_DIRCTX *ctx = &DIRctx;
 #ifdef HOST_MINGW
 	_findclose( ctx->handle );
 #else
@@ -81,7 +87,7 @@ static void close_dir ( void )
 static char *find_next ( int *attrib )
 {
 	char *name = NULL;
-	FB_DIRCTX *ctx = FB_TLSGETCTX( DIR );
+	FB_DIRCTX *ctx = &DIRctx;
 
 #ifdef HOST_MINGW
 	do
@@ -114,9 +120,9 @@ static char *find_next ( int *attrib )
 	return name;
 }
 
-FBCALL FBSTRING *fb_Dir( FBSTRING *filespec, int attrib, int *out_attrib )
+FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 {
-	FB_DIRCTX *ctx;
+	FB_DIRCTX *ctx = &DIRctx;
 	FBSTRING *res;
 	ssize_t len;
 	int tmp_attrib;
@@ -128,8 +134,6 @@ FBCALL FBSTRING *fb_Dir( FBSTRING *filespec, int attrib, int *out_attrib )
 
 	len = FB_STRSIZE( filespec );
 	name = NULL;
-
-	ctx = FB_TLSGETCTX( DIR );
 
 	if( len > 0 )
 	{
