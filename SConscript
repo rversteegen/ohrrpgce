@@ -684,8 +684,8 @@ if win32:
     # ole32.dll needed just for open_document()
     base_libraries += ['winmm', 'psapi', 'ole32']
     common_libraries += [libfbgfx]
-    commonenv['FBFLAGS'] += ['-s','gui']  # Change to -s console to see 'print' statements in the console!
-    commonenv['CXXLINKFLAGS'] += ['-lgdi32', '-Wl,--subsystem,windows']
+    commonenv['FBFLAGS'] += ['-s','console']
+    commonenv['CXXLINKFLAGS'] += ['-lgdi32', '-Wl,--subsystem,console']
     if 'console' in gfx:
         common_libraries += ['pdcurses']
 elif mac:

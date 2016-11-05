@@ -11,8 +11,10 @@
 #include "fb/fb_stub.h"
 #include <windows.h>
 #include <locale.h>
+#include <stdlib.h>
 #include "os.h"
 #include "common.h"
+#include <stdio.h>
 
 // In os_windows.bas
 FBSTRING *get_windows_error (int errcode);
@@ -55,7 +57,7 @@ void os_get_screen_size(int *wide, int *high) {
 typedef struct {
 	int in_use;
 	int attrib;
-	WIN32_FIND_DATA data;
+	WIN32_FIND_DATAW data;
 	HANDLE handle;
 } FB_DIRCTX;
 
@@ -69,18 +71,23 @@ static void close_dir ( void )
 	ctx->in_use = FALSE;
 }
 
-static char *find_next ( int *attrib )
+static wchar_t *find_next ( int *attrib )
 {
-	char *name = NULL;
+	wchar_t *name = NULL;
 	FB_DIRCTX *ctx = &DIRctx;
 
 	do {
-		if( !FindNextFile( ctx->handle, &ctx->data ) ) {
+		if( !FindNextFileW( ctx->handle, &ctx->data ) ) {
 			close_dir();
 			name = NULL;
 			break;
 		}
 		name = ctx->data.cFileName;
+wprintf(L"name %s short %s\n", ctx->data.cFileName, ctx->data.cAlternateFileName);
+ int length = GetShortPathNameW(ctx->data.cFileName, NULL, 0);
+wchar_t buf[600];
+length = GetShortPathNameW(ctx->data.cFileName, buf, length);
+wprintf(L"  short %s\n", buf);
 	} while( ctx->data.dwFileAttributes & ~ctx->attrib );
 
 	*attrib = ctx->data.dwFileAttributes & ~0xFFFFFF00;
@@ -94,7 +101,7 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 	FBSTRING *res;
 	ssize_t len;
 	int tmp_attrib;
-	char *name;
+	wchar_t *name;
 	int handle_ok;
 
 	if( out_attrib == NULL )
@@ -105,11 +112,15 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 
 	if( len > 0 )
 	{
+
+		wchar_t filespecw[261];
+		mbstowcs(filespecw, filespec->data, 261);
+
 		/* findfirst */
 		if( ctx->in_use )
 			close_dir( );
 
-		ctx->handle = FindFirstFile( filespec->data, &ctx->data );
+		ctx->handle = FindFirstFileW( filespecw, &ctx->data );
 		handle_ok = ctx->handle != INVALID_HANDLE_VALUE;
 		if( handle_ok )
 		{
@@ -136,14 +147,19 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 			name = find_next( out_attrib );
 	}
 
+	if( name ) {
+		return fb_WstrToStr(name);
+	}
+	return &__fb_ctx.null_desc;
+/*
 	FB_STRLOCK();
 
-	/* store filename if found */
+	// store filename if found
 	if( name ) {
-		len = strlen( name );
+		len = strlen( "name" );
 		res = fb_hStrAllocTemp_NoLock( NULL, len );
 		if( res )
-			fb_hStrCopy( res->data, name, len );
+			fb_hStrCopy( res->data, "name", len );
 		else
 			res = &__fb_ctx.null_desc;
 	} else {
@@ -156,4 +172,5 @@ FBSTRING *fb_DirUnicode( FBSTRING *filespec, int attrib, int *out_attrib )
 	FB_STRUNLOCK();
 
 	return res;
+*/
 }

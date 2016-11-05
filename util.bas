@@ -1973,12 +1973,14 @@ SUB findfiles (directory as string, namemask as string = "", filetype as FileTyp
     attrib = 255 XOR (16+2)
   END IF
   IF findhidden THEN attrib += 2
-  foundfile = DIR(searchdir + nmask, attrib)
-  IF foundfile = "" THEN EXIT SUB
-  REDIM tempfilelist(-1 TO -1) as string
+  'foundfile = DIR(searchdir + nmask, attrib)
+  foundfile = fb_DirUnicode(searchdir + nmask, attrib, NULL)
+  IF foundfile = "" THEN GOTO done
   DO UNTIL foundfile = ""
+debug "file:" & foundfile
     str_array_append tempfilelist(), foundfile
-    foundfile = DIR '("", attrib)
+    'foundfile = DIR '("", attrib)
+    foundfile = fb_DirUnicode("", attrib, NULL)
   LOOP
   FOR i as integer = 0 TO UBOUND(tempfilelist)
     foundfile = tempfilelist(i)
@@ -1986,7 +1988,10 @@ SUB findfiles (directory as string, namemask as string = "", filetype as FileTyp
     IF filetype = fileTypeDirectory THEN
       'alright, we want directories, but DIR is too broken to give them to us
       'files with attribute 0 appear in the list, so single those out
-      IF DIR(searchdir + foundfile, 32+16+4+2+1) = "" OR DIR(searchdir + foundfile, 32+4+2+1) <> "" THEN CONTINUE FOR
+      IF DIR(searchdir + foundfile, 32+16+4+2+1) = "" OR DIR(searchdir + foundfile, 32+4+2+1) <> "" THEN
+              debug "skipping " & foundfile & " " & DIR(searchdir + foundfile, 39)
+              CONTINUE FOR
+      end if
     END IF
     str_array_append filelist(), foundfile
   NEXT

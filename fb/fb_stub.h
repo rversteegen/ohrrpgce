@@ -24,6 +24,7 @@ extern "C" {
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <wchar.h>
 
 
 #define FB_TRUE (-1)
@@ -163,7 +164,7 @@ FBCALL void fb_GraphicsUnlock( void );
 #define FB_GRAPHICS_UNLOCK() fb_GraphicsUnlock()
 
 
-#define FB_WCHAR char
+#define FB_WCHAR wchar_t
 typedef uint32_t UTF_32;
 typedef uint16_t UTF_16;
 typedef uint8_t  UTF_8;
