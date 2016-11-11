@@ -107,6 +107,15 @@ DECLARE SUB sdlCocoaMinimise()
 
 #ENDIF
 
+ENUM FilterModes
+  filterOff = 0
+  filterSmooth = 1
+  filterScanlines = 2
+  filterMAX = 2
+
+  filterDefault = filterScanlines
+END ENUM
+
 DIM SHARED zoom as integer = 2
 DIM SHARED zoom_has_been_changed as integer = NO
 DIM SHARED remember_zoom as integer = -1   'We may change the zoom when fullscreening, so remember it
@@ -511,7 +520,32 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
     END IF
   END IF
 
-  IF bitdepth = 8 THEN
+  IF 1 then
+
+    IF screensurface->format->BitsPerPixel <> 32 THEN
+      gfx_sdl_set_screen_mode(32)
+    END IF
+    IF screensurface = NULL THEN
+      debug "gfx_sdl_present_internal: no screen!"
+      RETURN 1
+    END IF
+
+    dim upalette(255) as integer
+
+    for i as integer = 0 to 255
+            upalette(i) = SDL_MapRGB(screensurface->format, sdlpalette(i).r, sdlpalette(i).g, sdlpalette(i).b)
+    next
+
+    'smoothzoomblit takes the pitch in pixels, not bytes!
+    DIM starttime as double = TIMER
+    smoothzoomblit_8_to_32bit(raw, cast(uint32 ptr, screensurface->pixels), w, h, screensurface->pitch \ 4, zoom, smooth, cast(integer ptr, @upalette(0)))
+    ? "scaling done in " & CINT(1e6 * (TIMER - starttime)) & "us"
+    IF SDL_Flip(screensurface) THEN
+      debug "gfx_sdl_present_internal: SDL_Flip failed: " & *SDL_GetError
+    END IF
+    update_state()
+
+  elseIF bitdepth = 8 THEN
 
     'We may either blit to screensurface (doing 8 bit -> display pixel format conversion) first
     'and then smoothzoom, with smoothzoomblit_anybit
@@ -745,11 +779,9 @@ FUNCTION gfx_sdl_setoption(byval opt as zstring ptr, byval arg as zstring ptr) a
     gfx_sdl_set_zoom(value)
     ret = 1
   ELSEIF *opt = "smooth" OR *opt = "s" THEN
-    IF value = 1 OR value = -1 THEN  'arg optional (-1)
-      smooth = 1
-    ELSE
-      smooth = 0
-    END IF
+    IF value = -1 THEN value = filterDefault   'arg optional (-1)
+    IF value < -1 OR value > filterMax THEN value = filterOff
+    smooth = value
     ret = 1
   ELSEIF *opt = "input-debug" THEN
     debugging_io = YES
@@ -762,7 +794,7 @@ END FUNCTION
 
 FUNCTION gfx_sdl_describe_options() as zstring ptr
   return @"-z -zoom [1...16]   Scale screen to 1,2, ... up to 16x normal size (2x default)" LINE_END _
-          "-s -smooth          Enable smoothing filter for zoom modes (default off)" LINE_END _
+          "-s -smooth [1,2]    Enable smoothing filter for zoom modes (default off)" LINE_END _
           "-input-debug        Print extra debug info to c/g_debug.txt related to keyboard, mouse, etc. input"
 END FUNCTION
 

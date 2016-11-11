@@ -327,6 +327,61 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, int w, in
 	}
 }
 
+static
+uint32_t clamped_add(uint32_t op1, uint32_t op2) {
+	// Reserve bottom bit for overflow
+	op1 &= 0xfefefefe;
+	op2 &= 0xfefefefe;
+	// Temporarily shift right so the topmost byte can overflow
+	// (depending on pixel format it might not be used anyway)
+	uint32_t ret = (op1 >> 1) + (op2 >> 1);
+	uint32_t overflow = ret & 0x80808080;
+	uint32_t overflow_mask = overflow - (overflow >> 7);
+	// Shift back
+	ret = (ret & 0x7f7f7f7f) << 1;
+	// change overflowed bytes to 255
+	//ret |= (overflow >> 7) * 255;
+	ret |= overflow_mask;
+	return ret;
+}
+
+static
+void scanlines_filter(RGBcolor *destbuffer, int wide, int high, int pitch, int zoom) {
+	uint32_t *sptr1, *sptr2, *sptr3;
+	for (int fy = 1; fy <= (high - 2); fy += 1) {
+		sptr1 = destbuffer + pitch * (fy - 1);  // pixel above
+		sptr2 = sptr1 + pitch; // current pixel
+		sptr3 = sptr2 + pitch; // pixel below
+		for (int fx = wide - 2; fx >= 1; fx--) {
+			uint32_t value;
+			if (fy % zoom == 0) {
+				// For one (bright) scanline per zoomed pixel:
+				//value = (*sptr1 | (*sptr1 << 1)) & 0xfefefefe; // blurtastic
+				//value = (*sptr3 | (*sptr2 << 1)) & 0xfefefefe;  // colour shifitng
+				//value = (*sptr2 | (*sptr1 << 1)) & 0xfefefefe;  // ???
+				//value = (*sptr2 | (*sptr1 << 1));  // ???
+				value = clamped_add(*sptr2, *sptr3);
+			}else {
+value = *sptr2;
+/*
+				// For all the other scanlines (dim):
+				// Dim the line by half
+				//value = (*sptr1 >> 1) & 0x7f7f7f7f;
+				// Blend pixel above and pixel below, and dim to half
+				value = (*sptr1 >> 2) & 0x3f3f3f3f;
+				//value += (*sptr2 >> 2) & 0x3f3f3f3f;
+				value += (*sptr3 >> 2) & 0x3f3f3f3f;
+*/
+			}
+			*sptr2 = value;
+			sptr1++;
+			sptr2++;
+			sptr3++;
+		}
+	}
+}
+
+
 void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, int w, int h, int pitch, int zoom, int smooth, RGBcolor pal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
 //destbuffer: destination scaled buffer pitch x h*zoom 32 bit (so pitch is in pixels, not bytes)
@@ -361,6 +416,10 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, int w, 
 		}
 	}
 
+	if (smooth == 2) {
+		scanlines_filter(destbuffer, wide, high, pitch, zoom);
+	}
+	else
 	if (smooth == 1 && zoom >= 2) {
 		int pstep;
 		if (zoom == 2)
