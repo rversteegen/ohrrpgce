@@ -844,7 +844,7 @@ script,stringisvisible,hsd:stringID,begin
 end
 
 # Internal functions, do not use
-# To get around the 32 string limitation...
+# To avoid clobbering a user string
 script, hsd:save string, hsd:id, begin
   variable (hsd:sl)
   hsd:sl := create text
@@ -999,6 +999,29 @@ end
 script, wait for sound, hsd:soundid, begin
   while(sound is playing(hsd:soundid)) do(wait(1))
 end
+
+# Returns string of the script call stack in the "string" va
+script, _callstack, hsd:string, begin
+  variable(hsd:depth, hsd:id, hsd:tempstr1, hsd:tempstr2, hsd:saved1, hsd:saved2)
+  hsd:tempstr1 := (hsd:string + 1), mod, 3
+  hsd:tempstr2 := (hsd:string + 2), mod, 3
+
+  hsd:depth := 1
+  $ hsd:string = ""
+  while (true) do (
+    hsd:id := getcallingscriptid(hsd:depth)
+    if (hsd:id == 0) then (break)
+    if (hsd:depth == 1) then (
+      getscriptname(hsd:string, hsd:id)
+    ) else (
+      getscriptname(98, hsd:id)
+      stringsprintf(hsd:string, $99="%s -> %s", 98, hsd:string)
+    )
+    hsd:depth += 1
+  )
+  return(hsd:string)
+end
+
 
 #--------------------------------------------------------------------------
 #read/write enemy wrappers
