@@ -1113,7 +1113,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 517'--menu item by true slot
   IF valid_menu_handle(retvals(0), menuslot) THEN
-   DIM menuitem as MenuDefItem ptr = dlist_nth(menus(menuslot).itemlist, retvals(1))
+   DIM menuitem as MenuDefItem ptr = cvar(menuitem, menus(menuslot).nth(retvals(1)))
    IF menuitem THEN
     scriptret = menuitem->handle
    ELSE
@@ -1122,7 +1122,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 518'--menu item true slot
   IF valid_menu_item_handle(retvals(0), menuslot, mislot) THEN
-   scriptret = dlist_find(menus(menuslot).itemlist, menus(menuslot).items[mislot])
+   scriptret = menus(menuslot).find(menus(menuslot).items[mislot])
    IF scriptret < 0 THEN scripterr "menuitemtrueslot: dlist corruption", serrBug
   END IF
  CASE 619'--menu item at pixel

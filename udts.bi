@@ -51,10 +51,7 @@ END TYPE
 
 DECLARE_VECTOR_OF_TYPE(BasicMenuItem, BasicMenuItem)
 
-MAKETYPE_DoubleList(MenuDefItem)
-MAKETYPE_DListItem(MenuDefItem)
-
-TYPE MenuDefItem  'EXTENDS BasicMenuItem
+TYPE MenuDefItem EXTENDS DListItem  ' EXTENDS BasicMenuItem
   'members copied from BasicMenuItem
   text as string  ' This is the caption actually displayed
   col as integer  ' used to manually override the color of the menu item (has no effect when the menu item is selected and flashing)
@@ -66,7 +63,7 @@ TYPE MenuDefItem  'EXTENDS BasicMenuItem
   'Other members
   handle    as integer
   caption   as string  ' This is the caption as set in the menu editor/set menu item caption
-  trueorder as DListItem(MenuDefItem) ' contains next, prev
+'  trueorder as DListItem(MenuDefItem) ' contains next, prev
   t         as integer ' Item type; of type MenuItemType in-game, except in battles. You're free to assign own meaning.
   sub_t     as integer ' Sub-type. Free to assign own meaning. See const.bi.
   tag1      as integer
@@ -82,8 +79,12 @@ END TYPE
 
 DECLARE_VECTOR_OF_TYPE(MenuDefItem, MenuDefItem)
 
+'MenuDef can be treated as a linked list, which gives the defined order of menu items.
+'Alternatively, the items can be accessed through the 'items' array, which gives
+'the visible order or menu items, with invisible ones sorted to the end.
 '*** Requires construction (with ClearMenuData or LoadMenuData) ***
-TYPE MenuDef
+TYPE MenuDef EXTENDS DoubleList
+  'From DoubleList we have first, last, and numitems members
   record    as integer
   handle    as integer
   name      as string
@@ -92,8 +93,7 @@ TYPE MenuDef
   maxrows   as integer
   edit_mode as bool   'Never hide disabled items, allow selection of unselectable items
   items     as MenuDefItem Ptr Ptr
-  'adds first, last, numitems, itemlist members
-  INHERITAS_DoubleList(MenuDefItem, itemlist) 'True order of menu items, ignoring sort-invisible-items-to-end
+'  itemlist as DoubleList   'True order of menu items, ignoring sort-invisible-items-to-end
   translucent      as bool ' Bitset 0
   no_scrollbar     as bool ' Bitset 1
   allow_gameplay   as bool ' Bitset 2
@@ -123,6 +123,8 @@ TYPE MenuDef
   on_close  as integer 'script trigger
   esc_menu  as integer
   Declare Destructor () 'defined in menus.bas
+  'Returns base.last cast to MenuDefItem.
+  Declare Function last() as MenuDefItem ptr
 END TYPE
 
 TYPE MenuState

@@ -334,12 +334,9 @@ dim shared overlay_message as string      'Message to display on screen
 dim shared overlay_hide_time as double    'Time at which to hide it
 dim shared overlay_replay_display as bool
 
-MAKETYPE_DoubleList(SpriteCacheEntry)
-MAKETYPE_DListItem(SpriteCacheEntry)
 'WARNING: don't add strings to this
-type SpriteCacheEntry
+type SpriteCacheEntry extends DListItem
 	'cachelist used only if object is a member of sprcacheB
-	cacheB as DListItem(SpriteCacheEntry)
 	hashed as HashedItem
 	p as Frame ptr
 	cost as integer
@@ -349,7 +346,7 @@ end type
 CONST SPRITE_CACHE_MULT = 1000000
 
 dim shared sprcache as HashTable
-dim shared sprcacheB as DoubleList(SpriteCacheEntry)
+dim shared sprcacheB as DoubleList
 dim shared sprcacheB_used as integer    'number of slots full
 'dim shared as integer cachehit, cachemiss
 
@@ -384,7 +381,6 @@ private sub modex_init()
 	cliprect.frame = NULL
 
 	hash_construct(sprcache, offsetof(SpriteCacheEntry, hashed))
-	dlist_construct(sprcacheB.generic, offsetof(SpriteCacheEntry, cacheB))
 	sprcacheB_used = 0
 
 	' TODO: tmpdir is shared by all instances of Custom, but when that is fixed this can be removed
@@ -7511,7 +7507,7 @@ private sub sprite_remove_cache(entry as SpriteCacheEntry ptr)
 	if entry->p->refcount <> 1 then
 		debug "error: invalidly uncaching sprite " & entry->hashed.hash & " " & frame_describe(entry->p)
 	end if
-	dlist_remove(sprcacheB.generic, entry)
+	sprcacheB.remove(entry)
 	hash_remove(sprcache, entry)
 	entry->p->cacheentry = NULL  'help to detect double free
 	frame_freemem(entry->p)
@@ -7532,9 +7528,10 @@ private function sprite_cacheB_shrink(amount as integer) as bool
 	if sprcacheB_used + amount <= SPRCACHEB_SZ then exit function
 
 	dim as SpriteCacheEntry ptr pt, prevpt
-	pt = sprcacheB.last
+	'pt = cast(SpriteCacheEntry ptr, sprcacheB.last)
+	pt = cvar(pt, sprcacheB.last)
 	while pt
-		prevpt = pt->cacheB.prev
+		prevpt = cast(SpriteCacheEntry ptr, pt->prev)
 		sprite_remove_cache(pt)
 		if sprcacheB_used + amount <= SPRCACHEB_SZ then exit function
 		pt = prevpt
@@ -7647,10 +7644,10 @@ sub sprite_debug_cache()
 	wend
 
 	debug "==sprcacheB== (used units = " & sprcacheB_used & "/" & SPRCACHEB_SZ & ")"
-	pt = sprcacheB.first
+	pt = cvar(pt, sprcacheB.first)
 	while pt
 		debug pt->hashed.hash & " cost=" & pt->cost & " : " & frame_describe(pt->p)
-		pt = pt->cacheB.next
+		pt = cvar(pt, pt->next)
 	wend
 end sub
 
@@ -7665,14 +7662,14 @@ private sub sprite_to_B_cache(entry as SpriteCacheEntry ptr)
 	end if
 
 	'apply size penalty
-	pt = sprcacheB.first
+	pt = cvar(pt, sprcacheB.first)
 	dim tobepaid as integer = entry->cost
 	while pt
 		tobepaid -= pt->cost
 		if tobepaid <= 0 then exit while
-		pt = pt->cacheB.next
+		pt = cvar(pt, pt->next)
 	wend
-	dlist_insertat(sprcacheB.generic, pt, entry)
+	sprcacheB.insertat(pt, entry)
 	entry->Bcached = YES
 	#ifndef COMBINED_SPRCACHE_LIMIT
 		sprcacheB_used += entry->cost
@@ -7681,7 +7678,7 @@ end sub
 
 ' move a sprite out of the B cache
 private sub sprite_from_B_cache(entry as SpriteCacheEntry ptr)
-	dlist_remove(sprcacheB.generic, entry)
+	sprcacheB.remove(entry)
 	entry->Bcached = NO
 	#ifndef COMBINED_SPRCACHE_LIMIT
 		sprcacheB_used -= entry->cost

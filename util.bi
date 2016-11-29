@@ -21,97 +21,8 @@
 '#endif
 
 
-'----------------------------------------------------------------------
-'                           Macro utilities
-
-
-#DEFINE _CONCAT(a,b) a##b
-#DEFINE TEMPLNAME(a,b) a##__##b
-#DEFINE MACROSTART #MACRO
-
-#MACRO TEMPLATE_BASE(name, typename)
-  'Internal junk. See TEMPLATE for documentation
-
-  #MACRO INHERIT_##name(T)
-    name##_MEMBERS(T)
-  #ENDMACRO
-
-  'Gimmick, ignore. Like a TEMPLATE_GENERIC version of INHERIT
-  #MACRO INHERITAS_##name(T, whatalias)
-    UNION
-      TYPE
-        name##_MEMBERS(T)
-      END TYPE
-      whatalias as TEMPLNAME(name, ANY)
-    END UNION
-  #ENDMACRO
-
-  #DEFINE name(T) _CONCAT(name##__, T)
-
-  #UNDEF CUR_TEMPL_DEFN
-  #DEFINE CUR_TEMPL_DEFN name
-
-  MACROSTART name##_MEMBERS(typename)
-#ENDMACRO
-
-#MACRO TEMPLATE(name, typename)
-  /'
-   ' Workaround for lack of templates. Single type argument (could add more). Usage example:
-
-     TEMPLATE(MyTemplate, T)
-       foo as T
-     #ENDMACRO  'yes, weird, can't do anything about it
-
-     'instantiate MyTemplate<integer>
-     MAKETYPE_MyTemplate(integer)
-
-   ' Instantiated templates need to be declared with MAKETYPE_* before use. Then
-   ' MyTemplate(integer) is the instance (compare MyTemplate<int> in C++).
-   ' You can embed as unnamed nested types with INHERIT_*; MAKETYPE_* is not required.
-   '/
-
-  #MACRO MAKETYPE_##name(T)
-    'you can declare the same alias multiple times.
-    TYPE _CONCAT(T,Fwd) as T
-
-    TYPE TEMPLNAME(name, T)
-      name##_MEMBERS(_CONCAT(T,Fwd))
-    END TYPE
-  #ENDMACRO
-
-  TEMPLATE_BASE(name, typename)
-#ENDMACRO
-
-#MACRO TEMPLATE_GENERIC(name, typename)
-  /'
-   ' This is the same as TEMPLATE, but assumes that Any is a valid substitution for T,
-   ' as MAKETYPE creates a union with a member 'generic' for easy casting to TypeName(Any),
-   ' intended for passing to generic functions. Templates really need OO to patch up the
-   ' problems they introduce.
-
-   ' You should insert 'ENDGENERIC' after the '#ENDMACRO'
-   '/
-
-  #MACRO MAKETYPE_##name(T)
-    'you can declare the same alias multiple times.
-    TYPE _CONCAT(T,Fwd) as T
-
-    UNION TEMPLNAME(name, T)
-      TYPE
-        name##_MEMBERS(_CONCAT(T,Fwd))
-      END TYPE
-      generic as TEMPLNAME(name, ANY)
-    END UNION
-  #ENDMACRO
-
-  TEMPLATE_BASE(name, typename)
-#ENDMACRO
-
-#DEFINE ENDGENERIC _
-  /'This is just MAKETYPE_##name(ANY), but that would be recursive, says FB'/ _
-  TYPE TEMPLNAME(CUR_TEMPL_DEFN, ANY) : _
-    _CONCAT(CUR_TEMPL_DEFN,_MEMBERS)(ANY) : _
-  END TYPE
+' Cast an expression to the type of another expression. Useful for down-casting pointers.
+#define cvar(variable, value) cast(typeof(variable), value)
 
 
 '----------------------------------------------------------------------
@@ -205,49 +116,44 @@ declare sub remove_string_cache (cache() as IntStrPair, byval key as integer)
 
 '--------- Doubly Linked List ---------
 
-'doubly linked list header
-TEMPLATE_GENERIC(DoubleList, T)
+' Doubly linked list item. Your type should extend this.
+type DListItem
+  next as DListItem ptr
+  prev as DListItem ptr
+end type
+
+' Doubly linked list header
+type DoubleList
   numitems as integer
-  first as T ptr
-  last as T ptr
-  memberoffset as integer '= OFFSETOF(T, DListItem)
-#ENDMACRO
-ENDGENERIC
+  first as DListItem ptr
+  last as DListItem ptr
 
-'doubly linked list item
-'WARNING: don't add strings to this
-TEMPLATE_GENERIC(DListItem, T)
-  next as T ptr
-  prev as T ptr
-#ENDMACRO
-ENDGENERIC
+  declare constructor()
 
-'DList function 'item' arguments are pointers to objects containing DListItem instances.
-'You have to provide the offset of the DListItem as itemoffset to dlist_construct.
-'Pass
-declare sub dlist_construct (byref this as DoubleList(Any), byval itemoffset as integer)
+  ' NULL as beforeitem inserts at end
+  ' newitem must not already be a member of a list!
+  declare sub insertat(beforeitem as DListItem ptr, newitem as DListItem ptr)
 
-'NULL as beforeitem inserts at end
-'newitem must not already be a member of a list!
-declare sub dlist_insertat (byref this as DoubleList(Any), byval beforeitem as any ptr, byval newitem as any ptr)
+  declare sub append(newitem as DListItem ptr)
 
-#define dlist_append(this, newitem) dlist_insertat((this), NULL, (newitem))
+  ' Remove an item (but don't forget to delete it yourself!)
+  declare sub remove(item as DListItem ptr)
 
-declare sub dlist_remove (byref this as DoubleList(Any), byval item as any ptr)
+  ' Returns 0-based index of item in the list, or -1 if not found
+  declare function find(item as DListItem ptr) as integer
 
-'swap the positions of two items, already in (possibly different) lists
-declare sub dlist_swap (byref this as DoubleList(Any), byval item1 as any ptr, byref that as DoubleList(Any), byval item2 as any ptr)
+  ' Move along a list n spaces: positive is forward, negative backwards. Returns NULL past either end
+  declare function walk(startitem as DListItem ptr, n as integer) as DListItem ptr
 
-'returns 0-based index of item in the list, or -1 if not found
-declare function dlist_find (byref this as DoubleList(Any), byval item as any ptr) as integer
+  ' The nth item in a list, counting from 0. NULL if past end
+  declare function nth(n as integer) as DListItem ptr
 
-'Move along a list n spaces: positive is forward, negative backwards. Returns NULL past either end
-declare function dlist_walk (byref this as DoubleList(Any), byval startitem as any ptr, byval n as integer) as any ptr
+  declare sub print()
+end type
 
-'the nth item in a list, counting from 0. NULL past end
-#define dlist_nth(this, n) dlist_walk((this), NULL, n)
+' Swap the positions of two items, already in (possibly different) lists
+declare sub dlist_swap(this as DoubleList, item1 as DListItem ptr, that as DoubleList, item2 as DListItem ptr)
 
-'declare sub dlist_print (byref this as DoubleList(Any))
 
 '------------- Hash Table -------------
 

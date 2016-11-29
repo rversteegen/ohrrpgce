@@ -2672,32 +2672,26 @@ END FUNCTION
 
 '--------- Doubly Linked List ---------
 
-#define DLFOLLOW(someptr)  cast(DListItem(Any) ptr, cast(byte ptr, someptr) + this.memberoffset)
-
-SUB dlist_construct (byref this as DoubleList(Any), byval itemoffset as integer)
+CONSTRUCTOR DoubleList()
   this.numitems = 0
   this.first = NULL
   this.last = NULL
-  this.memberoffset = itemoffset
-END SUB
+END CONSTRUCTOR
 
-'NULL as beforeitem inserts at end
-SUB dlist_insertat (byref this as DoubleList(Any), byval beforeitem as any ptr, byval newitem as any ptr)
-  dim litem as DListItem(Any) ptr = DLFOLLOW(newitem)
-
-  litem->next = beforeitem
+' NULL as beforeitem inserts at end
+SUB DoubleList.insertat(beforeitem as DListItem ptr, newitem as DListItem ptr)
+  newitem->next = beforeitem
 
   if beforeitem = NULL then
-    litem->prev = this.last
+    newitem->prev = this.last
     this.last = newitem
   else
-    dim bitem as DListItem(Any) ptr = DLFOLLOW(beforeitem)
-    litem->prev = bitem->prev
-    bitem->prev = newitem
+    newitem->prev = beforeitem->prev
+    beforeitem->prev = newitem
   end if
 
-  if litem->prev then
-    DLFOLLOW(litem->prev)->next = newitem
+  if newitem->prev then
+    newitem->prev->next = newitem
   else
     this.first = newitem
   end if
@@ -2705,77 +2699,83 @@ SUB dlist_insertat (byref this as DoubleList(Any), byval beforeitem as any ptr, 
   this.numitems += 1
 END SUB
 
-SUB dlist_remove (byref this as DoubleList(Any), byval item as any ptr)
-  dim litem as DListItem(Any) ptr = DLFOLLOW(item)
+SUB DoubleList.append(newitem as DListItem ptr)
+  this.insertat(NULL, newitem)
+END SUB
 
+SUB DoubleList.remove(item as DListItem ptr)
   'check whether item isn't the member of a list
-  if litem->next = NULL andalso item <> this.last then exit sub
+  if item->next = NULL andalso item <> this.last then exit sub
 
-  if litem->prev then
-    DLFOLLOW(litem->prev)->next = litem->next
+  if item->prev then
+    item->prev->next = item->next
   else
-    this.first = litem->next
+    this.first = item->next
   end if
-  if litem->next then
-    DLFOLLOW(litem->next)->prev = litem->prev
+  if item->next then
+    item->next->prev = item->prev
   else
-    this.last = litem->prev
+    this.last = item->prev
   end if
-  litem->next = NULL
-  litem->prev = NULL
+  item->next = NULL
+  item->prev = NULL
 
   this.numitems -= 1
 END SUB
 
-SUB dlist_swap (byref this as DoubleList(Any), byval item1 as any ptr, byref that as DoubleList(Any), byval item2 as any ptr)
-  'dlist_insertat can't move items from one list to another
+SUB dlist_swap(this as DoubleList, item1 as DListItem ptr, that as DoubleList, item2 as DListItem ptr)
+  'DoubleList.insertat can't move items from one list to another
   if item1 = item2 then exit sub
-  dim dest2 as any ptr = DLFOLLOW(item1)->next
-  dlist_remove(this, item1)
+  dim dest2 as DListItem ptr = item1->next
+  this.remove(item1)
   if dest2 = item2 then
     'items are arranged like  -> item1 -> item2 ->
-    dlist_insertat(that, DLFOLLOW(item2)->next, item1)
+    that.insertat(item2->next, item1)
   else
-    dlist_insertat(that, item2, item1)
-    dlist_remove(that, item2)
-    dlist_insertat(this, dest2, item2)
+    that.insertat(item2, item1)
+    that.remove(item2)
+    this.insertat(dest2, item2)
   end if
 END SUB
 
-FUNCTION dlist_find (byref this as DoubleList(Any), byval item as any ptr) as integer
+FUNCTION DoubleList.find(item as DListItem ptr) as integer
   dim n as integer = 0
-  dim lit as any ptr = this.first
+  dim lit as DListItem ptr = this.first
   while lit
     if lit = item then return n
     n += 1
-    lit = DLFOLLOW(lit)->next
+    lit = lit->next
   wend
   return -1
 END FUNCTION
 
-FUNCTION dlist_walk (byref this as DoubleList(Any), byval item as any ptr, byval n as integer) as any ptr
+FUNCTION DoubleList.walk(item as DListItem ptr, n as integer) as DListItem ptr
   if item = NULL then item = this.first
   while n > 0 andalso item
-    item = DLFOLLOW(item)->next
+    item = item->next
     n -= 1
   wend
   while n < 0 andalso item
-    item = DLFOLLOW(item)->prev
+    item = item->prev
     n += 1
   wend
   return item
 END FUNCTION
 
-/'
-SUB dlist_print (byref this as DoubleList(Any))
-  dim ptt as any ptr = this.first
+FUNCTION DoubleList.nth(n as integer) as DListItem ptr
+  return this.walk(NULL, n)
+END FUNCTION
+
+SUB DoubleList.print()
+  dim ptt as DListItem ptr = this.first
   debug "numitems=" & this.numitems & " first=" & hex(ptt) & " last=" & hex(this.last) & " items:"
   while ptt
-    debug " 0x" & hex(ptt) & " n:0x" & hex(DLFOLLOW(ptt)->next) & " p:0x" & hex(DLFOLLOW(ptt)->prev) '& " " & get_menu_item_caption(*ptt, menudata)
-    ptt = DLFOLLOW(ptt)->next
+    debug " 0x" & hex(ptt) & " n:0x" & hex(ptt->next) & " p:0x" & hex(ptt->prev)
+      ''& " " & get_menu_item_caption(*ptt, menudata)
+    ptt = ptt->next
   wend
 END SUB
-'/
+
 
 '------------- Hash Table -------------
 

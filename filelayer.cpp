@@ -344,7 +344,7 @@ boolint renamefile(FBSTRING *source, FBSTRING *destination) {
 void set_OPEN_hook(FnOpenCallback lumpfile_filter, boolint lump_writes_allowed, IPCChannel *channel) {
 	if (!openfiles)
 		openfiles = new map<FB_FILE *, FileInfo>;
-	pfnLumpfileFilter = lumpfile_filter;
+//	pfnLumpfileFilter = lumpfile_filter;
 #ifndef _WIN32
 	lock_lumps = true;
 #endif

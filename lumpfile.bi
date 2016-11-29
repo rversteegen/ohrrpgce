@@ -22,15 +22,15 @@ end enum
 type LumpPtr as Lump ptr
 type LumpIndexPtr as LumpIndex ptr
 
-MAKETYPE_DListItem(Lump)
-MAKETYPE_DoubleList(Lump)
+'MAKETYPE_DListItem(Lump)
+'MAKETYPE_DoubleList(Lump)
 
 type LumpedLump
 	type as Lumptype
 	lumpname as string
 	length as integer
 	bucket_chain as LumpPtr
-	seq as DListItem(Lump)
+'	seq as DListItem(Lump)
 	index as LumpIndexPtr
 	opencount as integer 'refcount
 
@@ -43,7 +43,7 @@ type FileLump
 	lumpname as string
 	length as integer
 	bucket_chain as LumpPtr
-	seq as DListItem(Lump)
+'	seq as DListItem(Lump)
 	index as LumpIndexPtr
 	opencount as integer 'refcount
 
@@ -54,7 +54,7 @@ type FileLump
 	istemp:1 as integer
 end type
 
-type Lump
+type Lump 'extends DListItem
 	type as Lumptype
 
 	lumpname as string
@@ -62,7 +62,7 @@ type Lump
 
 	bucket_chain as LumpPtr
 	'used to iterate over lumps in order they are in the file (or whatever else you want)
-	seq as DListItem(Lump)
+'	seq as DListItem(Lump)
 
 	index as LumpIndexPtr
 
@@ -82,7 +82,7 @@ end type
 type LumpIndex
 	tablesize as integer
 	table as Lump ptr ptr
-	lumps as DoubleList(Lump)
+'	lumps as DoubleList(Lump)
 
 	'if non-zero, handle of open file
 	fhandle as integer

@@ -841,8 +841,6 @@ SUB ClearMenuData(dat as MenuDef)
   .itemspacing = 0
   IF .items THEN
    DeleteMenuItems dat
-  ELSE
-   dlist_construct .itemlist, OFFSETOF(MenuDefItem, trueorder)
   END IF
  END WITH
  bits(0) = 0
@@ -871,7 +869,7 @@ SUB DeleteMenuItems(menu as MenuDef)
  DIM i as integer
  WITH menu
   FOR i = 0 TO .numitems - 1
-   dlist_remove menu.itemlist, .items[i]
+   menu.remove(.items[i]
    DELETE .items[i]
   NEXT i
   DEALLOCATE(.items)
@@ -978,7 +976,7 @@ SUB sort_menu_and_select_visible_item(menu as MenuDef, state as MenuState)
   SortMenuItems menu
   ' First forwards look for the next visible item
   WHILE selecteditem ANDALSO (selecteditem->disabled AND selecteditem->hide_if_disabled)
-   selecteditem = selecteditem->trueorder.next
+   selecteditem = cvar(selecteditem, selecteditem->next)
   WEND
   IF selecteditem THEN
    FOR i as integer = 0 TO .numitems - 1
@@ -1012,7 +1010,7 @@ FUNCTION append_menu_item(byref menu as MenuDef, caption as string, byval t as i
   .dataptr = dataptr
  END WITH
 
- dlist_append(menu.itemlist, item) 'updates .numitems
+ menu.append(item) 'updates .numitems
 
  'rather than call SortMenuItems, shuffle hidden items down a slot and insert new item
  menu.items = REALLOCATE(menu.items, menu.numitems * SIZEOF(any ptr))
@@ -1029,7 +1027,7 @@ FUNCTION append_menu_item(byref menu as MenuDef, caption as string, byval t as i
 END FUNCTION
 
 SUB remove_menu_item(byref menu as MenuDef, byval mi as MenuDefItem ptr)
- dlist_remove menu.itemlist, mi
+ menu.remove(mi)
  DELETE mi
  'rebuild menu.items[]
  SortMenuItems menu
@@ -1040,7 +1038,7 @@ SUB remove_menu_item(byref menu as MenuDef, byval mislot as integer)
 END SUB
 
 SUB swap_menu_items(byref menu1 as MenuDef, byval mislot1 as integer, byref menu2 as MenuDef, byval mislot2 as integer)
- dlist_swap(menu1.itemlist, menu1.items[mislot1], menu2.itemlist, menu2.items[mislot2])
+ dlist_swap(menu1, menu1.items[mislot1], menu2, menu2.items[mislot2])
  SortMenuItems menu1
  SortMenuItems menu2
 END SUB
@@ -1053,6 +1051,10 @@ END SUB
 Destructor MenuDef ()
  DeleteMenuItems this
 End Destructor
+
+FUNCTION MenuDef.last() as MenuDefItem ptr
+ RETURN cast(MenuDefItem ptr, base.last)
+END FUNCTION
 
 SUB LoadMenuData(menu_set as MenuSet, dat as MenuDef, byval record as integer, byval ignore_items as integer=NO)
  DIM f as integer
@@ -1087,8 +1089,6 @@ SUB LoadMenuData(menu_set as MenuSet, dat as MenuDef, byval record as integer, b
   .itemspacing = ReadShort(f)
   IF .items THEN
    DeleteMenuItems dat
-  ELSE
-   dlist_construct .itemlist, OFFSETOF(MenuDefItem, trueorder)
   END IF
  END WITH
  CLOSE #f
@@ -1125,7 +1125,7 @@ SUB LoadMenuItems(menu_set as MenuSet, menu as MenuDef, byval record as integer)
  'build the item list
  FOR i = 0 TO UBOUND(itemarray)
   IF itemarray(i) <> NULL THEN
-   dlist_append(menu.itemlist, itemarray(i))
+   menu.append(itemarray(i))
   ELSE
    'can't create a zero length FB array
    IF UBOUND(itemarray) <> 0 THEN
