@@ -8,6 +8,7 @@ import optparse
 import pyPEG
 from pyPEG import _not as NOT, _and as AND, ASTNode, ignore as IGNORE, ParseError
 from xmlast import AST2XML
+import codecs
 
 reloadbasic = "".join((a,a.upper())[randint(0,1)] for a in "reloadbasic")
 
@@ -170,6 +171,23 @@ def source_lines_iter(lines):
         lineno = None
     if lineno != None:
         yield lineno, accum
+
+
+
+def detect_by_bom(path,default='ascii'):
+    return 'ascii'
+    with open(path, 'rb') as f:
+        raw = f.read(4)    #will read less if the file is smaller
+    for enc,boms in \
+            ('utf-8-sig',(codecs.BOM_UTF8,)),\
+            ('utf-16',(codecs.BOM_UTF16_LE,codecs.BOM_UTF16_BE)),\
+            ('utf-32',(codecs.BOM_UTF32_LE,codecs.BOM_UTF32_BE)):
+        if any(raw.startswith(bom) for bom in boms): return enc
+    return default
+
+import io
+def openfile(fname, bits):
+    return io.open(fname, bits, encoding = detect_by_bom(fname))
 
 
 class FileParsingIterator(object):
@@ -342,9 +360,9 @@ class DelayedFileWriter(FileMarker):
         for index, line in self.lines:
             self.file.write(line)
 
-    def __del__(self):
+    def close(self):
         self.flush()
-
+        self.file.close()
 
 ################################# NodeSpecs ####################################
 
@@ -1364,6 +1382,7 @@ class ReloadBasicTranslator(object):
             outfilename = os.path.splitext(filename)[0] + ".bas"
         if outfilename == filename:
             sys.exit("Refusing to overwrite input file with output")
+        #encoding = detect_by_bom(filename)
         outfile = DelayedFileWriter(open(outfilename, 'w'))
 
         self.magic_number = randint(1, 2000000000)
@@ -1412,7 +1431,7 @@ class ReloadBasicTranslator(object):
         header_mark.write("#define RB_FUNC_BITS_ARRAY_SZ %s\n" % ((self.num_functions / 32 + 1) * 4))
         header_mark.write("#define RB_NUM_NAMES %s\n" % (len(self.nodenames)))
         header_mark.write("#define INVALID_INDEX %s\n" % (len(self.nodenames) + 1))
-        outfile.flush()
+        outfile.close()
 
 
 ################################################################################
@@ -1437,4 +1456,28 @@ if __name__ == "__main__":
     pyPEG.print_trace = options.trace
 
     translator = ReloadBasicTranslator(options.xml, options.careful)
-    translator.process_file(args[0], options.outfile)
+    translator.process_file(args[0], options.outfile + '2')
+
+    # import os
+    # print "iconv -f ascii -t utf16 " + options.outfile + '2' + " -o " + options.outfile
+    # os.system( "iconv -f ascii -t utf16 " + options.outfile + '2' + " -o " + options.outfile)
+
+
+    sourceEncoding = "latin-1"
+    targetEncoding = "utf16"
+    with open(options.outfile + '2') as source:
+        out = unicode(source.read(), sourceEncoding).encode(targetEncoding)
+        assert out
+    target = open(options.outfile, "w")
+    target.write(out)
+
+
+    # import codecs
+    # BLOCKSIZE = 1048576 # or some other, desired size in bytes
+    # with codecs.open(options.outfile + '2', "r", "iso-8859-1") as sourceFile:
+    #     with codecs.open(options.outfile, "w", "utf-16") as targetFile:
+    #         while True:
+    #             contents = sourceFile.read(BLOCKSIZE)
+    #             if not contents:
+    #                 break
+    #             targetFile.write(contents)
