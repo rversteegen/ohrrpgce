@@ -1817,6 +1817,21 @@ FUNCTION parentdir (path as string, byval upamount as integer = 1) as string
   RETURN ret
 END FUNCTION
 
+' Remove characters from a single component of a path (e.g. a filename, not a whole path)
+' that aren't portable (not allowed on
+' one of the OSes we support). If the whole filename is not allowed somewhere,
+' returns a blank string.
+FUNCTION strip_unportable_filenames(path as string) as string
+  DIM ret as string
+  ' Strip control characters and those above 
+
+  ' Strip characters not allowed on NTFS
+  ret = exclude(path, !"""*/:<>?\\|\x7f")
+  ' Apparently Windows trims trailing spaces and dots?
+
+
+END FUNCTION
+
 ' Given a relative path to a file or dir by a user clueless about Unix/Windows
 ' differences, try to find that file, returning either a simplified/normalised
 ' path or an error message. Use isfile() or isdir() to test for success.

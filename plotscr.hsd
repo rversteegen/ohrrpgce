@@ -642,7 +642,7 @@ define function, begin
 617,setpanelpadding,2,0,0     #x change slice panel padding
 618,debugmenu,0               # Opens the debug menu
 619,menuitematpixel,2,0,0     # The menu item at a screen position
-620,rungame,1,0               # Run another game (string id)
+620,rungame,-1,0              # Run another game (string id, next action, after action, args...)
 621,getbattlecountdown,0      # Get random battle counter
 622,setbattlecountdown,1,100  # Set random battle counter
 623,checkwallcollisionx,7,0,0,0,0,20,20,100  # Check for wall collision (pixel x, pixel y, width, height, xgo, ygo, friction)
@@ -692,6 +692,7 @@ define function, begin
 667,currentvehiclenpc,0       # return npc reference to vehicle, or 0 if not riding
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
+
 
 #--------------------------------------------------------------------------
 # soft coded functions
@@ -2016,6 +2017,9 @@ define constant, begin
 -1,dissolvetime:default
 50000,maximum global id
 99,maximum string id
+0,rungame:title
+-1,rungame:newgame
+-2,rungame:quit
 end
 
 #<SLICE LOOKUP CODES>

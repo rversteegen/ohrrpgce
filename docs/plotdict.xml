@@ -1784,7 +1784,8 @@ wait for text box # wait until the player continues</example>
 				<danger>
 					The default arguments of a newgame script (and all other triggered scripts)
 					are currently ignored.
-					If you don't pass enough <p>args</p>, then the remaining arguments default to zero.
+					If you don't pass enough <p>args</p>, then the remaining arguments default to zero,
+					so don't use defaults other than zero!
 				</danger>
 				<note>
 					Unlike <ref>gameover</ref>, the screen will always automatically
@@ -9054,19 +9055,133 @@ end</example>
 			</seealso>
 		</command>
 		<command id="rungame">
-			<canon>run game(file string id)</canon>
+			<canon>run game (file string id, what to do next, what to do after, args...)</canon>
 			<shortname>run game</shortname>
 			<description>
 				Quit the current game and switch to a different .rpg file/.rpgdir.
-				When that game is quit, the program either exits or goes to the game browse as usual.
+				<lb/>
 				<p>file string id</p> is the ID of a string that contains the filename of the game to load.
 				If the game is not in the same directory, then you need to provide a relative
-				path, like "bonus content\Prequel.rpg" or "../selectmenu.rpg".
+				path, like "bonus content\Prequel.rpg" or "../select game menu.rpg",
+				not an absolute path like "C:\OHRRPGCE\mygame.rpg".
 				The path is case-insensitive and <p>/</p> and <p>\</p> are interchangeable.
+				Both .rpg and .rpgdir extensions are checked (in that order).
+				An error is shown if the game doesn't exist.
+				<lb/>
+				<p>what to do next</p> is optional (defaulting to <tt>rungame:title</tt>);
+				it tells what to do after loading that game; see below for possible values.
+				<lb/>
+				<p>what to do after</p> is optional (defaulting to <tt>rungame:quit</tt>);
+				it tells what action to take after the player quits that game
+				(or <ref>gameover</ref> causes it to quit)
+				and after any games it recursively ran with <ref>rungame</ref> have also quit.
+				If you use any value other than <tt>rungame:quit</tt> then the current game
+				gets loaded again then after the other game(s) have finished.
+				The value (see below for possibilities) says how the original .rpg should be
+				started. Note that it's not possible to "resume" the game as it was when
+				<ref>rungame</ref> was called, because it has already been quit.
+				The best you can do is save the game beforehand
+				and then load that save (see the examples).
+				<lb/>
+				<p>args</p>: You can optionally pass more arguments (up to 29), which get passed on to the new
+				game or load game script as extra arguments (the load game script also gets the
+				load slot as its first argument).
+				If the player quits back to the title screen of that game and then starts a new
+				game/loads a game, then <p>args</p> does <b>not</b> get passed to the new/load game
+				script; it only happens once.
+
+				<ul>
+					<li>
+						<tt>rungame: title</tt> - Load the game normally, by showing the title
+						screen (if enabled), then the load menu (if enabled), etc.
+						<p>args</p> will be passed on to the new game or load game script.
+						(But if the player quits from the title/load menu then the those
+						arguments won't ever get passed to any script!)
+					</li>
+					<li>
+						<tt>rungame: newgame</tt> - Start a new game without showing the title screen
+						or load menu first. <p>args</p> will become the arguments to the
+						new game script.
+					</li>
+					<li>
+						<tt>1</tt> to <tt>32</tt> - Load from saved game slot 1-32.
+						If that slot is empty then a new game starts instead.
+					</li>
+					<li>
+						<tt>rungame: quit</tt> - (This is only valid for <p>what to do after</p>.)
+						Quit the game normally, either returning to the game browser
+						or exiting the program as usual.
+					</li>
+				</ul>
+				<danger>
+					The default arguments of newgame and loadgame scripts (and all other triggered scripts)
+					are currently ignored.
+					If you don't pass enough <p>args</p>, then the remaining arguments default to zero,
+					so don't use defaults other than zero!
+				</danger>
+				<note>
+					A 'stack' (memory) of multiple pending games to load is kept.
+					Suppose game A.rpg switches to B.rpg and asks to return to A.rpg afterwards, e.g.
+					<tt>run game($0="B.rpg", rungame:title, rungame:newgame)</tt>,
+					but B.rpg instead calls rungame to start C.rpg.
+					In that case, the original <p>what to do after</p> action is delayed until
+					after C.rpg. If B.rpg also wants to resume after C.rpg, then the chain goes:
+					<lb/>
+					A -> B -> C -> B -> A
+					<lb/>
+					But if B doesn't ask to resume, (e.g. a plain call <tt>rungame($0="C.rpg")</tt>),
+					then we go straight back to A afterwards:
+					<lb/>
+					A -> B -> C -> A
+				</note>
 			</description>
-			<example># load another game in the same directory
-$0 = "part2.rpg"
-run game(0)</example>
+			<example># Load another game in the same directory
+# (Note that '$X = "foobar"' sets the value of string #X to "foobar", and then returns the value X!)
+run game($0 = "part2.rpg")</example>
+			<example>### In the scripts for game.rpg:
+
+# Access some bonus content in another file
+# (perhaps released separately) 
+plotscript, access bonus content, begin
+  if (check game exists($0 = "bonus.rpg") == false) then (
+    show textbox(42)  # "Coming soon to an outlet near you!"
+  ) else (
+    save in slot(31)  # A save slot number beyond those that the player can see
+
+    # Run the bonus content, then load save 31.
+    run game($0 = "bonus.rpg", rungame: newgame, 31, true)
+  )
+end
+
+### Meanwhile in the scripts for bonus.rpg:
+
+# All arguments default to zero if not set by rungame or resetgame.
+plotscript, new game script, coming from main game, begin
+  if (coming from main game == false) then (
+    # No cheating!
+    run game ($0 = "game.rpg")
+  )
+  # continue ...
+end</example>
+			<seealso>
+				<ref>checkgameexists</ref>
+				<ref>resetgame</ref>
+				<ref>loadfromslot</ref>
+				<ref>gameover</ref>
+			</seealso>
+		</command>
+		<command id="checkgameexists">
+			<canon>check game exists (file string id)</canon>
+			<shortname>check game exists</shortname>
+			<description>
+				Check whether an .rpg file/.rpgdir directory exists, returning true or false.
+				This is useful before calling <ref>rungame</ref>, which will show an error if the game doesn't exist.
+				Checks for both .rpg and .rpgdir extension, regardless of which file extension you give it,
+				just like <ref>rungame</ref> does; see that command for more information about the filename.
+			</description>
+			<seealso>
+				<ref>rungame</ref>
+			</seealso>
 		</command>
 		<command id="checkgameexists">
 			<canon>check game exists (file string id)</canon>

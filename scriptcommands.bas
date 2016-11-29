@@ -3537,7 +3537,7 @@ SUB script_functions(byval cmdid as integer)
   stop_fibre_timing
   debug_menu
   start_fibre_timing
- CASE 620'--run game (string id)
+ CASE 620'--run game (string id, next action, after action, args...)
   run_game
  CASE 627'--check game exists (string id)
   scriptret = check_game_exists
@@ -5306,8 +5306,22 @@ PRIVATE FUNCTION check_game_exists () as integer
 END FUNCTION
 
 ' Implementation of "run game".
+' Implementation of "run game".
+CONST rungameTitle = 0
+CONST rungameNewgame = -1
+CONST rungameQuit = -2
+
+' Implementation of run game(string id, next action, after action, args...)
 PRIVATE SUB run_game ()
  ' Not being able to load the game should always show an error (use serrError for everything)
+
+ IF curcmd->argc = 0 THEN
+  scripterr "rungame: No arguments given; expected filename string ID", serrError
+  RETURN
+ END IF
+ IF curcmd->argc < 2 THEN retvals(1) = rungameTitle
+ IF curcmd->argc < 3 THEN retvals(2) = rungameQuit
+
  IF valid_plotstr(retvals(0), serrError) = NO THEN RETURN
 
  IF running_as_slave THEN
@@ -5330,6 +5344,11 @@ PRIVATE SUB run_game ()
  END IF
 
  gam.want.rungame = path
+
+ FOR i as integer = 3 TO curcmd->argc - 1
+  gam.want.script_args(i - 3) = retvals(i)
+ NEXT
+
  ' TODO: when switching to fibres, should call exit_interpreter() or something like that instead
  script_start_waiting()
 END SUB
