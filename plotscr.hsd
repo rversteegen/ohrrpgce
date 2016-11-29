@@ -1155,6 +1155,52 @@ script, set level cap, hsd:cap, begin
   if(hsd:cap >= 0 && hsd:cap <= readgeneral(191)) then(writegeneral(87, hsd:cap))
 end
 
+
+script, last map id, begin
+  return(read general(0))  #genMaxMap
+end
+
+script, last graphic id, type, begin
+  select(type) do(
+    case(spritetype:hero)         return()  #hero
+    case(spritetype:smallenemy)   return()  #Enemy1
+    case(spritetype:mediumenemy)  return()  #Enemy2
+    case(spritetype:largeenemy)   return()  #Enemy3
+    case(spritetype:walkabout)    return()  #walkabout
+    case(spritetype:weapon)       return()  #weapon
+    case(spritetype:attack)       return()  #attack
+    case(spritetype:border)       return()  #border
+    case(spritetype:portrait)     return()  #portrait
+    case(spritetype:backdrop)     return()  #backdrop
+
+  return(read general(0))  #genMaxMap
+end
+
+script, last tileset id, begin
+  return(read general(33)) #genMaxTile
+end
+
+#FIXME
+script, last attack id, begin
+  return(read general(34))
+end
+
+script, last enemy id, begin
+  return(read general(36))  #genMaxEnemy
+end
+
+script, last textbox id, begin
+  return(read general(39))
+end
+
+script, last menu id, begin
+  return(read general(80))
+end
+
+script, last item id, begin
+  return(read general(82))
+end
+
 #--------------------------------------------------------------------------
 # read/write gmap wrappers
 

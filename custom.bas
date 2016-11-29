@@ -223,6 +223,10 @@ textcolor uilook(uiText), 0
 
 setupmusic
 
+
+open_url("http://jas2google.com")
+
+
 'seed the random number generator
 mersenne_twister TIMER
 
