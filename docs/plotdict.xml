@@ -2028,6 +2028,17 @@ wait for text box # wait until the player continues</example>
 				Swaps two heroes in your party by their positions in the party (ie, by party slot).
 			</description>
 		</command>
+		<command id="shuffleforwardheroes">
+			<canon>shuffle forward heroes(whole party, promote heroes)</canon>
+			<shortname>shuffle forward heroes</shortname>
+			<description>
+				This command has two optional arguments:
+				<p>whole party</p> defaults to false, meaning to only move the heroes in the
+				active party (first four slots).
+				If true, then the reserve party is also shuffled forward, meaning that the
+				first
+			</description>
+		</command>	
 		</section>		<!--Changing the Party-->
 	</section>		<!-- The Party-->
 
