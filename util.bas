@@ -1820,8 +1820,9 @@ SUB killdir(directory as string, recurse as bool = NO)
   ' For safety. (You ought to pass absolute paths.) Check
   ' writability so we don't recurse if started from e.g. /home until
   ' we hit something deletable (this happened to me)!
-  IF LEN(directory) < 5 ORELSE diriswriteable(directory) = NO THEN
-   showerror "killdir: refusing to delete directory '" & directory & "'"
+  debug "writable = " & diriswriteable(directory)
+  IF LEN(directory) < 7 ORELSE diriswriteable(directory) = NO THEN
+   minorerror "killdir: refusing to delete directory '" & directory & "'"
    EXIT SUB
   END IF
   DIM filelist() as string

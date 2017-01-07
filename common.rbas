@@ -350,8 +350,7 @@ SUB debugc CDECL (byval errorlevel as errorLevelEnum, byval s as zstring ptr)
   CASE errError
    debug "Error: " & *s
   CASE errPromptError
-   debug "Error: " & *s
-   notification "Error: " & *s & !"\nPress any key..."
+   minorerror *s
   CASE errBug
    debug "(BUG) " & *s
   CASE errPrompt
@@ -1048,11 +1047,25 @@ SUB fatal_error_shutdown
  #ENDIF
 END SUB
 
+CONST ERROR_CONTACT_MESSAGE = !"\nIf this error is unexpected, please send an e-mail to ohrrpgce-crash@HamsterRepublic.com"
+
+' Display an error message that something has gone wrong, but
+' don't prompt the user to quit immediately like showerror
+' Same as 'debugc errPromptError, msg'
+SUB minorerror (msg as string)
+ msg = !"Error:\n" & msg
+ debug msg
+ #IFDEF IS_CUSTOM
+  msg &= !"\nAn error might indicate .rpg data corruption or an engine bug." & ERROR_CONTACT_MESSAGE
+ #ENDIF
+ notification msg & !"\nPress any key..."
+END SUB
+
 SUB fatalerror (msg as string)
  showerror msg, YES
 END SUB
 
-'Ask the user if they want to continue (only if isfatal is false), otherwise quit.
+'Show a serious error and ask the user if they want to continue (only if isfatal is false), otherwise quit.
 SUB showerror (msg as string, byval isfatal as bool = NO)
  STATIC entered as integer = 0  'don't allow reentry
  IF entered THEN
@@ -1088,7 +1101,7 @@ SUB showerror (msg as string, byval isfatal as bool = NO)
    quitmsg += "; run " + CUSTOMEXE + " again and you will be asked whether you want to recover it."
   END IF
  #ENDIF
- quitmsg += !"\nIf this error is unexpected, please send an e-mail to ohrrpgce-crash@HamsterRepublic.com"
+ quitmsg += ERROR_CONTACT_MESSAGE
 
  'Reset palette (in case the error happened in a fade-to-black or due to
  'corrupt/missing palette or UI colours)

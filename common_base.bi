@@ -12,6 +12,7 @@
 
 declare sub debug (s as string)
 declare sub debuginfo (s as string)
+declare sub minorerror (msg as string)
 declare sub fatalerror (s as string)
 declare sub showerror (msg as string, byval isfatal as bool = 0)
 declare sub debugc cdecl alias "debugc" (byval errorlevel as errorLevelEnum, byval s as zstring ptr)

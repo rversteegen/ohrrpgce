@@ -36,6 +36,10 @@ SUB showerror (msg as string, byval isfatal as integer = 0)
  END IF
 END SUB
 
+SUB minorerror (msg as string)
+ print msg
+END SUB
+
 SUB fatalerror (e as string)
   IF e <> "" THEN print "ERROR: " + e
   IF cleanup_function THEN cleanup_function()
