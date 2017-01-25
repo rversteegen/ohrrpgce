@@ -147,7 +147,8 @@ DECLARE FUNCTION spawn_and_wait (app as string, args as string) as string
 DECLARE FUNCTION find_support_dir () as string
 DECLARE FUNCTION find_helper_app (appname as string, try_install as integer=NO) as string
 DECLARE FUNCTION find_windows_helper_app (appname as string, try_install as integer=NO) as string
-DECLARE FUNCTION download_file (url as string, dest as string, forcefilename as string="") as integer
+DECLARE FUNCTION download_file (url as string, destdir as string, forcefilename as string="", destfilename as string ="") as integer
+
 DECLARE FUNCTION missing_helper_message (appname as string) as string
 DECLARE FUNCTION find_madplay () as string
 DECLARE FUNCTION find_oggenc () as string

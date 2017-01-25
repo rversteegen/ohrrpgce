@@ -44,7 +44,7 @@ DECLARE SUB write_linux_desktop_file(title as string, filename as string, basena
 DECLARE SUB write_debian_binary_file (filename as string)
 DECLARE SUB write_debian_control_file(controlfile as string, basename as string, pkgver as string, size_in_kibibytes as integer, byref distinfo as DistribState)
 DECLARE SUB write_debian_copyright_file (filename as string)
-DECLARE FUNCTION gzip_file (filename as string) as integer
+DECLARE FUNCTION gzip_file (filename as string) as bool
 DECLARE FUNCTION gunzip_file (filename as string) as integer
 DECLARE FUNCTION create_zipfile(start_in_dir as string, zipfile as string, files as string) as integer
 DECLARE FUNCTION create_tarball(start_in_dir as string, tarball as string, files as string) as integer
@@ -470,6 +470,7 @@ FUNCTION generate_copyright_line(distinfo as DistribState) as string
 END FUNCTION
 
 SUB distribute_game_as_zip ()
+ debuginfo "  distribute_game_as_zip():"
 
  DIM distinfo as DistribState
  load_distrib_state distinfo
@@ -702,13 +703,9 @@ FUNCTION get_windows_gameplayer() as string
   touchfile dldir & SLASH & "win.download.agree"
  END IF
 
- DIM destzip as string = dldir & SLASH & dlfile
- '--Remove the old copy
- safekill destzip
+ DIM destzip as string  ' = dldir & SLASH & dlfile
  '--Actually download the dang file
- download_file url, dldir
- 
- IF NOT isfile(destzip) THEN
+ IF NOT download_file(url, dldir, , destzip) THEN
   dist_info "ERROR: Failed to download game.exe" : RETURN ""
  END IF
  
@@ -736,8 +733,7 @@ FUNCTION get_linux_gameplayer() as string
  'unzip it, and return the full path.
  'Returns "" for failure.
 
-#IFDEF __UNIX__
-#IFNDEF __FB_DARWIN__
+#IFDEF __FB_LINUX__
 
  '--If this is Linux, we already have the correct version of ohrrpgce-game
  IF isfile(exepath & SLASH & "ohrrpgce-game") THEN
@@ -746,7 +742,6 @@ FUNCTION get_linux_gameplayer() as string
   dist_info "ERROR: ohrrpgce-game wasn't found in the same directory as ohrrpgce-custom. (This probably shouldn't happen!)" : RETURN ""
  END IF
 
-#ENDIF
 #ENDIF
 
  '--For Non-Linux platforms, we need to download ohrrpgce-game
@@ -778,11 +773,8 @@ FUNCTION get_linux_gameplayer() as string
  END IF
 
  DIM destzip as string = dldir & SLASH & dlfile
- '--Remove the old file
- safekill destzip
  '--Actually download the dang file
- download_file url, dldir
- IF NOT isfile(destzip) THEN
+ IF NOT download_file(url, dldir, destzip) THEN
   dist_info "ERROR: Failed to download Linux ohrrpgce-game" : RETURN ""
  END IF
  
@@ -803,6 +795,7 @@ FUNCTION get_linux_gameplayer() as string
 END FUNCTION
 
 SUB distribute_game_as_windows_installer ()
+ debuginfo "  distribute_game_as_windows_installer():"
 
  DIM distinfo as DistribState
  load_distrib_state distinfo
@@ -1003,6 +996,7 @@ FUNCTION win_or_wine_spawn_and_wait (cmd as string, args as string="") as string
 END FUNCTION
 
 SUB distribute_game_as_debian_package ()
+ debuginfo "  distribute_game_as_debian_package():"
 
  DIM distinfo as DistribState
  load_distrib_state distinfo
@@ -1059,7 +1053,7 @@ SUB distribute_game_as_debian_package ()
   DIM gamedocsdir as string = docsdir & SLASH & basename
   makedir gamedocsdir
   write_readme_text_file gamedocsdir & SLASH & "README.txt", CHR(10)
-  gzip_file gamedocsdir & SLASH & "README.txt"
+  IF gzip_file(gamedocsdir & SLASH & "README.txt") = NO THEN EXIT DO
   write_debian_copyright_file gamedocsdir & SLASH & "copyright"
 
   IF distinfo.license <> "GPL" THEN
@@ -1067,7 +1061,7 @@ SUB distribute_game_as_debian_package ()
    DIM lic_file as string = gamedocsdir & SLASH & "LICENSE-" & distinfo.license & ".txt"
    maybe_write_license_text_file lic_file
    IF isfile(lic_file) THEN
-    gzip_file lic_file
+    IF gzip_file(lic_file) = NO THEN EXIT SUB
    END IF
   END IF
 
@@ -1313,7 +1307,7 @@ FUNCTION extract_tarball(into_dir as string, tarball as string, files as string)
 
 END FUNCTION
 
-FUNCTION gzip_file (filename as string) as integer
+FUNCTION gzip_file (filename as string) as bool
  'Returns YES on success, NO on failure
  DIM gzip as string = find_helper_app("gzip", YES)
  IF gzip = "" THEN dist_info "ERROR: gzip is not available": RETURN NO
@@ -1331,17 +1325,18 @@ FUNCTION gzip_file (filename as string) as integer
 END FUNCTION
 
 FUNCTION gunzip_file (filename as string) as integer
+ 'Keeps the original .gz file, while creating decompressed file
  'Returns YES on success, NO on failure
  DIM gzip as string = find_helper_app("gzip", YES)
  IF gzip = "" THEN dist_info "ERROR: gzip is not available": RETURN NO
  
  DIM args as string
- args = " -d -f " & escape_filename(filename)
+ args = " -d -f -k " & escape_filename(filename)
  DIM spawn_ret as string
  spawn_ret = spawn_and_wait(gzip, args)
  IF LEN(spawn_ret) THEN dist_info spawn_ret : RETURN NO
  IF NOT isfile(trimextension(filename)) THEN
-  dist_info "ERROR: gzip -d completed but " & filename & ".gz was not uncompressed"
+  dist_info "ERROR: gzip -d completed but " & filename & " was not uncompressed"
  END IF
 
  RETURN YES
@@ -1457,6 +1452,7 @@ RETURN YES
 END FUNCTION
 
 SUB distribute_game_as_mac_app ()
+ debuginfo "  distribute_game_as_mac_app():"
 
  DIM distinfo as DistribState
  load_distrib_state distinfo
@@ -1592,6 +1588,7 @@ FUNCTION get_mac_gameplayer() as string
 END FUNCTION
 
 SUB distribute_game_as_linux_tarball ()
+ debuginfo "  distribute_game_as_linux_tarball():"
 
  DIM distinfo as DistribState
  load_distrib_state distinfo

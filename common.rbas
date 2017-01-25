@@ -2436,10 +2436,13 @@ END FUNCTION
 FUNCTION spawn_and_wait (app as string, args as string) as string
  'Run a commandline program in a terminal emulator and wait for it to finish.
  'On Windows the program is run asynchronously and users are offered the option to kill it.
- 'On other platforms the program just freezes.
+ 'On other platforms we just freeze until it is done.
  'You can of course also kill the program on all platforms with Ctrl+C
  'app should be a path to an executable (not escaped), while args should be escaped as needed.
- 'Returns an error message, or "" if no apparent failure
+ 'Returns an error message, or "" if no apparent failure.
+ 'On Mac there's no error checking, and on Windows only the exitcode is checked.
+ 'Use run_and_get_output() if error checking is needed. (FIXME: could pipe stderr
+ 'to a temp file for better error checking.)
  'NOTE: you should display the error with visible_debug, because this function doesn't write
  'it to the debug log (TODO: change that)
 
@@ -2484,6 +2487,8 @@ FUNCTION spawn_and_wait (app as string, args as string) as string
  safekill dummyscript
  RETURN ""
 
+#DEFINE SPAWN_AND_WAIT_ERROR_CHECKING  NO  'Can't check errors
+
 #ENDIF
 
 #IFDEF __FB_WIN32__
@@ -2527,6 +2532,7 @@ FUNCTION spawn_and_wait (app as string, args as string) as string
 #ENDIF
 
  'Generic UNIX: xterm is nearly everywhere (but not installed by default in some linux distros)
+ '(FIXME: use 'which' to check for xterm and fallback to something else)
  'os_* process handling functions only currently implemented on Windows
  'We run SHELL (aka system()) which runs sh, which runs xterm, which runs app.
  'That's a lot that can go wrong!
@@ -2658,7 +2664,7 @@ FUNCTION find_windows_helper_app (appname as string, try_install as integer=NO) 
  RETURN ""
 END FUNCTION
 
-FUNCTION download_file (url as string, destdir as string, forcefilename as string="") as integer
+FUNCTION download_file (url as string, destdir as string, forcefilename as string="", destfilename as string ="") as integer
  'Returns True on success, false on failure.
  '
  'wget is the first choice because its -N option can prevent unneeded redundant
@@ -2668,6 +2674,18 @@ FUNCTION download_file (url as string, destdir as string, forcefilename as strin
  'If you specify forcefilename, the -N option will do nothing,
  ' and the file will be re-downloaded even if it has not changed
  ' since the last time it was downloaded.
+
+ '--Remove the old copy
+#IFDEF __FB_DARWIN__
+ safekill destzip
+#ENDIF
+
+  DIM destfile as string = forcefilename
+  IF destfile = "" THEN
+   destfile = trimpath(url)
+  END IF
+  destfile = destdir & SLASH & destfile
+
 
  DIM spawn_ret as string
  DIM args as string
@@ -2688,30 +2706,28 @@ FUNCTION download_file (url as string, destdir as string, forcefilename as strin
   spawn_ret = spawn_and_wait(wget, args)
  
   '--Check to see if the download worked
-  IF LEN(spawn_ret) = 0 THEN RETURN YES
+  IF LEN(spawn_ret) = 0 THEN
+          RETURN isfile(destfile)
+  END IF
   visible_debug "ERROR: wget download failed: " & spawn_ret
  END IF
  
  '--find curl to do the downloading
  DIM curl as string = find_helper_app("curl")
  IF curl <> "" THEN
-  
-  DIM destfile as string = forcefilename
-  IF destfile = "" THEN
-   destfile = trimpath(url)
-  END IF
-  
-  args = "-o " & escape_filename(destdir & SLASH & destfile) & " " & escape_filename(url)
+
+  args = "-o " & escape_filename(destfile) & _
+        " -z " & escape_filename(destfile) & " " & escape_filename(url)
   
   '--Do the download
   spawn_ret = spawn_and_wait(curl, args)
  
   '--Check to see if the download worked
-  IF LEN(spawn_ret) = 0 THEN RETURN YES
+  IF LEN(spawn_ret) = 0 THEN RETURN isfile(destfile)
   visible_debug "ERROR: curl download failed: " & spawn_ret
  END IF
 
- visible_debug "Download failed (tried both wget and curl)" 
+ visible_debug "Could not download (neither 'wget' nor 'curl' programs are available)" 
  RETURN NO
 END FUNCTION
 
