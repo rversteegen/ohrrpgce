@@ -236,28 +236,28 @@ def android_source_actions (sourcelist, rootdir, destdir):
         # since it doesn't have the game- or edit- prefix if any;
         # use the name of the resulting target instead, which is an .o
         if node.sources[0].name.endswith('.bas'):
-            source_files.append (node.abspath[:-2] + '.c')
+            source_files.append (node.path[:-2] + '.c')
         else:
             # node.sources[0] itself is a path in build/ (to a nonexistent file)
-            source_files.append (node.sources[0].srcnode().abspath)
+            source_files.append (node.sources[0].srcnode().path)
     # hacky. Copy the right source files to a temp directory because the Android.mk used
     # by the SDL port selects too much.
     # The more correct way to do this would be to use VariantDir to get scons
     # to automatically copy all sources to destdir, but that requires teaching it
     # that -gen gcc generates .c files.
-    # (This links lib/gif.cpp as gif.cpp, so copy lib/gif.h to gif.h)
     actions = [
         'rm -fr %s/*' % destdir,
-        'mkdir -p %s/fb' % destdir,
-        # This actually creates the symlinks before the C/C++ files are generated, but that's OK
-        'ln -s ' + ' '.join(source_files) + ' ' + destdir,
+        'mkdir -p %s/build %s/fb %s/lib' % (destdir, destdir, destdir),
         'cp %s/*.h %s/' % (rootdir, destdir),
         'cp %s/fb/*.h %s/fb/' % (rootdir, destdir),
-        'cp %s/lib/*.h %s/' % (rootdir, destdir),
+        'cp %s/lib/*.h %s/lib/' % (rootdir, destdir),
         'cp %s/android/sdlmain.c %s' % (rootdir, destdir),
         # Cause build.sh to re-generate Settings.mk, since extraconfig.cfg may have changed
         'touch %s/android/AndroidAppSettings.cfg' % (rootdir),
     ]
+    for src in source_files:
+        # This actually creates the symlinks before the C/C++ files are generated, but that's OK
+        actions.append('ln -s %s %s' % (os.path.join(rootdir, src), os.path.join(destdir, src)))
+
     return actions
-    
     
