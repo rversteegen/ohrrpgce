@@ -1910,7 +1910,7 @@ SUB show_victory (byref bat as BattleState, bslot() as BattleSprite, page as int
     IF pickedup.num = 1 THEN
      tempstr = .item_caption & " " & .item_name
     ELSE
-     tempstr = .plural_item_caption & " " & pickedup.num & " " & .item_name
+     tempstr = .plural_item_caption & " " & plural(pickedup.num, .item_name)
     END IF
     IF LEN(tempstr) THEN centerfuz 160, 30, 280, 50, 1, page
     edgeprint tempstr, pCenteredLeft, 22, uilook(uiText), page

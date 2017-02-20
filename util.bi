@@ -664,6 +664,8 @@ declare sub split(in as string, ret() as string, sep as string = chr(10))
 declare sub split_line_positions(original_text as string, lines() as string, line_starts() as integer, sep as string = chr(10))
 
 
+
+
 '----------------------------------------------------------------------
 '                       Commandline processing
 
@@ -696,6 +698,7 @@ declare function ini_key_match(text as string, key as string, byref value as str
 
 declare function days_since_datestr(datestr as string) as integer
 declare function format_duration(seconds as double) as string
+declare function plural(number as integer, thing as string) as string
 
 declare sub flusharray (array() as integer, byval size as integer=-1, byval value as integer=0)
 declare sub sort_integers_indices(indices() as integer, byval start as integer ptr, byval number as integer = 0, byval stride as integer = SIZEOF(integer))

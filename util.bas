@@ -1210,6 +1210,47 @@ FUNCTION format_duration(length as double) as string
  RETURN msg
 END FUNCTION
 
+' Rewrite-rules for pluralisation: replace the first suffix with the second.
+' This table could be fairly easily loaded from the game.
+' That's a vastly better idea than trying to be complete
+' (Quite complete: https://github.com/clips/pattern/blob/master/pattern/text/en/inflect.py)
+DIM SHARED pluralise_endings(...) as string * 8 = { _
+        "fish",  "fish", _
+        "foot",  "feet", _
+        "sheep", "sheep", _
+        "ay",    "ays", _   'y -> ys if preceded by a vowel
+        "ey",    "eys", _
+        "oy",    "oys", _
+        "uy",    "uys", _
+        "y",     "ies", _
+        "sis",   "ses", _   'eg basis
+        "f",     "ves", _   'eg leaf, wolf, loaf
+        "eo",    "eos", _   'o -> os if preceded by a vowel (few words like that)
+        "o",     "oes", _   'eg hero, gecko, potato (lots of exceptions)
+        "sh",    "shes", _  'eg ash, brush
+        "ch",    "ches", _  'eg punch, church
+        "ss",    "sses", _
+        "s",     "s", _
+        "",      "s" _      'Last resort, the default
+}
+
+' Concatenate a number with a noun and pluralise it if needed
+FUNCTION plural(number as integer, thing as string) as string
+ IF number = 1 THEN RETURN "1 " & thing
+ DIM ret as string = number & " " & thing
+ ' Something is wrong if not ending in a lowercase letter
+ DIM lastletter as integer = ret[LEN(ret) - 1]
+ IF lastletter < ASC("a") OR lastletter > ASC("z") THEN RETURN ret
+
+ FOR idx as integer = 0 TO UBOUND(pluralise_endings) STEP 2
+  DIM sufflen as integer = LEN(pluralise_endings(idx))
+  IF RIGHT(thing, sufflen) = pluralise_endings(idx) THEN
+   RETURN MID(ret, 1, LEN(ret) - sufflen) & pluralise_endings(idx + 1)
+  END IF
+ NEXT
+ RETURN ret  'Shouldn't get here
+END FUNCTION
+
 SUB flusharray (array() as integer, byval size as integer=-1, byval value as integer=0)
  'If size is -1, then flush the entire array
  IF size = -1 THEN size = UBOUND(array)

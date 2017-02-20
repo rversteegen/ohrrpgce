@@ -1719,18 +1719,23 @@ SUB sellstuff_infostr(byval ic as integer, info as string, b() as integer, perma
  IF price(ic) > 0 THEN info = worth & " " & price(ic) & " " & readglobalstring(32, "$")
  FOR i as integer = 0 TO stuff_count
   IF b(i * recordsize + 17) = 0 AND b(i * recordsize + 18) = inventory(ic).id THEN
-   IF b(i * recordsize + 28) > 0 THEN
+   DIM itemid as integer = b(i * recordsize + 28) - 1
+   DIM number as integer = b(i * recordsize + 29) + 1
+   IF itemid >= 0 THEN
     IF info = "" THEN
-     info = tradefor & " "
+     info = tradefor
     ELSE
-     IF b(i * recordsize + 29) > 0 THEN
-      info = info & " " & readglobalstring(153, "and", 10) & " "
+     IF number > 1 THEN
+      info &= " " & readglobalstring(153, "and", 10)
      ELSE
-      info = info & " " & readglobalstring(81, "and a", 10) & " "
+      info &= " " & readglobalstring(81, "and a", 10)
      END IF
     END IF
-    IF b(i * recordsize + 29) > 0 THEN info = info & STR(b(i * recordsize + 29) + 1) & " "
-    info = info & readitemname(b(i * recordsize + 28) - 1)
+    IF number = 1 THEN
+     info &= " " & readitemname(itemid)
+    ELSE
+     info &= " " & plural(number, readitemname(itemid))
+    END IF
    END IF
   END IF
  NEXT i
