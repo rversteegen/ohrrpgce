@@ -12,8 +12,10 @@
 
 #include "sliceedit.bi"
 
+#IFDEF USE_SLICE2BAS
 'This include contains the default slice collections for special screens
 #include "sourceslices.bi"
+#ENDIF
 
 '==============================================================================
 
@@ -1531,13 +1533,28 @@ FUNCTION slice_color_caption(byval n as integer, ifzero as string="0") as string
  RETURN n & "(!?)"
 END FUNCTION
 
+'Load a special slice collection, e.g. the Status menu.
 'This wrapper around SliceLoadFromFile falls back to a default for the various special slice collections
 SUB load_slice_collection (byval sl as Slice Ptr, byval collection_kind as integer, byval collection_num as integer=0)
  DIM filename as string
- filename = workingdir & SLASH & "slicetree_" & collection_kind & "_" & collection_num & ".reld"
- IF isfile(filename) THEN
-  SliceLoadFromFile sl, filename
- ELSE
+ filename = "slicetree_" & collection_kind & "_" & collection_num & ".reld"
+ DIM srcfile as string
+
+ ' Try game's customised version
+ srcfile = workingdir & SLASH & filename
+ IF isfile(srcfile) THEN
+  SliceLoadFromFile sl, srcfile
+  EXIT SUB
+ END IF
+
+ ' Try to load from packaged file
+ srcfile = finddatafile("sourceslices" & SLASH & filename)
+ IF LEN(srcfile) THEN
+  SliceLoadFromFile sl, srcfile
+  EXIT SUB
+ END IF
+
+#IFDEF USE_SLICE2BAS
   SELECT CASE collection_kind
    CASE SL_COLLECT_STATUSSCREEN:
     default_status_screen sl
@@ -1558,7 +1575,10 @@ SUB load_slice_collection (byval sl as Slice Ptr, byval collection_kind as integ
    CASE ELSE
     debug "WARNING: no default slice collection for collection kind " & collection_kind
   END SELECT
- END IF
+#ELSE
+ debug "WARNING: no default slice collection for collection kind " & collection_kind
+#ENDIF
+ 
 END SUB
 
 FUNCTION LowColorCode () as integer

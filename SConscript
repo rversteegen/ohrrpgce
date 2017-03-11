@@ -13,6 +13,7 @@ import itertools
 import re
 from ohrbuild import basfile_scan, verprint, android_source_actions, get_command_output, get_fb_info
 import ohrbuild
+#import generate_datafiles
 
 FBFLAGS = ['-mt'] #, '-showincludes']
 # Flags used when compiling C, C++, and -gen gcc generated C source
@@ -773,7 +774,8 @@ shared_modules += ['allmodex',
                    'reload',
                    'reloadext',
                    'sliceedit',
-                   'slices']
+                   'slices',
+                   'datafiles']
 
 # (.bas files only) 
 edit_modules = ['custom',
@@ -821,6 +823,21 @@ VERPRINT = env.Command (target = ['#/ver.txt', '#/iver.txt', '#/distver.bat'],
                         action = env.Action(version_info, "Generating ver.txt"))
 AlwaysBuild(VERPRINT)
 
+
+################ Data files
+
+USE_SLICE2BAS = True
+if mac:
+    USE_SLICE2BAS = False
+if USE_SLICE2BAS:
+    FBFLAGS += ['-d', 'USE_SLICE2BAS']
+
+def gen_datafiles_bas(source, target, env):
+    print "hello"
+    generate_datafiles.generate_datafiles_bas(USE_SLICE2BAS, str(target[0]))
+DATAFILES_BAS = env.Command (target = ['datafiles.bas'], source = [], 
+                             action = env.Action(gen_datafiles_bas, "Generating datafiles.bas"))
+AlwaysBuild(DATAFILES_BAS)
 
 ################ Generate object file Nodes
 
