@@ -296,8 +296,8 @@ SUB script_log_tick
     .wait_msg_repeats = 0
    END If
    .wait_msg_repeats += 1
-   IF .wait_msg_repeats <= 3 THEN doprint = YES
-   IF .wait_msg_repeats = 3 THEN wait_msg = "..."
+   IF .wait_msg_repeats <= 2 THEN doprint = YES
+   IF .wait_msg_repeats = 2 THEN wait_msg = "...as above..."
   END IF
 
   IF doprint THEN

@@ -9,6 +9,7 @@
 
 #INCLUDE "udts.bi"
 #INCLUDE "battle_udts.bi"
+#INCLUDE "scripting.bi"
 
 declare function battle (byval form as integer) as bool
 declare function checknorunbit (bslot() as battlesprite) as integer
