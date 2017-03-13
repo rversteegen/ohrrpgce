@@ -2341,17 +2341,23 @@ END SUB
 
 ' Draw the zoomed and unzoomed sprite areas
 SUB spriteedit_draw_sprite_area(ss as SpriteEditState, sprite as Frame ptr, pal as Palette16 ptr, page as integer)
- drawbox ss.area(0).x - 1, ss.area(0).y - 1, ss.area(0).w + 2, ss.area(0).h + 2, uilook(uiText), 1, page
- frame_draw sprite, pal, 4, 1, ss.zoom, NO, page
+ ' Unzoomed preview
  drawbox ss.previewpos.x - 1, ss.previewpos.y - 1, ss.wide + 2, ss.high + 2, uilook(uiText), 1, page
  frame_draw sprite, pal, ss.previewpos.x, ss.previewpos.y, 1, NO, page
+ ' Main draw area
+ drawbox ss.area(0).x - 1, ss.area(0).y - 1, ss.area(0).w + 2, ss.area(0).h + 2, uilook(uiText), 1, page
+ setclip ss.area(0).x, ss.area(0).y, ss.area(0).x + ss.area(0).w - 1, ss.area(0).y + ss.area(0).h - 1
+ frame_draw sprite, pal, ss.area(0).x, ss.area(0).y, ss.zoom, NO, page
+ setclip
 END SUB
 
 ' Draw sprite editor
 SUB spriteedit_display(ss as SpriteEditState)
  clearpage dpage
+ ' Draw the sprite
  spriteedit_draw_sprite_area ss, ss.sprite, ss.palette, dpage
 
+ ' Draw the master palette
  ss.curcolor = ss.palette->col(ss.palindex)   'Is this necessary?
  rectangle 247 + ((ss.curcolor - ((ss.curcolor \ 16) * 16)) * 4), 0 + ((ss.curcolor \ 16) * 6), 5, 7, uilook(uiText), dpage
  DIM as integer i, o
@@ -2510,8 +2516,8 @@ END SUB
 SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  DIM i as integer
  'DRAWING ZONE
- area(0).w = ss.wide * ss.zoom
- area(0).h = ss.high * ss.zoom
+ area(0).w = small(ss.wide * ss.zoom, 240)
+ area(0).h = small(ss.high * ss.zoom, 165)
  area(0).x = 4
  area(0).y = 1
  area(0).hidecursor = YES
@@ -3297,6 +3303,7 @@ SUB sprite_editor(ss as SpriteEditState, sprite as Frame ptr)
   .sprite = frame_duplicate(sprite)
   .delay = 10
   .zoom = large(1, small(240 \ ss.wide, 170 \ ss.high))
+  .draw_area_offset = XY(0, 0)
   .x = 0
   .y = 0
   .lastpos.x = -1
@@ -3735,11 +3742,16 @@ FOR i as integer = 0 TO UBOUND(ss.toolinfo)
   ss.drawcursor = ss.toolinfo(i).cursor + 1
  END IF
 NEXT i
-IF ss.tool <> clone_tool AND ss.tool <> airbrush_tool THEN
- IF keyval(scPlus) > 1 THEN
+IF ss.tool <> airbrush_tool THEN
+ ' Change zoom, unless adjusting airbrush size
+ IF keyval(scMinus) > 1 OR keyval(scNumpadMinus) > 1 THEN spriteedit_increment_zoom ss, -1
+ IF keyval(scPlus) > 1 OR keyval(scNumpadPlus) > 1 THEN spriteedit_increment_zoom ss, 1
+END IF
+IF ss.tool <> clone_tool THEN
+ IF keyval(scRightCaret) > 1 AND keyval(scShift) > 0 THEN
   spriteedit_edit ss, frame_rotated_270(ss.sprite)  'clockwise
  END IF
- IF keyval(scMinus) > 1 THEN
+ IF keyval(scLeftCaret) > 1 AND keyval(scShift) > 0 THEN
   spriteedit_edit ss, frame_rotated_90(ss.sprite)  'anticlockwise
  END IF
 END IF
@@ -3861,6 +3873,11 @@ writeundospr ss
 spriteedit_clip ss
 drawline ss.sprite, ss.x, .ss.y, ss.holdpos.x, ss.holdpos.y, ss.palindex
 RETRACE
+END SUB
+
+SUB spriteedit_increment_zoom (ss as SpriteEditState, amount as integer)
+ ss.zoom = bound(ss.zoom + amount, 1, 8)
+ init_sprite_zones ss.area(), ss
 END SUB
 
 SUB spriteedit_scroll (ss as SpriteEditState, byval shiftx as integer, byval shifty as integer)

@@ -97,7 +97,8 @@ TYPE SpriteEditState
   'Internal state
   sprite as Frame ptr   'The current edit state
   zoom as integer
-  x as integer
+  draw_area_offset as XYPair  'The offset used for drawing the sprite on the main draw area
+  x as integer          'cursor position
   y as integer
   lastcpos as XYPair '.x/.y (cursor position) last tick
   lastpos as XYPair  'something totally different
