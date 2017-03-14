@@ -5280,18 +5280,26 @@ function get_font(fontnum as integer, show_err as bool = NO) as Font ptr
 	end if
 end function
 
-'Parses a code like ${Foo123} into action (eg 'FOO') and arg (eg 123) and find closing }.
+CONST MARKUP_NO_ARG = -32768
+
+'Parses a code like ${Foo123} or ${Foo} into action (eg 'FOO') and optional arg (eg 123) and find closing }.
 'Pass a string, a 0-based offset of the start of the contents (eg. after "${"),
-'and action and arg pointer, to fill with the parse results. (Action in UPPERCASE)
+'and action and arg pointer, to fill with the parse results.
+'Action is converted to UPPERCASE. arg is set to MARKUP_NO_ARG if absent.
 'Returns 0 for an invalidly formed tag, otherwise the (0-based) offset of the closing }.
 function parse_tag(z as string, offset as integer, byref action as string, arg as integer ptr) as integer
 	dim closebrace as integer = instr((offset + 2) + 1, z, "}") - 1
+	= str
 	if closebrace <> -1 then
+		'Hack: temporarily modify the string so it appears to end at the }
+		'Creating a new string would be slow
 		z[closebrace] = 0
-		dim ret as bool = split_str_int(@z[offset], action, *arg)
+		if split_str_int(@z[offset], action, *arg) = NO then
+			*arg = MARKUP_NO_ARG
+		end if
 		z[closebrace] = asc("}")
 		action = ucase(action)
-		if ret then return closebrace
+		return closebrace
 	end if
 	return 0
 end function
@@ -5309,7 +5317,7 @@ function next_text_markup(text as string, byref offset as integer, byref tagend 
 			dim action as string
 			dim intarg as int32
 			tagend = parse_tag(text, (offset - 1) + 2, action, @intarg)
-			debug "at " & offset & " tagend " & (tagend + 1)
+			'debug "at " & offset & " tagend " & (tagend + 1)
 			if tagend = 0 then return NO
 			tagend += 2  'Convert from 0- to 1-based index, and move 1 past closing }
 			dim ok as bool = NO
@@ -5329,6 +5337,8 @@ function next_text_markup(text as string, byref offset as integer, byref tagend 
 				ok = YES
 			end if
 
+			if intarg = MARKUP_NO_ARG then ok = YES
+
 			if ok then return YES
 			offset = tagend
 			continue while
@@ -5340,11 +5350,11 @@ end function
 
 type PrintStrState
 	args as RenderTextArgs ptr
-	initial_font as Font ptr   'Used when resetting thefont, = get_font(args->fontnum)
 	startx as integer          '= pos.x
 	endchar as integer         '= small(args->endchar, len(text))
 	'The remaining members change during layout/drawing
 
+	fontnum as integer
 	thefont as Font ptr
 
 	leftmargin as integer
@@ -5359,6 +5369,10 @@ type PrintStrState
 	charnum as integer         'Current index (0-based) in the string
 	vis_chars as integer       'Number of visible (not markup) characters. See args->count_whitespace
 	lines as integer           'Number of lines processed so far
+
+	as Stack fontnum_stack    'Used when resetting fontnum
+	as Stack fgcolor_stack    'Used when resetting fgcolor
+	as Stack bgcolor_stack    'Used when resetting bgcolor
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
 	localpal as Palette16 ptr  'NULL if not initialised
@@ -5383,11 +5397,18 @@ constructor PrintStrState(args as RenderTextArgs, text as string, pos as RelPosX
 	fgcolor = args.fgcolor
 	bgcolor = args.bgcolor
 
+	fontnum = args.fontnum
 	thefont = get_font(args.fontnum, YES)
 	if thefont = NULL then exit constructor
-	initial_font = thefont
 	endchar = small(args.endchar, len(text))
 	charnum = 0
+
+	createstack(fontnum_stack, 4)
+	createstack(fgcolor_stack, 4)
+	createstack(bgcolor_stack, 4)
+	pushstack(fontnum_stack, fontnum)
+	pushstack(fgcolor_stack, 0)
+	pushstack(bgcolor_stack, 0)
 
 	if dest then
 		this.pos = relative_pos(pos, dest->size, text_size) + thefont->offset
@@ -5604,7 +5625,12 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 							if intarg >= -1 andalso intarg <= ubound(fonts) then
 								if intarg = -1 then
 									'UPDATE_STATE(outbuf, thefont, .initial_font)
-									.thefont = .initial_font
+									safepopstack(.fontnum_stack, intarg)
+									if intarg = -1 then
+										.thefont = .initial_font   'FIXME: don't use
+									else
+										.thefont = fonts(intarg)  'It was previously selected, so not null
+									end if
 								elseif fonts(intarg) then
 									'UPDATE_STATE(outbuf, thefont, fonts(intarg))
 									.thefont = fonts(intarg)
@@ -5838,7 +5864,8 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 				if arg >= -1 andalso arg <= ubound(fonts) then
 					if arg = -1 then
 						'UPDATE_STATE(outbuf, thefont, .initial_font)
-						.thefont = .initial_font
+						.thefont = .initial_font   'FIXME: don't use
+						'FIXME: doesn't match above
 					elseif fonts(arg) then
 						'UPDATE_STATE(outbuf, thefont, fonts(arg))
 						.thefont = fonts(arg)
@@ -5933,7 +5960,7 @@ end sub
 '        (Note that this does disable the foreground colour, unless the initial fg colour was -1!)
 '-${KB#} changes the background colour.
 '        Specify 0 to instead make the background transparent.
-'-${KP#} changes to palette # (-1 is invalid) (Maybe should make ${F-1} return to the default)
+'-${KP#} changes to palette # (-1 is invalid) (Maybe should make ${KP-1} return to the default)
 '        (Note, palette changes are per-font, and expire when the font changes)
 '-${LM#} sets left margin for the current line, in pixels
 '-${RM#} sets right margin for the current line, in pixels
@@ -6273,13 +6300,12 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 					if char = tcmdFont then
 						READ_VALUE(arg, parsed_line, ch)
 						if arg = -1 then
-							.thefont = .initial_font
-						elseif fonts(arg) then
-							.thefont = fonts(arg)
-						else
-							'This should be impossible, because layout_line_fragment has already checked this
-							showbug "find_point_in_text: NULL font!"
+							arg = .initial_font   'FIXME: don't use
 						end if
+						.fontnum = arg
+						.thefont = fonts(arg)
+						'This should be impossible, because layout_line_fragment has already checked this
+						BUG_IF(.thefont = NULL, "NULL font!")
 					elseif char <= tcmdLastWithArg then
 						READ_VALUE(arg, parsed_line, ch)
 						'TEXTDBG("READ_VALUE: arg=" & arg)
@@ -6424,11 +6450,11 @@ sub textcolor (fg as integer, bg as integer)
 end sub
 
 function fgcol_text(text as string, colour as integer) as string
-	return "${K" & colour & "}" & text & "${K-1}"
+	return "${K" & colour & "}" & text & "${K}"
 end function
 
 function bgcol_text(text as string, colour as integer) as string
-	return "${KB" & colour & "}" & text & "${KB-1}"
+	return "${KB" & colour & "}" & text & "${KB}"
 end function
 
 'Remove all the valid text markup (not embed codes) like ${K-1} from a string.
