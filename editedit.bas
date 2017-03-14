@@ -408,11 +408,11 @@ SUB ee_refresh (byref st as EEState, byval widget as NodePtr)
 END SUB
 
 FUNCTION ee_grey_str(s as string) as string
- RETURN "${K" & uilook(uiDisabledItem) & "}" & s & "${K-1}"
+ RETURN "${K" & uilook(uiDisabledItem) & "}" & s & "${K}"
 END FUNCTION
 
 FUNCTION ee_emphasis_str(s as string) as string
- RETURN "${K" & uilook(uiSelectedDisabled) & "}" & s & "${K-1}"
+ RETURN "${K" & uilook(uiSelectedDisabled) & "}" & s & "${K}"
 END FUNCTION
 
 FUNCTION ee_widget_string(byref st as EEState, byval widget as Nodeptr) as string

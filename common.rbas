@@ -615,7 +615,7 @@ END SUB
 FUNCTION hilite(what as string, col as integer = -1) as string
  IF col = -1 THEN col = uilook(uiSelectedItem + global_tog)
  'IF col = -1 THEN col = uilook(IIF(global_tog, uiSelectedItem, uiHighlight2))
- RETURN "${K" & col & "}" & what & "${K-1}"
+ RETURN "${K" & col & "}" & what & "${K}"
 END FUNCTION
 
 ' Takes "a string with `certain` parts marked to be `High`lighted" with colour 'col'
@@ -630,7 +630,7 @@ FUNCTION ticklite(what as string, col as integer = -1) as string
   index = INSTR(lastindex, what, "`")
   IF index = 0 THEN RETURN ret & MID(what, lastindex)  'Add the final part
   ret &= MID(what, lastindex, index - lastindex)
-  IF inside_hilite THEN ret &= "${K-1}" ELSE ret &= "${K" & col & "}"
+  IF inside_hilite THEN ret &= "${K}" ELSE ret &= "${K" & col & "}"
   inside_hilite XOR= YES
   lastindex = index + 1
  LOOP
@@ -640,7 +640,7 @@ END FUNCTION
 startTest(ticklite)
  uilook(uiSelectedItem) = 2
  uilook(uiSelectedItem + 1) = 2
- IF ticklite("`Test`f`x``") <> "${K2}Test${K-1}f${K2}x${K-1}${K2}" THEN fail
+ IF ticklite("`Test`f`x``") <> "${K2}Test${K}f${K2}x${K}${K2}" THEN fail
 endTest
 #ENDIF
 
@@ -648,7 +648,7 @@ endTest
 'Optionally, if you pass a string, wraps it with start/reset color tags.
 FUNCTION fgtag(col as integer, text as string = "") as string
  IF LEN(text) THEN
-  RETURN "${K" & col & "}" & text & "${K-1}"
+  RETURN "${K" & col & "}" & text & "${K}"
  ELSE
   RETURN "${K" & col & "}"
  END IF
@@ -658,7 +658,7 @@ END FUNCTION
 'Optionally, if you pass a string, wraps it with start/reset color tags.
 FUNCTION bgtag(col as integer, text as string = "") as string
  IF LEN(text) THEN
-  RETURN "${KB" & col & "}" & text & "${KB-1}"
+  RETURN "${KB" & col & "}" & text & "${KB}"
  ELSE
   RETURN "${KB" & col & "}"
  END IF
@@ -6921,7 +6921,7 @@ FUNCTION inputfilename (query as zstring ptr, ext as zstring ptr, byref director
    textcolor uilook(uiSelectedItem + tog), uilook(uiHighlight)
   END IF
   DIM display_fname as string = IIF(LEN(filename), filename, "<type filename>")
-  printstr display_fname + fgtag(uilook(uiText)) + *ext, pCenteredRight, 60, dpage, YES
+  printstr display_fname + fgcol_text(*ext, uilook(uiText)), pCenteredRight, 60, dpage, YES
 
   SWAP vpage, dpage
   setvispage vpage
