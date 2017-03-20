@@ -249,6 +249,7 @@ Type FBErrorEnum as integer  'For compatibility with C
 declare function OPENFILE(filename as string, open_bits as OPENBits, byref fh as integer) as FBErrorEnum
 
 declare sub send_lump_modified_msg(byval filename as zstring ptr)
+declare sub openfile_set_remap_hook(remap_from as string, remap_to as string)
 declare sub set_OPEN_hook(lumpfile_filter as FnOpenCallback, lump_writes_allowed as boolint, channel as IPCChannel ptr)
 declare sub clear_OPEN_hook()
 

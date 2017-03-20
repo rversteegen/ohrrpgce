@@ -155,6 +155,27 @@ int lump_file_opener(FB_FILE *handle, const char *filename, size_t filename_len)
 	return 0;
 }
 
+/*
+// Re
+FBSTRING *maybe_redirect_to_overlay(FBSTRING *filename, unsigned int access, FBSTRING *overlay) {
+	// Check if the overlay file already exists
+	*overlay = fb_hStrAllocTmpDesc();
+	overlay =
+	
+
+	if (access == FB_FILE_ACCESS_WRITE || access == FB_FILE_ACCESS_READWRITE) {
+
+	if (!copy_file_replacing(filename->data, ret->data)) {
+		// crap
+
+	}
+
+	copyfile
+
+	return ret;
+}
+*/
+
 // This is a replacement for fb_FileOpen/fb_FileOpenEncod which is what plain OPEN with
 // or without an ENCODING argument is translated to in -lang fb.
 // Note that calling this function acts like the functional form OPEN(): when compiled with -exx
@@ -232,6 +253,7 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int &fnum) {
 	// Tests for an explicit ACCESS WRITE;
 	// pfnLumpfileFilter is responsible for showing an error if allow_lump_writes = NO.
 	bool explicit_write = openbits & (ACCESS_WRITE | ACCESS_READ_WRITE);
+	bool writeable = (access != FB_FILE_ACCESS_READ);
 
 	// Create a temp copy of filename, so that the filter function can modify it
 	FBSTRING file_to_open;
@@ -239,7 +261,7 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int &fnum) {
 
 	FilterActionEnum action = DONT_HOOK;
 	if (pfnLumpfileFilter)
-		action = pfnLumpfileFilter(&file_to_open, explicit_write ? -1 : 0, allow_lump_writes ? -1 : 0);
+		action = pfnLumpfileFilter(&file_to_open, writable ? :explicit_write ? -1 : 0, allow_lump_writes ? -1 : 0);
 
 	if (action == HOOK) {
 		if (!allow_lump_writes) {
@@ -260,6 +282,15 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int &fnum) {
 		return FB_RTERROR_ILLEGALFUNCTIONCALL;
 	} else if (action == HIDE) {
 		return FB_RTERROR_FILENOTFOUND;
+/*
+	} else if (action == OVERLAY) {
+		if (!allow_lump_writes) {
+			// If we implicitly asked for writing, then reduce to read access.
+			access = FB_FILE_ACCESS_READ;
+		}
+		// Redirect to a copy
+		filename = maybe_redirect_to_overlay(filename, access, &tempstring);
+*/
 	} else {
 		fatal_error("OPENFILE: Invalid action returned by filter function");
 		return FB_RTERROR_ILLEGALFUNCTIONCALL;

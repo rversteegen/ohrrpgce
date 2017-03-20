@@ -363,6 +363,8 @@ gam.autorungame = NO
 usepreunlump = NO
 DIM rpg_browse_default as string = ""  'local variable
 
+DIM playingtmpdir as string
+
 exename = trimextension(trimpath(COMMAND(0)))
 
 IF running_as_slave THEN
@@ -375,7 +377,8 @@ IF running_as_slave THEN
 
 ELSE  'NOT running_as_slave
 
- workingdir = tmpdir + "playing.tmp"
+ playingtmpdir = tmpdir + "playing.tmp"
+ workingdir = playingtmpdir
 
  'DEBUG debug "create playing.tmp"
  IF isdir(workingdir) THEN
@@ -407,6 +410,7 @@ ELSE  'NOT running_as_slave
    IF select_rpg_or_rpgdir(arg) THEN
     EXIT FOR
    ELSEIF isdir(arg) THEN
+    ' Set file browser start dir
     rpg_browse_default = absolute_path(arg)
    ELSE
     visible_debug "Unrecognised commandline argument " & arg & " ignored"
@@ -523,28 +527,32 @@ ELSE
  xbload tmpdir + archinym + ".gen", gen(), "general game data missing from " + sourcerpg
 END IF
 
-DIM forcerpgcopy as integer = NO
 IF gen(genVersion) > CURRENT_RPG_VERSION THEN
  debug "genVersion = " & gen(genVersion)
  future_rpg_warning  '(fatal error is running_as_slave)
- forcerpgcopy = YES  'If we upgraded an .rpgdir in-place, we would probably damage it
 END IF
 
 IF usepreunlump = NO THEN
  unlump sourcerpg, workingdir
 ELSEIF NOT running_as_slave THEN  'Won't unlump or upgrade if running as slave
- IF NOT diriswriteable(workingdir) THEN
-  'We have to copy the game, otherwise we won't be able to upgrade it
-  '(it's too much trouble to properly check whether the game is already
-  'fully up to date, which is unlikely anyway): change workingdir!
-  debuginfo workingdir + " not writeable"
-  forcerpgcopy = YES
- END IF
- IF forcerpgcopy THEN
-  workingdir = tmpdir + "playing.tmp"
-  copyfiles sourcerpg, workingdir + SLASH
-  usepreunlump = NO
- END IF
+ ' Opening an .rpgdir. Redirect writes to a temp dir
+ openfile_set_remap_hook sourcerpg, tmpdir + "playing.tmp"
+ workingdir = sourcerpg
+ ' workingdir = tmpdir + "playing.tmp"
+ ' copyfiles sourcerpg, workingdir + SLASH
+
+ ' IF NOT diriswriteable(workingdir) THEN
+ '  'We have to copy the game, otherwise we won't be able to upgrade it
+ '  '(it's too much trouble to properly check whether the game is already
+ '  'fully up to date, which is unlikely anyway): change workingdir!
+ '  debuginfo workingdir + " not writeable"
+ '  forcerpgcopy = YES
+ ' END IF
+ ' IF forcerpgcopy THEN
+ '  workingdir = tmpdir + "playing.tmp"
+ '  copyfiles sourcerpg, workingdir + SLASH
+ '  usepreunlump = NO
+ ' END IF
 END IF
 
 '--set game

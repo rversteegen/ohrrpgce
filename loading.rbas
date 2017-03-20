@@ -3976,6 +3976,7 @@ SUB update_general_data ()
  '' Editor and automatic upgrader versions
 #IFDEF IS_CUSTOM
  'Don't update version info in Game in case we're running with usepreunlump = YES (upgrading an .rpgdir in-place)
+ 'NOTE: this is now obsolete thanks to openfile_set_remap_hook since Game doesn't modify .rpgdirs
  DIM vernode as NodePtr
  vernode = root_node."editor_version".ptr
  IF vernode THEN

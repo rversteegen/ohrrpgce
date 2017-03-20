@@ -12,6 +12,7 @@
 #include "common_base.bi"
 #include "lumpfile.bi"
 #include "lumpfilewrapper.bi"
+#include "os.bi"
 
 
 'Local functions
@@ -1412,16 +1413,22 @@ end sub
 '----------------------------------------------------------------------
 '                     filelayer.cpp support stuff
 
-'This is called on EVERY OPEN call once the OPEN hook is registered!
+
+dim shared openfile_remap_from as string
+dim shared openfile_remap_to as string
+
+'This is called on EVERY OPENFILE call once the OPEN hook is registered!
 'See filelayer.cpp (where it is registered as pfnLumpfileFilter)
 'Returns whether the file is a normal lump file in workingdir.
 'This is used to determine whether the file should be hooked.
+'It can also modify filename to open a different file instead (eg a temporary copy).
 'writable: whether attempting to *explicitly* open with write access
+'writes_allowed: the argument that was passed to set_OPEN_hook
 function inworkingdir(filename as string, writable as boolint, writes_allowed as boolint) as FilterActionEnum
 	if RIGHT(filename, 10) = "_debug.txt" then return FilterActionEnum.dont_hook
 	'if RIGHT(filename, 12) = "_archive.txt" then return FilterActionEnum.dont_hook
 	'Uncomment this for OPEN tracing (or you could just use strace...)
-	'debuginfo "OPEN(" & filename & ")  " & ret
+	'debuginfo "OPENFILE(" & filename & ")  " & ret
 
 	dim ret as FilterActionEnum = FilterActionEnum.hook
 	if strncmp(strptr(filename), strptr(workingdir), len(workingdir)) <> 0 then ret = FilterActionEnum.dont_hook
@@ -1436,6 +1443,59 @@ function inworkingdir(filename as string, writable as boolint, writes_allowed as
 
 	return ret
 end function
+
+'Used as an OPENFILE hook (for set_OPEN_hook; see filelayer.cpp, where it is pfnLumpfileFilter).
+'This remaps writes to files in openfile_remap_from to copies it creates in openfile_remap_to
+'by modifying filename,
+'Doesn't work for files in subdirectories (intended for .rpgirs)
+'Never returns HOOK; this is intended for use in Game, not Custom.
+'writable: whether opening for writing.
+'writes_allowed: ignored.
+function hook_rpgdir(filename as string, writable as boolint, writes_allowed as boolint) as FilterActionEnum
+	debuginfo "OPENFILE(" & filename & ", writable=" & writable & ")"
+
+	filename = normalize_path(filename)
+	if strncmp(strptr(filename), strptr(openfile_remap_from), len(openfile_remap_from)) = 0 then
+		' A file in the .rpgdir
+
+		dim overlay_file as string = openfile_remap_to & SLASH & mid(filename, len(openfile_remap_from) + 1)
+
+		' real_isfile doesn't open the file, avoiding recursion
+		dim do_remap as bool = real_isfile(overlay_file)
+                debuginfo "  ...exists=" & do_remap
+
+                ' If opening for write, always redirect to overlay
+                if writable andalso do_remap = NO then
+                        if real_isfile(filename) = NO then
+                                ' New files should go in the overlay dir
+                                do_remap = YES
+                        else
+                                ' Copy if this is the first time. Note that this doesn't go through filelayer either
+                                if copy_file_replacing(filename, overlay_file) then
+                                        do_remap = YES
+                                        debuginfo "  ...copied to overlay"
+                                else
+                                        fatalerror "Couldn't copy " & filename
+                                end if
+			end if
+		end if
+
+		if do_remap then
+			debuginfo "  ...remapped to " & overlay_file
+			filename = overlay_file
+		end if
+	end if
+
+	return FilterActionEnum.dont_hook
+end function
+
+'This remaps writes to files in the remap_from directory to temp copies created in remap_to.
+sub openfile_set_remap_hook(remap_from as string, remap_to as string)
+	openfile_remap_from = normalize_path(remap_from)
+	openfile_remap_to = remap_to
+	debuginfo "Remapping writes into " & openfile_remap_from & " to " & openfile_remap_to
+	set_OPEN_hook @hook_rpgdir, YES, NULL
+end sub
 
 'A crude synchronisation measure. Waits until receiving a message with the given prefix,
 'placing it in line_in, discarding everything else. Returns true on success
