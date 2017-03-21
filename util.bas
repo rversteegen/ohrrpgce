@@ -2889,6 +2889,30 @@ FUNCTION ini_value_int (s as string, default as integer=0) as integer
 END FUNCTION
 
 '----------------------------------------------------------------------
+'                        mediawiki markup
+
+' Returns string position of start of line contain0 on failure
+FUNCTION doc_next_section(doc as string, byref docpos as integer) as string
+ WHILE docpos > 0
+  docpos = INSTR(doc, docpos, !"\n") + 1
+  ' skip over whitespace
+  WHILE docpos < LEN(doc) ANDALSO isspace(doc[docpos - 1])
+   docpos += 1
+  WEND
+  DIM opening_marks as integer = 0
+  WHILE docpos < LEN(doc) ANDALSO doc[docpos - 1] = ASC("=")
+   docpos += 1
+  WEND
+ 
+ WEND
+END FUUNCTION
+
+' modifies doc
+FUNCTION find_or_create_section(doc as string, section as string, parentsection as string = "") as integer
+  DIM sec "=" & section & "="
+END FUNCTION
+
+'----------------------------------------------------------------------
 
 ' For commandline utilities. Wait for a keypress and return it.
 FUNCTION readkey () as string
