@@ -126,4 +126,7 @@ DFI_DECLARE_CDECL( int, gfx_GetJoystickCount ); //returns the number of joystick
 
 DFI_CLASS_END( GfxBackendDll );
 
+// In blit.c
+void smoothzoomblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *destbuffer, int w, int h, int pitch, int zoom, int smooth, RGBcolor pal[]);
+
 #endif

@@ -47,8 +47,8 @@ dim shared as integer mxmin = -1, mxmax = -1, mymin = -1, mymax = -1
 dim shared inputtext as string
 dim shared extrakeys(127) as integer
 
-'internal palette for 32-bit mode, with RGB colour components packed into a int
-dim shared truepal(255) as int32
+'internal palette for 32-bit mode
+dim shared truepal(255) as RGBcolor
 
 
 function gfx_fb_init(byval terminate_signal_handler as sub cdecl (), byval windowicon as zstring ptr, byval info_buffer as zstring ptr, byval info_buffer_size as integer) as integer
@@ -108,7 +108,7 @@ sub gfx_fb_update_screen_mode()
 		'Palette must be re-set
 		if depth = 8 then
 			for i as integer = 0 to 255
-				palette i, (truepal(i) and &hFF0000) shr 16, (truepal(i) and &hFF00) shr 8, truepal(i) and &hFF
+                                palette i, truepal(i).r, truepal(i).g, truepal(i).b
 			next
 		end if
 		mutexunlock keybdmutex
@@ -129,9 +129,9 @@ sub gfx_fb_showpage(byval raw as ubyte ptr, byval w as integer, byval h as integ
 	dim as ubyte ptr sptr = screenptr + (screen_buffer_offset * 320 * zoom)
 
 	if depth = 8 then
-		smoothzoomblit_8_to_8bit(raw, sptr, w, h, w * zoom, zoom, smooth)
+		smoothzoomblit(8, 8, raw, sptr, w, h, w * zoom, zoom, smooth)
 	elseif depth = 32 then
-		smoothzoomblit_8_to_32bit(raw, cast(uint32 ptr, sptr), w, h, w * zoom, zoom, smooth, @truepal(0))
+		smoothzoomblit(8, 32, raw, cast(uint32 ptr, sptr), w, h, w * zoom, zoom, smooth, @truepal(0))
 	else
 		debugc errDie, "gfx_fb_showpage: bad depth " & depth
 	end if
@@ -150,7 +150,7 @@ sub gfx_fb_setpal(byval pal as RGBcolor ptr)
 	'copy the palette, both for 32bit colour mode and when changing
 	'res requires resetting the palette
 	for i = 0 to 255
-		truepal(i) = RGB(pal[i].r, pal[i].g, pal[i].b)
+		truepal(i) = pal[i]
 	next
 	'FIXME: If running in 32 bitdepth, this does not update the page "live", like the 8-bit version
 	'so fades won't working, and there's no way to force an
@@ -169,16 +169,16 @@ function gfx_fb_present(byval surfaceIn as Surface ptr, byval pal as RGBPalette 
 			gfx_fb_setpal(cast(RGBcolor ptr, @pal->col(0)))
 
 			if depth = 8 then
-				smoothzoomblit_8_to_8bit(.pPaletteData, screenpixels, .width, .height, .width * zoom, zoom, smooth)
+				smoothzoomblit(8, 8, .pPaletteData, screenpixels, .width, .height, .width * zoom, zoom, smooth)
 			elseif depth = 32 then
-				smoothzoomblit_8_to_32bit(.pPaletteData, cast(uint32 ptr, screenpixels), .width, .height, .width * zoom, zoom, smooth, @truepal(0))
+				smoothzoomblit(8, 32, .pPaletteData, cast(uint32 ptr, screenpixels), .width, .height, .width * zoom, zoom, smooth, @truepal(0))
 			end if
 		else  '32 bit
 			if depth = 8 then
 				debug "gfx_fb_present: can't present a 32 bit surface unless running in 32 bit mode! Run .widthith '-d 32'"
 				return 1
 			elseif depth = 32 then
-				smoothzoomblit_32_to_32bit(.pColorData, cast(uint32 ptr, screenpixels), .width, .height, .width * zoom, zoom, smooth)
+				smoothzoomblit(32, 32, .pColorData, cast(uint32 ptr, screenpixels), .width, .height, .width * zoom, zoom, smooth)
 			end if
 		end if
 	end with

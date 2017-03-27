@@ -514,8 +514,8 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
   IF bitdepth = 8 THEN
 
     'We may either blit to screensurface (doing 8 bit -> display pixel format conversion) first
-    'and then smoothzoom, with smoothzoomblit_anybit
-    'Or smoothzoom first, with smoothzoomblit_8_to_8bit, and then blit to screensurface
+    'and then smoothzoom with smoothzoomblit
+    'Or call smoothzoomblit for 8bit->8bit, and then blit to screensurface
 
     IF screenbuffer ANDALSO (screenbuffer->w <> w * zoom OR screenbuffer->h <> h * zoom) THEN
       SDL_FreeSurface(screenbuffer)
@@ -531,7 +531,7 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
       SYSTEM
     END IF
 
-    smoothzoomblit_8_to_8bit(raw, screenbuffer->pixels, w, h, screenbuffer->pitch, zoom, smooth)
+    smoothzoomblit(8, 8, raw, screenbuffer->pixels, w, h, screenbuffer->pitch, zoom, smooth)
     gfx_sdl_8bit_update_screen()
 
   ELSE
@@ -546,7 +546,7 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
     END IF
 
     'smoothzoomblit takes the pitch in pixels, not bytes!
-    smoothzoomblit_32_to_32bit(cast(RGBcolor ptr, raw), cast(uint32 ptr, screensurface->pixels), w, h, screensurface->pitch \ 4, zoom, smooth)
+    smoothzoomblit(32, 32, cast(RGBcolor ptr, raw), cast(uint32 ptr, screensurface->pixels), w, h, screensurface->pitch \ 4, zoom, smooth)
     IF SDL_Flip(screensurface) THEN
       debug "gfx_sdl_present_internal: SDL_Flip failed: " & *SDL_GetError
     END IF
