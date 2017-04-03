@@ -86,6 +86,7 @@ WHAT IS NEW?
       "move slice with wallchecking" [Ralph]
     * "slice parent" alias to "parent slice"
     * "get npc speed"
+    * "suspend slices", "resume slices" [Ralph]
 
   * Changes
     * Sound effects used to play at max volume, which has now changed

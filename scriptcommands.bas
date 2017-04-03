@@ -1075,6 +1075,10 @@ SUB sfunctions(byval cmdid as integer)
     .Y += pos.y - startpos.y
    END WITH
   END IF
+ CASE 626'--suspend slices
+  setbit gen(), genSuspendBits, suspendslices, 1
+ CASE 627'--resume slices
+  setbit gen(), genSuspendBits, suspendslices, 0
 
  'End of old game.bas-sfunctions
 

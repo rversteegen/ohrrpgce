@@ -829,7 +829,17 @@ DO
   doloadgame load_slot
  END IF
 
- AdvanceSlice SliceTable.root
+ IF readbit(gen(), genSuspendBits, suspendslices) = 0 THEN
+  AdvanceSlice SliceTable.root
+ ELSE
+  ' Menu item flashing animations in future will (I think) be implemented using slices,
+  ' but we should continue to animate those... but there are MANY other things that might get
+  ' converted to slices too...
+  'IF SliceTable.menu_layer THEN
+  ' AdvanceSlice SliceTable.menu_layer
+  'END IF
+ END IF
+
  ELSE
   dotimer(TIMER_BLOCKINGMENUS)
  END IF' end menus_allow_gameplay
