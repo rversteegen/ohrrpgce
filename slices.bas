@@ -826,6 +826,15 @@ Function verifySliceLineage(byval sl as slice ptr, parent as slice ptr) as integ
  return yes
 end function
 
+' Returns true if this slice or any ancestor is paused
+Function SliceAncestorPaused(byval sl as Slice ptr) as bool
+ do while sl <> 0
+  if sl->Paused then return YES
+  sl = sl->Parent
+ loop
+ return NO
+End Function
+
 'Returns the 0-based index of this slice among is siblings.
 Function SliceIndexAmongSiblings(sl as Slice Ptr) as integer
  if sl = 0 then return 0

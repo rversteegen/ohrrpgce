@@ -5343,6 +5343,26 @@ end
 				<ref>sliceismoving</ref>
 			</seealso>
 		</command>
+		<command id="pauseslicetree">
+			<canon>pause slice tree (handle)</canon>
+			<shortname>pause slice tree</shortname>
+			<description>
+				Cause slice <p>handle</p> and all its children and descendents to stop moving.
+				This cancels any previous slice velocity and move slice commands.
+			</description>
+			<seealso>
+				<ref>setslicevelocityx</ref>
+				<ref>setslicevelocityy</ref>
+				<ref>getslicevelocityx</ref>
+				<ref>getslicevelocityy</ref>
+				<ref>setslicevelocity</ref>
+				<ref>stopslice</ref>
+				<ref>movesliceto</ref>
+				<ref>movesliceby</ref>
+				<ref>waitforslice</ref>
+				<ref>sliceismoving</ref>
+			</seealso>
+		</command>
 		<command id="movesliceto">
 			<canon>move slice to (handle, x, y, ticks)</canon>
 			<shortname>move slice to</shortname>
@@ -5402,7 +5422,15 @@ end
 		<command id="waitforslice">
 			<canon>wait for slice (handle)</canon>
 			<shortname>wait for slice</shortname>
-			<description>Cause the script to wait until slice <p>handle</p> has stopped moving. This only applies to commands that operate over time like <ref>setslicevelocityx</ref> or <ref>setslicevelocity</ref> or <ref>movesliceto</ref> or <ref>movesliceby</ref>. There is no reason to use this command for instantaneous slice moving commands like <ref>putslice</ref> or <ref>setslicex</ref> or <ref>setslicey</ref>.</description>
+			<description>
+				Cause the script to wait until slice <p>handle</p> has stopped moving.
+				This only applies to commands that operate over time like <ref>setslicevelocityx</ref>
+				or <ref>setslicevelocity</ref> or <ref>movesliceto</ref> or <ref>movesliceby</ref>.
+				If the slice has been instructed to move but is paused by <ref>pauseslicetree</ref>,
+				then this wait will never finish.
+				There is no reason to use this command for instantaneous slice moving commands like
+				<ref>putslice</ref> or <ref>setslicex</ref> or <ref>setslicey</ref>.
+			</description>
 			<seealso>
 				<ref>setslicevelocityx</ref>
 				<ref>setslicevelocityy</ref>
@@ -5419,7 +5447,12 @@ end
 		<command id="sliceismoving">
 			<canon>slice is moving (handle)</canon>
 			<shortname>slice is moving</shortname>
-			<description>Returns true if the slice <p>handle</p> is moving (has velocity or has been instructed to move to some point). Returns false if the slice is not moving.</description>
+			<description>
+				Returns true if the slice <p>handle</p> is moving
+				(has velocity or has been instructed to move to some point).
+				Returns false if the slice is not moving, OR if it or its parent
+				or any of its other ancestors has been paused with <ref>pauseslicetree</ref>.
+			</description>
 			<seealso>
 				<ref>setslicevelocityx</ref>
 				<ref>setslicevelocityy</ref>

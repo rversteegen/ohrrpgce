@@ -647,6 +647,15 @@ define function, begin
 623,checkwallcollisionx,6,0,0,0,0,20,20  # Check for wall collision (pixel x, pixel y, width, height, xgo, ygo)
 624,checkwallcollisiony,6,0,0,0,0,20,20  # Check for wall collision (pixel x, pixel y, width, height, xgo, ygo)
 625,moveslicewithwallchecking,3,0,0,0    # Move a slice by xgo,ygo or until it hits a wall (sl, xgo, ygo)
+626,pauseslicetree,1,0        # Pause the movement (and animation) of a slice and its descendants
+627,resumeslicetree,2,0,1     # Unpause the movement (and animation) of a slice (slice, recurse)
+#xxx,stopmovement,1,0         # (slice)
+#xxx,stopanimation,1,0        # (slice)
+#xxx,pausemovement,1,0        # (slice)
+#xxx,resumemovement,1,0       # (slice)
+#xxx,pauseanimation,1,0       # (slice)
+#xxx,resumeanimation,1,0      # (slice)
+#xxx,sliceisanimating,1,0     # (slice)
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 

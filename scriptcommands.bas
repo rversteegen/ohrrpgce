@@ -1075,6 +1075,15 @@ SUB sfunctions(byval cmdid as integer)
     .Y += pos.y - startpos.y
    END WITH
   END IF
+ CASE 626'--pause slice tree
+  IF valid_plotslice(retvals(0)) THEN
+   plotslices(retvals(0))->Paused = NO
+  END IF
+ CASE 627'--resume slice tree
+  IF valid_plotslice(retvals(0)) THEN
+   plotslices(retvals(0))->Paused = YES
+  END IF
+
 
  'End of old game.bas-sfunctions
 
@@ -3149,7 +3158,7 @@ SUB sfunctions(byval cmdid as integer)
   IF valid_plotslice(retvals(0)) THEN
    WITH *plotslices(retvals(0))
     IF .Velocity.X <> 0 ORELSE .Velocity.Y <> 0 ORELSE .TargTicks > 0 THEN
-     scriptret = 1
+     scriptret = IIF(SliceAncestorPaused(plotslices(retvals(0))), 0, 1)
     END IF
    END WITH
   END IF
