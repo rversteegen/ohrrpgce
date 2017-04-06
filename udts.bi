@@ -845,6 +845,12 @@ TYPE TextBox
   portrait_id   as integer
   portrait_pal  as integer
   portrait_pos  as XYPair
+
+  portrait_anchorhoriz as AlignType  'Relative to self
+  portrait_anchorvert as AlignType   'Anchor on the portrait box
+  portrait_alignhoriz as AlignType   'Alignment to the text box
+  portrait_alignvert as AlignType   'Anchor on the portrait box
+
   sound_effect as integer    ' +1, 0 means none
   stop_sound_after as bool
   line_sound as integer      ' +1, 0=default, -1=none

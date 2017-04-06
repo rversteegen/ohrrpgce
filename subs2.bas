@@ -17,7 +17,7 @@
 #include "loading.bi"
 #include "cglobals.bi"
 #include "ver.txt"
-
+#include "sliceedit.bi"
 #include "scrconst.bi"
 
 'Types
@@ -1334,6 +1334,8 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
       state.need_update = YES
       resetsfx
      END IF
+    CASE 19: state.need_update OR= anchor_and_align_grabber(box.portrait_anchorhoriz, box.portrait_alignhoriz)
+    CASE 20: state.need_update OR= anchor_and_align_grabber(box.portrait_anchorvert, box.portrait_alignvert)
    END SELECT
   ELSE '-- holding ALT
    DIM remptr as integer = st.id
@@ -1378,6 +1380,9 @@ END SUB
 SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, byref box as TextBox, byref st as TextboxEditState)
  DIM menutemp as string
  v_new menu
+
+ ' Next free itemdata: 21
+
  menuitem 0, menu, "Go Back"
  menuitem 1, menu, "Position: " & box.vertical_offset
  menuitem 3, menu, "Text Color: " & box.textcolor
@@ -1419,6 +1424,8 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
  menuitem 12, menu, "Palette: " & menutemp
  menuitem 13, menu, "Box: " & IIF(box.portrait_type = 0, "(N/A)", yesorno(box.portrait_box))
  menuitem 14, menu, "Position Portrait..."
+ menuitem 19, menu, "Horizonal alignment: " & anchor_and_align_string(box.portrait_anchorhoriz, box.portrait_alignhoriz, NO)
+ menuitem 20, menu, "Vertical alignment: " & anchor_and_align_string(box.portrait_anchorvert, box.portrait_alignvert, YES)
 
  menuitem -1, menu, "Audio:"
  IF box.music < 0 THEN
@@ -1643,7 +1650,7 @@ SUB textbox_choice_editor (byref box as TextBox, byref st as TextboxEditState)
   NEXT i
  
   clearpage dpage
-  standardmenu menu(), state, 0, 8, dpage
+  standardmenu menu(), state, 0, 0, dpage
  
   SWAP vpage, dpage
   setvispage vpage
