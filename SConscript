@@ -25,11 +25,13 @@ TRUE_CFLAGS = '-g -Wall --std=gnu99'.split()
 # Flags used only for C++ (in addition to CFLAGS)
 CXXFLAGS = '--std=c++0x -g -Wall -Wno-non-virtual-dtor'.split()
 # CXXLINKFLAGS are used when linking with g++
-CXXLINKFLAGS = []
+CXXLINKFLAGS = ['-Wl,-v']
 # FBLINKFLAGS are passed to fbc when linking with fbc
 FBLINKFLAGS = []
 # FBLINKERFLAGS are passed to the linker (with -Wl) when linking with fbc
 FBLINKERFLAGS = []
+# Extra library paths
+LIBPATHS = [path for var,path in ARGLIST if var == 'libpath']
 
 verbose = int (ARGUMENTS.get ('v', False))
 if verbose:
@@ -61,6 +63,9 @@ unix = False
 mac = False
 android = False
 android_source = False
+rpi = ARGUMENTS.get ('rpi', False)
+if rpi:
+    default_target = 'arm-linux-gnueabihf'
 target = ARGUMENTS.get ('target', None)
 arch = ARGUMENTS.get ('arch', None)  # default decided below
 
@@ -507,7 +512,7 @@ if linkgcc:
             # because on X11 need to provide it as an XPM instead
             CXXLINKFLAGS += ['linux/fb_icon.c']
         # Android doesn't have ncurses, and libpthread is part of libc
-        if not android:
+        if not android and not rpi:
             # The following are required by libfb (not libfbgfx)
             CXXLINKFLAGS += ['-lpthread']
             if portable and not mac:
@@ -597,6 +602,7 @@ if android_source:
         fil.write('MultiABI="%s"\n' % abi)
 
 
+
 # With the exception of base_libraries, now have determined all shared variables
 # so put them in the shared Environment env. After this point need to modify one of
 # the specific Environments.
@@ -610,6 +616,15 @@ env['FBLINKERFLAGS'] = FBLINKFLAGS
 
 # These no longer have any effect.
 del FBFLAGS, TRUE_CFLAGS, CFLAGS, CXXFLAGS, CXXLINKFLAGS, FBLINKFLAGS, FBLINKERFLAGS
+
+def add_libpath(environment, path):
+    environment['CXXLINKFLAGS'] += ['-L' + path]
+    environment['FBLINKFLAGS'] += ['-p', path]
+
+for path in LIBPATHS:
+    add_libpath(env, path)
+del LIBPATHS
+
 
 ################ Program-specific stuff starts here
 
@@ -678,6 +693,8 @@ for k in music:
 ################ OS-specific modules and libraries
 
 if win32:
+    add_libpath(env, 'win32')
+    add_libpath(commonenv, 'win32')
     base_modules += ['os_windows.bas', 'os_windows2.c']
     # winmm needed for MIDI, used by music backends but also by miditest
     # psapi.dll needed just for get_process_path() and memory_usage(). Not present on Win98 unfortunately
@@ -713,24 +730,26 @@ elif android:
 elif unix:  # Linux & BSD
     base_modules += ['os_unix.c', 'os_unix2.bas']
     common_modules += ['os_unix_wm.c']
+    if not rpi:
+        # On Raspberry Pi OpenGL ES is generally used directly, and the official toolchain lacks X11 headers
+        commonenv['CFLAGS'] += ['-DX_WINDOWS']
     if portable:
         # To support old libstdc++.so versions
         base_modules += ['lib/stdc++compat.cpp']
-    if gfx != ['console']:
+    #if gfx != ['console']:
         # All graphical gfx backends need the X11 libs
-        common_libraries += 'X11 Xext Xpm Xrandr Xrender'.split (' ')
+        #common_libraries += 'X11 Xext Xpm Xrandr Xrender'.split (' ')
+    if 'fb' in gfx:
+        # Well, actually, only libfbgfx seems to require manually adding a library
+        if not rpi:
+            common_libraries += ['Xpm']
     DATAFILES = prefix + '/share/games/ohrrpgce'
 
 
 ################ Add the libraries to env and commonenv
 
-if win32:
-    env['FBLINKFLAGS'] += ['-p', 'win32']
-    env['CXXLINKFLAGS'] += ['-L', 'win32']
-    common_libpaths += ['win32']
-
-commonenv['CXXLINKFLAGS'] += ['-L' + path for path in common_libpaths]
-commonenv['FBLINKFLAGS'] += Flatten ([['-p', v] for v in common_libpaths])
+for path in common_libpaths:
+    add_libpath(commonenv, path)
 
 for lib in base_libraries:
     env['CXXLINKFLAGS'] += ['-l' + lib]

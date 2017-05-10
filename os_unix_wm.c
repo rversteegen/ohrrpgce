@@ -4,10 +4,11 @@
 //
 // Please read LICENSE.txt for GNU GPL License details and disclaimer of liability
 
-
+/*  X_WINDOWS is now defined in SConscript
 #if !defined(__APPLE__) && !defined(__ANDROID__)
 #define X_WINDOWS 1
 #endif
+*/
 
 //fb_stub.h MUST be included first, to ensure fb_off_t is 64 bit
 #include "fb/fb_stub.h"
@@ -74,6 +75,10 @@ void os_get_screen_size(int *wide, int *high) {
 	*high = DisplayHeight(display, screen);
 	XCloseDisplay(display);
 }
+
+
+//==========================================================================================
+
 
 #else
 
