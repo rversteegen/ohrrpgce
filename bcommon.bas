@@ -72,6 +72,17 @@ FUNCTION additive_equip_elemental_merging (values() as single) as single
  RETURN ret
 END FUNCTION
 
+FUNCTION idempotent_equip_elemental_merging (values() as single) as single
+ DIM as double weak = 1.0, strong = 1.0, absorb = 1.0
+ FOR i as integer = 0 TO UBOUND(values)
+  IF isfinite(values(i)) = NO THEN CONTINUE FOR
+  IF values(i) < 0 THEN absorb = -1.0
+  IF ABS(values(i)) < 1.0 THEN weak = small(weak, values(i))
+  IF ABS(values(i)) > 1.0 THEN strong = large(strong, values(i))
+ NEXT
+ RETURN weak * strong * absorb
+END FUNCTION
+
 FUNCTION equip_elemental_merge(values() as single, byval formula as integer) as single
  SELECT CASE formula
   CASE 0:
@@ -80,5 +91,9 @@ FUNCTION equip_elemental_merge(values() as single, byval formula as integer) as 
    RETURN multiplicative_equip_elemental_merging(values())
   CASE 2:
    RETURN additive_equip_elemental_merging(values())
+  CASE 3:
+   RETURN idempotent_equip_elemental_merging(values())
+  CASE ELSE:
+   debug "equip_elemental_merge: invalid formula " & formula
  END SELECT
 END FUNCTION

@@ -1553,11 +1553,11 @@ FUNCTION merge_elementals_example(byval exampleno as integer, example() as singl
 END FUNCTION
 
 SUB generate_equipmerge_preview(byval formula as integer, menu() as string, greyed_out() as integer, ex9() as single)
- FOR i as integer = 1 TO 3
+ FOR i as integer = 1 TO maxEquipMergeFormula
   greyed_out(i) = YES
  NEXT
  greyed_out(1 + gen(genEquipMergeFormula)) = NO
- FOR i as integer = 4 TO UBOUND(menu)
+ FOR i as integer = maxEquipMergeFormula + 1 TO UBOUND(menu)
   menu(i) = ""
  NEXT
 
@@ -1611,7 +1611,7 @@ SUB equipmergemenu
  DIM greyed_out(22) as integer
  DIM st as MenuState
  st.size = 24
- st.last = 3
+ st.last = maxEquipMergeFormula
  st.need_update = YES
  DIM tog as integer
 
@@ -1622,6 +1622,7 @@ SUB equipmergemenu
  menu(1) = "Old awful formula (multiplication-like)"
  menu(2) = "Combine resistances by multiplication"
  menu(3) = "Combine resistances by addition"
+ menu(4) = "Combine resistances by min-max product"
  DO
   setwait 55
   setkeys

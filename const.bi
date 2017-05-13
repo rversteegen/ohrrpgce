@@ -279,6 +279,7 @@ CONST maplayerMax = 7 'The limit on the highest numbered map layer
 CONST mapTilesMax = 100000 'Maximum map size, in tiles (note also a limit of 32768 tiles wide or high)
 CONST dissolveTypeMax = 10 'Highest numbered frame dissolve effect
 CONST maxElements = 64 'Maximum selectable number of elements
+CONST maxEquipMergeFormula = 4  'Number of different equipment elemental merge formulae
 CONST tempZone = 10000 'ID (and up) to use for temporary zones
 CONST maxMapHistoryMem = 2000000 'In number of MapEditUndoTiles (8 bytes)
 CONST maxSpriteHistoryMem = 16000000  'Max size of sprite undo history, in bytes
