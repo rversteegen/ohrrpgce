@@ -72,15 +72,15 @@ FUNCTION additive_equip_elemental_merging (values() as single) as single
  RETURN ret
 END FUNCTION
 
-FUNCTION idempotent_equip_elemental_merging (values() as single) as single
- DIM as double weak = 1.0, strong = 1.0, absorb = 1.0
+'Merge elemental resists in a way that prevents stacking of penalties and bonuses
+FUNCTION minmax_product_equip_elemental_merging (values() as single) as single
+ DIM as double min = 1.0, max = 1.0
  FOR i as integer = 0 TO UBOUND(values)
   IF isfinite(values(i)) = NO THEN CONTINUE FOR
-  IF values(i) < 0 THEN absorb = -1.0
-  IF ABS(values(i)) < 1.0 THEN weak = small(weak, values(i))
-  IF ABS(values(i)) > 1.0 THEN strong = large(strong, values(i))
+  IF values(i) < 1.0 THEN min = small(min, values(i))
+  IF values(i) > 1.0 THEN max = large(max, values(i))
  NEXT
- RETURN weak * strong * absorb
+ IF min <= 0. THEN RETURN min ELSE RETURN min * max
 END FUNCTION
 
 FUNCTION equip_elemental_merge(values() as single, byval formula as integer) as single
@@ -92,7 +92,7 @@ FUNCTION equip_elemental_merge(values() as single, byval formula as integer) as 
   CASE 2:
    RETURN additive_equip_elemental_merging(values())
   CASE 3:
-   RETURN idempotent_equip_elemental_merging(values())
+   RETURN minmax_product_equip_elemental_merging(values())
   CASE ELSE:
    debug "equip_elemental_merge: invalid formula " & formula
  END SELECT
