@@ -2042,6 +2042,7 @@ SUB attack_editor_build_damage_menu(recbuf() as integer, menu() as string, menut
   IF attack.damage_math = 5 OR attack.damage_math = 6 THEN percentage_attack = YES
 
   FOR i = 0 TO gen(genNumElements) - 1
+    ' For this purpose we don't care whether elements are marked non-elemental
     IF attack.elemental_damage(i) THEN iselemental = YES
   NEXT
 

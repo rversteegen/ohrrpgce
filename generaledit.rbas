@@ -1918,7 +1918,7 @@ SUB equipmergemenu
   menu(1) = "Old awful formula (multiplication-like)"
   menu(2) = "Combine resistances by multiplication"
   menu(3) = "Combine resistances by addition"
-  menu(4) = "Combine resistances by min-max product"
+  menu(4) = "Combine resistances by min times max"
   DO
     setwait 55
     setkeys
