@@ -340,6 +340,17 @@ SUB append_specialcode (byref ses as SliceEditState, byval code as integer, byva
  END WITH
 END SUB
 
+SUB literaltree (sl as Slice ptr, page as integer)
+ DIM ch as Slice ptr = sl->FirstChild
+ DIM slPos as XYPair
+ slPos = XY(sl->ScreenX + SliceXAnchor(sl), sl->ScreenY + SliceYAnchor(sl))
+ WHILE ch
+  drawline slPos.X, slPos.Y, ch->ScreenX + SliceXAnchor(ch), ch->ScreenY + SliceYAnchor(ch), uilook(uiHighlight), page
+  literaltree ch, page
+  ch = ch->NextSibling
+ WEND
+END SUB
+
 PRIVATE FUNCTION create_draw_root () as Slice ptr
  'Instead of parenting to the actual screen slice, parent to a
  'fake screen slice which is the size of the ingame screen.
@@ -728,6 +739,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
 
   IF ses.hide_mode <> hideSlices THEN
    DrawSlice ses.draw_root, dpage
+   literaltree ses.draw_root, dpage
+
   END IF
   IF ses.show_ants THEN
    IF ses.curslice THEN

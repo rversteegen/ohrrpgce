@@ -2817,6 +2817,10 @@ FUNCTION spawn_and_wait (app as string, args as string) as string
 
  debuginfo "spawn_and_wait " & escape_filename(app) + " " + args
 
+ DIM spinnerfile as string = finddatafile("spinner.bmp")
+ DIM spinner as FrameAutoPtr
+ spinner = frame_to_frameset(frame_import_bmp_as_8bit(spinnerfile, master()), 4)
+
  IF gfxbackend = "console" THEN
   CLS
   safe_shell escape_filename(app) & " " & args

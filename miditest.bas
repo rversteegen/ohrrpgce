@@ -68,7 +68,7 @@ end function
 sub waitforkey
     sleep
     'Clear keypress
-    dim dummy as string = inkey
+    inkey
 end sub
 
 print "(after each step, press a key)"

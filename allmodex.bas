@@ -33,7 +33,7 @@ using Reload
 'want to do to support SDL 2 on Android.
 extern "C"
 	'Return value is always 1
-	declare function SDL_ANDROID_EmailFiles(address as zstring ptr, subject as zstring ptr, message as zstring ptr, file1 as zstring ptr = NULL, file2 as zstring ptr = NULL, file3 as zstring ptr = NULL) as integer
+	declare function SDL_ANDROID_EmailFiles(address   as zstring ptr, subject.bar as zstring ptr, message as zstring ptr, file1 as zstring ptr = NULL, file2 as zstring ptr = NULL, file3 as zstring ptr = NULL) as integer
 end extern
 #endif
 
@@ -43,7 +43,7 @@ end extern
 const NOREFC = -1234
 const FREEDREFC = -4321
 
-type XYPair_node 	'only used for floodfill
+type XYPair_node	'only used for floodfill
 	x as integer
 	y as integer
 	nextnode as XYPair_node ptr
@@ -711,6 +711,7 @@ function compatpage() as integer
 	frame_unload @centreview
 	return fakepage
 end function
+
 
 
 '==========================================================================================
@@ -7735,6 +7736,26 @@ end sub
 '==========================================================================================
 
 
+constructor FrameAutoPtr()
+end constructor
+
+constructor FrameAutoPtr(byref fr as Frame ptr)
+	framep = fr
+	fr = NULL
+end constructor
+
+destructor FrameAutoPtr()
+	frame_unload @framep
+end destructor
+
+operator FrameAutoPtr.Let(byref rhs as Frame ptr)
+	frame_assign @framep, rhs
+end operator
+
+operator FrameAutoPtr.Cast() byref as Frame ptr
+	return framep
+end operator
+
 'Create a blank Frame or array of Frames
 'By default not initialised; pass clr=YES to initialise to 0
 'with_surface32: if true, create a 32-it Surface-backed Frame.
@@ -8479,6 +8500,24 @@ function frame_scaled32(src as Frame ptr, wide as integer, high as integer, mast
 	end if
 	dim ret as Frame ptr = frame_with_surface(temp)
 	gfx_surfaceDestroy(@temp)
+	return ret
+end function
+
+' Split a 'src' Frame into an array 'frset' of multiple Frames, which can be indexed
+' using frset[frame_index], just like the arrays of Frames returned by frame_load.
+' The src is cut into the requested number of equal-sized pieces
+' Deletes the original Frame.
+function frame_to_frameset(byref src as Frame ptr, numframes as integer) as Frame ptr
+	if src = NULL then return NULL
+	dim ret as Frame ptr
+	ret = frame_new(src->w \ numframes, src->h, numframes, YES, src->mask <> NULL)
+	if ret = NULL then return NULL
+
+	for fridx as integer = 0 to numframes - 1
+		frame_draw src, NULL, -fridx * ret->w, 0, , NO, ret + fridx, src->mask <> NULL
+	next
+
+	frame_unload @src
 	return ret
 end function
 

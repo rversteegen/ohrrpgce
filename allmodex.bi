@@ -65,6 +65,19 @@ End Type
 ' ** WARNING: This means you have to call frame_unload to decrement the refcount after appending it! **
 DECLARE_VECTOR_OF_TYPE(Frame ptr, Frame_ptr)
 
+' Automatically deletes a Frame when this object goes out of scope (RAII)
+Type FrameAutoPtr
+	framep as Frame ptr
+
+	Declare Constructor()
+	' Put a Frame ptr in. Sets the original to NULL, but does not decrement refcount.
+	Declare Constructor(byref fr as Frame ptr)
+	Declare Destructor()
+	Declare Operator Let(byref rhs as Frame ptr)
+	Declare Operator Cast() byref as Frame ptr
+End Type
+
+
 Type GraphicPair
 	sprite as Frame ptr
 	pal as Palette16 ptr
@@ -516,6 +529,8 @@ declare function frame_duplicate(p as Frame ptr, clr as bool = NO, addmask as bo
 declare function frame_resized(spr as Frame ptr, wide as integer, high as integer, shiftx as integer = 0, shifty as integer = 0, bgcol as integer = 0) as Frame ptr
 declare function frame_scaled32(src as Frame ptr, wide as integer, high as integer, masterpal() as RGBcolor, pal as Palette16 ptr = NULL) as Frame ptr
 declare sub frame_clear(spr as Frame ptr, colour as integer = 0)
+declare function frame_to_frameset(byref src as Frame ptr, numframes as integer) as Frame ptr
+declare sub frame_clear(byval spr as frame ptr, byval colour as integer = 0)
 declare sub sprite_empty_cache(sprtype as SpriteType = sprTypeInvalid)
 declare sub sprite_update_cache(sprtype as SpriteType)
 declare sub tileset_empty_cache()

@@ -1367,7 +1367,7 @@ SUB receive_file_updates ()
    'Custom from deleting workingdir. So reset it.
    '(findfiles() now does this automatically, but in case something else calls DIR...)
    #IFDEF __FB_WIN32__
-    DIM dummy as string = DIR("C:\")
+    DIR("C:\")
    #ENDIF
    'Send confirmation
    channel_write_line(master_channel, "Q ")

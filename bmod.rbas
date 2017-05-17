@@ -331,8 +331,7 @@ SUB battle_cleanup(byref bat as BattleState, bslot() as BattleSprite)
  IF stackpos() - bstackstart > 0 THEN
   '--an overflow is not unusual. This happens if the battle terminates
   '--while an attack is still going on
-  DIM dummy as integer
-  WHILE stackpos > bstackstart: dummy = popdw: WEND
+  WHILE stackpos > bstackstart: popdw: WEND
  END IF
 
  '--underflow checking
@@ -710,8 +709,7 @@ SUB battle_attack_anim_cleanup (byref attack as AttackData, byref bat as BattleS
 
  '--clean up animation stack
  'DEBUG debug "discarding " & (stackpos - bstackstart) & " from stack"
- DIM dummy as integer
- WHILE stackpos > bstackstart: dummy = popdw: WEND
+ WHILE stackpos > bstackstart: popdw: WEND
  
  '--spawn the next after-chained attack (if any)
  IF spawn_chained_attack(attack.chain, attack, bat, bslot()) = NO THEN
