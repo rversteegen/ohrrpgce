@@ -6,12 +6,12 @@ set lang c++
 define dumpstate
 	echo Dumping state. FB error string:\n
 	p ((char**)&__fb_ctx)[5]
-	echo GFXBACKENDINFO:s
-	p GFXBACKENDINFO
-	echo MUSICBACKENDINFO:
-	p MUSICBACKENDINFO
-	echo SYSTEMINFO:
-	p SYSTEMINFO
+	echo gfxbackendinfo:
+	p gfxbackendinfo
+	echo musicbackendinfo:
+	p musicbackendinfo
+	echo systeminfo:
+	p systeminfo
 	echo Threads and backtrace:\n
 	info threads
 	bt

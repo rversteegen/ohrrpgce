@@ -11,6 +11,8 @@
 #include "os.bi"
 #include "scripting.bi"
 
+EXTERN "C"
+
 'Misc game globals
 EXTERN prefsdir as string
 EXTERN config_file as string
@@ -130,3 +132,4 @@ EXTERN plotslices() as Slice ptr
 EXTERN next_slice_handle as integer
 EXTERN num_reusable_slice_handles as integer
 
+END EXTERN

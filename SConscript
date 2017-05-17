@@ -135,6 +135,7 @@ if not arch:
         # The arch is implied in the target triple. Let fbc handle it, parsing the
         # triple is too much work
         arch = '(see target)'
+        
     elif android:
         # There are 4 ARM ABIs used on Android
         # armeabi - ARMV5TE and later. All floating point is done by library calls

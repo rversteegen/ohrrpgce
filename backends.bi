@@ -14,10 +14,15 @@ declare function valid_gfx_backend (name as string) as bool
 declare sub gfx_backend_menu ()
 declare sub music_backend_menu ()
 
+extern "C"
+' Put these
+
 extern wantpollingthread as bool
 extern as string gfxbackend, musicbackend
 extern as string gfxbackendinfo, musicbackendinfo, systeminfo
 'This is shared between gfx_alleg and music_allegro
 extern allegro_initialised as bool
+
+end extern
 
 #endif BACKENDS_BI
