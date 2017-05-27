@@ -76,6 +76,36 @@ SIZE D3D::getImageResolution()
 	return m_surface.getDimensions();
 }
 
+// Try to init either a software or hardware D3D9 device (rasterizer)
+HRESULT D3D::initDevice(bool bSoftware)
+{
+	hr = m_d3d->CreateDevice(D3DADAPTER_DEFAULT, 
+							 D3DDEVTYPE_HAL, 
+							 m_pWindow->getWindowHandle(), 
+							 D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE | D3DCREATE_PUREDEVICE | D3DCREATE_NOWINDOWCHANGES, 
+							 &m_d3dpp, 
+							 &m_d3ddev);
+	if(FAILED(hr))
+	{
+		hr = m_d3d->CreateDevice(D3DADAPTER_DEFAULT, 
+								 D3DDEVTYPE_HAL, 
+								 m_pWindow->getWindowHandle(), 
+								 D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE | D3DCREATE_NOWINDOWCHANGES, 
+								 &m_d3dpp, 
+								 &m_d3ddev);
+		if(FAILED(hr))
+		{
+			debugc(errError, "IDirect3DDevice9 object failed to be created! Possibly lack of hardware support. Error %s", HRESULTString(hr));
+			return hr;
+		}
+		else
+			debugc(errInfo, "IDirect3DDevice9 object created as software device.");
+	}
+	else
+		debugc(errInfo, "IDirect3DDevice9 object created as hardware device.");
+
+
+
 HRESULT D3D::initialize(gfx::Window *pWin)
 {
 	INPUTDEBUG("D3D::initialize");
@@ -126,30 +156,6 @@ HRESULT D3D::initialize(gfx::Window *pWin)
 		debugc(errInfo, "Driver: %s", adapterID.Driver);
 	}
 
-	hr = m_d3d->CreateDevice(D3DADAPTER_DEFAULT, 
-							 D3DDEVTYPE_HAL, 
-							 m_pWindow->getWindowHandle(), 
-							 D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE | D3DCREATE_PUREDEVICE | D3DCREATE_NOWINDOWCHANGES, 
-							 &m_d3dpp, 
-							 &m_d3ddev);
-	if(FAILED(hr))
-	{
-		hr = m_d3d->CreateDevice(D3DADAPTER_DEFAULT, 
-								 D3DDEVTYPE_HAL, 
-								 m_pWindow->getWindowHandle(), 
-								 D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE | D3DCREATE_NOWINDOWCHANGES, 
-								 &m_d3dpp, 
-								 &m_d3ddev);
-		if(FAILED(hr))
-		{
-			debugc(errError, "IDirect3DDevice9 object failed to be created! Possibly lack of hardware support. Error %s", HRESULTString(hr));
-			return hr;
-		}
-		else
-			debugc(errInfo, "IDirect3DDevice9 object created as software device.");
-	}
-	else
-		debugc(errInfo, "IDirect3DDevice9 object created as hardware device.");
 	if(FAILED(m_surface.initialize(m_d3ddev, 320, 200)))
 	{
 		debugc(errError, "IDirect3DSurface9 object failed to be created! Error %s", HRESULTString(hr));
