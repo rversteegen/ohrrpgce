@@ -1,4 +1,4 @@
-Many tilesets and backdrops are intended to have transparent parts. In order to appear transparent they must be filled with color 0 in the palette. This screen allows remapping a color to 0 if it's not already.
+Many tilesets and backdrops are intended to have transparent parts. In order to appear transparent they must be filled with color 0 in the palette. This screen lets you pick a color to remap to 0 if it's not already. (By default, color 0 in imported images will get remapped to the nearest non-zero color.)
 
 Press ESC to not perform any color remapping (eg. for a non-transparent background).
 

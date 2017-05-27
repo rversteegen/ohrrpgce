@@ -5909,12 +5909,13 @@ FUNCTION int_from_xy(pair as XYPair, byval wide as integer, byval high as intege
  RETURN bound(pair.y * wide + pair.x, 0, wide * high - 1)
 END FUNCTION
 
+' Pick a color from the master palette, returning start_color if cancelled.
+' (Note: there's a lot of duplication between this and pick_color_to_remap_to)
 FUNCTION color_browser_256(byval start_color as integer=0) as integer
  DIM ret as integer = start_color
  DIM tog as integer = 0
  DIM gridpos as XYPair = (64, 0)
  DIM tilesize as XYPair = (12, 12)
- DIM spot as XYPair
  DIM cursor as XYPair
  cursor = xy_from_int(start_color, 16, 16)
  DIM mouse as MouseInfo
@@ -5963,7 +5964,7 @@ FUNCTION color_browser_256(byval start_color as integer=0) as integer
   clearpage dpage
   'Draw the grid
   FOR i as integer = 0 TO 255
-   spot = xy_from_int(i, 16, 16)
+   DIM spot as XYPair = xy_from_int(i, 16, 16)
    DIM where as XYPair = gridpos + spot * tilesize
    rectangle where.x, where.y, tilesize.x, tilesize.y, i, dpage
    IF i = showcol THEN

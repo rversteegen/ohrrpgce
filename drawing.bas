@@ -33,7 +33,7 @@ DECLARE FUNCTION mouseover (byval mousex as integer, byval mousey as integer, by
 DECLARE FUNCTION importbmp_processbmp(srcbmp as string, pmask() as RGBcolor) as Frame ptr
 DECLARE FUNCTION importbmp_import(mxslump as string, imagenum as integer, srcbmp as string, pmask() as RGBcolor) as bool
 DECLARE FUNCTION importbmp_change_background_color(img as Frame ptr, pal as Palette16 ptr = NULL) as bool
-DECLARE SUB select_disabled_import_colors(pmask() as RGBcolor, image as Frame ptr)
+DECLARE SUB importbmp_color_replacer(img as Frame ptr)
 
 ' Tileset editor
 DECLARE SUB picktiletoedit (byref tmode as integer, byval tilesetnum as integer, mapfile as string, bgcolor as bgType)
@@ -182,13 +182,10 @@ SUB copymapblock (sx as integer, sy as integer, sp as integer, dx as integer, dy
  frame_unload @srctile
 END SUB
 
-'Used inside select_disabled_import_colors
-PRIVATE SUB toggle_pmask (pmask() as RGBcolor, master() as RGBcolor, index as integer)
- pmask(index).r xor= master(index).r
- pmask(index).g xor= master(index).g
- pmask(index).b xor= master(index).b
- setpal pmask()
-END SUB
+
+'==========================================================================================
+'                             Import/Export Backdrop/Tileset Editor
+'==========================================================================================
 
 ' This is the OLD "Import/Export {Screens,Full Maptile Sets}" menu.
 ' backdrop_browser() is the new (unfinished) one
@@ -267,7 +264,9 @@ SUB importbmp (f as string, cap as string, byref count as integer, sprtype as Sp
     loadmxs game + f, pt, vpages(2)
    END IF
    IF mstate.pt = 4 THEN
-    select_disabled_import_colors pmask(), vpages(2)
+    importbmp_color_replacer vpages(2)
+
+'    select_disabled_import_colors pmask(), vpages(2)
    END IF
    IF mstate.pt = 5 THEN
     DIM outfile as string
@@ -375,7 +374,8 @@ SUB backdrop_browser ()
     END IF
    END IF
    IF mstate.pt = 4 THEN
-    select_disabled_import_colors pmask(), backdrop
+'    select_disabled_import_colors pmask(), backdrop
+    importbmp_color_replacer backdrop
    END IF
    IF mstate.pt = 5 THEN
     DIM outfile as string
@@ -420,19 +420,29 @@ SUB backdrop_browser ()
  'sprite_update_cache sprTypeBackdrop
 END SUB
 
-' Display an image and select which colours in a copy
-' of the master palette to set to black.
-PRIVATE SUB select_disabled_import_colors(pmask() as RGBcolor, image as Frame ptr)
+' Returns -1 if cancelled
+' (Note: there's a lot of redundancy between this and color_browser_256)
+PRIVATE FUNCTION pick_color_to_remap_to(image as Frame ptr, palmapping as Palette16 ptr, col_to_remap as integer) as integer
+ DIM ret as integer = -1
  DIM tog as integer
- DIM prev_menu_selected as bool  ' "Previous Menu" is current selection
- DIM cx as integer
- DIM cy as integer
+ DIM prev_menu_selected as bool  ' "Cancel" is current selection
+ DIM cursor as XYPair
+ cursor = xy_from_int(col_to_remap, 16, 16)
+
+ DIM gridpos as XYPair = (1, 9)
+ DIM tilesize as XYPair = (10, 10)
  DIM mouse as MouseInfo
  DIM image_pos as XYPair
 
+ DIM rect as RectType
+ rect.wide = 10  '2 pixels wider than real squares, to avoid gaps
+ rect.high = 10
+
+ DIM prev_col as integer = palmapping->col(col_to_remap)
+ DIM preview_col as integer = prev_col
+
  hidemousecursor
 
- setpal pmask()
  setkeys
  DO
   setwait 55
@@ -441,68 +451,107 @@ PRIVATE SUB select_disabled_import_colors(pmask() as RGBcolor, image as Frame pt
   image_pos = get_resolution() - image->size
   mouse = readmouse()
   WITH mouse
-   IF .release AND mouseleft THEN
-    IF rect_collide_point(str_rect("Previous Menu", 0, 0), .pos) THEN
-     EXIT DO
+   IF .moved ORELSE (.release AND mouseleft) THEN
+    'Mouse over a palette colour?
+    DIM mousecursor as XYPair
+    mousecursor = (mouse.pos - gridpos) \ tilesize
+    IF in_bound(mousecursor.x, 0, 15) AND in_bound(mousecursor.y, 0, 15) THEN
+     cursor = mousecursor
+     preview_col = int_from_xy(mousecursor, 16, 16)
+     prev_menu_selected = NO
+
+    ELSEIF rect_collide_point(str_rect("Cancel", 0, 0), .pos) THEN
+     prev_menu_selected = YES
+
     ELSE
-     DIM rect as RectType
-     rect.wide = 10  '2 pixels wider than real squares, to avoid gaps
-     rect.high = 10
-     DIM col as integer = -1
-     'Click on a palette colour
-     FOR xidx as integer = 0 TO 15
-      FOR yidx as integer = 0 TO 15
-       rect.topleft = XY(xidx * 10, 8 + yidx * 10)
-       IF rect_collide_point(rect, .pos) THEN col = yidx * 16 + xidx
-      NEXT
-     NEXT
-     'Click on an image pixel (safe if the position is off the edge of the image)
-     IF col = -1 THEN col = readpixel(image, .x - image_pos.x, .y - image_pos.y)
-     toggle_pmask pmask(), master(), col
+     'Mouse over an image pixel? (-1 if the position is off the edge of the image)
+     DIM col as integer = readpixel(image, .x - image_pos.x, .y - image_pos.y)
+     IF col <> -1 THEN
+      preview_col = col
+      cursor = xy_from_int(col, 16, 16)
+      prev_menu_selected = NO
+     END IF
     END IF
+
    END IF
   END WITH
 
-  IF keyval(scESC) > 1 THEN EXIT DO
-  IF keyval(scF1) > 1 THEN show_help "importbmp_disable"
+  IF enter_or_space() OR (mouse.clicks AND mouseleft) THEN
+   IF prev_menu_selected = NO THEN ret = preview_col
+   EXIT DO
+  END IF
+
+'  IF keyval(scF1) > 1 THEN show_help "importbmp_disable"
   IF prev_menu_selected THEN
-   IF enter_or_space() THEN EXIT DO
    IF keyval(scDown) > 1 THEN
-    cy = 0
+    cursor.y = 0
     prev_menu_selected = NO
+    preview_col = 0
    END IF
   ELSE
-   IF keyval(scLeft) > 1 THEN cx = large(cx - 1, 0)
-   IF keyval(scRight) > 1 THEN cx = small(cx + 1, 15)
-   IF keyval(scDown) > 1 THEN cy = small(cy + 1, 15)
-   IF keyval(scUp) > 1 THEN cy -= 1
-   IF cy < 0 THEN
-    cy = 0
+   DIM moved as bool = NO
+   IF keyval(scUp) > 1    THEN moved = YES : cursor.y = loopvar(cursor.y, -1, 15, -1)
+   IF keyval(scDown) > 1  THEN moved = YES : cursor.y = loopvar(cursor.y, -1, 15, 1)
+   IF keyval(scLeft) > 1  THEN moved = YES : cursor.x = loopvar(cursor.x,  0, 15, -1)
+   IF keyval(scRight) > 1 THEN moved = YES : cursor.x = loopvar(cursor.x,  0, 15, 1)
+   IF cursor.y < 0 THEN
+    cursor.y = 0
     prev_menu_selected = YES
+    moved = NO
    END IF
-   IF enter_or_space() THEN
-    toggle_pmask pmask(), master(), cy * 16 + cx
-   END IF
+   IF moved THEN preview_col = cursor.y * 16 + cursor.x
   END IF
 
   clearpage dpage
-  frame_draw image, , image_pos.x, image_pos.y, , NO, dpage
-  textcolor uilook(uiMenuItem), 0
-  IF prev_menu_selected THEN textcolor uilook(uiSelectedItem + tog), 0
-  printstr "Previous Menu", 0, 0, dpage
-  IF prev_menu_selected = NO THEN rectangle 0 + cx * 10, 8 + cy * 10, 10, 10, uilook(uiSelectedItem + tog), dpage
-  FOR i as integer = 0 TO 15
-   FOR o as integer = 0 TO 15
-    rectangle 1 + o * 10, 9 + i * 10, 8, 8, i * 16 + o, dpage
-   NEXT o
+
+  ' Temporarily change palmapping
+  palmapping->col(col_to_remap) = preview_col
+  frame_draw image, palmapping, image_pos.x, image_pos.y, , NO, dpage
+
+  DIM col as integer
+  col = IIF(prev_menu_selected, uilook(uiSelectedItem + tog), uilook(uiMenuItem))
+  edgeprint "Cancel", 0, 0, col, dpage
+
+  FOR i as integer = 0 TO 255
+   DIM cell as XYPair = xy_from_int(i, 16, 16)
+   DIM cell_pos as XYPair = gridpos + cell * tilesize
+   IF cell = cursor THEN
+    edgebox cell_pos.x, cell_pos.y, tilesize.x, tilesize.y, i, tog, dpage
+   ELSE
+    rectangle cell_pos.x + 1, cell_pos.y + 1, tilesize.x - 2, tilesize.y - 2, i, dpage
+   END IF
   NEXT i
+
   printstr CHR(2), mouse.x - 2, mouse.y - 2, dpage
   SWAP vpage, dpage
   setvispage vpage
   dowait
  LOOP
- setpal master()
  showmousecursor
+ palmapping->col(col_to_remap) = prev_col
+ RETURN ret
+END FUNCTION
+
+SUB importbmp_color_replacer(img as Frame ptr)
+ DIM as integer from_col, to_col
+ DIM pickpos as XYPair
+ DIM message as string = !"Pick a color to remap, or ESC to finish"
+ DIM mapping as Palette16 ptr
+ mapping = palette16_new(256)
+ FOR idx as integer = 0 TO 255
+  mapping->col(idx) = idx
+ NEXT
+
+ DO
+  IF pick_image_pixel(img, , pickpos, , , , message, "importbmp_color_replacer") = NO THEN EXIT DO
+  from_col = readpixel(img, pickpos.x, pickpos.y)
+  to_col = pick_color_to_remap_to(img, mapping, from_col)
+  ' User might have cancelled, if so let them pick another color
+  IF to_col <> -1 THEN mapping->col(from_col) = to_col
+ LOOP
+ IF yesno("Save result (make changes permanent)?") THEN
+  remap_to_palette img, mapping
+ END IF
 END SUB
 
 'Give the user the chance to remap a color to 0.
