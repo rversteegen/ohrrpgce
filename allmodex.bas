@@ -193,7 +193,7 @@ type KeyboardState
 	delayed_alt_keydown as bool = NO    'Whether have delayed reporting an ALT keypress
 	keyrepeatwait as integer = 500
 	keyrepeatrate as integer = 55
-	inputtext as string
+	inputtext as wstring                 'UTF8 encoded
 end type
 
 dim shared real_kb as KeyboardState         'Always contains real keyboard state even if replaying
@@ -1537,7 +1537,7 @@ end function
 
 ' Returns text input from the backend since the last call.
 ' Always returns real input, even if replaying input.
-private function read_inputtext () as string
+private function read_inputtext () as wstring * 64
 	if disable_native_text_input then
 		return get_ascii_inputtext()
 	end if
@@ -1564,16 +1564,34 @@ private function read_inputtext () as string
 		return get_ascii_inputtext()
 	end if
 
+end function
 
-	dim as integer icons_low, icons_high
-	if get_font_type(current_font()) = ftypeLatin1 then
-		icons_low = 127
-		icons_high = 160
-	else
-		icons_low = 127
-		icons_high = 255
-	end if
 
+' 
+' function wstring_to_ohrstring() as 
+' 	dim as integer icons_low, icons_high
+' 	if get_font_type(current_font()) = ftypeLatin1 then
+' 		icons_low = 127
+' 		icons_high = 160
+' 	else
+' 		icons_low = 127
+' 		icons_high = 255
+' 	end if
+
+' 		for i as integer = 0 to len(w_in) - 1
+' 			if w_in[i] > 255 then
+' 				'debug "unicode char " & w_in[i]
+' 				ret += "?"
+
+' 			elseif w_in[i] >= icons_low and w_in[i] <= icons_high then
+' 				ret += "?"
+' 			end if
+' 		next
+' end if
+
+
+' This function cleans the input
+private function get_cleaned_textinput(w_in as wstring) as wstring
 	if io_textinput then
 		'if len(w_in) then print #fh, "input :" & w_in
 		' Now we need to convert from unicode to the game's character set (7-bit ascii or Latin-1)
@@ -1597,15 +1615,11 @@ private function read_inputtext () as string
 #ENDIF
 						continue for
 				end select
-				'debug "unicode char " & w_in[i]
-				ret += "?"
 			elseif w_in[i] = 127 then
 				'Delete (only sent on OSX). Ignore; we use scancodes instead.
-			elseif w_in[i] >= icons_low and w_in[i] <= icons_high then
-				ret += "?"
 			elseif w_in[i] < 32 then
 				'Control character. What a waste of 8-bit code-space!
-				'Note that we ignore newlines... because we've always done it that way
+				'Note that we ignore newlines and tab... because we've always done it that way
 			else
 				dim ch as string = chr(w_in[i])
 				if force_shift then
@@ -1644,6 +1658,15 @@ private function read_inputtext () as string
 	else
 		return get_ascii_inputtext()
 	end if
+end function
+
+function editinputtext (initial as string) as string
+	dim inp as wstring
+
+	if replay.active then
+		inp = replay_kb.inputtext
+	end if
+
 end function
 
 'If using gfx_sdl and gfx_directx this is Latin-1, while gfx_fb doesn't currently support even that
@@ -2780,6 +2803,13 @@ sub record_input_tick ()
 		end if
 	next i
 	'Currently inputtext is Latin-1, format will need changing in future
+
+	dim ret as string = SPACE(length)
+  length = wstring_to_latin1(unicode, strptr(ret), length + 1)
+  ' The result might be shorter
+  ret = LEFT(ret, length)
+
+
 	put #record.file,, cubyte(len(real_kb.inputtext))
 	put #record.file,, real_kb.inputtext
 	if record.debug then

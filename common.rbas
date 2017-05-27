@@ -1671,7 +1671,8 @@ FUNCTION strgrabber (text as string, maxl as integer) as bool
    END IF
   #ENDIF
   'Note: never returns newlines; and we don't check either
-  text = LEFT(text + getinputtext, maxl)
+  'text = LEFT(text + getinputtext, maxl)
+  editinputtext(text, maxl)
  END IF
 
  RETURN (text <> original)

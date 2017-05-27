@@ -78,9 +78,12 @@ void set_fbstring(FBSTRING *fbstr, const char *cstr) {
 // Use this function to return a FB string from C.
 // This allocates a temporary descriptor which can be returned.
 // (The original string should not be freed.)
+// Or to create a temp descriptor from a string you've already malloc'ed,
+// use fb_StrAllocTempDescF (length optional (pass 0) if null terminated)
 FBSTRING *return_fbstring(FBSTRING *fbstr) {
 	return fb_StrAllocTempResult(fbstr);
 }
+
 
 // A returnable empty string. The result doesn't
 // need to be passed through return_fbstring()

@@ -379,7 +379,7 @@ Type MouseInfo
 	moved as bool         'Whether mouse has moved since the last setkeys call
 	clicks as integer     'Button down since the last setkeys call; MouseButton bitvector (see scancodes.bi)
 	buttons as integer    'Buttons currently down OR clicked; MouseButton bitvector
-	wheel as integer      'Wheel movement since last tick; NOT SUPPORTED ON ALL BACKENDS
+	wheel as integer      'Wheel movement since last tick
 	dragging as integer   'MouseButton bitvector, but only one button at once can be dragged.
 	                      'A dragged button is one held down for at least 2 ticks. 
 	                      'So on the first tick, you see click=button=true, dragging=false
