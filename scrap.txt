@@ -1,0 +1,25 @@
+
+source size: 1:  2077616
+
+
+old:
+with debug, opt: 4063632 (1986016)
+with debug, fast/no opt: 6145988 (4068372)
+no debug, opt: 1986016
+--
+no debug, fast/no opt: 4068372
+
+new:
+with debug, opt: 5624320  (3546704)
+with debug, fast/no opt: 6697664 (4620048)
+no debug, opt: 1997636
+
+new and leaves too:
+with debug, opt: 7311300 (5233684)
+with debug, fast/no opt: 7340712 (5263096)
+no debug, opt: 1997636
+
+new with leaves, srcpos in parent:
+with debug, opt: 6115596 (4037980)
+with debug, fast/no opt: 7336064 (5258448)
+no debug, opt: 1997636

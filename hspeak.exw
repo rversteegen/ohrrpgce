@@ -129,8 +129,7 @@
 --              $id="..." -> setstring
 --              $id+"..." -> appendstring
 --2E 2005-02-15 Changed license to GPL
---              Added += and -= operators thanks to a patch from
---              The Mad Cacti and Fyrewulff
+--              Added += and -= operators
 --2D 2002-08-03 Only a small change, strip out \r from lines of
 --              the script as we read them to avoid errors related
 --              to busted newlines
@@ -216,8 +215,9 @@ constant FILE_LUMP=5
 constant POS_FILENAME=1  --FILE_NAME of the file
 constant POS_LINE=2      --1-based line number
 constant POS_COLUMN=3    --0-based column number
-constant POS_LENGTH=4
-constant POS_TEXT=5      --The snippet of the original file
+constant POS_LENGTH=4    --token length in characters (might be 0)
+constant POS_LINETEXT=5  --The line containing the token
+constant POS_TOKTEXT=6   --The text of the token
 constant CMD_TEXT=1
 constant CMD_POS=2
 constant RESERVE_TOPLEVEL=1      --Tokens that are only allowed at the toplevel, but not including script triggers
@@ -273,11 +273,12 @@ constant KIND_MATH=5
 constant KIND_FUNCTION=6
 constant KIND_SCRIPT=7
 constant KIND_NONLOCAL=8
+--Other kinds never appear in a compiled script
 constant KIND_REFERENCE=9   --converted to KIND_NUMBER in compiled script
-constant KIND_OPERATOR=10   --never appears in compiled script
-constant KIND_PARENS=11     --never appears in compiled script
-constant KIND_MACRO=12      --never appears in compiled script
-constant KIND_KEYWORD=13    --never appears in compiled script
+constant KIND_OPERATOR=10
+constant KIND_PARENS=11
+constant KIND_MACRO=12
+constant KIND_KEYWORD=13
 constant KIND_LONGNAMES={"number"
                         ,"flow control statement"
                         ,"global variable"
@@ -456,8 +457,9 @@ integer was_warnings      was_warnings=false
 --            plus the file's FILE_OFFSET
 --
 --The first file has FILE_OFFSET=1, to ensure srcpos 0 is never used.
---The FILE_OFFSET itself 
---however also reserve one additional offset per file. Actual first offset is 2.
+--Offset FILE_OFFSET+0 is reserved to refer to the file as a whole (unused);
+--FILE_OFFSET+i (i > 1) refers to that point.
+--Note that file offsets are after all newlines have been convert to Unix.
 --
 --See also encode_srcpos and decode_srcpos
 type srcpos(object pos)
@@ -1104,27 +1106,28 @@ end procedure
 --returns {filenumber,file position} pair, later being 1-based character offset
 function decode_srcpos_file(srcpos pos)
   integer val
-  val=pos
+  integer len, offset
+  val=pos  --cast to int
 
   --0 is an invalid srcpos
   if val=0 then
     simple_error("compiler bug: can't decode uninitialised srcpos")
   end if
-  val-=1
 
   integer point
   point=floor(val/power(2,9))
 
   for i=1 to length(file_list) do
-    --an offset of 0 is reserved, but currently unused
-    if point=0 then
+    len=length(file_list[i][FILE_TEXT])
+    offset=file_list[i][FILE_OFFSET]
+    if point=offset then
+      --An offset of 0 in the file is reserved, but currently unused
       simple_error("compiler bug: 0 srcpos file offset")
     end if
-
-    if point<=length(file_list[i][FILE_TEXT]) then
-      return {i,point}
+    if point<=offset+len then
+      return {i,point-offset}
+      exit
     end if
-    point-=length(file_list[i][FILE_TEXT])+1
   end for
   simple_error(sprintf_utf("compiler bug: can't decode invalid srcpos %d",{pos}))
 end function
@@ -1180,13 +1183,32 @@ end function
 
 ---------------------------------------------------------------------------
 
---Possibly slow: prehaps avoid heavy use.
---Returns {file name, line number, column number, token length, line text}: index with POS_*
+--Return just the original text of a token.
+--Unlike decode_srcpos, this is quite fast
+function get_srcpos_text(srcpos pos)
+  integer point, tokenlen, filenum
+  sequence temp
+
+  temp=decode_srcpos_file(pos)
+  filenum=temp[1]
+  point=temp[2]
+  tokenlen=and_bits(pos,power(2,9)-1)
+  if tokenlen=0 then
+    return ""
+  else
+    return file_list[filenum][FILE_TEXT][point..point+tokenlen-1]
+  end if
+end function
+
+---------------------------------------------------------------------------
+
+--Probably slow: avoid heavy use.
+--Returns {file name, line number, column number, token length, line text, token text}: index with POS_*
 --Column number returned is 0-based
 function decode_srcpos(srcpos pos)
-  integer point, tokenlen, filenum
+  integer point, tokenlen, filenum, columnnum
   integer lineno, line_start, line_end
-  string filetext
+  string filetext, linetext, tokentext
   sequence lines
   sequence temp
 
@@ -1198,17 +1220,26 @@ function decode_srcpos(srcpos pos)
   --Find the line it's on
   filetext=file_list[filenum][FILE_TEXT]
   lines=file_list[filenum][FILE_LINE_EXTENTS]
-  lineno=length(lines)
   for i=1 to length(lines) do
-    if point<=lines[i][PAIR_END] then
+    if point>=lines[i][PAIR_START] then
       lineno=i
+    else
       exit
     end if
   end for
 
   line_start=lines[lineno][PAIR_START]
   line_end=lines[lineno][PAIR_END]
-  return({file_list[filenum][FILE_NAME],lineno,point-line_start,tokenlen,filetext[line_start..line_end]})
+  linetext=filetext[line_start..line_end]
+  -- +1 for 1-based column indexing
+  columnnum=point-line_start+1
+  if tokenlen=0 then
+    tokentext=""
+  else
+    tokentext=linetext[columnnum..columnnum+tokenlen-1]
+  end if
+
+  return({file_list[filenum][FILE_NAME],lineno,columnnum,tokenlen,linetext,tokentext})
 end function
 
 ---------------------------------------------------------------------------
@@ -1222,10 +1253,12 @@ function form_error_text(string s, srcpos pos)
   --?pos
   --pretty_print(1,src_position,{2})
 
-  line=substring_replace(src_position[POS_TEXT],"\t","    ")
-  tab_compensate=3*count('\t',src_position[POS_TEXT][1..src_position[POS_COLUMN]])
+  line=substring_replace(src_position[POS_LINETEXT],"\t","    ")
+  --Count number of tabs in the line before the token
+  --(Don't bother with tabs inside the token)
+  tab_compensate=3*count('\t',src_position[POS_LINETEXT][1..src_position[POS_COLUMN]])
   caret_display=repeat('^',large(1,src_position[POS_LENGTH]))
-  column_display=repeat(' ',src_position[POS_COLUMN]+tab_compensate)
+  column_display=repeat(' ',src_position[POS_COLUMN]-1+tab_compensate)
   error_file_print(sprintf_utf("<a href=\"%s#%d\">\n",{src_position[POS_FILENAME],src_position[POS_LINE]}))
   if length(current_script) then
     return(
@@ -1579,7 +1612,6 @@ function lexer_read_include_line(TokenList tokens, string s, integer i, integer 
   --Trim the 'include', comments, and whitespace,
   i+=1  --Skip the comma or whatever character ended the 'include'
   s=s[i..stop]
-  i-=1  --Compensate for 1-based
   if length(s) then
     --Need to increment i while stripping
     while s[1]=' ' or s[1]='\t' do
@@ -1587,10 +1619,13 @@ function lexer_read_include_line(TokenList tokens, string s, integer i, integer 
       i+=1
     end while
     whitespace_len=0
+    --Find len, the length of the original filename token
+    len=length(trim_whitespace(s))
     --Optionally allow quotes around the filename.
     --A quote mark in the middle of a filename doesn't need any escaping
     if s[1]='"' then
-      temp=lexer_read_string(s,2,length(s),encode_srcpos(posoff,i,0))
+      temp=lexer_read_string(s,2,length(s),posoff+i)
+      -- temp is {closing_quote_offset,quoted_string}
       s=s[temp[1]+1..$]
       --s is now whatever is after the string
       i+=temp[1]  --1 past the closing "
@@ -1609,7 +1644,6 @@ function lexer_read_include_line(TokenList tokens, string s, integer i, integer 
       if length(s) then
         src_error("Found unexpected text after "&COLYEL&"include, \"filename\""&COLRED,encode_srcpos(posoff,i,whitespace_len))
       end if
-      s=filename_string
     end if
 
     tokens=append(tokens,{s,encode_srcpos(posoff,i,len)})
@@ -1652,6 +1686,8 @@ function lex_line(sequence s, integer i, integer stop, integer posoff)
   last_state_i=0
   textstart=0
   tokens={}
+
+  --pretty_print(stdout, {"lex_line posoff: ", posoff, "i:", i, "srcpos:", decode_srcpos(encode_srcpos(posoff,i,0))}, {2})
 
   while i<=stop do
     if s[i]<256 then
@@ -1901,6 +1937,8 @@ function tree_original_text(Node tree)
 
   --Find leftmost and rightmost tokens making up the expression, not including brackets
   --(Do we care about virtual flags?)
+  --NOTE: we're making an assumption about srcpos encoding here, that
+  --if token A begins before token B, then srcpos A < srcpos B
 
   leftmost=tree[TREE_TRUNK][CMD_POS]
   subtree=tree
@@ -1927,6 +1965,9 @@ function tree_original_text(Node tree)
   --keep grabbing extra tokens until brackets are balanced
   --note: this will read 'foo(bar())' but will read 'foo()' as 'foo'
   depth=count("begin",column(tokens,CMD_TEXT))-count("end",column(tokens,CMD_TEXT))
+  if depth<0 then
+    src_error("Compiler bug: negative depth in tree_original_text",tokens[1][CMD_POS])
+  end if
   while depth do
     right_at+=1
     if equal(script_toks[right_at][CMD_TEXT],"begin") then
@@ -1939,9 +1980,11 @@ function tree_original_text(Node tree)
   --grab original text corresponding to this range of tokens
   filenum=srcpos_file_number(leftmost)
   left_point=srcpos_point(leftmost)
+
   --this +1 is safe, guaranteed to be followed by either another argument or "end"
   right_point=srcpos_point(script_toks[right_at+1][CMD_POS])
   text=file_list[filenum][FILE_TEXT][left_point..right_point-1]
+  --pretty_print(stdout, {"tree_original_text left/right_point:", left_point, right_point, "text:", text, decode_srcpos(leftmost)},{2})
 
   --NOTE: should be able to make use of srcpos lengths instead. (Again, how to handle virtuals?)
 
@@ -1967,7 +2010,7 @@ function seek_include(TokenList tokens)
     return(ret)
     -- --Alternatively use original text (escape sequences won't work)... so might be useful on Wdinwos
     -- srcdata=decode_srcpos(s[at+1][CMD_POS])
-    -- return(srcdata[POS_TEXT][srcdata[POS_COLUMN]+1..srcdata[POS_COLUMN]+srcdata[POS_LENGTH]])
+    -- return(srcdata[POS_LINETEXT][srcdata[POS_COLUMN]+1..srcdata[POS_COLUMN]+srcdata[POS_LENGTH]])
   end if
   return("")
 end function
@@ -1979,11 +2022,17 @@ procedure lex_file(integer file_num, sequence include_stack)
   string include_name
   sequence lines
   integer posoff
+  -- object temp
   posoff=file_list[file_num][FILE_OFFSET]
 
   lines=file_list[file_num][FILE_LINE_EXTENTS]
   for i=1 to length(lines) do
     broken=lex_line(file_list[file_num][FILE_TEXT],lines[i][PAIR_START],lines[i][PAIR_END],posoff)
+
+    -- for j=1 to length(broken) do
+    --   temp = decode_srcpos(broken[j][CMD_POS])
+    --   pretty_print(stdout,{broken[j][CMD_TEXT], temp},{2})
+    -- end for
 
     include_name=seek_include(broken)
     if length(include_name) then
@@ -4132,10 +4181,13 @@ end function
 --Used to turn the local var list into a string table.
 --vars must exclude nonlocals, and be in order.
 function variable_names_to_table(VarList vars)
+  string varname
   sequence result
   result={}
   for i=1 to length(vars) do
-    result&=encode_32bitstring(vars[i][CMD_TEXT])
+    --varname=vars[i][CMD_TEXT]
+    varname=get_srcpos_text(vars[i][CMD_POS])
+    result&=encode_32bitstring(varname)
   end for
   return(result)
 end function
@@ -4174,17 +4226,14 @@ function binary_compile_recurse(Node tree, VarList vars)
   id=kind_and_id[2]
   s=tree[TREE_TRUNK][CMD_TEXT]
   cmdpos=tree[TREE_TRUNK][CMD_POS]
-  if kind=KIND_NUMBER then
-    result&=kind
-    result&=id
-  elsif kind=KIND_REFERENCE then
+
+  if kind=KIND_REFERENCE then
     str_temp = s[2..length(s)]
     --is it a global variable?
     at=find(str_temp,global_list[PAIR_NAME])
     if at then
       --yes, it is a global, compile to global ID
-      result&=KIND_NUMBER
-      result&=global_list[PAIR_NUM][at]
+      id=global_list[PAIR_NUM][at]
     else
       --is it a script?
       at=lookup_scoped_script_name(str_temp)
@@ -4194,25 +4243,26 @@ function binary_compile_recurse(Node tree, VarList vars)
         if all_scripts[at][SCRIPT_PARENT_IDX] then
           src_error("References to subscripts haven't been implemented yet. Use a regular script instead if you need its ID.",cmdpos)
         end if
-        result&=KIND_NUMBER
-        result&=all_scripts[at][SCRIPT_ID]
+        id=all_scripts[at][SCRIPT_ID]
       else
         --is it a string literal?
         if length(str_temp)>7 and equal("$string",str_temp[1..7]) then
           value_temp=value(str_temp[8..length(str_temp)])
-          result&=KIND_NUMBER
-          result&=table_string(value_temp[2])
+          id=table_string(value_temp[2])
         else
           src_error(sprintf_utf("Reference "&COLYEL&"@%s"&COLRED&" not understood: references must be the name of a global variable or a script",{str_temp}),cmdpos)
         end if
       end if
     end if
-  elsif kind=KIND_GLOBAL then
-    result&=kind
-    result&=id
-  elsif kind=KIND_LOCAL or kind=KIND_NONLOCAL then
-    result&=kind
-    result&=id
+    kind=KIND_NUMBER
+  end if
+
+  result&=kind
+  result&=id
+  if kind=KIND_NUMBER or kind=KIND_GLOBAL or kind=KIND_LOCAL or kind=KIND_NONLOCAL then
+    if debug_info then
+      result&=tree[TREE_TRUNK][CMD_POS]
+    end if
   elsif kind=KIND_SCRIPT or kind=KIND_FUNCTION or kind=KIND_FLOW or kind=KIND_MATH then
     --Use id from what_kind_and_id
     if kind=KIND_FUNCTION then
@@ -4220,8 +4270,6 @@ function binary_compile_recurse(Node tree, VarList vars)
         max_used_function=id
       end if
     end if
-    result&=kind
-    result&=id
     result&=length(tree[TREE_BRANCHES])
     for i=1 to length(tree[TREE_BRANCHES]) do
       --add placeholders for each argoffset
@@ -4231,7 +4279,13 @@ function binary_compile_recurse(Node tree, VarList vars)
       result&=tree[TREE_TRUNK][CMD_POS]
     end if
 
-    --Temporarily add result, so that recursive calls can add nodes to compiled_data if they need to
+    -- if debug_info then
+    --   for i=1 to length(tree[TREE_BRANCHES]) do
+    --     result&=tree[TREE_BRANCHES][i][TREE_TRUNK][CMD_POS]
+    --   end for
+    -- end if
+
+    --temporarily add result, so that recursive calls can add nodes to compiled_data if they need to
     compiled_data&=result
 
     for i=1 to length(tree[TREE_BRANCHES]) do
@@ -4289,6 +4343,7 @@ function binary_compile(Script script)
   NodeList tree
   sequence result
   integer recurse_ret
+  sequence localvars
 
   string_table={}
   compiled_data={}
@@ -4367,9 +4422,13 @@ function binary_compile(Script script)
     if remainder(length(result)-CODE_START_BYTE_OFFSET,4) != 0 then
       simple_error("compiler bug! varname table not aligned")
     end if
-    result[25..28]=int_to_bytes((length(result)-CODE_START_BYTE_OFFSET)/4)
-    --Could use seek_string_by_id instead of filter_local_variables
-    result&=variable_names_to_table(filter_local_variables(script[SCRIPT_VARIABLES]))
+    localvars=filter_local_variables(script[SCRIPT_VARIABLES])
+    if length(localvars) then
+      result[25..28]=int_to_bytes((length(result)-CODE_START_BYTE_OFFSET)/4)
+      --Could use seek_string_by_id instead of filter_local_variables
+      result&=variable_names_to_table(localvars)
+    end if
+    --Otherwise remains 0
   end if
   return(result)
 end function
