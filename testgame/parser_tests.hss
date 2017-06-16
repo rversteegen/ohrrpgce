@@ -124,6 +124,14 @@ script, math warnings, x, begin
   x := sqrt(-1)              # ERROR
 end
 
+script, include tests, begin
+  include,                   # ERROR
+  include, "foo"  bar        # ERROR
+## "Found unexpected text"
+  include, "foo.hss  bar     # ERROR
+## "Expected " at end of line"
+end
+
 script, flow tests, dummy, begin
   if(dummy) then() else()
   else()                 # ERROR
