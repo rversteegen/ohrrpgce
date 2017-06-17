@@ -197,6 +197,7 @@ DIM scrwatch as integer
 DIM next_interpreter_check_time as double
 DIM interruption_grace_period as integer
 REDIM global(maxScriptGlobals) as integer
+REDIM srcfiles() as ScriptSourceFile
 DIM mainFibreGroup as ScriptFibre ptr vector
 REDIM plotstr(maxScriptStrings) as Plotstring
 DIM insideinterpreter as bool
@@ -629,6 +630,7 @@ loadglobalstrings
 getstatnames statnames()
 
 IF isfile(game + ".hsp") THEN unlump game + ".hsp", tmpdir
+read_srcfiles_txt
 'Might be changed by --errlvl commandline option
 'Default to showing all errors. genErrorLevel is no longer used (but might be again in future)
 IF err_suppress_lvl = 0 THEN err_suppress_lvl = serrIgnore

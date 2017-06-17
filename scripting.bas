@@ -674,7 +674,7 @@ PRIVATE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptD
   ELSE
    .scrformat = 0
   END IF
-  IF .scrformat < 0 OR (.scrformat = 0 AND .skip > 8) THEN
+  IF .scrformat < 0 OR (.scrformat = 0 AND skip > 8) THEN
    'Disallow format 0 from have more recent features (it's a nuisance to support 16-bit
    'words for everything).
    scripterr "script " & id & " seems to be corrupt; invalid version " & .scrformat & " with header size " & skip, serrError
@@ -702,7 +702,7 @@ PRIVATE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptD
   IF .strtable THEN
    IF (.strtable - skip) MOD 4 THEN
     'Position must be a multiple of 4
-    scripterr "script " & n & " corrupt: unaligned string table", serrError
+    scripterr "script " & id & " corrupt: unaligned string table", serrError
     DELETE ret
     RETURN NULL
    END IF
@@ -748,10 +748,15 @@ PRIVATE FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptD
   END IF
   .hassrcpos = (bitsets AND 1) <> 0
 
-  'We ignore the variable names here; they are loaded if needed by get_script_var_name
+  'We ignore the variable names here; they are loaded if needed by script_lookup_local_name
   .varnamestable = 0
   IF skip >= 28 THEN
    GET #fh, 1+24, .varnamestable
+  END IF
+
+  .script_position = 0
+  IF skip >= 32 THEN
+   GET #fh, 1+28, .script_position
   END IF
 
   'set an arbitrary max script buffer size (scriptmemMax in const.bi), individual scripts must also obey
@@ -984,6 +989,13 @@ END SUB
 'TODO: it would be preferable to keep the bookkeeping data by only deleting the script commands and strings
 SUB reload_scripts (force_full_message as bool = YES)
  STATIC dont_show_again as bool = NO  'Don't pop up the full error message
+
+ ' Delete any previously unlumped source files
+ safekill tmpdir & "source.lumped"
+ FOR idx as integer = 0 TO UBOUND(srcfiles)
+  safekill tmpdir & srcfiles(idx).lumpname
+ NEXT
+ read_srcfiles_txt
 
  IF isfile(game + ".hsp") THEN unlump game + ".hsp", tmpdir
  DIM unfreeable as string, still_unfreeable as string
@@ -1320,221 +1332,141 @@ END SUB
 '==========================================================================================
 
 
-'Read a local variable name from a script's variable name table if available,
-'otherwise returns ""
-FUNCTION get_script_var_name(var_id as integer, scrdat as ScriptData) as string
- WITH scrdat
-  debug "get_script_var_name(" & var_id & ", script " & scriptname(scrdat.id) & "), size = " & .size
-
-  IF var_id < 0 OR var_id >= .vars THEN
-   scripterr __FUNCTION__ ": illegal variable id " & var_id
-   RETURN ""
-  END IF
-  IF .varnamestable = 0 THEN RETURN ""
-
-  'Walk through the variable name table to reach the i-th one.
-  DIM table_ptr as int32 ptr = .ptr + .varnamestable
-  FOR i as integer = 0 TO var_id
-   'debug "  var " & i & " offset " & table_ptr - .ptr & " len " & table_ptr[0]
-   'debug "    '" & read32bitstring(table_ptr) & "'"
-
-   DIM length_ints as integer = (table_ptr[0] + 3) \ 4
-   IF table_ptr + length_ints >= .ptr + .size THEN
-    scripterr "Script variable name table corrupt (too short)", serrError
-    RETURN "(unknown)"
-   END IF
-   IF i = var_id THEN RETURN read32bitstring(table_ptr)
-   table_ptr += length_ints + 1
-  NEXT
-
-/'
-  'Walk through the variable name table, which is composed of null-terminated C
-  'strings back to back, to reach the i-th one.
-  DIM table_ptr as zstring ptr = cast(zstring ptr, .ptr + .varnamestable)
-  DIM table_end as zstring ptr = cast(zstring ptr, .ptr + .size)
-  FOR i = 0 TO var_id
-   DIM strlength as integer = strnlen(table_ptr, table_end - table_ptr)
-   IF strlength = table_end - table_ptr THEN
-    'We hit the end without encountering a null
-    scripterr "Script variable name table corrupt (too short)", serrError
-    RETURN "(unknown)"
-   END IF
-   IF i = var_id THEN RETURN *table_ptr
-   table_ptr += strlength + 1
-  NEXT
-'/
- END WITH
-END FUNCTION
-
-/'
-FUNCTION get_script_var_name(n as integer, scrdat as ScriptData) as string
- 'Caching the names for a script within this function seems simplest
- STATIC cachegame as string, cacheid as integer
-
- 'This is the correct way to declare a dynamic static array. Also, you have to REDIM it before use!
- STATIC cache() as string
- REDIM PRESERVE cache(UBOUND(cache)) as string
-
- WITH scrdat
-  IF n < 0 OR n >= .vars OR .varnamestable = 0 THEN RETURN ""
-
-  IF cachegame = game AND .id = cacheid THEN
-   RETURN cache(n)
-  ELSE
-   cachegame = game
-   cacheid = .id
-  END IF
-  REDIM cache(.vars - 1) as string
-
-  DIM as string filename = find_script_lump(.id)
-  DIM as integer fh
-  fh = FREEFILE
-  OPEN filename FOR BINARY AS fh
-
-  DIM as ubyte c
-  SEEK #fh, .varnamestable
-  FOR i = 0 TO .vars - 1
-   GET #fh, , c
-   WHILE c <> 0 AND EOF(fh) = 0
-    cache(i) &= CHR(c)
-    GET #fh, , c
-   WEND
-  NEXT
-
-  CLOSE fh
-
-  RETURN cache(n)
- END WITH
-END FUNCTION
-'/
-
-FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as string
- 'Trying to use compact names
- STATIC mathname(25) as zstring ptr = {_
-         @"random", @"exponent", @"mod", @"divide", @"multiply", @"subtract",_
-         @"add", @"xor", @"or", @"and", @"equal", @"!equal", @"<<", @">>",_
-         @"<=", @">=", @"setvar", @"inc", @"dec", @"not", @"&&", @"||", @"^^",_
-         @"abs", @"sign", @"sqrt"_
- }
-
- STATIC flowname(16) as zstring ptr = {_
-         @"do", @"begin", @"end", @"return", @"if", @"then", @"else", @"for",_
-         @"", @"", @"while", @"break", @"continue", @"exit", @"exitreturn",_
-         @"switch", @"case"_
- }
-
- SELECT CASE kind
-  CASE tynumber
-   RETURN STR(id)
-  CASE tyflow
-   IF (id >= 0 AND id <= UBOUND(flowname)) ANDALSO LEN(*flowname(id)) THEN
-    RETURN *flowname(id)
-   ELSE
-    debug "scriptcmdname: bad flow " & id
-    RETURN "unknown_flow" & id
-   END IF
-  CASE tyglobal
-   RETURN "global" & id
-  CASE tylocal
-   RETURN localvariablename(id, scrdat)
-  CASE tymath
-   IF id >= 0 AND id <= UBOUND(mathname) THEN
-    RETURN *mathname(id)
-   ELSE
-    debug "scriptcmdname: bad math " & id
-    RETURN "unknown_math" & id
-   END IF
-  CASE tyfunct
-   RETURN commandname(id)
-  CASE tyscript
-   RETURN scriptname(id)
- END SELECT
-END FUNCTION
-
-FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integer) as bool
- DIM as uinteger srcpos, charpos
-
- srcpos = script_current_srcpos(selectedscript)
- debug "get_script_line_info: srcpos = " & srcpos
- IF srcpos = 0 THEN RETURN NO
-
- posdata.length = srcpos MOD (2 ^ 8)
- charpos = srcpos SHR 9
- posdata.isvirtual = (srcpos SHR 8) AND 1
-
- 'IF isfile(tmpdir & "source.lumped") = NO THEN RETURN NO
-
- '-- Read srcfiles.txt to find the file that this srcpos is in, and grab needed info
+'Parse srcfiles.txt in the .hsp lump, which lists the script source files, and put the result in srcfiles().
+SUB read_srcfiles_txt()
+ ERASE srcfiles
 
  DIM as integer fh
- fh = FREEFILE
- IF OPEN(tmpdir & "srcfiles.txt" AS #fh) THEN RETURN NO
+ IF OPENFILE(tmpdir & "srcfiles.txt", for_binary + access_read, fh) THEN RETURN
 
- DIM as string lumpname, filename
- DIM as integer flength, offset
+ DIM current as ScriptSourceFile ptr = NULL
 
- offset = -1
- flength = -1
  WHILE NOT EOF(fh)
-  DIM as string in
+  DIM as string linein
   DIM as integer at
-  INPUT #fh, in
-  at = INSTR(in, "=")
+  INPUT #fh, linein
+  at = INSTR(linein, "=")
   IF at THEN
    DIM as string tag, value
-   tag = LCASE(MID(in, 1, at - 1))
-   value = MID(in, at + 1)
+   tag = LCASE(MID(linein, 1, at - 1))
+   value = MID(linein, at + 1)
+   IF current = NULL AND tag <> "file" THEN
+    debuginfo "unexpected line in srcfiles.txt: " & linein
+    CONTINUE WHILE
+   END IF
    SELECT CASE tag
     CASE "file"
-     '-- Starts a new file entry. But before moving onto it, see whether the previous entry was the target
-     IF charpos >= offset AND charpos <= offset + flength THEN EXIT WHILE
-     offset = -1
-     flength = -1
-     filename = value
+     REDIM PRESERVE srcfiles(UBOUND(srcfiles) + 1)
+     current = @srcfiles(UBOUND(srcfiles))
+     current->offset = -1
+     current->length = -1
+     current->filename = value
     CASE "lump"
-     lumpname = value
+     current->lumpname = value
     CASE "offset"
-     offset = str2int(value)
+     current->offset = str2int(value)
     CASE "length"
-     flength = str2int(value)
+     current->length = str2int(value)
    END SELECT
   END IF
  WEND
  CLOSE fh
+END SUB
 
- IF charpos < offset OR charpos > offset + flength THEN RETURN NO
- charpos -= offset
+' Decodes srcpos into posdata and returns true, or returns false on failure.
+' If the srcpos is from a script then it is relative rather than absolte and the script's offset needs to be given.
+FUNCTION decode_srcpos(posdata as ScriptTokenPos, srcpos as uinteger, script_offset as integer = 0) as bool
+ DIM charpos as uinteger
+ DIM lumpname as string
 
- posdata.filename = trimpath(filename)
+ IF srcpos = 0 THEN RETURN NO
 
- '-- Unlump that source file
+ IF isfile(tmpdir & "source.lumped") = NO THEN RETURN NO
 
- IF isfile(tmpdir & lumpname) = 0 THEN
+ ' Decode srcpos
+ posdata.length = srcpos MOD (1 SHL 8)
+ charpos = (srcpos SHR 9) + script_offset
+ posdata.isvirtual = ((srcpos SHR 8) AND 1) <> 0
+
+ 'debug "decode_srcpos: charpos " & charpos & " len " & posdata.length
+
+ ' Search srcfiles to find the file containing this charpos, and grab some info from it
+ IF UBOUND(srcfiles) < 0 THEN RETURN NO
+ DIM idx as integer
+ FOR idx = 0 TO UBOUND(srcfiles)
+  WITH srcfiles(idx)
+   '-- Starts a new file entry. But before moving onto it, see whether the previous entry was the target
+   IF charpos >= .offset AND charpos <= .offset + .length THEN
+    charpos -= .offset
+    lumpname = .lumpname
+    posdata.filename = trimpath(.filename)
+    EXIT FOR
+   END IF
+  END WITH
+ NEXT
+ IF idx > UBOUND(srcfiles) THEN
+  scripterr "Script debug info is invalid: srcpos " & srcpos & " not found", serrError
+  RETURN NO
+ END IF
+
+ ' charpos 0 is special, refers to whole file (but this isn't used anywhere yet)
+ IF charpos = 0 THEN
+  posdata.linetext = "[File " & posdata.filename & "]"
+  RETURN YES
+ END IF
+ ' Offsets in the file are 1-based
+ charpos -= 1
+ debug "decode_srcpos: offset in file is " & charpos
+
+ ' Unlump that source file if not already
+ IF isfile(tmpdir & lumpname) = NO THEN
   unlump tmpdir & "source.lumped", tmpdir
-  IF isfile(tmpdir & lumpname) = 0 THEN
-   debug "Couldn't unlump " & lumpname & " from source.lumped"
+  IF isfile(tmpdir & lumpname) = NO THEN
+   scripterr "Couldn't unlump " & lumpname & " from source.lumped", serrError
    RETURN NO
   END IF
  END IF
 
- '-- Now find the line of text (and line number) in the source
+ ' Now find the line of text (and line number) in the source
 
- fh = FREEFILE
- IF OPEN(tmpdir & lumpname FOR BINARY AS #fh) THEN RETURN NO
+ DIM lines() as string
+ IF lines_from_file(lines(), tmpdir & lumpname) =NO THEN
+  scripterr "Script source file " & lumpname & " couldn't be read", serrError
+ END IF
 
+ DIM as integer amountread
+ FOR lineno as integer = 0 TO UBOUND(lines)
+  ' Add 1 for the newline trimmed by lines_from_file
+  IF amountread + LEN(lines(lineno)) + 1 >= charpos THEN
+   posdata.col = charpos - amountread
+   posdata.linenum = lineno + 1  'Convert to 1-based line number
+   posdata.linetext = lines(lineno)
+   RETURN YES
+  END IF
+  amountread += LEN(lines(lineno)) + 1
+ NEXT
+
+ scripterr "Script debug info is invalid: offset " & charpos & " not found in " & posdata.filename, serrError
+ RETURN NO
+
+
+' DIM fh as integer
+' IF OPENFILE(tmpdir & lumpname, for_binary + access_read, fh) THEN RETURN NO
+
+
+
+/'
  DIM as integer loadamount, chunksize, amountread
  DIM as ubyte ptr bufr
 
  posdata.linenum = 1
  posdata.linetext = ""
 
- bufr = ALLOCATE(4096)
-' loadamount = flength
- WHILE NOT EOF(fh) 'loadamount > 0
-  chunksize = small(4096, loadamount)
+ bufr = allocate(8192)
+ WHILE NOT EOF(fh)
+  chunksize = small(8192, loadamount)
   'copy a chunk of file
-  fgetiob fh, , bufr, 4096, @chunksize
-  'loadamount -= chunksize
+  fgetiob fh, , bufr, 8192, @chunksize
   FOR i as integer = 0 TO chunksize - 1
    amountread += 1
    IF amountread = charpos THEN posdata.col = LEN(posdata.linetext) + 1  '1-based
@@ -1547,10 +1479,20 @@ FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integ
    END IF
   NEXT
  WEND
- DEALLOCATE(bufr)
+ deallocate(bufr)
  CLOSE fh
+'/
 
  RETURN YES
+END FUNCTION
+
+'Get information about position in the script source of the currently executing
+'command of a script on the script stack (eg nowscript)
+'Returns true on success (debug info is available)
+FUNCTION get_script_line_info(posdata as ScriptTokenPos, selectedscript as integer) as bool
+ DIM srcpos as uinteger
+ srcpos = script_current_srcpos(selectedscript)
+ RETURN decode_srcpos(posdata, srcpos, scrat(selectedscript).scr->script_position)
 END FUNCTION
 
 'Format the line and statement that a script is currently at,
@@ -1560,7 +1502,7 @@ END FUNCTION
 FUNCTION highlighted_script_line(posdata as ScriptTokenPos, maxchars as integer, flicker as bool) as string
  DIM start as integer
  DIM highlightcol as integer
- DIM texttmp as string
+ DIM linepiece as string
  STATIC tog as integer
  tog = tog XOR 1
  IF flicker = NO THEN tog = 0
@@ -1569,40 +1511,40 @@ FUNCTION highlighted_script_line(posdata as ScriptTokenPos, maxchars as integer,
  WITH posdata
   debug "posdata.linenum = " & posdata.linenum
   debug "posdata.col = " & posdata.col
-'  debug "posdata.length = " & posdata.length
-'  debug "posdata.linetext = " & posdata.linetext
-'  debug "posdata.filename = " & posdata.filename
+  debug "posdata.length = " & posdata.length
+  debug "posdata.linetext = " & posdata.linetext
+  debug "posdata.filename = " & posdata.filename
  END WITH
 
  highlightcol = IIF(posdata.isvirtual, uilook(uiSelectedDisabled + tog), uilook(uiSelectedItem + tog))
 
  start = large(1, posdata.col - large(4, (maxchars - posdata.length) \ 2))
 
-debug "start = " & start & " mid = " & MID(posdata.linetext, start, 40)
+ 'debug "start = " & start & " mid = " & MID(posdata.linetext, start, 40)
 
- texttmp = MID(posdata.linetext, start, maxchars)
+ ' Trim the line so that it's not too long
+ linepiece = MID(posdata.linetext, start, maxchars)
 
- ' Highlight the part of the line indicated by posdata
- DIM relcol as integer = 1 + posdata.col - (start - 1)
+ ' Highlight the part of linepiece indicated by posdata
+ ' (Note: posdata.col and MID both count columns/characters starting at one.)
+ DIM relcol as integer = posdata.col - (start - 1)
  DIM length  as integer = bound(posdata.length, 1, maxchars)
- DIM token as string = MID(texttmp, relcol, length)
- MID(texttmp, relcol, length) = fgtag(highlightcol, token)
+ DIM token as string = MID(linepiece, relcol, length)
+ linepiece = MID(linepiece, 1, relcol - 1) & fgtag(highlightcol, token) & MID(linepiece, relcol + length)
+'MID(linepiece, relcol, length) = fgtag(highlightcol, token)
 
- IF start > 1 THEN MID(texttmp, 1, 3) = "..."  'This can't overlap with 'token'
- IF LEN(texttmp) < LEN(posdata.linetext) - (start - 1) THEN texttmp &= "..."
+ IF start > 1 THEN MID(linepiece, 1, 3) = "..."  'This can't overlap with 'token'
+ IF LEN(linepiece) < LEN(posdata.linetext) - (start - 1) THEN linepiece &= "..."
 
  DIM infostr as string
-' IF posdata.isvirtual THEN
-'  infostr = "In the line " & posdata.linenum & " of " & posdata.filename & ":"
-' ELSE
-  infostr = "On line " & posdata.linenum & " of " & posdata.filename & !":\n"
-' END IF
- RETURN infostr + texttmp
+ infostr = IIF(posdata.isvirtual, "(Virtual)", "On") & " line " & posdata.linenum _
+           & " of " & posdata.filename & !":\n"
+ RETURN infostr & linepiece
 END FUNCTION
 
 
 '==========================================================================================
-'                                    Other Interfaces
+'                                    Name lookups
 '==========================================================================================
 
 
@@ -1651,6 +1593,103 @@ FUNCTION commandname (id as integer) as string
  add_string_cache cache(), id, ret
  RETURN ret
 END FUNCTION
+
+
+'Read a local variable name from a script's variable name table if available,
+'otherwise returns "". Does NOT handle nonlocals
+FUNCTION script_lookup_local_name(var_id as integer, scrdat as ScriptData) as string
+ WITH scrdat
+  'debug "script_lookup_local_name(" & var_id & ", script " & scriptname(scrdat.id) & "), size = " & .size
+
+  IF var_id < 0 OR var_id >= .vars THEN
+   scripterr __FUNCTION__ ": illegal variable id " & var_id
+   RETURN ""
+  END IF
+  IF .varnamestable = 0 THEN RETURN ""
+
+  'Walk through the variable name table to reach the i-th one.
+  DIM table_ptr as int32 ptr = .ptr + .varnamestable
+  FOR i as integer = 0 TO var_id
+   'debug "  var " & i & " offset " & table_ptr - .ptr & " len " & table_ptr[0]
+   'debug "    '" & read32bitstring(table_ptr) & "'"
+
+   DIM length_ints as integer = (table_ptr[0] + 3) \ 4
+   IF table_ptr + length_ints >= .ptr + .size THEN
+    scripterr "Script variable name table corrupt (too short)", serrError
+    RETURN "(unknown)"
+   END IF
+   IF i = var_id THEN RETURN read32bitstring(table_ptr)
+   table_ptr += length_ints + 1
+  NEXT
+ END WITH
+END FUNCTION
+
+FUNCTION localvariablename (value as integer, scrdat as ScriptData) as string
+ 'Get a variable name from a ScriptCommand local/nonlocal variable number
+ 'Locals (and args) numbered from 0
+
+ DIM ret as string
+ ret = script_lookup_local_name(value, scrdat)
+ IF ret <> "" THEN RETURN ret
+
+ 'Debug info isn't available
+ IF scrdat.args = 999 THEN
+  'old HS file: don't know the number of arguments
+  RETURN "local" & value
+ ELSEIF value < scrdat.args THEN
+  RETURN "arg" & value
+ ELSEIF value >= 256 THEN
+  RETURN "nonlocal" & (value SHR 8) & "_" & (value AND 255)
+ ELSE
+  'Not an arg
+  RETURN "var" & (value - scrdat.args)
+ END IF
+END FUNCTION
+
+FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as string
+ 'Trying to use compact names
+ STATIC mathname(25) as zstring ptr = { _
+         @"random", @"exponent", @"mod", @"divide", @"multiply", @"subtract", _
+         @"add", @"xor", @"or", @"and", @"equal", @"<>", @"<", @">", _
+         @"<=", @">=", @"setvar", @"inc", @"dec", @"not", @"&&", @"||", @"^^", _
+         @"abs", @"sign", @"sqrt" _
+ }
+
+ STATIC flowname(16) as zstring ptr = { _
+         @"do", @"begin", @"end", @"return", @"if", @"then", @"else", @"for", _
+         @"", @"", @"while", @"break", @"continue", @"exitscript", @"exitreturn", _
+         @"switch", @"case" _
+ }
+
+ SELECT CASE kind
+  CASE tynumber
+   RETURN STR(id)
+  CASE tyflow
+   IF (id >= 0 AND id <= UBOUND(flowname)) ANDALSO LEN(*flowname(id)) THEN
+    RETURN *flowname(id)
+   ELSE
+    debug "scriptcmdname: bad flow " & id
+    RETURN "unknown_flow" & id
+   END IF
+  CASE tyglobal
+   RETURN "global" & id
+  CASE tylocal
+   RETURN localvariablename(id, scrdat)
+  CASE tymath
+   IF id >= 0 AND id <= UBOUND(mathname) THEN
+    RETURN *mathname(id)
+   ELSE
+    debug "scriptcmdname: bad math " & id
+    RETURN "unknown_math" & id
+   END IF
+  CASE tyfunct
+   RETURN commandname(id)
+  CASE tyscript
+   RETURN scriptname(id)
+ END SELECT
+END FUNCTION
+
+
 
 'Returns script command name if inside a script command handler
 FUNCTION current_command_name() as string
@@ -1857,11 +1896,6 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp)
   wrapprint errtext, 8, 25, vpage, rWidth - 16
   draw_menu menu, state, vpage
 
-  IF state.pt = 6 THEN
-   textcolor uilook(uiSelectedItem), 0
-   wrapprint !"The debugger is a usability train-wreck!\n" + _
-              "Press F1 inside the debugger to see help", 0, pBottom, , vpage , , , fontPlain
-  END IF
   setvispage vpage
 
   IF autotestmode THEN
@@ -1893,8 +1927,8 @@ FUNCTION script_interrupt () as bool
 
  stop_fibre_timing
 
- msg = "A script may be stuck in an infinite loop. Press F1 for more help" + CHR(10) + CHR(10)
- msg &= "  Call chain (current script last):" + CHR(10) + script_call_chain()
+ msg = !"A script may be stuck in an infinite loop. Press F1 for more help\n\n" _
+       !"  Call chain (current script last):\n" + script_call_chain()
  debug "Script interrupted: " & script_call_chain(NO)
  split(wordwrap(msg, large(80, vpages(vpage)->w - 16) \ 8), errtext())
 
@@ -1962,7 +1996,7 @@ FUNCTION script_interrupt () as bool
 
   centerbox rCenter, 12, rWidth - 10, 15, 3, vpage
   textcolor uilook(uiText), 0
-  printstr "A script is stuck", rCenter - 17*4, 7, vpage
+  printstr "A script is stuck", pCentered, 7, vpage
 
   FOR i as integer = 0 TO UBOUND(errtext)
    printstr errtext(i), 8, 25 + 10 * i, vpage
@@ -1970,11 +2004,6 @@ FUNCTION script_interrupt () as bool
 
   draw_menu menu, state, vpage
 
-  IF state.pt = 4 THEN
-   textcolor uilook(uiSelectedItem), 0 
-   wrapprint !"The debugger is a usability train-wreck!\n" + _
-              "Press F1 inside the debugger to see help", 0, pBottom, , vpage , , , fontPlain
-  END IF
   setvispage vpage
 
   dowait

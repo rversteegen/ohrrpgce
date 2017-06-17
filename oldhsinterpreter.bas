@@ -27,6 +27,7 @@ DECLARE SUB substart (byref si as OldScriptState)
 DECLARE SUB subdoarg (byref si as OldScriptState)
 DECLARE SUB subreturn (byref si as OldScriptState)
 DECLARE SUB unwindtodo (byref si as OldScriptState, byval levels as integer)
+DECLARE FUNCTION command_parent_node(script_slot as integer) as integer
 DECLARE SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk as Stack, byref i as integer)
 DECLARE FUNCTION mathvariablename (value as integer, scr as ScriptData) as string
 DECLARE FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = -1) as string
@@ -868,7 +869,8 @@ SUB scriptmath
  END SELECT
 END SUB
 
-'returns the srcpos of the current command of the given script (in nowscript), or 0 if that debug info not available
+'Returns the srcpos of the current command of the given script (in nowscript), or 0 if that debug info not available.
+'The srcpos is relative to the script's .script_position.
 FUNCTION script_current_srcpos(selectedscript as integer) as uinteger
  'Write curcmd out in case nowscript == selectedscript
  WITH scriptinsts(nowscript)
@@ -881,16 +883,16 @@ FUNCTION script_current_srcpos(selectedscript as integer) as uinteger
   DIM curnode as ScriptCommand ptr
   curnode = cast(ScriptCommand ptr, .scrdata + .ptr)
 
-  debug "script_current_srcpos: hassrcpos = " & .scr->hassrcpos & "  kind/id = " & curnode->kind & "/" & curnode->value & " ptr = " & .ptr & " argc = " & curnode->argc
+  'debug "script_current_srcpos: hassrcpos = " & .scr->hassrcpos & "  kind/id = " & curnode->kind & _
+  '      "/" & curnode->value & " ptr = " & .ptr & " argc = " & curnode->argc
   IF .scr->hassrcpos THEN
+   IF curnode->kind = tynumber THEN
+    ' Numbers don't have srcpos's. Return the srcpos of the parent node instead.
+    curnode = cast(ScriptCommand ptr, .scrdata + command_parent_node(selectedscript))
+   END IF
    WITH *curnode
-'    IF .kind = tyflow OR .kind = tymath OR .kind = tyfunct OR .kind = tyscript THEN
-     'Isn't a leaf node
-     RETURN (@.args(0))[.argc]  'Follows arg list (can't index .args() directly)
-     'RETURN cast(int32 ptr, curnode)[3 + .argc]
-    ' ELSE
-    '  ''''''''''''''''''''''''''''''''''''''''''''''TODO!!!: fall back to parent command
-    ' END IF
+    'The srcpos is immediately after the arg list (can't index .args() directly)
+    RETURN (@.args(0))[.argc]
    END WITH
   END IF
  END WITH
@@ -1148,7 +1150,7 @@ IF mode > 1 THEN
  DIM tabconcat as string
  FOR idx as integer = 0 TO UBOUND(tabnames)
   IF idx - 1 = viewmode THEN
-   tabconcat += hilite(tabnames(idx)) + " "
+   tabconcat += fgtag(uilook(uiSelectedItem), tabnames(idx)) + " "
   ELSE
    tabconcat += tabnames(idx) + " "
   END IF
@@ -1169,7 +1171,7 @@ IF mode > 1 AND viewmode = 0 THEN
   edgeprint "No scripts", 0, ol, uilook(uiDescription), page
  ELSE
   IF get_script_line_info(posdata, selectedscript) THEN
-   print_script_line posdata, ol - 36, 4, NO, page
+   wrapprint highlighted_script_line(posdata, 160, NO), 0, ol - 36, uilook(uiDescription), page
   ELSE
    edgeprint "Script line number unknown.", 0, ol - 18, uilook(uiDescription), page
 
@@ -1427,7 +1429,12 @@ IF mode > 1 AND drawloop = 0 THEN
   show_help("game_script_debugger")
   GOTO redraw
  ELSEIF w = scF2 THEN
-  viewmode = 0
+  IF viewmode = 0 THEN
+   'Old scriptstate() display (purposefully omitted from header)
+   viewmode = 5
+  ELSE
+   viewmode = 0
+  END IF
   GOTO redraw
  ELSEIF w = scF3 THEN
   viewmode = 1
@@ -1516,25 +1523,21 @@ SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk 
  i -= 2
 END SUB
 
-FUNCTION localvariablename (value as integer, scrdat as ScriptData) as string
- 'Get a variable name from a ScriptCommand local/nonlocal variable number
- 'Locals (and args) numbered from 0
+' Get the ScriptCommand .ptr for the parent node of the current node of a script.
+' Warning, this may not be robust. Only tested with integer nodes.
+FUNCTION command_parent_node(script_slot as integer) as integer
+ DIM stkpos as integer = 0
+ DIM state as OldScriptState
+ DIM node as ScriptCommand
 
- DIM ret as string
- ret = get_script_var_name(value, scrdat)
- IF ret <> "" THEN RETURN ret
-
- IF scrdat.args = 999 THEN
-  'old HS file: don't know the number of arguments
-  RETURN "local" & value
- ELSEIF value < scrdat.args THEN
-  RETURN "arg" & value
- ELSEIF value >= 256 THEN
-  RETURN "nonlocal" & (value SHR 8) & "_" & (value AND 255)
- ELSE
-  'Not an arg
-  RETURN "var" & (value - scrdat.args)
+ state = scrat(script_slot)
+ IF state.state = stnext THEN
+  'point stkpos before the first argument (they extend above the stack)
+  stkpos -= state.curargn
  END IF
+
+ readstackcommand node, state, scrst, stkpos
+ RETURN state.ptr
 END FUNCTION
 
 FUNCTION mathvariablename (value as integer, scrdat as ScriptData) as string
@@ -1547,7 +1550,9 @@ FUNCTION mathvariablename (value as integer, scrdat as ScriptData) as string
  END IF
 END FUNCTION
 
-'Warning: a nightmare function approaches!
+'This function returns a string describing where in the script the script interpreter currently is.
+'It's a huge mess because it has to examine the interpreter stack, and the interpreter might
+'be in many different states (I think this is buggy in some of them)
 FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = -1) as string
  IF nowscript <= -1 THEN EXIT FUNCTION
 
@@ -1594,8 +1599,6 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  DIM outstr as string
  DIM argnum as integer
 
- 'macro disabled for fb 0.15 compat
- 'copyobj(state, scrat(wasscript))
  memcpy(@(state),@(scrat(wasscript)),LEN(scrat(wasscript)))
  memcpy(@(scrinst),@(scriptinsts(wasscript)),LEN(scriptinsts(wasscript)))
  node.kind = curcmd->kind
@@ -1614,7 +1617,7 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
  IF state.state = stnext OR state.state = streturn OR state.state = stwait THEN
  'IF recurse <> 3 THEN  'huh?
 
-   IF state.state = stnext THEN 
+   IF state.state = stnext THEN
     'point stkpos before the first argument (they extend above the stack
     stkpos -= state.curargn
    END IF
@@ -1750,8 +1753,6 @@ FUNCTION scriptstate (byval targetscript as integer, byval recurse as integer = 
     IF wasscript = targetscript THEN outstr = ""
     IF wasscript < targetscript THEN IF recurse <> 2 THEN EXIT DO
     IF wasscript < 0 THEN EXIT DO
-    'macro disabled for fb 0.15 compat
-    'copyobj(state, scrat(wasscript))
     memcpy(@(state),@(scrat(wasscript)),LEN(scrat(wasscript)))
     memcpy(@(scrinst),@(scriptinsts(wasscript)),LEN(scriptinsts(wasscript)))
 
