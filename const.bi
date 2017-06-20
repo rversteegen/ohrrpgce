@@ -401,6 +401,7 @@ End Enum
 Type errorLevelEnum as integer  'For compatibility with C
 
 'Constants for scripterr and friends
+'NOTE: update error_level_names in scripting.bas if you change this
 Enum scriptErrEnum
   serrIgnore = 0     'to suppress an error
   serrInfo = 1       'informative messages

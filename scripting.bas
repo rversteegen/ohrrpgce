@@ -1379,8 +1379,15 @@ FUNCTION should_display_error_to_user(byval errorlevel as scriptErrEnum) as bool
  IF gen(genCurrentDebugMode) = 0 THEN 'Release mode, supress most error display
   RETURN NO
  END IF
- RETURN YES
+ ' By default Info messages are printed to g_debug.txt but not shown,
+ ' since if they are so annoying then we wouldn't want to add more of them
+ ' (in future we should have a dedicated script log for info and warning messages)
+ RETURN errorlevel > serrInfo
 END FUNCTION
+
+STATIC SHARED errorlevel_names(...) as string * 12 = { _
+ "Ignored", "Info", "Warning", "Suspicious", "Auto-bound", "Bad Op", "Error", "Engine Bug" _
+}
 
 'For errorlevel scheme, see scriptErrEnum in const.bi
 'NOTE: this function can get called with errors which aren't caused by scripts,
@@ -1400,7 +1407,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp)
 
  DIM as string call_chain
  IF insideinterpreter THEN call_chain = script_call_chain(NO)
- debug "Scripterr(" & errorlevel & "): " + call_chain + ": " + e
+ debug "Scripterr(" & errorlevel & " " & errorlevel_names(errorlevel) & "): " + call_chain + ": " + e
 
  IF NOT should_display_error_to_user(errorlevel) THEN EXIT SUB
 

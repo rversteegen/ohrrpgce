@@ -543,7 +543,10 @@ SUB process_wait_conditions()
     CASE 42'--wait for camera
      IF gen(genCameraMode) <> pancam ANDALSO gen(genCameraMode) <> focuscam THEN script_stop_waiting()
     CASE 59'--wait for text box
-     IF txt.showing = NO OR readbit(gen(), genSuspendBits, suspendboxadvance) = 1 THEN
+     IF txt.showing = NO THEN
+      script_stop_waiting()
+     ELSEIF readbit(gen(), genSuspendBits, suspendboxadvance) = 1 THEN
+      scripterr "waitfortextbox skipped because suspendboxadvance was used", serrInfo
       script_stop_waiting()
      END IF
     CASE 73, 234, 438'--game over, quit from loadmenu, reset game
@@ -1440,6 +1443,8 @@ SUB script_functions(byval cmdid as integer)
  CASE 59'--wait for text box
   IF readbit(gen(), genSuspendBits, suspendboxadvance) = 0 THEN
    script_start_waiting(retvals(0))
+  ELSE
+   scripterr "waitfortextbox skipped because suspendboxadvance is active", serrInfo
   END IF
  CASE 60'--equip where
   scriptret = 0

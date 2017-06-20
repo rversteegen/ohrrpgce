@@ -4180,7 +4180,15 @@ advance text box # "hit spacebar"</pre>
 <a name="about-waitfortextbox"></a>
 		<h4>wait for text box</h4>
 <p>
-			Makes the script wait until there is no text box displaying on the screen. Useful to know when to move on after using a <a href="#about-showtextbox" class="ref">show text box</a> command.
+			
+				Makes the script wait until there is no text box displaying on the screen. Useful to know when to move on after using a <a href="#about-showtextbox" class="ref">show text box</a> command.
+				<div style="background-color:#FFE;" class="note">
+<img src="http://gilgamesh.hamsterrepublic.com/wiki/ohrrpgce-images/d/dc/Plotwarn.png" alt="[Warning]" class="icon">
+					If textbox advancing has been suspended using <a href="#about-suspendboxadvance" class="ref">suspend box advance</a>
+					then <a href="#about-waitfortextbox" class="ref">wait for text box</a> does NOT wait, it finishes immediately!
+				<br clear="all">
+</div>
+			
 			
 			<pre>show text box(2) # Show a text box
 wait for text box # wait until the player continues</pre>
@@ -4395,10 +4403,20 @@ resume NPCs</pre>
 <a name="about-suspendplayer"></a>
 		<h4>suspend player</h4>
 <p>
-			Blocks the player from controlling the game, so the plotscript can have exclusive control. The one exception to this is text boxes. The player can advance text boxes no matter what, unless you use <a href="#about-suspendboxadvance" class="ref">suspend box advance</a>.
+			
+				Blocks the player from controlling the game,
+				so the plotscript can have exclusive control.
+				The one exception to this is text boxes.
+				The player can advance text boxes no matter what,
+				unless you use <a href="#about-suspendboxadvance" class="ref">suspend box advance</a> (or a menu has suspended gameplay).
+			
 			
 			<pre>suspend player
-# do stuff
+# Script a small cutscene...
+walk hero (me, right, 10)
+wait for hero (me)
+wait (20)
+set hero direction (me, left)
 resume player</pre>
 			
 		</p>
@@ -4410,7 +4428,11 @@ resume player</pre>
 			Restores normal control after a <a href="#about-suspendplayer" class="ref">suspend player</a> command. This is very important. If you use <a href="#about-suspendplayer" class="ref">suspend player</a>, but forget resume player, the game will be stuck after the script ends.
 			
 			<pre>suspend player
-# do stuff
+# Script a small cutscene...
+walk hero (me, right, 10)
+wait for hero (me)
+wait (20)
+set hero direction (me, left)
 resume player</pre>
 			
 		</p>
@@ -4717,7 +4739,22 @@ resume random enemies # back to normal</pre>
 <a name="about-suspendboxadvance"></a>
 		<h4>suspend box advance</h4>
 <p>
-			Prevents the player from advancing or clearing text boxes by pressing keys. While this is active, the only way to make a text box advance is with the <a href="#about-advancetextbox" class="ref">advance text box</a> command (or <a href="#about-showtextbox" class="ref">show text box</a>). Useful for cut scenes that play out like a movie, where the player just watches the dialogue unfold. Be very careful with this command, since you do not want to leave the player stuck on a text box forever.
+			
+				Prevents the player from advancing or clearing text boxes by pressing keys.
+				While this is active, the only way to make a text box advance is with the
+				<a href="#about-advancetextbox" class="ref">advance text box</a> command
+				(or <a href="#about-showtextbox" class="ref">show text box</a> to replace the current text box).
+				Useful for cut scenes that play out like a movie,
+				where the player just watches the dialogue unfold.
+				Be very careful with this command,
+				since you do not want to leave the player stuck on a text box forever.
+				<div style="background-color:#FFE;" class="note">
+<img src="http://gilgamesh.hamsterrepublic.com/wiki/ohrrpgce-images/d/dc/Plotwarn.png" alt="[Warning]" class="icon">
+					If textbox advancing has been suspended
+					then <a href="#about-waitfortextbox" class="ref">wait for text box</a> does NOT wait, it finishes immediately!
+				<br clear="all">
+</div>
+			
 			
 			<pre>suspend box advance # stop players from mucking things up
 show text box(2) # Show a text box
