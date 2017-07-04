@@ -1165,6 +1165,10 @@ SUB script_functions(byval cmdid as integer)
   IF retvals(0) <= 4 THEN
    IF gam.mouse.clicks AND (2 ^ retvals(0)) THEN scriptret = 1 ELSE scriptret = 0
   END IF
+ CASE 646'--mouse wheel
+  scriptret = gam.mouse.wheel
+ CASE 647'--mouse wheel change
+  scriptret = gam.mouse.wheel_delta
 
 'old scriptmisc
 

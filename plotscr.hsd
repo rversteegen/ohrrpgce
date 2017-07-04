@@ -667,6 +667,8 @@ define function, begin
 643,getscreenwidth,0          # return the x resolution of the screen
 644,getscreenheight,0         # return the y resolution of the screen
 645,setscreenresolution,2,0,0 # change the x,y resolution of the screen
+646,mousewheel,0              # Position of the mouse wheel (120 per click)
+647,mousewheelchange,0        # Amount the mouse wheel moved since last tick
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 
