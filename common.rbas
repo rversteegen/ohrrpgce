@@ -575,10 +575,10 @@ SUB setfixbit(byval bitnum as integer, byval bitval as integer)
 END SUB
 
 'Backwards compatibility wrapper
+'c is the boxstyle + 1.
 'x and y default to center of the screen
 'This is equivalent to calling edgeboxstyle with ancCenter added to x/y
 SUB centerbox (x as relpos = rCenter, y as RelPos = rCenter, w as RelPos, h as RelPos, c as integer, p as integer)
- IF c < 0 OR c > 15 THEN debug "Warning: invalid box style " & c & " in centerbox"
  center_edgeboxstyle x, y, w, h, c - 1, p
 END SUB
 
@@ -592,8 +592,9 @@ SUB edgeboxstyle (byref rect as RectType, boxstyle as integer, p as integer, fuz
  edgeboxstyle rect.x, rect.y, rect.wide, rect.high, boxstyle, p, fuzzy, suppress_borders
 END SUB
 
+'boxstyle must be a real box style number, not -1, -2, or a boxborder
 SUB edgeboxstyle (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle as integer, p as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
- IF boxstyle < 0 OR boxstyle > 14 THEN
+ IF boxstyle < 0 OR boxstyle > UBOUND(boxlook) THEN
   debug "edgeboxstyle: invalid boxstyle " & boxstyle
   EXIT SUB
  END IF
@@ -611,7 +612,7 @@ SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer,
 END SUB
 
 SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer, bordercol as integer, fr as Frame Ptr, trans as RectTransTypes=transOpaque, border as integer=-1, fuzzfactor as integer=50, relcoords as bool=YES)
-'--border: -2 is none, -1 is simple line, 0+ is styled box edge
+'--border: -2 is none, -1 is simple line, 0-14 is styled box edge, and 100+x uses box border x.
 IF relcoords THEN
  w = relative_pos(w, fr->w)
  h = relative_pos(h, fr->h)
@@ -626,12 +627,16 @@ END IF
 IF border = -1 THEN
  '--Simple line border
  drawbox fr, x, y, w, h, bordercol
-ELSEIF border >= 0 AND border <= 14 THEN
+ELSEIF border >= 0 THEN
  '--Normal Border
  IF trans <> transHollow THEN drawbox fr, x, y, w, h, bordercol
  DIM as integer i, borderindex
  DIM border_gfx as GraphicPair
- borderindex = boxlook(border).border - 1
+ IF border <= UBOUND(boxlook) THEN
+  borderindex = boxlook(border).border - 1
+ ELSEIF border >= 100 THEN
+  borderindex = border - 100
+ END IF
  IF borderindex >= 0 THEN
   load_sprite_and_pal border_gfx, sprTypeBoxBorder, borderindex
  END IF
@@ -707,7 +712,6 @@ END IF
 END SUB
 
 SUB centerfuz (x as RelPos, y as RelPos, w as RelPos, h as RelPos, c as integer, p as integer)
- IF c < 0 OR c > 15 THEN debug "Warning: invalid box style " & c & " in centerbox"
  center_edgeboxstyle x, y, w, h, c - 1, p, YES
 END SUB
 

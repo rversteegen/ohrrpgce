@@ -137,11 +137,14 @@ TYPE SpriteEditState
   readjust as bool
   adjustpos as XYPair
   showcolnum as integer 'Ticks remaining to show the number of selected master palette color
+  'The following are for drawing box borders only
+  boxbordersize as XYPair  'How large to make the preview box
+  boxborderback as integer 'What colour to make the background
 
   'Fixed members
   previewpos as XYPair
   toolinfo(SPRITEEDITOR_NUM_TOOLS - 1) as ToolInfoType
-  area(25) as MouseArea
+  area(26) as MouseArea
 END TYPE
 
 TYPE TileCloneBuffer

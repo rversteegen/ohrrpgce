@@ -2565,6 +2565,16 @@ SUB spriteedit_display(ss as SpriteEditState)
  rectangle 247 + (ss.palindex * 4), 110, 5, 7, uilook(uiText), dpage
  spriteedit_draw_palette ss.palette, 246, 109, dpage
 
+ ' 'Draw box border previewer
+ ' IF ss.fileset = sprTypeBoxBorder THEN
+ '  WITH ss.area(26)
+ ' DIM col as integer = boxlook(boxstyle).bgcol
+ ' DIM bordercol as integer = boxlook(boxstyle).edgecol
+
+ '   edgebox .x, .y, .w, .h, ss.boxborder_back, ss.boxborder_back, vpages(dpage), 
+
+ ' END IF
+
  DIM select_rect as RectType
  corners_to_rect_inclusive Type(ss.x, ss.y), ss.holdpos, select_rect
 
@@ -2805,6 +2815,13 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(25).w = 8
  area(25).h = 10
  area(25).hidecursor = NO
+ 'BOX PREVIEWER
+ area(26).x = 210
+ area(26).y = 119
+ area(26).w = 87
+ area(26).h = 58
+ area(26).hidecursor = NO
+ 
 END SUB
 
 ' This is called from the sprite editor and calls into the spriteset browser
