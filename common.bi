@@ -207,6 +207,8 @@ DECLARE FUNCTION enter_space_click (state as MenuState) as bool
 DECLARE FUNCTION enter_or_space () as bool
 DECLARE FUNCTION copy_keychord () as bool
 DECLARE FUNCTION paste_keychord () as bool
+DECLARE FUNCTION escape_menu OVERLOAD () as bool
+DECLARE FUNCTION escape_menu OVERLOAD (state as MenuState) as bool
 
 DECLARE FUNCTION xreadbit (bitarray() as integer, byval bitoffset as integer, byval intoffset as integer=0) as bool
 

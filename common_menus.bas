@@ -24,7 +24,7 @@ SUB run_MenuDef(menu as MenuDef, each_tick as FnMenuLogic, dataptr as any ptr = 
   setwait 55
   setkeys YES
   usemenu state
-  IF keyval(scEsc) > 1 THEN EXIT DO
+  IF escape_menu(state) THEN EXIT DO
   IF each_tick(menu, state, dataptr) THEN EXIT DO
   copypage holdscreen, vpage
   draw_menu menu, state, vpage
@@ -74,7 +74,7 @@ FUNCTION editbitset (array() as integer, byval wof as integer, byval last as int
   setwait 55
   setkeys
   state.tog = state.tog XOR 1
-  IF keyval(scEsc) > 1 THEN EXIT DO
+  IF escape_menu(state) THEN EXIT DO
   IF keyval(scF1) > 1 THEN show_help helpkey
   usemenu state
   IF state.pt >= 0 THEN
@@ -220,7 +220,7 @@ SUB edit_mouse_options ()
   setwait 55
   setkeys YES
   IF keyval(scF1) > 1 THEN show_help "edit_mouse_options"
-  IF keyval(scEsc) > 1 THEN EXIT DO
+  IF escape_menu(st) THEN EXIT DO
 
   IF st.need_update THEN
    st.need_update = NO

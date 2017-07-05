@@ -164,7 +164,7 @@ setkeys YES
 DO
  setwait 55
  setkeys YES
- IF keyval(scEsc) > 1 THEN EXIT DO
+ IF escape_menu(br.mstate) THEN EXIT DO
  IF keyval(scF1) > 1 THEN show_help helpkey
  IF usemenu(br.mstate) THEN br.mstate.need_update = YES
  IF keyval(scSpace) > 0 AND LEN(selectst.query) > 0 THEN

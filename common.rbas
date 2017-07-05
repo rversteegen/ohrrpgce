@@ -1875,7 +1875,7 @@ SUB pop_warning(s as string, byval autoquit as integer = NO)
   END IF
   
   IF deadkeys = 0 THEN
-   IF keyval(scESC) > 1 OR enter_or_space() THEN EXIT DO
+   IF escape_menu() > 1 OR enter_or_space() THEN EXIT DO
    IF keyval(scUp) > 1 THEN dat->first_line -= 1
    IF keyval(scDown) > 1 THEN dat->first_line += 1
    dat->first_line = bound(dat->first_line, 0, large(0, dat->line_count - dat->line_limit))
@@ -2242,7 +2242,7 @@ FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_sa
   'The limit of 32767 chars is totally arbitrary and maybe not a good limit
   ChangeTextSlice text, textstring
 
-  IF keyval(scESC) > 1 THEN
+  IF escape_menu() THEN
    '--If there are any changes to the help screen, offer to save them
    IF s = dat->s THEN
     EXIT DO
@@ -2386,7 +2386,7 @@ FUNCTION multichoice(capt as string, choices() as string, defaultval as integer=
   setwait 55
   setkeys
 
-  IF keyval(scEsc) > 1 THEN
+  IF escape_menu() THEN
    result = escval
    state.active = NO
   END IF
@@ -4862,6 +4862,24 @@ FUNCTION enter_or_space () as bool
  RETURN keyval(scEnter) > 1 OR keyval(scSpace) > 1
 END FUNCTION
 
+'Want to leave a menu
+FUNCTION escape_menu (state as MenuState) as bool
+#IFNDEF IS_GAME
+ ' Right-click OFF the menu
+ IF state.hover = state.first - 1 THEN
+  IF readmouse().clicks AND mouseright THEN RETURN YES
+ END IF
+#ENDIF
+ RETURN keyval(scEsc) > 1
+END FUNCTION
+
+FUNCTION escape_menu () as bool
+#IFNDEF IS_GAME
+ IF readmouse().clicks AND mouseright THEN RETURN YES
+#ENDIF
+ RETURN keyval(scEsc) > 1
+END FUNCTION
+
 FUNCTION copy_keychord () as bool
  RETURN (keyval(scCtrl) > 0 AND keyval(scInsert) > 1) OR (keyval(scShift) > 0 AND keyval(scDelete) > 0) OR (keyval(scCtrl) > 0 AND keyval(scC) > 1)
 END FUNCTION
@@ -5345,7 +5363,7 @@ FUNCTION inputfilename (query as string, ext as string, directory as string, hel
   setwait 55
   setkeys YES
   tog = tog XOR 1
-  IF keyval(scEsc) > 1 THEN RETURN ""
+  IF escape_menu() THEN RETURN ""
   IF keyval(scF1) > 1 THEN show_help helpkey
   IF keyval(scUp) > 1 ORELSE keyval(scDown) > 1 THEN foldermode = NOT foldermode
   IF (foldermode AND enter_or_space()) OR keyval(scTAB) > 1 THEN
