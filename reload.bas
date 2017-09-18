@@ -1066,6 +1066,11 @@ sub SetRootNode(byval doc as DocPtr, byval nod as NodePtr)
 	doc->root = nod
 end sub
 
+
+'===============================================================================
+'                               Serialising to XML
+'===============================================================================
+
 'This is from xml2reload: is a node representable as a longint?
 private function NodeCompressible(byval node as nodeptr) as integer
 	if (ValLng(GetString(node)) <> 0 AND ValLng(GetString(node) & "1") <> ValLng(GetString(node))) or GetString(node) = "0" then
@@ -1258,6 +1263,22 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 		print #fh,
 	end if
 end sub
+
+
+'===============================================================================
+'                            Serialising to/from txt
+'===============================================================================
+
+'serializes a node as text to a file.
+'It pretty-prints it by adding indentation.
+'debugging:  If true, then strings are printed so that they will not be optimized when reloaded.
+'shortform:  If true, print only hash of long zstrings.
+'ind:        Indentation amount.
+sub SerializeTXT (byval nod as NodePtr, byval fh as integer, byval debugging as bool, byval shortform as bool, byval ind as integer = 0)
+
+end sub
+
+'===============================================================================
 
 Function FindChildByName(byval nod as NodePtr, nam as string) as NodePtr
 	'recursively searches for a child by name, depth-first
