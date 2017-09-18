@@ -159,7 +159,7 @@ DECLARE SUB slice_editor_load(byref ses as SliceEditState, byref edslice as Slic
 DECLARE SUB slice_editor_import_file(byref ses as SliceEditState, byref edslice as Slice Ptr, edit_separately as bool)
 DECLARE SUB slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as Slice Ptr)
 DECLARE FUNCTION slice_lookup_code_caption(byval code as integer, slicelookup() as string) as string
-DECLARE FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer) as bool
+DECLARE FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer, slicetype as integer) as bool
 DECLARE FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as string, byval start_at_code as integer, byval slicekind as SliceTypes) as integer
 DECLARE FUNCTION slice_caption (sl as Slice Ptr, slicelookup() as string, rootsl as Slice Ptr, edslice as Slice Ptr) as string
 DECLARE SUB slice_editor_copy(byref ses as SliceEditState, byval slice as Slice Ptr, byval edslice as Slice Ptr)
@@ -1022,7 +1022,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, byref state as MenuStat
    END IF
   CASE erLookupgrabber
    DIM n as integer ptr = rule.dataptr
-   state.need_update OR= lookup_code_grabber(*n, ses, rule.lower, rule.upper)
+   state.need_update OR= lookup_code_grabber(*n, ses, rule.lower, rule.upper, sl->SliceType)
  END SELECT
  IF rule.group AND slgrPICKTYPE THEN
   DIM switchtype as integer = NO
@@ -1685,15 +1685,47 @@ SUB shrink_lookup_list(slicelookup() as string)
  END IF
 END SUB
 
-' Allows typing in either a lookup code number, or naming the selected lookup code
+'Wrapper around intgrabber which wil; switch to prev/next special lookup code with left/right keys
+FUNCTION lookup_code_id_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer, slicetype as integer) as bool
+ IF lookup_code_forbidden(ses.specialcodes(), code) THEN RETURN NO  'Not allowed to edit
+ IF code < 0 OR (code = 0 AND keyval(scLeft) > 1) THEN
+  'Switch between special codes
+  DIM num_allowed_codes as integer = 0
+  DIM code_index as integer = -2
+  FOR i as integer = 0 TO UBOUND(ses.specialcodes)
+   WITH ses.specialcodes(i)
+    IF special_code_kindlimit_check(.kindlimit, slicetype) THEN
+     IF code = .code THEN code_index = i
+     num_allowed_codes += 1
+    END IF
+   END WITH
+  NEXT i
+?"code_index " & code_index & " out of " & num_allowed_codes
+  '--Don't autoclamp, because code_index may be -2
+  IF intgrabber(code_index, -1, num_allowed_codes, , , , , NO) THEN
+   IF code_index = -1 THEN
+    code = upperlimit  'wrap around to max
+   ELSEIF code_index = num_allowed_codes THEN
+    code = 0  'went past last special code, go to lookup code 0
+   ELSE
+    code = ses.specialcodes(code_index).code
+   END IF
+   RETURN YES
+  END IF
+ END IF
+ RETURN intgrabber(code, lowerlimit, upperlimit, , , , , NO)  'autoclamp=NO
+END FUNCTION
+
+' Wrapper around lookup_code_id_grabber to allow both changing the selected
+' lookup code number ('code'), or naming the selected lookup code.
 ' You can only rename lookup codes already existing, but the final entry in
 ' ses.slicelookup() should normally be blank.
 ' Returns true if the code was modified.
-FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer) as bool
+FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer, slicetype as integer) as bool
  ' To determine whether Backspace and numerals edit the name or the ID code,
  ' we use ses.editing_lookup_name
  IF (ses.editing_lookup_name = NO OR keyval(scLeft) > 0 OR keyval(scRight)) _
-    ANDALSO intgrabber(code, lowerlimit, upperlimit, , , , , NO) THEN  'autoclamp=NO
+    ANDALSO lookup_code_id_grabber(code, ses, lowerlimit, upperlimit, slicetype) THEN
   ' Another kludge: Don't wrap around to INT_MAX!
   IF code = upperlimit AND keyval(scLeft) > 0 THEN code = UBOUND(ses.slicelookup)
   ses.editing_lookup_name = NO
