@@ -22,7 +22,7 @@ TYPE FnPlankSetState as Sub(byval sl as Slice Ptr, byval state as PlankItemState
 DECLARE SUB set_plank_state_default_callback (byval sl as Slice Ptr, byval state as PlankItemState)
 
 ' Used by embed_text_codes to try to expand unknown codes
-TYPE FnEmbedCode as Sub(code as string, result as string, arg0 as any ptr, arg1 as any ptr, arg2 as any ptr)
+TYPE FnEmbedCode as Function(code as string, byref result as string, arg0 as intptr_t, arg1 as intptr_t, arg2 as intptr_t) as bool
 
 TYPE PlankState
  m as Slice Ptr                    'Container for the whole plank menu
@@ -42,8 +42,8 @@ DECLARE FUNCTION load_plank_from_file(filename as string) as Slice Ptr
 DECLARE SUB plank_menu_clear (byval sl as Slice Ptr, byval lookup as integer)
 
 'plank_menu_append is called multiple times to rebuild the plank menu
-DECLARE FUNCTION plank_menu_append OVERLOAD (byval sl as slice ptr, byval lookup as integer, byval collection_kind as integer, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0) as Slice Ptr
-DECLARE FUNCTION plank_menu_append OVERLOAD (byval sl as slice ptr, byval lookup as integer, byval collection as Slice Ptr, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0) as Slice Ptr
+DECLARE FUNCTION plank_menu_append OVERLOAD (byval sl as slice ptr, byval lookup as integer, byval collection_kind as integer, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as Slice Ptr
+DECLARE FUNCTION plank_menu_append OVERLOAD (byval sl as slice ptr, byval lookup as integer, byval collection as Slice Ptr, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as Slice Ptr
 DECLARE FUNCTION plank_menu_clone_template (byval templatesl as Slice ptr) as Slice ptr
 
 'Updates a plank's visual state to constants like plankNORMAL or plankSEL (and others)
@@ -67,7 +67,7 @@ DECLARE FUNCTION plank_select_by_string(byref ps as PlankState, query as string)
 DECLARE FUNCTION plank_menu_update_hover(byref ps as PlankState) as bool
 
 'This expands the insert codes in the slice collection,using an optional callback for special ones
-DECLARE SUB expand_slice_text_insert_codes (byval sl as Slice ptr, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0)
+DECLARE SUB expand_slice_text_insert_codes (byval sl as Slice ptr, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0)
 
 DECLARE SUB hide_slices_by_lookup_code (byval sl as Slice ptr, byval lookup as integer, byval hide as bool)
 DECLARE SUB set_sprites_by_lookup_code (byval sl as Slice ptr, byval lookup as integer, byval sprtype as SpriteType, byval picnum as integer, byval palnum as integer=-1)

@@ -368,6 +368,7 @@ Function NewSlice(byval parent as Slice ptr = 0) as Slice ptr
  ret->Attach = slSlice
  
  ret->Draw = NULL
+ ret->Update = NULL
  ret->Dispose = @DisposeNullSlice
  ret->Clone = @CloneNullSlice
  ret->Save = @SaveNullSlice
@@ -451,6 +452,10 @@ End Sub
 
 Destructor SliceContext()
 End Destructor
+
+Function SliceContext.embed_codes(code as string, byref result as string) as bool
+ return NO
+end Function
 
 'Deletes a slice's children but not itself
 'If debugme is YES, log debug info about the slices.
@@ -737,6 +742,7 @@ Sub ReplaceSliceType(byval sl as Slice ptr, byref newsl as Slice ptr)
   'Copy over slice identity
   sl->SliceType = .SliceType
   sl->Draw      = .Draw
+  sl->Update    = .Update
   sl->Dispose   = .Dispose
   sl->Clone     = .Clone
   sl->Save      = .Save
@@ -1336,6 +1342,20 @@ Sub NewUpdateTextSlice(byval sl as Slice ptr)
  if dat->Wrap = NO then sl->Width = size.w
 end sub
 
+'Embed 
+'This is called from embed_text_codes
+Function SliceContextEmbedder(code as string, byref result as string, contexts_vector as intptr_t=0, _arg1 as intptr_t=0, _arg2 as intptr_t=0) as bool
+ dim contexts as SliceContext ptr vector = cast(SliceContext ptr vector, contexts_vector)
+ for idx as integer = v_len(contexts) - 1 to 0 step -1
+  if contexts[idx]->embed_codes(code, result) then return YES
+ next
+ return NO
+end function
+
+Sub ComputeTextSliceEmbeds(byval sl as Slice ptr)', byval context_stack as SliceContext vector)
+' dat->s = embed_text_codes(dat->s_orig, @ExpandSliceContext cast(intptr_t, context_stack))
+end sub
+
 'Update the size of text slice. This only happens when you call ChangeTextSlice.
 '(Note: this must be called after WrapTextSlice() has set dat->line_count)
 Sub UpdateTextSlice(byval sl as Slice ptr)
@@ -1438,6 +1458,7 @@ Function NewTextSlice(byval parent as Slice ptr, byref dat as TextSliceData) as 
  ret->SliceType = slText
  ret->SliceData = d
  ret->Draw = @DrawTextSlice
+ ret->Update = @UpdateTextSlice
  ret->Dispose = @DisposeTextSlice
  ret->Clone = @CloneTextSlice
  ret->Save = @SaveTextSlice
@@ -3409,6 +3430,8 @@ Private Sub DrawSliceRecurse(byval s as Slice ptr, byval page as integer, childi
  if s = 0 then debug "DrawSliceRecurse null ptr": exit sub
 
  if s->Context then v_append context_stack, s->Context
+
+ if s->Update then s->Update(s)
 
  'Refresh the slice: calc the size and screen X,Y and possibly visibility (select slices)
  'or other attributes. Refreshing is skipped if the slice isn't visible.

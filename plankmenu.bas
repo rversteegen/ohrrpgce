@@ -358,7 +358,7 @@ SUB set_plank_state (byref ps as PlankState, byval sl as Slice Ptr, byval state 
  LOOP
 END SUB
 
-FUNCTION plank_menu_append (byval sl as slice ptr, byval lookup as integer, byval collection_kind as integer, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0) as Slice Ptr
+FUNCTION plank_menu_append (byval sl as slice ptr, byval lookup as integer, byval collection_kind as integer, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as Slice Ptr
  DIM collection as Slice Ptr = NewSliceOfType(slContainer)
  load_slice_collection collection, collection_kind
  IF collection = 0 THEN debug "plank_menu_append: plank collection not found " & collection_kind : RETURN 0
@@ -370,7 +370,7 @@ END FUNCTION
 
 'Add a new plank child, copied from 'collection' to the 'LookupSlice(lookup, sl)' slice
 'Other args: passed to expand_slice_text_insert_codes
-FUNCTION plank_menu_append (byval sl as slice ptr, byval lookup as integer, byval collection as Slice Ptr, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0) as Slice Ptr
+FUNCTION plank_menu_append (byval sl as slice ptr, byval lookup as integer, byval collection as Slice Ptr, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as Slice Ptr
  IF sl = 0 THEN debug "plank_menu_append: null slice ptr": RETURN 0
  DIM m as Slice ptr = LookupSlice(lookup, sl)
  IF m = 0 THEN debug "plank_menu_append: menu not found " & lookup : RETURN 0
@@ -418,7 +418,7 @@ SUB plank_menu_clear (byval sl as Slice Ptr, byval lookup as integer)
  DeleteSliceChildren m
 END SUB
 
-SUB expand_slice_text_insert_codes (byval sl as Slice ptr, byval callback as FnEmbedCode=0, byval arg0 as any ptr=0, byval arg1 as any ptr=0, byval arg2 as any ptr=0)
+SUB expand_slice_text_insert_codes (byval sl as Slice ptr, byval callback as FnEmbedCode=0, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0)
  'Starting with children of the given container slice, iterate through
  ' all children and expand any ${} codes found in any TextSlice
  ' Do not descend into child slices marked with SL_PLANK_HOLDER because planks are responsible for their own text codes
@@ -431,7 +431,7 @@ SUB expand_slice_text_insert_codes (byval sl as Slice ptr, byval callback as FnE
     dat = ch->SliceData
     IF dat->s_orig = "" THEN dat->s_orig = dat->s
 #IFDEF IS_GAME
-    ChangeTextSlice ch, embed_text_codes(dat->s_orig, -1, callback, arg0, arg1, arg2)
+    ChangeTextSlice ch, embed_text_codes(dat->s_orig, callback, arg0, arg1, arg2)
 #ENDIF
    END IF
    expand_slice_text_insert_codes ch, callback, arg0, arg1, arg2

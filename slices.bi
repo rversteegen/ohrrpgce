@@ -171,6 +171,7 @@ End Enum
 Type SliceContext Extends Object
  Declare Virtual Destructor()
  Declare Abstract Function description() as string
+ Declare Virtual Function embed_codes(code as string, byref result as string) as bool
 End Type
 
 DECLARE_VECTOR_OF_TYPE(SliceContext ptr, SliceContext_ptr)
@@ -178,6 +179,7 @@ DECLARE_VECTOR_OF_TYPE(SliceContext ptr, SliceContext_ptr)
 Extern "C"
 Type SliceFwd as Slice
 Type SliceDraw as Sub(Byval as SliceFwd ptr, byval stupidPage as integer)
+Type SliceUpdate as Sub(Byval as SliceFwd ptr)
 Type SliceDispose as Sub(Byval as SliceFwd ptr)
 Type SliceClone as Sub(Byval as SliceFwd ptr, byval as SliceFwd ptr)
 Type SliceSave as Sub(Byval as SliceFwd ptr, byval node as Reload.Nodeptr)
@@ -273,6 +275,10 @@ Type Slice
 
   'Draws the slice itself, not including its children, if visible.
   Draw as SliceDraw      'NULL for some slice types
+  'Update is called immediately before a slice is refreshed (re-positioned) by
+  'its parent and then drawn. It's used mainly to update the size of a slice
+  'if it might have changed due to internal proper
+  Update as SliceUpdate  'NULL for most slice types
   'The following delete, clone or load/save SliceData to a RELOAD node.
   'They aren't responsible for any data in this Slice UDT.
   Dispose as SliceDispose

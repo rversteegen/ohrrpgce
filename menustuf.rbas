@@ -1188,7 +1188,7 @@ DIM pv(last_slot) as SaveSlotPreview
 FOR i as integer = 0 TO last_slot
  get_save_slot_preview i, pv(i)
  IF pv(i).valid THEN
-  mapname(i) = embed_text_codes(getmapname(pv(i).cur_map), i)
+  mapname(i) = embed_text_codes(getmapname(pv(i).cur_map), CAST(FnEmbedCode, @saveslot_embed_codes), i)
   '--leader level
   lev(i) = readglobalstring(43, "Level", 10) & " " & pv(i).leader_lev
   FOR o as integer = 0 TO 3
@@ -1890,16 +1890,12 @@ FUNCTION StatByCodeName (statcode as string) as integer
  RETURN -1
 END FUNCTION
 
-SUB ExpandTextHeroSlot (code as string, result as string, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0)
+FUNCTION ExpandTextHeroSlot (code as string, result as string, byval hero_slot as intptr_t, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as bool
  
- DIM hero_slot as integer = *CAST(integer ptr, arg0)
+' DIM hero_slot as integer = *CAST(integer ptr, arg0)
  
+ IF hero_slot < 0 ORELSE hero_slot > UBOUND(gam.hero) THEN RETURN NO
  DIM hero_id as integer = gam.hero(hero_slot).id
-
- IF hero_id < 0 THEN
-  'Doesn't work on empty slots
-  EXIT SUB
- END IF
 
  WITH gam.hero(hero_slot)
 
@@ -1942,36 +1938,38 @@ SUB ExpandTextHeroSlot (code as string, result as string, byval arg0 as ANY ptr=
   END IF
 
  END WITH
-END SUB
+ 'TODO!!
+END FUNCTION
 
-SUB ExpandTextHeroSlotStat (code as string, result as string, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0)
+FUNCTION ExpandTextHeroSlotStat (code as string, byref result as string, hero_slot as intptr_t, statnum as intptr_t, _arg2 as intptr_t=0) as bool
 
- DIM hero_slot as integer = *CAST(integer ptr, arg0)
- DIM statnum as integer = *CAST(integer ptr, arg1)
+ ' DIM hero_slot as integer = *CAST(integer ptr, arg0)
+ ' DIM statnum as integer = *CAST(integer ptr, arg1)
 
+ IF hero_slot < 0 ORELSE hero_slot > UBOUND(gam.hero) THEN RETURN NO
  DIM hero_id as integer = gam.hero(hero_slot).id
 
  IF hero_id < 0 THEN
   'Doesn't work on empty slots
-  EXIT SUB
+  RETURN NO
  END IF
 
  WITH gam.hero(hero_slot)
-
   SELECT CASE UCASE(code)
    CASE "LABEL": result = statnames(statnum)
    CASE "CUR": result = STR(.stat.cur.sta(statnum))
    CASE "MAX": result = STR(.stat.max.sta(statnum))
    CASE "BASE": result = STR(.stat.base.sta(statnum))
+   CASE ELSE: RETURN NO
   END SELECT
+ END WITH
+ RETURN YES
+END FUNCTION
 
- END WITH 
-END SUB
+FUNCTION ExpandTextItemScreen (code as string, byref result as string, _cur as intptr_t, _swapcur as intptr_t, _arg2 as intptr_t=0) as bool
 
-SUB ExpandTextItemScreen (code as string, result as string, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0)
-
- DIM cur as Slice Ptr = arg0
- DIM swapcur as Slice Ptr = arg1
+ DIM cur as Slice ptr = CAST(Slice ptr, _cur)
+ DIM swapcur as Slice ptr = CAST(Slice ptr, _swapcur)
 
  DIM slot as integer = -1
  IF cur THEN slot = cur->Extra(0)
@@ -2003,37 +2001,42 @@ SUB ExpandTextItemScreen (code as string, result as string, byval arg0 as ANY pt
      END IF
     END IF
    END IF
+  CASE ELSE
+   RETURN NO
  END SELECT
-END SUB
+ RETURN YES
+END FUNCTION
 
-SUB ExpandTextItemSlot (code as string, result as string, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0)
+FUNCTION ExpandTextItemSlot (code as string, byref result as string, slot as intptr_t, byval _arg1 as intptr_t=0, byval _arg2 as intptr_t=0) as bool
 
- DIM slot as integer = *CAST(integer ptr, arg0)
- 
+ ' DIM slot as integer = *CAST(integer ptr, arg0)
+
  '.used .id .num .text
- IF inventory(slot).used THEN
+ WITH inventory(slot)
   SELECT CASE UCASE(code)
-   CASE "ITEM": result = readitemname(inventory(slot).id)
-   CASE "NUM": result = CHR(1) & lpad(STR(inventory(slot).num), " ", 2)
+   CASE "ITEM"
+    result = ""
+    IF .used THEN result = readitemname(.id)
+   CASE "NUM"
+    result = ""
+    IF .used THEN result = CHR(1) & lpad(STR(.num), " ", 2)
+   CASE ELSE
+    RETURN NO
   END SELECT
- ELSE
-  'An empty slot
-  SELECT CASE UCASE(code)
-   CASE "ITEM": result = ""
-   CASE "NUM": result = ""
-  END SELECT
- END IF
-END SUB
+ END WITH
+ RETURN YES
+END FUNCTION
 
-SUB ExpandTextVirtualKeyboard (code as string, result as string, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0)
+FUNCTION ExpandTextVirtualKeyboard (code as string, result as string, byval arg0 as intptr_t=0, byval arg1 as intptr_t=0, byval arg2 as intptr_t=0) as bool
 
  DIM st as VirtualKeyboardScreenState Ptr = CAST(VirtualKeyboardScreenState ptr, arg0)
 
  SELECT CASE UCASE(code)
   CASE "PROMPT": result = st->prompt
+  CASE ELSE: RETURN NO
  END SELECT
-
-END SUB
+ RETURN YES
+END FUNCTION
 
 '-----------------------------------------------------------------------
 
@@ -2046,7 +2049,7 @@ END TYPE
 SUB status_screen_refresh(byref st as StatusScreenState)
  plank_menu_clear st.sl, SL_STATUS_STATLIST
 
- expand_slice_text_insert_codes st.sl, @ExpandTextHeroSlot, @(st.slot)
+ expand_slice_text_insert_codes st.sl, @ExpandTextHeroSlot, st.slot
 
  DIM hero_id as integer = gam.hero(st.slot).id
  IF hero_id >= 0 THEN
@@ -2063,7 +2066,7 @@ SUB status_screen_refresh(byref st as StatusScreenState)
 
   FOR statnum as integer = 2 TO statLast
    IF NOT should_hide_hero_stat(her, statnum) THEN
-    plank_menu_append st.sl, SL_STATUS_STATLIST, SL_COLLECT_STATUSSTATPLANK, @ExpandTextHeroSlotStat, @(st.slot), @statnum
+    plank_menu_append st.sl, SL_STATUS_STATLIST, SL_COLLECT_STATUSSTATPLANK, @ExpandTextHeroSlotStat, st.slot, statnum
    END IF
   NEXT statnum
  END IF
@@ -2259,7 +2262,7 @@ SUB item_screen_refresh(byref st as ItemScreenState)
 
  DIM pl as Slice Ptr
  FOR i as integer = 0 TO last_inv_slot()
-  pl = plank_menu_append(st.ps.m, SL_ITEM_ITEMLIST, collection, @ExpandTextItemSlot, @i)
+  pl = plank_menu_append(st.ps.m, SL_ITEM_ITEMLIST, collection, @ExpandTextItemSlot, i)
   IF pl THEN
    pl->Extra(0) = i
    update_item_plank pl, st
@@ -2289,9 +2292,8 @@ SUB item_screen_refresh(byref st as ItemScreenState)
  update_item_plank st.ps.cur, st
 
  st.swapcur = 0
- expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, st.ps.cur, st.swapcur
+ expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, CAST(intptr_t, st.ps.cur), CAST(intptr_t, st.swapcur)
  update_plank_scrolling st.ps
- 
 END SUB
 
 FUNCTION is_item_plank(byval sl as Slice Ptr) as bool
@@ -2444,7 +2446,7 @@ SUB item_screen_mouse_handler(byref st as ItemScreenState)
    'Cursor just changed
    menusound gen(genCursorSFX)
    update_plank_scrolling st.ps
-   expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, st.ps.cur, st.swapcur
+   expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, CAST(intptr_t, st.ps.cur), CAST(intptr_t, st.swapcur)
    IF st.ps.cur ANDALSO st.swapcur ANDALSO st.ps.cur <> st.swapcur THEN
     'Confirming a swap, so it is okay to to activate now
     IF (readmouse.release AND mouseLeft) THEN
@@ -2513,7 +2515,7 @@ FUNCTION item_screen () as integer
    update_item_plank st.ps.cur, st
    menusound gen(genCursorSFX)
    update_plank_scrolling st.ps
-   expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, st.ps.cur, st.swapcur
+   expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, CAST(intptr_t, st.ps.cur), CAST(intptr_t, st.swapcur)
   END IF
   
   IF keyval(scF8) > 1 THEN
@@ -2650,7 +2652,7 @@ SUB spell_screen_refresh(byref st as SpellScreenState)
 '
 ' DIM pl as Slice Ptr
 ' FOR i as integer = 0 TO last_inv_slot()
-'  pl = plank_menu_append(st.ps.m, SL_ITEM_ITEMLIST, collection, @ExpandTextItemSlot, @i)
+'  pl = plank_menu_append(st.ps.m, SL_ITEM_ITEMLIST, collection, @ExpandTextItemSlot, i)
 '  IF pl THEN
 '   pl->Extra(0) = i
 '   update_item_plank pl, st
@@ -4230,7 +4232,7 @@ FUNCTION touch_virtual_keyboard (default_str as string, max_length as integer=-1
  st.prompt = prompt
 
  load_slice_collection st.sl, SL_COLLECT_VIRTUALKEYBOARDSCREEN
- expand_slice_text_insert_codes st.sl, @ExpandTextVirtualKeyboard, @st
+ expand_slice_text_insert_codes st.sl, @ExpandTextVirtualKeyboard, CAST(intptr_t, @st)
  virtual_keyboard_refresh_array st
 
  st.entry_sl = LookupSlice(SL_VIRTUAL_KEYBOARD_ENTRYTEXT, st.sl)

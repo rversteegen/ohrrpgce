@@ -58,21 +58,25 @@ REDIM timers(15) as PlotTimer
 '==========================================================================================
 
 
-SUB embedtext (text as string, byval limit as integer=0, byval saveslot as integer=-1)
-'saveslot is optional. If >= 0 then that save slot will be used for reading things like hero names
- text = embed_text_codes(text, saveslot)
+
+SUB embedtext (text as string, byval limit as integer=0)
+'saveslot is optional. If 0-31 then that save slot will be used for reading things like hero names
+ text = embed_text_codes(text)
  '--enforce limit (if set)
  IF limit > 0 THEN
   text = LEFT(text, limit)
  END IF
 END SUB
 
-FUNCTION embed_text_codes (text_in as string, byval saveslot as integer=-1, byval callback as FnEmbedCode=0, byval arg0 as ANY ptr=0, byval arg1 as ANY ptr=0, byval arg2 as ANY ptr=0) as string
-' Expand embed codes like ${H0}.
-' The optional callback can be passed to process additional codes.
-' It should set its result string if it recognised the code, and otherwise
-' leave it alone. arg0, arg1, arg2 are forwarded to it.
-'saveslot is optional. If >= 0 then that save slot will be used for reading things like hero names
+FUNCTION embed_text_codes (text_in as string, callback as FnEmbedCode=0, arg0 as intptr_t=0, arg1 as intptr_t=0, arg2 as intptr_t=0) as string
+ ' Expand embed codes like ${H0}, using callback to process codes (or a suitable default).
+ ' It should return true and set its result string if it recognised the code.
+ ' arg0, arg1, arg2 are forwarded to it.
+ #IFDEF IS_GAME
+  IF callback = NULL THEN callback = @game_embed_codes
+ #ELSE
+  IF callback = NULL THEN callback = @universal_embed_codes
+ #ENDIF
  DIM text as string = text_in
  DIM start as integer = 1
  DIM insert as string
@@ -87,30 +91,9 @@ FUNCTION embed_text_codes (text_in as string, byval saveslot as integer=-1, byva
   DIM after as string = MID(text, embedend + 1)
   '--extract the code
   DIM code as string = MID(text, embedbegin + 2, embedend - 1 - (embedbegin + 1))
-  '--set a reasonable default for the insert text if the code is not matched
-  insert = "${" & code & "}"
-  '--extract the command and arg
-  DIM act as string = LEFT(code, 1)
-  DIM arg_str as string = MID(code, 2)
-  '--convert the arg to a number
-  DIM arg as integer = str2int(arg_str)
-  '--discourage bad arg values (not perfect)
-  IF NOT (arg = 0 AND arg_str <> STRING(LEN(arg_str), "0")) THEN
-   IF arg >= 0 THEN '--only permit postive args
-    '--evaluate standard insert actions based on the currently loaded game
-    IF saveslot >= 0 THEN
-     insert = saveslot_embed_codes(saveslot, act, arg)
-    ELSE
-     insert = standard_embed_codes(act, arg)
-    END IF
-    SELECT CASE UCASE(act)
-     CASE "B": '--buttonname (platform-specific)
-      insert = get_buttonname_code(arg)
-    END SELECT
-   END IF
-  END IF
-  IF callback <> NULL THEN
-   callback(code, insert, arg0, arg1, arg2)
+  IF callback(code, insert, arg0, arg1, arg2) = NO THEN
+   'Default on failure
+   insert = "${" & code & "}"
   END IF
   '--skip past this embed
   text = before & insert & after
@@ -119,12 +102,37 @@ FUNCTION embed_text_codes (text_in as string, byval saveslot as integer=-1, byva
  RETURN text
 END FUNCTION
 
-FUNCTION standard_embed_codes(act as string, byval arg as integer) as string
- 'act --- the code text. It is normally alpha only. For example, the "H" in ${H0}
- 'arg --- the code argument. This is an integer. For example, the 0 in ${H0}
+'Text embed codes which work everywhere in Game and Custom
+FUNCTION universal_embed_codes(code as string, byref insert as string, arg0 as intptr_t=0, arg1 as intptr_t=0, arg2 as intptr_t=0) as bool
 
- '--by default the embed is unchanged
- DIM insert as string = "${" & act & arg & "}"
+ DIM act as string
+ DIM arg as integer
+ IF split_str_int(code, act, arg) = NO THEN RETURN NO
+
+ SELECT CASE UCASE(act)
+  CASE "B": '--buttonname (platform-specific)
+   insert = get_buttonname_code(arg)
+  CASE ELSE
+   RETURN NO
+ END SELECT
+ RETURN YES
+END FUNCTION
+
+'Expand text embed codes based on global game state.
+'Falls back to universal_embed_codes.
+FUNCTION game_embed_codes(code as string, byref insert as string, _arg0 as intptr_t=0, _arg1 as intptr_t=0, _arg2 as intptr_t=0) as bool
+ 'The args are ignored
+
+ IF universal_embed_codes(code, insert) THEN RETURN YES
+
+ 'Only accept codes with alpha and numeric parts. E.g. in ${H0} act is "H" and arg is 0.
+ 'For some reason (and preserved for backcompat), we return NO (showing the
+ 'original "${...}") if the arg is negative, but show "" if it's +ve but invalid.
+ DIM act as string
+ DIM arg as integer
+ IF split_str_int(code, act, arg) = NO THEN RETURN NO
+ IF arg < 0 THEN RETURN NO
+
  SELECT CASE UCASE(act)
   CASE "H": '--Hero name by ID
    '--defaults blank if not found
@@ -137,9 +145,9 @@ FUNCTION standard_embed_codes(act as string, byval arg as integer) as string
     insert = getheroname(arg)
    END IF
   CASE "P": '--Hero name by Party position
+   '--defaults blank if not found
+   insert = ""
    IF arg < 40 THEN
-    '--defaults blank if not found
-    insert = ""
     IF gam.hero(arg).id >= 0 THEN
      insert = gam.hero(arg).name
     END IF
@@ -162,21 +170,30 @@ FUNCTION standard_embed_codes(act as string, byval arg as integer) as string
    IF in_bound(arg, 0, UBOUND(plotstr)) THEN
     insert = plotstr(arg).s
    END IF
+  CASE ELSE
+   RETURN NO
  END SELECT
- RETURN insert
+ RETURN YES
 END FUNCTION
 
-FUNCTION saveslot_embed_codes(byval saveslot as integer, act as string, byval arg as integer) as string
- 'saveslot -- the save slot number that we should read values from. 0-maxSaveSlotCount-1
- 'act --- the code text. It is normally alpha only. For example, the "H" in ${H0}
- 'arg --- the code argument. This is an integer. For example, the 0 in ${H0}
+'Falls back to universal_embed_codes, not game_embed_codes.
+FUNCTION saveslot_embed_codes(code as string, byref insert as string, saveslot as intptr_t, _arg1 as intptr_t=0, _arg2 as intptr_t=0) as bool
+ 'saveslot -- the save slot number that we should read values from.  0-maxSaveSlotCount-1
 
- '--by default the embed is unchanged
- DIM insert as string = "${" & act & arg & "}"
+ IF universal_embed_codes(code, insert) THEN RETURN YES
+
+ 'Only accept codes with alpha and numeric parts. E.g. in ${H0} act is "H" and arg is 0.
+ 'For some reason (and preserved for backcompat), we return NO (showing the
+ 'original "${...}") if the arg is negative, but show "" if it's +ve but invalid.
+ DIM act as string
+ DIM arg as integer
+ IF split_str_int(code, act, arg) = NO THEN RETURN NO
+ IF arg < 0 THEN RETURN NO
 
  DIM node as NodePtr = saveslot_quick_root_node(saveslot)
- IF node = 0 THEN RETURN insert
+ IF node = 0 THEN RETURN NO
 
+ DIM ret as bool = YES
  SELECT CASE UCASE(act)
   CASE "H": '--Hero name by ID
    '--defaults blank if not found
@@ -189,9 +206,9 @@ FUNCTION saveslot_embed_codes(byval saveslot as integer, act as string, byval ar
     insert = getheroname(arg)
    END IF
   CASE "P": '--Hero name by Party position
+   '--defaults blank if not found
+   insert = ""
    IF arg < 40 THEN
-    '--defaults blank if not found
-    insert = ""
     IF saveslot_hero_id_by_slot(node, arg) >= 0 THEN
      insert = saveslot_hero_name_by_slot(node, arg)
     END IF
@@ -214,12 +231,30 @@ FUNCTION saveslot_embed_codes(byval saveslot as integer, act as string, byval ar
    IF in_bound(arg, 0, UBOUND(plotstr)) THEN
     insert = saveslot_plotstr(node, arg)
    END IF
+  CASE ELSE
+   ret = NO
  END SELECT
 
  FreeDocument(GetDocument(node))
-
- RETURN insert
+ RETURN ret
 END FUNCTION
+
+
+
+TYPE SaveSlotSliceContext EXTENDS SliceContext
+'  declare constructor(code as string) as string
+  declare virtual function embed_codes(code as string, byref result as string) as bool
+  saveslot as integer
+END TYPE
+
+' CONSTRUCTOR SaveSlotSliceContext(saveslot as integer)
+'  this.saveslot = saveslot
+' END CONSTRUCTOR
+
+FUNCTION SaveSlotSliceContext.embed_codes(code as string, byref result as string) as bool
+ RETURN saveslot_embed_codes(code, result, this.saveslot)
+END FUNCTION
+
 
 ' Implementation of "string sprintf". Reads from retval(1...).
 ' retval(1) is the format string id; retval(2...) are the arguments
@@ -2012,7 +2047,7 @@ SUB script_functions(byval cmdid as integer)
     END IF
    END IF
   END IF
- CASE 240'-- string from textbox (string, box, line, ignored)   [obsolete]
+ CASE 240'-- string from textbox (string, box, line, _ignored)   [obsolete]
   IF valid_plotstr(retvals(0)) THEN
    DIM box as TextBox
    retvals(1) = bound(retvals(1),0,gen(genMaxTextbox))
@@ -2025,9 +2060,13 @@ SUB script_functions(byval cmdid as integer)
   retvals(1) = get_optional_arg(1, 0)
   IF valid_plotstr(retvals(0)) THEN
    'Retvals(1) can be 0 for the default of using current game state, or a save slot 1-maxSaveSlotCount
-   IF retvals(1) = 0 ORELSE valid_save_slot(retvals(1)) THEN
-    embedtext plotstr(retvals(0)).s, , retvals(1) - 1
-   END IF
+   WITH plotstr(retvals(0))
+    IF retvals(1) = 0 THEN
+     .s = embed_text_codes(.s)
+    ELSEIF valid_save_slot(retvals(1)) THEN
+     .s = embed_text_codes(.s, @saveslot_embed_codes, retvals(1) - 1)
+    END IF
+   END WITH
    scriptret = retvals(0)
   END IF
  CASE 242'-- joystick button(button, joystick)
