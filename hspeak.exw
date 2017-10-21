@@ -13,6 +13,7 @@
 ---------------------------------------------------------------------------
 
 --Changelog
+--3U  2017-10-22 srcpos
 --3Td 2017-10-07 Add parent ID to scripts.bin, for --reuse-ids
 --3Tc 2017-10-02 Make -j wait for warnings too
 --3Tb 2017-09-28 Added -j option; warn on unknown options

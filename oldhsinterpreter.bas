@@ -1173,11 +1173,11 @@ IF mode > 1 AND viewmode = 0 THEN
   IF get_script_line_info(posdata, selectedscript) THEN
    wrapprint highlighted_script_line(posdata, 160, NO), 0, ol - 36, uilook(uiDescription), page
   ELSE
-   edgeprint "Script line number unknown.", 0, ol - 18, uilook(uiDescription), page
+   edgeprint "Script line number unknown.", 0, ol - 36, uilook(uiDescription), page
 
    DIM hs_header as HSHeader
    load_hsp_header tmpdir & "hs", hs_header
-   IF strcmp(STRPTR(hs_header.hspeak_version), STRPTR("3T ")) < 0 THEN
+   IF strcmp(STRPTR(hs_header.hspeak_version), STRPTR("3U ")) < 0 THEN
     'Didn't support line numbers
     edgeprint "Recompile your scripts with a", 0, ol - 27, uilook(uiDescription), page
     edgeprint "more recent version of HSpeak.", 0, ol - 18, uilook(uiDescription), page
@@ -1185,8 +1185,8 @@ IF mode > 1 AND viewmode = 0 THEN
     edgeprint "Recompile your scripts without", 0, ol - 27, uilook(uiDescription), page
     edgeprint "disabling debug info.", 0, ol - 18, uilook(uiDescription), page
    END IF
-   edgeprint "Press F7 to see fall-back", 0, ol - 9, uilook(uiDescription), page
-   edgeprint "script position description.", 0, ol, uilook(uiDescription), page
+   edgeprint "Press F7 to see the old fall-back", 0, ol - 9, uilook(uiDescription), page
+   edgeprint "script position description instead.", 0, ol, uilook(uiDescription), page
   END IF
  END IF
 END IF
@@ -1252,6 +1252,7 @@ END IF
 DIM globalno as integer
 IF mode > 1 AND viewmode = 2 THEN
  'display global variables
+ globalsscroll = bound(globalsscroll, 0, maxScriptGlobals - (displaylines * 3 - 1))
  FOR i as integer = displaylines - 1 TO 0 STEP -1
   FOR j as integer = 2 TO 0 STEP -1   'reverse order so the var name is what gets overwritten
    globalno = globalsscroll + i * 3 + j
@@ -1397,16 +1398,18 @@ IF mode > 1 AND drawloop = 0 THEN
  IF w = scPageUp THEN
   selectedscript += 1
   localsscroll = 0
+  globalsscroll -= 21
   GOTO redraw
  END IF
  IF w = scPageDown THEN
   selectedscript -= 1
   localsscroll = 0
+  globalsscroll += 21
   GOTO redraw
  END IF
  IF w = scMinus OR w = scNumpadMinus THEN
   IF viewmode = 1 THEN localsscroll = large(0, localsscroll - 3): GOTO redraw
-  IF viewmode = 2 THEN globalsscroll = large(0, globalsscroll - 21): GOTO redraw
+  IF viewmode = 2 THEN globalsscroll -= 21: GOTO redraw
   IF viewmode = 3 THEN stringsscroll = large(0, stringsscroll - 1): GOTO redraw
   IF viewmode = 4 THEN timersscroll = large(0, timersscroll - 4): GOTO redraw
  END IF
@@ -1419,7 +1422,7 @@ IF mode > 1 AND drawloop = 0 THEN
 
   'Locals only display in a few lines at the bottom
   IF viewmode = 1 THEN localsscroll = small(large(numlocals - 8, 0), localsscroll + 3): GOTO redraw
-  IF viewmode = 2 THEN globalsscroll = small(maxScriptGlobals - (displaylines * 3 - 1), globalsscroll + 21): GOTO redraw
+  IF viewmode = 2 THEN globalsscroll += 21: GOTO redraw
   IF viewmode = 3 THEN stringsscroll = small(stringsscroll + 1, (UBOUND(stringlines) - 1) - (displaylines - 1)): GOTO redraw
   'Timers have an extra 1 line header
   IF viewmode = 4 THEN timersscroll = small(timersscroll + 4, UBOUND(timers) - (displaylines - 2)): GOTO redraw
