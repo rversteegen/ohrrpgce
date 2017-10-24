@@ -26,6 +26,13 @@
 
 #include "SDL2\SDL.bi"
 
+'FB 1.05 only has headers for SDL 2.0.3
+#ifndef SDL_GetDisplayUsableBounds
+declare function SDL_GetDisplayUsableBounds(byval displayIndex as long, byval rect as SDL_Rect ptr) as long
+declare function SDL_RenderSetIntegerScale(byval renderer as SDL_Renderer ptr, byval enable as SDL_bool) as long
+declare sub SDL_SetWindowResizable(byval window as SDL_Window ptr, byval resizable as SDL_bool)
+#endif
+
 EXTERN "C"
 
 #IFDEF __FB_ANDROID__
@@ -249,12 +256,113 @@ scantrans(SDL_SCANCODE_MENU) = scContext
 scantrans(SDL_SCANCODE_APPLICATION) = scContext
 scantrans(SDL_SCANCODE_POWER) = 0
 scantrans(SDL_SCANCODE_UNDO) = 0
+
+DECLARE_VECTOR_OF_TYPE(DynamicSymbolInfo, DynamicSymbolInfo)
+DEFINE_VECTOR_OF_TYPE(DynamicSymbolInfo, DynamicSymbolInfo)
+
+DIM SHARED SDL2_funcs as DynamicSymbolInfo vector
+v_new SDL2_funcs
+
+
+SUB add_dynamic_sym(symptr as any ptr ptr, name as zstring ptr, need as bool)
+  ' DIM last as integer = UBOUND(SDL2_funcs) + 1
+  ' REDIM PRESERVE SDL2_funcs(last)
+  ' WITH SDL2_funcs(last)
+  WITH *v_expand(*symbol_info_vector)
+    .symptr = symptr
+    .name = name
+    .need = need
+  END WITH
+END SUB
+
+#DEFINE
+
+#IFDEF DYNAMIC_SDL2
+
+  symbol_info_vector = @SDL2_funcs
+  NEED_FUNC(SDL_AllocPalette)
+  NEED_FUNC(SDL_ConvertPixels)
+  NEED_FUNC(SDL_CreateRenderer)
+  NEED_FUNC(SDL_CreateTexture)
+  NEED_FUNC(SDL_CreateWindow)
+  NEED_FUNC(SDL_DestroyRenderer)
+  NEED_FUNC(SDL_DestroyTexture)
+  NEED_FUNC(SDL_DestroyWindow)
+  NEED_FUNC(SDL_FreePalette)
+  NEED_FUNC(SDL_GetClipboardText)
+  NEED_FUNC(SDL_GetDisplayBounds)
+  WANT_FUNC(SDL_GetDisplayUsableBounds)
+  NEED_FUNC(SDL_GetVersion)
+  NEED_FUNC(SDL_GetWindowFlags)
+  NEED_FUNC(SDL_Init)
+  NEED_FUNC(SDL_LockTexture)
+  NEED_FUNC(SDL_QueryTexture)
+  NEED_FUNC(SDL_RenderCopy)
+  NEED_FUNC(SDL_RenderPresent)
+  WANT_FUNC(SDL_RenderSetIntegerScale)
+  NEED_FUNC(SDL_RenderSetLogicalSize)
+  NEED_FUNC(SDL_SetClipboardText)
+  NEED_FUNC(SDL_SetHint)
+  NEED_FUNC(SDL_SetPaletteColors)
+  NEED_FUNC(SDL_SetRelativeMouseMode)
+  NEED_FUNC(SDL_SetSurfacePalette)
+  NEED_FUNC(SDL_SetWindowFullscreen)
+  NEED_FUNC(SDL_SetWindowMinimumSize)
+  WANT_FUNC(SDL_SetWindowResizable)
+  NEED_FUNC(SDL_SetWindowSize)
+  NEED_FUNC(SDL_SetWindowTitle)
+  NEED_FUNC(SDL_UnlockTexture)
+  NEED_FUNC(SDL_WarpMouseInWindow)
+
+#ELSE
+
+  'Still dynamically load the optional functions to allow using old versions
+  symbol_info_vector = @SDL2_funcs
+  WANT_FUNC(SDL_GetDisplayUsableBounds)
+  WANT_FUNC(SDL_RenderSetIntegerScale)
+  WANT_FUNC(SDL_SetWindowResizable)
+
+#ENDIF
+
 EXTERN "C"
+
+'Loa
+'FUNCTION load_dynamic_symbols(library_name as string, byref libhandle as any ptr, symbols() as DynamicSymbolInfo) as bool
+FUNCTION load_dynamic_symbols(library_name as string, byref libhandle as any ptr, symbols as DynamicSymbolInfo vector) as bool
+  IF libhandle = NULL THEN
+    libhandle = dylibload(library_name)
+  END IF
+  IF libhandle = NULL THEN
+    debug "Couldn't dynamically load " & library_name
+  END IF
+
+  FOR idx as integer = 0 TO v_len(symbols) - 1  'UBOUND(symbols)
+    WITH symbols[idx]
+      *.symptr = dylibsymbol(libhandle, *.name)
+      IF *.symptr = NULL THEN
+        IF .need THEN
+          debug "Failed to load " & library_name & " symbol " & .name
+          dylibfree libhandle
+          libhandle = NULL
+          RETURN NO
+        ELSE
+          debuginfo "Optional " & library_name & " symbol missing: " & .name
+        END IF
+else
+? "got " & *.name
+      END IF
+    END WITH
+  NEXT
+
+  RETURN YES
+END FUNCTION
 
 
 PRIVATE SUB log_error(failed_call as zstring ptr, funcname as zstring ptr)
   debugc errError, *funcname & " " & *failed_call & ": " & *SDL_GetError()
 END SUB
+
+DIM SHARED SDL2_handle as any ptr
 
 FUNCTION gfx_sdl2_init(byval terminate_signal_handler as sub cdecl (), byval windowicon as zstring ptr, byval info_buffer as zstring ptr, byval info_buffer_size as integer) as integer
 /' Trying to load the resource as a SDL_Surface, Unfinished - the winapi has lost me
@@ -273,6 +381,8 @@ FUNCTION gfx_sdl2_init(byval terminate_signal_handler as sub cdecl (), byval win
   'putenv("SDL_DISABLE_LOCK_KEYS=1") 'SDL 1.2.14
   'putenv("SDL_NO_LOCK_KEYS=1")      'SDL SVN between 1.2.13 and 1.2.14
   
+
+  IF load_dynamic_symbols("SDL2", SDL2_handle, SDL2_funcs) = NO THEN RETURN 0
 
 #ifdef IS_CUSTOM
   'By default SDL prevents screensaver (new in SDL 1.2.10)
@@ -676,7 +786,7 @@ FUNCTION gfx_sdl2_set_resizable(byval enable as bool, min_width as integer, min_
   'Note: Can't change resizability of a fullscreen window
   'Argh, SDL_SetWindowResizable was only added in SDL 2.0.5 (Oct 2016)
   #IFDEF SDL_SetWindowResizable
-    CheckOK(SDL_SetWindowResizable(mainwindow, resizable), RETURN NO)
+    SDL_SetWindowResizable(mainwindow, resizable)
   #ELSE
     recreate_window()
   #ENDIF
@@ -1230,8 +1340,9 @@ SUB io_sdl2_setmouse(byval x as integer, byval y as integer)
     privatemy = y * zoom
   ELSE
     IF SDL_GetWindowFlags(mainwindow) AND SDL_WINDOW_MOUSE_FOCUS THEN
-      SDL_WarpMouseInWindow mainwindow, x * zoom, y * zoom
-      SDL_PumpEvents  'Needed for SDL_WarpMouse to work?
+      SDL_WarpMouseInWindow(mainwindow, x * zoom, y * zoom)
+      SDL_PumpEvents()  'Needed for SDL_WarpMouse to work?
+/'
 #IFDEF __FB_DARWIN__
       ' SDL Mac bug (SDL 1.2.14, OS 10.8.5): if the cursor is off the window
       ' when SDL_WarpMouse is called then the mouse gets moved onto the window,
@@ -1241,6 +1352,7 @@ SUB io_sdl2_setmouse(byval x as integer, byval y as integer)
       SDL_ShowCursor(1)
       update_mouse_visibility()
 #ENDIF
+'/
     END IF
   END IF
 END SUB
@@ -1253,12 +1365,12 @@ PRIVATE SUB internal_set_mouserect(byval xmin as integer, byval xmax as integer,
     'enter clipping mode
     mouseclipped = YES
     SDL_GetMouseState(@privatemx, @privatemy)
-    SDL_SetRelativeMouseMode YES
+    SDL_SetRelativeMouseMode(YES)
   ELSEIF mouseclipped = YES AND (xmin = -1) THEN
     'exit clipping mode
     mouseclipped = NO
-    SDL_SetRelativeMouseMode NO
-    SDL_WarpMouseInWindow mainwindow, privatemx, privatemy
+    SDL_SetRelativeMouseMode(NO)
+    SDL_WarpMouseInWindow(mainwindow, privatemx, privatemy)
   END IF
   mxmin = xmin * zoom
   mxmax = xmax * zoom + zoom - 1

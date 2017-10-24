@@ -46,6 +46,7 @@ destdir = ARGUMENTS.get ('destdir', '')
 prefix =  ARGUMENTS.get ('prefix', '/usr')
 DATAFILES = ''
 dry_run = int(ARGUMENTS.get ('dry_run', '0'))  # Only used by uninstall
+statically_link_libraries = False
 
 base_libraries = []  # libraries shared by all utilities (except bam2mid)
 
@@ -376,6 +377,7 @@ if mac:
         CXXLINKFLAGS += ['-F', FRAMEWORKS_PATH]
     # This is also the version used by the current FB 1.06 mac branch
     macosx_version_min = '10.4'
+    # Note: SDL 2.0.6 only supports OSX 10.6+. 2.0.3 supports OSX 10.5+.
     if macsdk:
         if macsdk == '10.4':
             # 10.4 has a different naming scheme
@@ -664,11 +666,14 @@ common_libpaths = []
 gfx_map = {'fb': {'shared_modules': 'gfx_fb.bas', 'common_libraries': libfbgfx},
            'alleg' : {'shared_modules': 'gfx_alleg.bas', 'common_libraries': 'alleg'},
            'sdl' : {'shared_modules': 'gfx_sdl.bas', 'common_libraries': 'SDL'},
-           'sdl2' : {'shared_modules': 'gfx_sdl2.bas', 'common_libraries': 'SDL2'},
+           'sdl2' : {'shared_modules': 'gfx_sdl2.bas'},
            'console' : {'shared_modules': 'gfx_console.bas', 'common_modules': 'curses_wrap.c'},
            'directx' : {}, # nothing needed
            'sdlpp': {}     # nothing needed
            }
+
+if statically_link_libraries:
+    gfx_map['sdl2']['common_libraries': 'SDL2']
 
 music_map = {'native':
                  {'shared_modules': 'music_native.bas music_audiere.bas',
