@@ -4388,13 +4388,15 @@ type PrintStrState
 	as long fgcolor          'Used when resetting localpal. May be -1 for none
 	as long bgcolor          'Only used if not_transparent
 	as bool not_transparent  'Force non-transparency of layer 1
+        as AlignType align       'To which edge to align, or to center
+	                         '(UNFINISHED: just a quick kludge, breaks find_point_in_text)
 
 	'Internal members
-	as Font ptr initial_font    'Used when resetting thefont
-	as long leftmargin
+	as Font ptr initial_font 'Used when resetting thefont
+	as long leftmargin       'Margins are relative to startx and startx+wide
 	as long rightmargin
-	as long x
-	as long y
+	as long x                'Absolute position
+	as long y                'Absolute position
 	as long startx
 	as long charnum
 
