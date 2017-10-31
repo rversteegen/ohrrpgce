@@ -430,6 +430,7 @@ SUB slice_editor (byref edslice as Slice Ptr, byval group as integer = SL_COLLEC
 END SUB
 
 ' The main function of the slice editor is not called directly, call a slice_editor() overload instead.
+
 SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
  init_slice_editor_for_collection_group(ses, ses.collection_group_number)
 
@@ -462,6 +463,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
  DIM cursor_seek as Slice Ptr = 0
 
  DIM jump_to_collection as integer
+
+ template_slices_shown = YES
 
  '--Ensure all the slices are updated before the loop starts
  RefreshSliceTreeScreenPos ses.draw_root
@@ -501,12 +504,16 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
   IF keyval(scF7) > 1 THEN
    ses.show_ants = NOT ses.show_ants
   END IF
+  IF keyval(scF8) > 1 THEN
+   template_slices_shown XOR= YES
+   show_overlay_message "Template slices " & IIF(template_slices_shown, "shown", "hidden"), 2
+  END IF
 
   IF state.need_update = NO ANDALSO ses.curslice <> NULL THEN
 
    IF keyval(scCtrl) = 0 AND keyval(scV) > 1 THEN
     'Toggle visibility (does nothing on Select slice children)
-    ses.curslice->Visible XOR= YES
+    ses.curslice->_Visible XOR= YES
    END IF
    IF keyval(scH) > 1 THEN
     'Toggle editor visibility of children
@@ -740,9 +747,11 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
     IF sl THEN
      IF sl->Visible = NO THEN
       col = uilook(uiSelectedDisabled + IIF(state.pt = i, global_tog, 0))
-     ELSEIF sl->EditorColor ANDALSO state.pt <> i THEN
+     ELSEIF sl->EditorColor > -1 ANDALSO state.pt <> i THEN
       'Don't override normal highlight
       col = sl->EditorColor
+     ELSEIF sl->Template THEN
+      col = uilook(uiHighlight2)
      END IF
      IF col > -1 THEN
       plainmenu(i) = fgcol_text(plainmenu(i), col)
@@ -750,6 +759,7 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
     END IF
    NEXT i
 
+   textcolor uilook(uiMenuItem), 0
    standardmenu plainmenu(), state, 8, 0, dpage, menuopts
    draw_fullscreen_scrollbar state, 0, dpage, alignLeft
    edgeprint "+ to add a slice. SHIFT+arrows to sort", 8, pBottom, uilook(uiText), dpage
@@ -762,6 +772,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
 
  '--free the clipboard if there is something in it
  IF ses.clipboard THEN DeleteSlice @ses.clipboard
+
+ template_slices_shown = NO
 
  pop_gfxio_state
 END SUB
@@ -789,7 +801,7 @@ END SUB
 FUNCTION slice_editor_mouse_over (edslice as Slice ptr, slicemenu() as SliceEditMenuItem, state as MenuState) as Slice ptr
  FOR idx as integer = 0 TO UBOUND(slicemenu)
   IF slicemenu(idx).handle THEN
-   slicemenu(idx).handle->EditorColor = uilook(uiMenuItem)
+   slicemenu(idx).handle->EditorColor = -1  'default, ie uilook(uiMenuItem)
   END IF
  NEXT
 
@@ -990,6 +1002,7 @@ SUB slice_editor_copy(byref ses as SliceEditState, byval tocopy as Slice Ptr, by
 END SUB
 
 'Insert pasted slices before 'putbefore'
+'Note: the clipboard can contain multiple slices, although slice_editor_copy only put one in the clipboard.
 SUB slice_editor_paste(byref ses as SliceEditState, byval putbefore as Slice Ptr, byval edslice as Slice Ptr)
  IF ses.clipboard THEN
   DIM child as Slice Ptr
@@ -1674,8 +1687,16 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule_tog rules(), "layout_skip_hidden", @dat->skip_hidden
 
   END SELECT
-  str_array_append menu(), "Visible: " & yesorno(.Visible)
-  sliceed_rule_tog rules(), "vis", @.Visible
+  str_array_append menu(), "Visible: " & yesorno(._Visible)
+  sliceed_rule_tog rules(), "vis", @._Visible
+  IF ses.privileged THEN
+   str_array_append menu(), "Template: " & yesorno(.Template)
+   sliceed_rule_tog rules(), "template", @.Template
+  ELSEIF .Template THEN
+   'Temporarily disabled
+   str_array_append menu(), "Template: " & yesorno(.Template)
+   sliceed_rule_none rules(), "template"
+  END IF
   str_array_append menu(), "Clip Children: " & yesorno(.Clip)
   sliceed_rule_tog rules(), "clip", @.Clip
 
@@ -1756,6 +1777,9 @@ FUNCTION slice_caption (sl as Slice Ptr, slicelookup() as string, rootsl as Slic
   s &= (.ScreenX - rootsl->ScreenX) & "," & (.ScreenY - rootsl->ScreenY) & "(" & .Width & "x" & .Height & ")"
   IF sl = edslice AND .Lookup <> SL_ROOT THEN
    s &= " [root]"
+  END IF
+  IF sl->Template THEN
+   s &= " TEMPLATE"
   END IF
   s &= "${K" & uilook(uiText) & "} "
   IF sl->Context THEN s &= sl->Context->description()

@@ -53,9 +53,10 @@ END EXTERN
 ReDim Shared SliceDebug(50) as Slice Ptr
 
 'Number of non-trivial drawn slices (Container, Special, Root and invisible excluded)
-DIM NumDrawnSlices as integer
+Dim NumDrawnSlices as integer
 
-'add other slice tables here
+'Whether template slices should be reveal - used in the slice editor
+Dim template_slices_shown as bool
 
 'ScreenSlice is used by other slices with ->Attach = slScreen
 DIM SHARED ScreenSlice as Slice Ptr
@@ -83,6 +84,14 @@ EXTERN "C"
 
 '==General slice code==========================================================
 
+Property Slice.Visible() as bool
+ return _Visible andalso (Template = NO orelse template_slices_shown)
+End Property
+
+Property Slice.Visible(newval as bool)
+ _Visible = newval
+End Property
+
 'Stub functions.
 'These Null functions are used by Container, Root, and Special slices.
 Sub DisposeNullSlice(byval s as Slice ptr) : end sub
@@ -97,8 +106,10 @@ Sub NullChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex a
 'which saves computing it if it's not needed. (Not used by DefaultChildRefresh)
 Sub DefaultChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
  if ch = 0 then debug "DefaultChildRefresh null ptr": exit sub
- if visibleonly and (ch->Visible = NO) then exit sub
  with *ch
+  if visibleonly then
+   if .Visible = NO then exit sub
+  end if
   .ScreenX = .X + SliceXAlign(ch, par) - SliceXAnchor(ch)
   .ScreenY = .Y + SliceYAlign(ch, par) - SliceYAnchor(ch)
   if .Fill then
@@ -363,7 +374,7 @@ Function NewSlice(byval parent as Slice ptr = 0) as Slice ptr
  setSliceParent(ret, parent)
  
  ret->SliceType = slSpecial
- ret->Visible = YES
+ ret->_Visible = YES
  ret->Attached = 0
  ret->Attach = slSlice
  
@@ -2088,7 +2099,7 @@ End Function
 'Computes ScreenX/Y, and also sets the width/height if filling
 Sub GridChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
  if ch = 0 then debug "GridChildRefresh null ptr": exit sub
- if visibleonly and (ch->Visible = NO) then exit sub
+ if visibleonly andalso ch->Visible = NO then exit sub
 
  '--get grid data
  dim dat as GridSliceData ptr
@@ -3590,6 +3601,12 @@ Function SliceContains(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr) as bool
  return NO
 end function
 
+'Whether this slice can be found by a slice collision command
+Private Function SliceCollideable(sl as Slice ptr, visibleonly as bool) as bool
+ if sl->Template andalso template_slices_shown = NO then return NO
+ return sl->_Visible orelse visibleonly = NO
+end function
+
 Function FindSliceCollision(parent as Slice Ptr, sl as Slice Ptr, byref num as integer, descend as bool, visibleonly as bool = NO) as Slice Ptr
  'Find a child or descendant of parent which is not Special and is not sl which overlaps with sl.
  'descend:     Whether to recurse to decendents of parent.
@@ -3612,9 +3629,9 @@ Function FindSliceCollision(parent as Slice Ptr, sl as Slice Ptr, byref num as i
     'only update the screen positions, not do complex positioning recalc.
     parent->ChildRefresh(parent, s, childindex, NO)  'visibleonly=NO
 
-    dim recurse as bool = descend
+    if SliceCollideable(s, visibleonly) then
+     dim recurse as bool = descend
 
-    if .Visible or (visibleonly = NO) then
      if SliceCollide(s, sl) then
       if .SliceType <> slSpecial then
        if num = 0 then return s
@@ -3659,7 +3676,7 @@ Function FindSliceAtPoint(parent as Slice Ptr, point as XYPair, byref num as int
    'only update the screen positions, not do complex positioning recalc.
    parent->ChildRefresh(parent, s, childindex, NO)  'visibleonly=NO
 
-   if .Visible or (visibleonly = NO) then
+   if SliceCollideable(s, visibleonly) then
     dim recurse as bool = descend
 
     if SliceCollidePoint(s, point) then
@@ -3699,6 +3716,7 @@ Function SliceIsInvisible(byval sl as Slice Ptr) as bool
  return NO
 End Function
 
+'FIXME: this is incorrect: clipping is done from the padded slice bounds.
 Function SliceIsInvisibleOrClipped(byval sl as Slice Ptr) as bool
  if SliceIsInvisible(sl) then return YES
  'Check for any parents that are clipping this slice
@@ -3805,7 +3823,8 @@ Function CloneSliceTree(byval sl as Slice ptr, recurse as bool = YES, copy_speci
   '.ScreenPos not copied
   .Width = sl->Width
   .Height = sl->Height
-  .Visible = sl->Visible
+  ._Visible = sl->_Visible
+  .Template = sl->Template
   .Paused = sl->Paused
   '.EditorColor not copied
   .EditorHideChildren = sl->EditorHideChildren
@@ -3851,6 +3870,14 @@ Function CloneSliceTree(byval sl as Slice ptr, recurse as bool = YES, copy_speci
  return clone
 end function
 
+function instantiate_template (byval templatesl as Slice ptr) as Slice ptr
+ dim sl as Slice ptr
+ sl = CloneSliceTree(templatesl)
+ InsertSliceAfter templatesl, sl
+ return sl
+end function
+
+
 '==Slice saving and loading====================================================
 
 '--saving----------------------------------------------------------------------
@@ -3893,13 +3920,14 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles 
  if Reload.NumChildren(node) <> 0 then debug "SliceSaveToNode non-empty node has " & Reload.NumChildren(node) & " children"
  '--Save standard slice properties
  'NOTE: if something has a non-zero default load value, then you must use SavePropAlways
+ SaveProp node, "template", sl->template
  SaveProp node, "lookup", sl->lookup
  SaveProp node, "x", sl->x
  SaveProp node, "y", sl->Y
  'Have to save size even if set to fill
  SavePropAlways node, "w", sl->Width
  SavePropAlways node, "h", sl->Height
- SavePropAlways node, "vis", sl->Visible
+ SavePropAlways node, "vis", sl->_Visible
  SaveProp node, "editorhidechildren", sl->EditorHideChildren
  SaveProp node, "paused", sl->Paused
  SaveProp node, "clip", sl->Clip
@@ -4007,12 +4035,13 @@ Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handle
  if sl->NumChildren > 0 then debug "SliceLoadFromNode slice already has " & sl->numChildren & " children"
  '--Load standard slice properties
  'NOTE: if something has a non-zero default value, then you must use SavePropAlways
- sl->lookup = LoadProp(node, "lookup")
+ sl->Template = LoadPropBool(node, "template")
+ sl->Lookup = LoadProp(node, "lookup")
  sl->x = LoadProp(node, "x")
  sl->y = LoadProp(node, "y")
  sl->Width = LoadProp(node, "w")
  sl->Height = LoadProp(node, "h")
- sl->Visible = LoadPropBool(node, "vis")
+ sl->_Visible = LoadPropBool(node, "vis")
  sl->EditorHideChildren = LoadPropBool(node, "editorhidechildren")
  sl->Paused = LoadPropBool(node, "paused")
  sl->Clip = LoadPropBool(node, "clip")
@@ -4159,7 +4188,8 @@ SUB SliceDebugDumpTree(sl as Slice Ptr, byval indent as integer = 0)
  end if
 
  s = s & " lookup:" & SliceLookupCodename(sl) & " handle:" & sl->TableSlot & " pos:" & sl->X & "," & sl->Y & " size:" & sl->Width & "x" & sl->Height
- if sl->Visible = NO then s &= " visible:false"
+ if sl->Template then s &= " template"
+ if sl->_Visible = NO then s &= " visible:false"
  for idx as integer = 0 to 2
   if sl->Extra(idx) then s &= " extra" & idx & ":" & sl->Extra(idx)
  next

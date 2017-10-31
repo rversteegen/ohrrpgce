@@ -231,10 +231,16 @@ Type Slice
     Size as XYPair
   End Union
 
-  Visible as bool
+  _Visible as bool
+  'A slice is hidden if either _Visible=NO or it's a template
+  declare property Visible() as bool
+  'This setter just modifies _Visible
+  declare property Visible(newval as bool)
+
+  Template as bool 'Is a template slice, meaning it's normally completely hidden
   Paused as bool  'Whether to not apply target and velocity movement to this slice tree
   Clip as bool
-  
+
   'moving at a constant pixels-per-tick speed (direct setting should cancel targ)
   Velocity as XYPair
   'limit the number of cycles to apply velocity before auto-clearing it (-1 means forever, 0 clears instantly)
@@ -249,8 +255,8 @@ Type Slice
   Context as SliceContext ptr  'NULL if none
   TableSlot as integer 'which slot in plotslices() holds a reference to this slice, or 0 for none
   Lookup as integer
-
-  EditorColor as integer 'Not saved, used only by slice editor
+  
+  EditorColor as integer 'Not saved, used only by slice editor. -1 if not overridden
   EditorHideChildren as bool 'Saved, but only matters for the editor
 
   AutoSort as AutoSortModes
@@ -699,6 +705,7 @@ DECLARE Sub CalcPanelArea (byref ppos as XYPair, byref psize as XYPair, byval pa
 
 
 EXTERN NumDrawnSlices as integer
+EXTERN template_slices_shown as bool
 
 End Extern
 
