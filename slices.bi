@@ -166,11 +166,17 @@ Enum CoverModes
  coverFull = 3
 End Enum
 
+Type SliceAttribute
+ name as string
+ value as integer
+End Type
+
 ' Stores information about what this slice is used for, if that isn't explained
 ' by the lookup code.
 Type SliceContext Extends Object
  Declare Virtual Destructor()
- Declare Abstract Function description() as string
+ Declare Function description() as string
+ attributes as SliceAttribute vector
 End Type
 
 DECLARE_VECTOR_OF_TYPE(SliceContext ptr, SliceContext_ptr)

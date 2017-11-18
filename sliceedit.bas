@@ -1489,8 +1489,11 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    sliceed_rule_none rules(), "scripthandle"
   #ENDIF
   IF .Context THEN
-   str_array_append menu(), "ID: " & .Context->description()
-   sliceed_rule_none rules(), "metadata"
+   DIM description as string = .Context->description()
+   IF LEN(description) THEN
+    str_array_append menu(), "ID: " & .Context->description()
+    sliceed_rule_none rules(), "metadata"
+   END IF
   END IF
   IF ses.privileged THEN
    str_array_append menu(), "Protected: " & yesorno(.Protect)
@@ -1758,7 +1761,7 @@ FUNCTION slice_caption (sl as Slice Ptr, slicelookup() as string, rootsl as Slic
    s &= " [root]"
   END IF
   s &= "${K" & uilook(uiText) & "} "
-  IF sl->Context THEN s &= sl->Context->description()
+  IF sl->Context THEN s &= sl->Context->description()   'may be zero length
   'Show the lookup code name instead of the ID, provided it doesn't have a blank name
   IF .Lookup > 0 ANDALSO .Lookup <= UBOUND(slicelookup) ANDALSO LEN(TRIM(slicelookup(.Lookup))) THEN
    s &= slicelookup(.Lookup)

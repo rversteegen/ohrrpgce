@@ -3388,6 +3388,10 @@ end sub
 
 '=============================================================================
 
+'Default
+Function SliceContext.description() as string
+ return ""
+end function
 
 'The context_stack global is built up during a DrawSlice call.
 'Use this function to compute the stack if you need it outside of DrawSlice.
@@ -3402,6 +3406,65 @@ Function CalcContextStack(byval sl as Slice ptr) as SliceContext ptr vector
  v_reverse ret
  return ret
 end function
+
+Private Function FindAttribute overload (context as SliceContext, attribute as string) as SliceAttribute ptr
+ dim vec as SliceAttribute vector = context->attributes
+ if vec = NULL then return NULL
+ 'Can't use v_find
+ for idx as integer = 0 to v_len(vec) - 1
+  if vec[idx] = attribute then return @vec[idx]
+ next
+ return NULL
+end function
+
+'Search the whole stack for a slice attribute
+Private Function FindAttribute overload (context_stack as SliceContext vector, attribute as string) as SliceAttribute ptr
+ for idx as integer = v_len(context_stack) - 1 to 0 step -1
+  dim attr as SliceAttribute ptr
+  attr = FindAttribute(context_stack[idx], attribute)
+  if attr then return attr
+ next
+ return NULL
+end function
+
+'Returns true and sets value if this context stack (belonging to a slice) has
+'the attribute set.
+'Attributes set on descendent slices (higher in the stack) override their
+'ancestors
+Function GetSliceAttribute(context_stack as SliceContext vector, attribute as string, byref value as integer) as bool
+ dim attr as SliceAttribute ptr
+ attr = FindAttribute(context_stack, attribute)
+ if attr then
+  value = attr->value
+  return YES
+ end if
+ return NO
+end function
+
+'context_stack is optional. If it's not NULL, then it's updated too.
+Sub SetSliceAttribute(sl as Slice, byref context_stack as SliceContext vector = NULL, attributename as string, value as integer)
+ if sl->Context = NULL then
+  'We need to add a context, and push onto context_stack
+  sl->Context = new SliceContext
+  if context_stack then v_append context_stack, sl->Context
+ end if
+
+ dim attribute as SliceAttribute ptr
+ with *sl->Context
+  if .attributes = NULL then
+   v_new .attributes
+  end if
+
+  attribute = FindAttribute(sl->Context, attributename)
+  if attribute = NULL then
+   'add it, otherwise replace existing
+   attribute = v_expand(.attributes)
+  end if
+ end with
+
+ attribute->name = attributename
+ attribute->value = value
+end sub
 
 'The central slice drawing function, called regardless of what slice-specific methods have been set.
 'childindex is index of s among its siblings. Pass childindex -1 if not known,
