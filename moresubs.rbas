@@ -1460,10 +1460,10 @@ FOR i as integer = 0 TO UBOUND(plotstr)
  WITH plotstr(i)
   .s = ""
   .col = -1  'default to uilook(uiText)
-  .BGCol = 0
-  .X = 0
-  .Y = 0
-  .Bits = 0
+  .bgcol = 0
+  .x = 0
+  .y = 0
+  .bits = 0
  END WITH
 NEXT i
 

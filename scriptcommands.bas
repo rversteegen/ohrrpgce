@@ -1939,8 +1939,13 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 223'--string color
   IF valid_plotstr(retvals(0)) THEN
-   plotstr(retvals(0)).Col = bound(retvals(1), -1, 255)  'Allow -1 for default
-   plotstr(retvals(0)).BGCol = bound(retvals(2), 0, 255)
+   'Note that -1 has a special meaning
+   IF bound_arg(retvals(1), minColorCode, 255, "color code") THEN
+    plotstr(retvals(0)).col = retvals(1)
+   END IF
+   IF bound_arg(retvals(2), minColorCode, 255, "background color code") THEN
+    plotstr(retvals(0)).bgcol = retvals(2)
+   END IF
   END IF
  CASE 224'--string X
   IF valid_plotstr(retvals(0)) THEN
@@ -2116,18 +2121,16 @@ SUB script_functions(byval cmdid as integer)
    scriptret = timers(retvals(0)).count
   END IF
  CASE 263'--get color
-  IF retvals(0) >= 0 AND retvals(0) < 256 THEN
-   scriptret = master(retvals(0)).col
-  END IF
+  scriptret = master(ColorIndex(retvals(0), NO)).col  'autotoggle = NO
  CASE 264'--set color
-  IF retvals(0) >= 0 AND retvals(0) < 256 THEN
+  IF retvals(0) >= minColorCode AND retvals(0) < 256 THEN
    retvals(1) = retvals(1) OR &HFF000000 'just in case, set the alpha
    master(retvals(0)).col = retvals(1)
   END IF
  CASE 265'--rgb
   scriptret = RGB(bound(retvals(0),0,255), bound(retvals(1),0,255), bound(retvals(2),0,255))
  CASE 266'--extract color
-  dim c as rgbcolor
+  DIM c as RGBColor
   c.col = retvals(0)
   SELECT CASE retvals(1)
    CASE 0
@@ -2515,7 +2518,7 @@ SUB script_functions(byval cmdid as integer)
    scriptret = dat->fgcol
   END IF
  CASE 377 '--set rect fgcol
-  IF bound_arg(retvals(1), 0, 255, "fgcol") THEN
+  IF bound_arg(retvals(1), minColorCode, 255, "fgcol") THEN
    change_rect_plotslice retvals(0), , ,retvals(1)
   END IF
  CASE 378 '--get rect bgcol
@@ -2525,7 +2528,7 @@ SUB script_functions(byval cmdid as integer)
    scriptret = dat->bgcol
   END IF
  CASE 379 '--set rect bgcol
-  IF bound_arg(retvals(1), 0, 255, "bgcol") THEN
+  IF bound_arg(retvals(1), minColorCode, 255, "bgcol") THEN
    change_rect_plotslice retvals(0), ,retvals(1)
   END IF
  CASE 380 '--get rect border
@@ -2764,7 +2767,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 424 '--set text color
   IF valid_plottextslice(retvals(0)) THEN
-   IF bound_arg(retvals(1), 0, 255, "color") THEN
+   IF bound_arg(retvals(1), minColorCode, 255, "color") THEN
     ChangeTextSlice plotslices(retvals(0)), , retvals(1)
    END IF
   END IF
@@ -2791,7 +2794,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 429 '--set text bg
   IF valid_plottextslice(retvals(0)) THEN
-   IF bound_arg(retvals(1), 0, 255, "color") THEN
+   IF bound_arg(retvals(1), minColorCode, 255, "color") THEN
     ChangeTextSlice plotslices(retvals(0)), , , , , retvals(1)
    END IF
   END IF
@@ -3264,10 +3267,10 @@ SUB script_functions(byval cmdid as integer)
   sl = NewSliceOfType(slEllipse, SliceTable.scriptsprite)
   sl->Width = retvals(0)
   sl->Height = retvals(1)
-  IF retvals(2) <> -1 ANDALSO bound_arg(retvals(2), 0, 255, "bordercol") THEN
+  IF retvals(2) <> -1 ANDALSO bound_arg(retvals(2), minColorCode, 255, "bordercol") THEN
    ChangeEllipseSlice sl, retvals(2)
   END IF
-  IF retvals(3) <> -1 ANDALSO bound_arg(retvals(3), 0, 255, "fillcol") THEN
+  IF retvals(3) <> -1 ANDALSO bound_arg(retvals(3), minColorCode, 255, "fillcol") THEN
    ChangeEllipseSlice sl, , retvals(3)
   END IF
   scriptret = create_plotslice_handle(sl)
@@ -3278,13 +3281,13 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 512 '--set ellipse border col
   IF valid_plotellipse(retvals(0)) THEN
-   IF bound_arg(retvals(1), 0, 255, "bordercol") THEN
+   IF bound_arg(retvals(1), minColorCode, 255, "bordercol") THEN
     ChangeEllipseSlice plotslices(retvals(0)), retvals(1)
    END IF
   END IF
  CASE 513 '--set ellipse fill col
   IF valid_plotellipse(retvals(0)) THEN
-   IF bound_arg(retvals(1), 0, 255, "fillcol") THEN
+   IF bound_arg(retvals(1), minColorCode, 255, "fillcol") THEN
     ChangeEllipseSlice plotslices(retvals(0)), , retvals(1)
    END IF
   END IF

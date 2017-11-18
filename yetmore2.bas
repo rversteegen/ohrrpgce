@@ -313,11 +313,12 @@ SUB showplotstrings
   WITH plotstr(i)
    IF .bits AND 1 THEN
     '-- only display visible strings
-    DIM col as integer = .col
-    IF col = -1 THEN col = uilook(uiText)
+    'For back-compatibility, -1 is NOT uiBackground
+    DIM col as integer
+    col = IIF(.col = -1, uilook(uiText), ColorIndex(.col))
     IF .bits AND 2 THEN
      '-- flat text
-     textcolor col, .bgcol
+     textcolor col, ColorIndex(.bgcol)
      printstr .s, .x, .y, dpage
     ELSE
      '-- with outline

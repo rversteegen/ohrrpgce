@@ -2505,9 +2505,9 @@ FUNCTION LowColorCode () as integer
  RETURN uiColorLast * -1 - 1
 END FUNCTION
 
-FUNCTION ColorIndex(byval n as integer) as integer
+FUNCTION ColorIndex(n as integer, autotoggle as bool = YES) as integer
  if n >= 0 andalso n <= 255 then return n
- if n <= -1 andalso n >= (uiColorLast*-1 - 1) then
+ if n <= -1 andalso n >= minColorCode then
   dim uiC as integer = (n * -1) - 1
   select case uiC
    case uiSelectedItem2, uiSelectedDisabled2, uiSelectedSpecial2, _
@@ -2515,7 +2515,7 @@ FUNCTION ColorIndex(byval n as integer) as integer
         uiItemScreenSelectedSpecial2, uiItemScreenHighlight2, _
         uiItemScreenSwapHighlight2:
     'Some colors auto-animate
-    if get_tickcount() mod 2 = 0 then uiC = uiC - 1
+    if autotoggle andalso get_tickcount() mod 2 = 0 then uiC = uiC - 1
   end select
   return uilook(uiC)
  end if

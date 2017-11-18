@@ -333,8 +333,8 @@ TYPE Plotstring
   s as string
   X as integer
   Y as integer
-  col as integer    '0-255, or -1 to default to uiText
-  bgcol as integer
+  col as integer    '0-255, -1 to default to uiText, or else a ColorIndex UI col constant
+  bgcol as integer  'a ColorIndex UI constant, 0 is transparent
   bits as integer   '1=visible, 2=edgeless text
 END TYPE
 

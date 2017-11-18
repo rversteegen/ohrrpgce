@@ -1042,8 +1042,8 @@ End Function
 'All arguments default to no-change
 Sub ChangeRectangleSlice(byval sl as Slice ptr,_
                       byval style as integer=-2,_
-                      byval bgcol as integer=-99,_
-                      byval fgcol as integer=-99,_
+                      byval bgcol as integer=-999,_
+                      byval fgcol as integer=-999,_
                       byval border as RectBorderTypes=borderUndef,_
                       byval translucent as RectTransTypes=transUndef,_
                       byval fuzzfactor as integer=0,_
@@ -1055,12 +1055,12 @@ Sub ChangeRectangleSlice(byval sl as Slice ptr,_
  end if
  dim dat as RectangleSliceData Ptr = sl->SliceData
  with *dat
-  if bgcol > -99 then
+  if bgcol <> -999 then
    .bgcol = bgcol
    .style = -1
    .style_loaded = NO
   end if
-  if fgcol > -99 then
+  if fgcol <> -999 then
    .fgcol = fgcol
    .style = -1
    .style_loaded = NO
@@ -1453,10 +1453,10 @@ end function
 'All arguments default to no-change
 Sub ChangeTextSlice(byval sl as Slice ptr,_
                       s as string=CHR(1) & CHR(255),_
-                      byval col as integer=-99,_
+                      byval col as integer=-999,_
                       byval outline as integer=-2,_
                       byval wrap as integer=-2,_
-                      byval bgcol as integer=-1)
+                      byval bgcol as integer=-999)
  if sl = 0 then debug "ChangeTextSlice null ptr" : exit sub
  if sl->SliceType <> slText then reporterr "Attempt to use " & SliceTypeName(sl) & " slice " & sl & " as text" : exit sub
  dim dat as TextSliceData Ptr = sl->SliceData
@@ -1464,16 +1464,16 @@ Sub ChangeTextSlice(byval sl as Slice ptr,_
   if s <> CHR(1) & CHR(255) then
    .s = s
   end if
-  if col > -99 then
+  if col <> -999 then
    .col = col
   end if
-  if bgcol >= 0 then
+  if bgcol <> -999 then
    .bgcol = bgcol
   end if
-  if outline > -2 then
+  if outline <> -2 then
    .outline = outline <> 0
   end if
-  if wrap > -2 then
+  if wrap <> -2 then
    .wrap = wrap <> 0
   end if
  end with
@@ -2585,16 +2585,16 @@ end function
 
 'All arguments default to no-change
 Sub ChangeEllipseSlice(byval sl as Slice ptr,_
-                      byval bordercol as integer=-1,_
-                      byval fillcol as integer=-1)
+                      byval bordercol as integer=-999,_
+                      byval fillcol as integer=-999)
  if sl = 0 then debug "ChangeEllipseSlice null ptr" : exit sub
  if sl->SliceType <> slEllipse then reporterr "Attempt to use " & SliceTypeName(sl) & " slice " & sl & " as an ellipse" : exit sub
  dim dat as EllipseSliceData Ptr = sl->SliceData
  with *dat
-  if bordercol >= 0 then
+  if bordercol <> -999 then
    .bordercol = bordercol
   end if
-  if fillcol >= 0 then
+  if fillcol <> -999 then
    .fillcol = fillcol
   end if
  end with

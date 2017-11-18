@@ -1512,9 +1512,9 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     str_array_append menu(), " Style: " & defaultint(dat->style, "None (custom)")
     sliceed_rule rules(), "rect_style", erIntgrabber, @(dat->style), -1, 14, slgrUPDATERECTSTYLE
     str_array_append menu(), "  Background color: " & slice_color_caption(dat->bgcol)
-    sliceed_rule rules(), "rect_bg", erIntgrabber, @(dat->bgcol), LowColorCode(), 255, (slgrUPDATERECTCUSTOMSTYLE OR slgrPICKCOL)
+    sliceed_rule rules(), "rect_bg", erIntgrabber, @(dat->bgcol), minColorCode, 255, (slgrUPDATERECTCUSTOMSTYLE OR slgrPICKCOL)
     str_array_append menu(), "  Foreground color: " & slice_color_caption(dat->fgcol)
-    sliceed_rule rules(), "rect_fg", erIntgrabber, @(dat->fgcol), LowColorCode(), 255, (slgrUPDATERECTCUSTOMSTYLE OR slgrPICKCOL)
+    sliceed_rule rules(), "rect_fg", erIntgrabber, @(dat->fgcol), minColorCode, 255, (slgrUPDATERECTCUSTOMSTYLE OR slgrPICKCOL)
     str_array_append menu(), "  Border type: " & IIF(dat->use_raw_box_border, "Spriteset", "Box Style")
     sliceed_rule_tog rules(), "rect_use_raw_box_border", @(dat->use_raw_box_border), slgrUPDATERECTCUSTOMSTYLE
     IF dat->use_raw_box_border THEN
@@ -1544,10 +1544,10 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     str_array_append menu(), " Text: " & dat->s
     sliceed_rule_str rules(), "text_text", erStrgrabber, @(dat->s), 128000  'Arbitrary limit
     str_array_append menu(), " Color: " & slice_color_caption(dat->col, "Default")
-    sliceed_rule rules(), "text_color", erIntgrabber, @(dat->col), LowColorCode(), 255, slgrPICKCOL
+    sliceed_rule rules(), "text_color", erIntgrabber, @(dat->col), minColorCode, 255, slgrPICKCOL
     IF dat->outline = NO THEN
      str_array_append menu(), " Background Color: " & slice_color_caption(dat->bgcol, "Transparent")
-     sliceed_rule rules(), "text_bg", erIntgrabber, @(dat->bgcol), LowColorCode(), 255, slgrPICKCOL
+     sliceed_rule rules(), "text_bg", erIntgrabber, @(dat->bgcol), minColorCode, 255, slgrPICKCOL
     END IF
     str_array_append menu(), " Outline: " & yesorno(dat->outline)
     sliceed_rule_tog rules(), "text_outline", @(dat->outline)
@@ -1611,9 +1611,9 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     DIM dat as EllipseSliceData Ptr
     dat = .SliceData
     str_array_append menu(), " Border Color: " & slice_color_caption(dat->bordercol, "Transparent")
-    sliceed_rule rules(), "bordercol", erIntgrabber, @(dat->bordercol), LowColorCode(), 255, slgrPICKCOL
+    sliceed_rule rules(), "bordercol", erIntgrabber, @(dat->bordercol), minColorCode, 255, slgrPICKCOL
     str_array_append menu(), " Fill Color: " & slice_color_caption(dat->fillcol, "Transparent")
-    sliceed_rule rules(), "fillcol", erIntgrabber, @(dat->fillcol), LowColorCode(), 255, slgrPICKCOL
+    sliceed_rule rules(), "fillcol", erIntgrabber, @(dat->fillcol), minColorCode, 255, slgrPICKCOL
 
    CASE slScroll
     DIM dat as ScrollSliceData Ptr
@@ -2218,7 +2218,7 @@ FUNCTION slice_color_caption(byval n as integer, ifzero as string="0") as string
  'Normal colors
  IF n > 0 ANDALSO n <= 255 THEN RETURN STR(n)
  'uilook colors
- IF n <= -1 ANDALSO n >= LowColorCode() THEN
+ IF n <= -1 ANDALSO n >= minColorCode THEN
   RETURN UiColorCaption(n * -1 - 1)
  END IF
  'Invalid values still print, but !?
