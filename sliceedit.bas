@@ -2633,8 +2633,12 @@ SUB SliceDetailMenu.refresh(byref ses as SliceEditState, byref state as MenuStat
   sliceed_rule_none rules(), "scripthandle"
  #ENDIF
  IF .Context THEN
-  a_append menu(), "Info: " &  .Context->description()
-  sliceed_rule_none rules(), "metadata"
+  'The context might have no description if it's just a container for attributes
+  DIM description as string = .Context->description()
+  IF LEN(description) THEN
+   str_array_append menu(), "ID: " & .Context->description()
+   sliceed_rule_none rules(), "metadata"
+  END IF
  END IF
  IF ses.privileged THEN
   a_append menu(), "Protected: " & yesorno(.Protect)
@@ -2644,7 +2648,7 @@ SUB SliceDetailMenu.refresh(byref ses as SliceEditState, byref state as MenuStat
   sliceed_rule_none rules(), "protect"
  END IF
 
- sliceed_header menu(), rules(), "[Dimensions]", @ses.expand_dimensions
+ sliceed_header menu(), rules(), "[Position/Size]", @ses.expand_dimensions
  IF ses.expand_dimensions THEN
   IF .FillHoriz = NO THEN
    a_append menu(), " X: " & .X
@@ -3141,7 +3145,7 @@ FUNCTION slice_caption (byref ses as SliceEditState, edslice as Slice ptr, sl as
   IF .Context THEN
    'Hide the Context of the root slice of a collection because it duplicates collection name, ID
    IF sl <> edslice ORELSE (*.Context IS SliceCollectionContext) = NO THEN
-    s &= .Context->description()
+    s &= .Context->description()  'may be zero length
    END IF
   END IF
   IF sl->Template THEN
