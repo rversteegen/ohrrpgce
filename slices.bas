@@ -3466,6 +3466,51 @@ Sub SetSliceAttribute(sl as Slice, byref context_stack as SliceContext vector = 
  attribute->value = value
 end sub
 
+Sub ApplySliceReactions(sl as Slice ptr, context_stack as SliceContext vector)
+ if sl = 0 then exit sub
+ if sl->reaction = 0 then exit sub
+
+ dim value as integer
+ if GetSliceAttribute(context_stack, sl->reaction->attribute, @value) = NO then exit sub
+
+ select case sl->reaction->applies_to
+  case "width"
+   sl->Width = value
+  case "height"
+   sl->Width = value
+  'case "width%"
+  'case "height%"
+  case "color"
+   if value < minColorCode orelse value > 255 then
+    exit sub
+   end if
+   if sl->Type = slText then
+    dim dat as TextSliceData ptr = sl->SliceData
+    dat->col = value
+    'ChangeTextSlice sl, , value
+   elseif sl->Type = slRectangle then 
+    'Set bgcol, not fgcol which is only the border
+    ChangeRectangleSlice sl, , value
+   elseif sl->Type = slEllipse then 
+    'Set fillcol, not bordercol
+    ChangeEllipseSlice sl, , value
+   else
+    reporterr "Slice reaction 'color' can't be applied to " & SliceTypeName(sl) & " slices"
+   end if
+  case "translucency"
+   if sl->Type = slRectangle then
+    dim dat as RectangleSliceData ptr = sl->SliceData
+    dat->translucent = transFuzzy
+    dat->fuzzfactor = bound(value, 0, 100)
+   else
+    reporterr "Slice reaction 'translucency' can only be applied to rect slices, not " & SliceTypeName(sl) & " slices"
+   end if
+  case else
+   reporterr "Unknown slice reaction " & sl->reaction->applies_to, serrError
+  end select
+end Sub
+
+
 'The central slice drawing function, called regardless of what slice-specific methods have been set.
 'childindex is index of s among its siblings. Pass childindex -1 if not known,
 'which saves computing it if it's not needed.
