@@ -238,6 +238,11 @@ Enum 'CoverModes
  coverFull = 3
 End Enum
 
+Type SliceAttribute
+ name as string
+ value as integer
+End Type
+
 ' Stores information about what this slice is used for, if that isn't explained
 ' by the lookup code.
 Type SliceContext Extends Object
@@ -246,6 +251,7 @@ Type SliceContext Extends Object
  ' Contexts can't necessarily be loaded and saved; implementing save/load is optional.
  Declare Virtual Sub save(node as Reload.Nodeptr)
  Declare Virtual Sub load(node as Reload.Nodeptr)
+ attributes as SliceAttribute vector
 End Type
 
 DECLARE_VECTOR_OF_TYPE(SliceContext ptr, SliceContext_ptr)
