@@ -268,6 +268,23 @@ Type SliceCollectionContext Extends SliceContext
  id as integer = -1      'Only used by user collections. Not saved. -1 means unknown
 End Type
 
+Type SliceReactionFwd as SliceReaction
+
+Type FnSliceReaction as Sub(sl as Slice ptr)', reaction as SliceReactionFwd)
+
+Type SliceReaction Extends Object
+ 'Declare Virtual Destructor()
+ apply as FnSliceReaction
+ attribute as string   'To to react to
+ applies_to as string  'What is changed in reaction
+ ' value as integer
+End Type
+
+'Slice reactors (of type FnSliceReaction)
+Declare Sub SliceReactWidth(sl as Slice ptr)
+
+'DECLARE_VECTOR_OF_TYPE(SliceReaction, SliceReaction)
+
 Extern "C"
 Type SliceFwd as Slice
 Type SliceDraw as Sub(Byval as SliceFwd ptr, byval page as integer)
@@ -363,6 +380,7 @@ Type Slice
   TargTicks as integer
 
   Context as SliceContext ptr  'NULL if none
+  reaction as SliceReaction ptr  'NULL if none
   TableSlot as integer 'which slot in plotslices() holds a reference to this slice, or 0 for none
                        'The script handle is stored at plotslices(.TableSlot).handle.
   Lookup as integer
