@@ -37,6 +37,7 @@ DECLARE FUNCTION enemygrabber (byref datum as integer, state as MenuState, offse
 DECLARE FUNCTION textboxgrabber (byref datum as integer, state as MenuState, offset as integer = 0, min as integer = 0, intgrab as bool = YES) as integer
 
 DECLARE SUB ui_color_editor(palnum as integer)
+DECLARE SUB draw_ui_col_menu(color_menu() as string, state as MenuState, x as integer, y as integer, page as integer)
 DECLARE SUB make_ui_color_editor_menu(m() as string, colors() as integer)
 DECLARE SUB ui_boxstyle_editor(palnum as integer)
 DECLARE SUB make_ui_boxstyle_editor_menu(m() as string, boxes() as BoxStyle)

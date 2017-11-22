@@ -1113,15 +1113,15 @@ SUB ui_color_editor(palnum as integer)
 
  LoadUIColors uilook(), boxlook(), palnum
 
- DIM color_menu(-1 TO uiColorLast) as string
+ DIM color_menu() as string
  make_ui_color_editor_menu color_menu(), uilook()
 
  DIM state as MenuState
- state.size = 22
  state.first = -1
  state.top = -1
  state.pt = -1
  state.last = UBOUND(color_menu)
+ state.autosize = YES
  state.autosize_ignore_pixels = 16
 
  setkeys
@@ -1174,10 +1174,7 @@ SUB ui_color_editor(palnum as integer)
   '--draw screen
   clearpage dpage
   draw_menu sample_menu, sample_state, dpage
-  standardmenu color_menu(), state, 10, 0, dpage
-  FOR i as integer = large(state.top, 0) TO small(state.top + state.size, state.last)
-   rectangle 0, 8 * (i - state.top), 8, 8, uilook(i), dpage
-  NEXT i
+  draw_ui_col_menu color_menu(), state, 10, 0, dpage
   DIM msg as string = "Ctrl+D to revert to default"
   edgeprint msg, pCentered, pBottom, uilook(uiText), dpage
 
@@ -1189,7 +1186,18 @@ SUB ui_color_editor(palnum as integer)
  ClearMenuData sample_menu
 END SUB
 
+SUB draw_ui_col_menu(color_menu() as string, state as MenuState, x as integer, y as integer, page as integer)
+ DIM menuopts as MenuOptions
+ menuopts.edged = YES
+
+ standardmenu color_menu(), state, 10, 0, page, menuopts
+ FOR i as integer = large(state.top, 0) TO small(state.top + state.size, state.last)
+  rectangle 0, 8 * (i - state.top), 8, 8, uilook(i), page
+ NEXT i
+END SUB
+
 SUB make_ui_color_editor_menu(m() as string, colors() as integer)
+ REDIM m(-1 TO uiColorLast)
  m(-1) = "Previous Menu"
  FOR i as integer = 0 TO uiColorLast
   m(i) = UiColorCaption(i) & ": " & colors(i)
@@ -1214,12 +1222,15 @@ SUB ui_boxstyle_editor(palnum as integer)
  make_ui_boxstyle_editor_menu color_menu(), boxlook()
 
  DIM state as MenuState
- state.size = 22
  state.top = -1
  state.pt = -1
  state.first = -1
  state.last = UBOUND(color_menu)
+ state.autosize = YES
  state.autosize_ignore_pixels = 16
+
+ DIM menuopts as MenuOptions
+ menuopts.edged = YES
 
  setkeys
  DO
@@ -1301,7 +1312,7 @@ SUB ui_boxstyle_editor(palnum as integer)
   '--draw screen
   clearpage dpage
   draw_menu sample_menu, sample_state, dpage
-  standardmenu color_menu(), state, 10, 0, dpage
+  standardmenu color_menu(), state, 10, 0, dpage, menuopts
   FOR i as integer = large(state.top, 0) TO small(state.top + state.size, state.last)
    IF i MOD 3 = 0 THEN
     rectangle 0, 8 * (i - state.top), 8, 8, boxlook(INT(i / 3)).bgcol, dpage

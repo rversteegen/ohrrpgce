@@ -251,6 +251,13 @@ SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseR
  END WITH
 END SUB
 
+'Check for use of keyboard controls
+FUNCTION usemenu_keypress(deckey as integer = scUp, inckey as integer = scDown) as bool
+ RETURN keyval(inckey) > 1 OR keyval(deckey) > 1 OR keyval(scLeft) > 1 OR _
+        keyval(scRight) > 1 OR keyval(scPageUp) > 1 OR keyval(scPageDown) > 1 OR _
+        keyval(scHome) > 1 OR keyval(scEnd) > 1
+END FUNCTION
+
 FUNCTION usemenu (byref state as MenuState, byval deckey as integer = scUp, byval inckey as integer = scDown) as bool
  WITH state
   IF .autosize THEN

@@ -19,6 +19,7 @@
 #include "cutil.bi"
 #include "string.bi"
 #include "gfx.bi"
+#include "customsubs.bi"
 
 #include "udts.bi"
 #include "scrconst.bi"
@@ -6324,14 +6325,34 @@ FUNCTION int_from_xy(pair as XYPair, byval wide as integer, byval high as intege
  RETURN bound(pair.y * wide + pair.x, 0, wide * high - 1)
 END FUNCTION
 
-FUNCTION color_browser_256(byval start_color as integer=0) as integer
+'ui_cols: allow picking a UI colour too (returned as -1 * uicol - 1)
+FUNCTION color_browser_256(byval start_color as integer=0, ui_cols as bool=NO) as integer
  DIM ret as integer = start_color
  DIM tog as integer = 0
  DIM gridpos as XYPair = (64, 0)
  DIM tilesize as XYPair = (12, 12)
+
+ DIM ui_menu() as string
+ make_ui_color_editor_menu ui_menu(), uilook()
+
+ DIM ui_state as MenuState
+ WITH ui_state
+  .first = -1
+  .top = -1
+  .last = UBOUND(ui_menu)
+  .autosize = YES
+  .autosize_ignore_pixels = 9
+  .pt = -1
+  IF start_color < 0 THEN
+   .active = YES
+   .pt = -1 * start_color - 1
+  END IF
+ END WITH
+
  DIM spot as XYPair
  DIM cursor as XYPair
- cursor = xy_from_int(start_color, 16, 16)
+ IF start_color >= 0 THEN cursor = xy_from_int(start_color, 16, 16)
+
  DIM mouse as MouseInfo
  DIM mouse_active as bool = NO  'Whether the color under the mouse is the one displayed at bottom
  DIM prev_mouse_vis as CursorVisibility = getcursorvisibility()
@@ -6343,39 +6364,105 @@ FUNCTION color_browser_256(byval start_color as integer=0) as integer
   mouse = readmouse
   IF mouse.moved THEN mouse_active = YES
 
-  IF keyval(scF1) > 1 THEN show_help "color_browser"
+  IF ui_cols THEN
+   gridpos = XY(rRight - 8 - tilesize.w * 16, 0)
+  ELSE
+   gridpos = XY(rCenter - tilesize.w * 8, 0)
+  END IF
 
+  '''' (Mainly keyboard) controls
+  IF keyval(scF1) > 1 THEN show_help "color_browser"
+  IF enter_or_space() THEN EXIT DO
+  'ESC or right click outside to go back
+  IF keyval(scESC) > 1 THEN
+   ret = start_color
+   EXIT DO
+  END IF
+
+  IF usemenu_keypress() THEN mouse_active = NO
+   IF keyval(scTab) > 1 AND ui_cols THEN ui_state.active XOR= YES
+  IF ui_state.active THEN
+   usemenu ui_state   'Also handles mouse wheel
+   IF keyval(scLeft) > 1 THEN cursor.x = 15 : ui_state.active = NO
+   IF keyval(scRight) > 1 THEN cursor.x = 0 : ui_state.active = NO
+  ELSE
+   DIM minx as integer = IIF(ui_cols, -1, 0)
+   IF keyval(scUp) > 1 THEN    loopvar(cursor.y, 0, 15, -1)
+   IF keyval(scDown) > 1 THEN  loopvar(cursor.y, 0, 15, 1)
+   IF keyval(scLeft) > 1 THEN  loopvar(cursor.x, minx, 15, -1)
+   IF keyval(scRight) > 1 THEN loopvar(cursor.x, minx, 15, 1)
+
+   IF cursor.x = -1 THEN ui_state.active = YES
+  END IF
+
+  'Update selected color
+  IF ui_state.active THEN
+   IF ui_state.pt = -1 THEN  'Previous menu
+    ret = start_color
+   ELSE
+    ret = -1 * ui_state.pt - 1
+   END IF
+  ELSE
+   ret = int_from_xy(cursor, 16, 16)
+  END IF
+
+  '''' Mouse controls
+  'Which tile in the grid the mouse is over
   DIM mousecursor as XYPair
   mousecursor = (mouse.pos - gridpos) \ tilesize
   DIM mouse_over_grid as bool = in_bound(mousecursor.x, 0, 15) AND in_bound(mousecursor.y, 0, 15)
-  DIM mouse_hover_col as integer = int_from_xy(mousecursor, 16, 16)
 
-  IF keyval(scUp) > 1 THEN    mouse_active = NO : loopvar(cursor.y, 0, 15, -1)
-  IF keyval(scDown) > 1 THEN  mouse_active = NO : loopvar(cursor.y, 0, 15, 1)
-  IF keyval(scLeft) > 1 THEN  mouse_active = NO : loopvar(cursor.x, 0, 15, -1)
-  IF keyval(scRight) > 1 THEN mouse_active = NO : loopvar(cursor.x, 0, 15, 1)
-
-  ret = int_from_xy(cursor, 16, 16)
-
+  'Determine which color the mouse is over, UI cols are negative, or -999 for none
+  DIM mouse_hover_col as integer = -999
   IF mouse_over_grid THEN
-   IF mouse.buttons THEN cursor = mousecursor
+   'ui_state.hover = -2   'The menu and palette overlap, so make sure the mouse isn't considered to be over the menu
+   mouse_hover_col = int_from_xy(mousecursor, 16, 16)
+  ELSEIF ui_cols ANDALSO mouse_update_hover(ui_state) THEN
+   IF ui_state.hover >= 0 THEN mouse_hover_col = -1 * ui_state.hover - 1
+  END IF
+
+  'Handle mouse buttons/clicks
+  IF mouse_hover_col = -999 THEN
+   IF mouse.release AND mouseRight THEN
+    'Right click outside to cancel
+    ret = start_color
+    EXIT DO
+   END IF
+  ELSE
+   IF mouse.buttons THEN
+    'Select a color
+    IF mouse_hover_col >= 0 THEN
+     ui_state.active = NO
+     cursor = mousecursor
+    ELSE
+     ui_state.active = YES
+     ui_state.pt = ui_state.hover
+    END IF
+   END IF
    IF mouse.release AND mouseLeft THEN
     ret = mouse_hover_col
     EXIT DO
    END IF
   END IF
-  IF enter_or_space() THEN EXIT DO
 
-  'The highlighted color, shown at the bottom
-  DIM showcol as integer = IIF(mouse_over_grid AND mouse_active, mouse_hover_col, ret)
+  ''''Draw screen
+  clearpage dpage
 
-  'ESC or right click outside to go back
-  IF keyval(scESC) > 1 ORELSE (mouse_over_grid = NO ANDALSO (mouse.release AND mouseRight)) THEN
-   ret = start_color
-   EXIT DO
+  'Determine showcol, the highlighted color shown at the bottom
+  DIM showcol as integer
+  DIM ui_selection as integer = -1 'IIF(mouse_active, ui_state.hover, ui_state.pt)
+  IF mouse_active ANDALSO mouse_hover_col <> -999 THEN
+   showcol = mouse_hover_col
+  ELSE
+   showcol = ret
+  END IF
+  'Decode UI colors
+  IF showcol < 0 THEN showcol = uilook(-1 * showcol - 1)
+
+  IF ui_cols THEN
+   draw_ui_col_menu ui_menu(), ui_state, 10, 0, dpage
   END IF
 
-  clearpage dpage
   'Draw the grid
   FOR i as integer = 0 TO 255
    spot = xy_from_int(i, 16, 16)
@@ -6387,6 +6474,10 @@ FUNCTION color_browser_256(byval start_color as integer=0) as integer
     drawants vpages(dpage), where.x, where.y, tilesize.x, tilesize.y, tog
    END IF
   NEXT i
+  IF ui_state.active = NO THEN
+   DIM bottomright as XYPair = gridpos + tilesize * 16
+   drawbox gridpos.x - 1, gridpos.y - 1, bottomright.x + 1, bottomright.y + 1, uilook(uiSelectedItem + tog), 1, dpage
+  END IF
 
   textcolor tog, 0
   'Mouse cursor tip is offset in the font
@@ -6394,9 +6485,9 @@ FUNCTION color_browser_256(byval start_color as integer=0) as integer
 
   'Draw color info
   textcolor uilook(uiMenuItem), 0
-  printstr "Color " & showcol, 320 + ancRight, 192, dpage
+  printstr "Color " & showcol, 320 + ancRight, pBottom, dpage
   WITH master(showcol)
-   printstr "RGB" & lpad(STR(.r), , 4) & lpad(STR(.g), , 4) & lpad(STR(.b), , 4), 0, 192, dpage
+   printstr "RGB" & lpad(STR(.r), , 4) & lpad(STR(.g), , 4) & lpad(STR(.b), , 4), 0, pBottom, dpage
   END WITH
 
   SWAP vpage, dpage
@@ -6405,6 +6496,7 @@ FUNCTION color_browser_256(byval start_color as integer=0) as integer
   IF dowait THEN tog = (tog + 1) MOD 256
  LOOP
  setcursorvisibility prev_mouse_vis
+
  RETURN ret
 END FUNCTION
 

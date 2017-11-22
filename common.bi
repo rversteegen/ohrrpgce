@@ -268,7 +268,7 @@ DECLARE SUB import_string_from_file(s as string)
 DECLARE FUNCTION int_from_xy(pos as XYPair, byval wide as integer, byval high as integer) as integer
 DECLARE FUNCTION xy_from_int(byval n as integer, byval wide as integer, byval high as integer) as XYPair
 
-DECLARE FUNCTION color_browser_256(byval start_color as integer=0) as integer
+DECLARE FUNCTION color_browser_256(byval start_color as integer=0, ui_cols as bool=NO) as integer
 
 'Sprite loading convenience functions
 DECLARE SUB load_sprite_and_pal (byref img as GraphicPair, byval spritetype as SpriteType, byval index as integer, byval palnum as integer=-1)
