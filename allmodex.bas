@@ -4433,36 +4433,40 @@ type PrintStrState
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
 	as Palette16 ptr localpal  'NULL if not initialised
+	as bool own_localpal     'localpal should be deleted
 	as long initial_fgcolor  'Used when resetting fgcolor
 	as long initial_bgcolor  'Used when resetting bgcolor
 	as bool initial_not_trans 'Used when resetting bgcolor
 
 	declare constructor()
+	'The copy constructor 
 	declare constructor(rhs as PrintStrState)
 	declare destructor()
+'	declare duplicate(rhs as PrintStrState)
 end type
 
 ' Need a default ctor just because there is a copy ctor
 constructor PrintStrState()
 end constructor
-
+/'
 constructor PrintStrState(rhs as PrintStrState)
 	memcpy(@this, @rhs, sizeof(PrintStrState))
 	if localpal then
-		this.localpal->refcount += 1
+		this.localpal = palette16_duplicate(this.localpal)
+	end if
+end constructor
+'/
+
+sub PrintStrState.duplicate(rhs as PrintStrState) as PrintStrState
+	memcpy(@this, @rhs, sizeof(PrintStrState))
+	if localpal then
+		this.localpal = palette16_duplicate(this.localpal)
 	end if
 end constructor
 
+
 destructor PrintStrState()
-	' Palette16_unload wouldn't actually delete localpal, because it thinks
-	' it's cached, so sadly we reimplement it
-	'Palette16_unload @localpal
-	if localpal then
-		localpal->refcount -= 1
-		if localpal->refcount <= 0 then
-			Palette16_delete @localpal
-		end if
-	end if
+	Palette16_unload @localpal
 end destructor
 
 'Special signalling characters
@@ -4521,7 +4525,9 @@ end destructor
 'expensive. However, .x, .y and .charnum are updated at the end.
 'If updatecharnum is true, it is updated only when .charnum jumps; you still need to
 'increment after every printing character yourself.
-private function layout_line_fragment(z as string, endchar as integer, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, wide as integer, withtags as bool, withnewlines as bool, updatecharnum as bool = NO) as string
+private function layout_line_fragment(z as string, endchar as integer, startstate as PrintStrState, byref line_width as integer, byref line_height as integer, wide as integer, withtags as bool, withnewlines as bool, updatecharnum as bool = NO) as string
+	dim state as PrintStrState = startstate
+
 	dim lastspace as integer = -1
 	dim lastspace_x as integer
 	dim lastspace_outbuf_len as integer
@@ -4761,10 +4767,7 @@ end function
 sub build_text_palette(byref state as PrintStrState, srcpal as Palette16 ptr)
 	with state
 		if state.localpal = NULL then
-			' FIXME: This returns a non-refcounted palette16, but we want
-			' a refcount, which we're forced to manage ourselves (see destructor)
-			state.localpal = Palette16_new()
-			state.localpal->refcount = 1
+			state.localpal = Palette16_new(srcpal->numcolors)
 		end if
 		if srcpal then
 			memcpy(@.localpal->col(0), @srcpal->col(0), srcpal->numcolors)
@@ -4982,7 +4985,7 @@ sub render_text (dest as Frame ptr, byref state as PrintStrState, text as string
 
 		'We have to process both layers, even if the current font has only one layer,
 		'in case the string switches to a font that has two!
-		dim prev_state as PrintStrState = state
+		dim prev_state as PrintStrState = state.duplicate()
 		dim prev_parse as string
 		dim prev_visible as bool
 		dim draw_layer1 as bool = NO  'Don't draw on first loop
@@ -5036,7 +5039,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, z as string, endchar as i
 'debug "DIMEN char " & endchar
 	dim state as PrintStrState
 	with state
-		'.localpal/?gcolor/initial_?gcolor/transparency non-initialised
+		'.localpal/?gcolor/initial_?gcolor/transparency initialised to zero
 		.thefont = fontp
 		.initial_font = .thefont
 		.charnum = 0
@@ -5129,7 +5132,7 @@ end sub
 sub find_point_in_text (retsize as StringCharPos ptr, seekx as integer, seeky as integer, z as string, wide as integer = 999999, xpos as integer = 0, ypos as integer = 0, fontnum as integer, withtags as bool = YES, withnewlines as bool = YES)
 	dim state as PrintStrState
 	with state
-		'.localpal/?gcolor/initial_?gcolor/transparency non-initialised
+		'.localpal/?gcolor/initial_?gcolor/transparency initialised to zero
 		.thefont = get_font(fontnum)
 		.initial_font = .thefont
 		.charnum = 0
@@ -8770,7 +8773,7 @@ function Palette16_duplicate(pal as Palette16 ptr) as Palette16 ptr
 	return ret
 end function
 
-'update a .pal-loaded palette even while in use elsewhere.
+'Update a palette loaded from .PAL even while in use elsewhere.
 '(Won't update localpal in a cached PrintStrState... but caching isn't implemented yet)
 sub Palette16_update_cache(fil as string, num as integer)
 	dim oldpal as Palette16 ptr
