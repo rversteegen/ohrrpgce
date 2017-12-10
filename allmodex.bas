@@ -12,6 +12,7 @@
 #include "surface.bi"
 #include "lib/lodepng.bi"
 #include "lib/ujpeg.bi"
+#include "lib/jo_mpeg.bi"
 #include "music.bi"
 #include "reload.bi"
 #include "util.bi"
@@ -293,6 +294,22 @@ type GIFRecorder extends VideoRecorder
 	declare sub record_frame(fr as Frame ptr, palette() as RGBcolor)
 	declare function calc_delay() as integer
 end type
+
+/'
+type MPEGRecorder extends VideoRecorder
+	'active as bool
+	'fname as string
+	'last_frame_end_time as double    'Nominal time when the delay for the last frame we wrote ends
+
+	fp as FILE ptr
+
+	declare constructor(outfile as string)
+	declare property active() as bool
+	declare sub stop()
+	declare sub record_frame(fr as Frame ptr, palette() as RGBcolor)
+	declare function calc_delay() as integer
+end type
+'/
 
 dim shared recordvid as VideoRecorder ptr
 
@@ -7111,7 +7128,8 @@ end function
 
 sub start_recording_gif()
 	stop_recording_video()
-	recordvid = new GIFRecorder(absolute_path(next_unused_screenshot_filename() + ".gif"))
+	'recordvid = new GIFRecorder(absolute_path(next_unused_screenshot_filename() + ".gif"))
+'	recordvid = new MPEGRecorder(absolute_path(next_unused_screenshot_filename() + ".mpg"))
 end sub
 
 constructor GIFRecorder(outfile as string)
@@ -7206,13 +7224,67 @@ sub GIFRecorder.record_frame(fr as Frame ptr, pal() as RGBcolor)
 	end if
 end sub
 
+'==========================================================================================
+/'
+
+constructor MPEGRecorder(outfile as string)
+	this.fname = outfile
+	this.fp = fopen(this.fname, "wb")
+	show_overlay_message "Ctrl-F12 to stop recording", 1.
+end constructor
+
+property MPEGRecorder.active()
+	return this.fp <> NULL
+end property
+
+sub MPEGRecorder.stop()
+	if not this.active then exit sub
+	fclose(this.fp)
+	this.fp = NULL
+
+	show_overlay_message "Recorded " & trimpath(this.fname)
+end sub
+
+' Called with every frame that should be included in any ongoing mpeg recording
+sub MPEGRecorder.record_frame(fr as Frame ptr, pal() as RGBcolor)
+	if this.active = NO then exit sub
+
+
+	dim ret as bool
+	dim bits as integer
+	dim sf as Surface ptr = fr->surf
+	if sf andalso sf->format = SF_32bit then
+		bits = 32
+		dim image as ubyte ptr = cast(ubyte ptr, sf->pColorData)
+		if sf->width <> sf->pitch then _gif_pitch_fail "32-bit Surface"
+		ret = GifWriteFrame(@this.writer, image, sf->width, sf->height, delay, 8, NO)
+	else
+		' 8-bit Surface-backed Frames and regular Frames.
+		bits = 8
+		dim gifpal as GifPalette
+		GifPalette_from_pal gifpal, pal()
+		if sf andalso sf->format = SF_8bit then
+			if sf->width <> sf->pitch then _gif_pitch_fail "8-bit Surface"
+			ret = GifWriteFrame8(@this.writer, sf->pPaletteData, sf->width, sf->height, delay, @gifpal)
+		else
+			if fr->w <> fr->pitch then _gif_pitch_fail "Frame"
+			ret = GifWriteFrame8(@this.writer, fr->image, fr->w, fr->h, delay, @gifpal)
+		end if
+	end if
+	if ret = NO then
+		' On a write failure, this.active will already be set to false
+		show_overlay_message "Recording failed (GifWriteFrame " & bits & ")"
+		debug "GifWriteFrame failed, bits = " & bits
+	end if
+end sub
+'/
 
 '==========================================================================================
 '                                       Screenshots
 '==========================================================================================
 
 
-dim shared as string*4 screenshot_exts(...) => {".bmp", ".png", ".jpg", ".dds", ".gif"}
+dim shared as string*4 screenshot_exts(...) => {".bmp", ".png", ".jpg", ".dds", ".gif", ".mpg"}
 
 'Save a screenshot. fname should NOT include the extension, since the gfx backend can decide that.
 'Returns the filename it was saved to, with extension
