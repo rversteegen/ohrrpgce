@@ -16,11 +16,13 @@ declare sub fatalerror (s as string)
 declare sub showerror (msg as string, isfatal as bool = NO, isbug as bool = NO)
 declare sub visible_debug (s as string, errlvl as errorLevelEnum = errDebug)
 declare sub debugc cdecl alias "debugc" (byval errorlevel as errorLevelEnum, byval s as zstring ptr)
+declare sub reporterr(msg as zstring ptr, errlvl as scriptErrEnum = serrBadOp, context as zstring ptr = NULL)
 
 'Called by fatalerror
 extern cleanup_function as sub ()
 
 'Global variables
-EXTERN workingdir as string
+extern workingdir as string
+extern context_string as string
 
 #endif
