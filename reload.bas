@@ -140,9 +140,9 @@ Function CreateDocument() as DocPtr
 	'have a constructor or destructor. But, if it did... bad things! *shudder*
 	' -- Mike, Apr 6, 2010
 	' PS: It was me who did this :'(
-	
+
 	ret = New Doc
-	
+
 	if ret then
 		if 0 = RHeapInit(ret) then
 			debug "Unable to create heap on Document :("
@@ -151,7 +151,8 @@ Function CreateDocument() as DocPtr
 		end if
 		ret->version = 1
 		ret->root = null
-		
+		ret->fileName = "<in-memory Reload.Doc>"
+
 		'The initial string table has one entry: ""
 		ret->strings = RCallocate(sizeof(StringTableEntry), ret)
 		ret->strings[0].str = RCallocate(1, ret)
@@ -281,13 +282,13 @@ end sub
 #endif
 sub FreeDocument(byval doc as DocPtr)
 	if doc = null then return
-	
+
 	if doc->fileHandle then
 		'debuginfo "reload: closing file " & doc->fileName
-		fclose(doc->fileHandle)
-		doc->fileHandle = null
+		close doc->fileHandle
+		doc->fileHandle = 0
 	end if
-	
+
 	RDeallocate(doc->nameIndexTable, doc)
 	'RDeallocate(doc->nameIndexTableBits, doc)
 	RDeallocate(doc->RBFuncBits, doc)
@@ -320,74 +321,73 @@ end sub
 
 'Loads a node from a binary file, into a document
 'If force_recurse is true, load recursively even if document marked for delayed loading.
-'
-Function LoadNode(byval f as FILE ptr, byval doc as DocPtr, byval force_recursive as bool) as NodePtr
+Function LoadNode(byval fh as integer, byval doc as DocPtr, byval force_recursive as bool) as NodePtr
 	dim size as integer
-	fread(@size, 4, 1, f)
-	
-	dim as integer here, here2
-	here = ftell(f)
-	
+	get #fh, , size
+
+	dim as integer here
+	here = seek(fh)
+
 	dim ret as NodePtr
 	ret = CreateNode(doc, "")
-	ret->namenum = cshort(ReadVLI(f))
-	
+	ret->namenum = cshort(ReadVLI(fh))
+
 	if ret->namenum < 0 or ret->namenum >= doc->numStrings then
-		debug "Node has invalid name: #" & ret->namenum
+		reporterr doc->filename & " corrupt: node has invalid name: #" & ret->namenum, serrError
 		ret->namenum = 0
 	else
 		'debug "Node has valid name: #" & ret->namenum & " " & *doc->strings[ret->namenum].str
 		ret->name = doc->strings[ret->namenum].str
 		doc->strings[ret->namenum].uses += 1
 	end if
-	
-	ret->nodetype = fgetc(f)
-	
+
+	get #fh, , ret->nodetype
+
 	select case ret->nodeType
 		case rliNull
 		case rliByte
-			ret->num = cbyte(fgetc(f))
+			dim b as byte
+			get #fh, , b
+			ret->num = b
 			ret->nodeType = rltInt
 		case rliShort
 			dim s as short
-			fread(@s, 2, 1, f)
+			get #fh, , s
 			ret->num = s
 			ret->nodeType = rltInt
 		case rliInt
 			dim i as integer
-			fread(@i, 4, 1, f)
+			get #fh, , i
 			ret->num = i
 			ret->nodeType = rltInt
 		case rliLong
-			fread(@(ret->num), 8, 1, f)
+			get #fh, , ret->num
 			ret->nodeType = rltInt
 		case rliFloat
-			fread(@(ret->flo), 8, 1, f)
+			get #fh, , ret->flo
 			ret->nodeType = rltFloat
 		case rliString
-			dim mysize as integer
-			ret->strSize = cint(ReadVLI(f))
+			ret->strSize = cint(ReadVLI(fh))
 			ret->str = RCallocate(ret->strSize + 1, doc)
-			fread(ret->str, 1, ret->strSize, f)
+			get #fh, , *cast(byte ptr, ret->str), ret->strSize
 			ret->nodeType = rltString
 		case else
-			debug "unknown node type " & ret->nodeType
+			reporterr doc->fileName & " corrupt: unknown node type " & ret->nodeType
 			FreeNode(ret)
 			return null
 	end select
-	
-	dim nod as nodeptr
-	
-	ret->numChildren = ReadVLI(f)
-	
+
+	ret->numChildren = ReadVLI(fh)
+
 	if doc->delayLoading and force_recursive = NO then
-		ret->fileLoc = ftell(f)
+		ret->fileLoc = seek(fh)
 		ret->flags OR= nfNotLoaded
-		
-		fseek(f, size + here, 0)
+
+		seek fh, here + size
 	else
 		for i as integer = 0 to ret->numChildren - 1
-			nod = LoadNode(f, doc, force_recursive)
+			dim nod as Node ptr
+			nod = LoadNode(fh, doc, force_recursive)
 			if nod = null then
 				FreeNode(ret)
 				debug "LoadNode: node @" & here & " child " & i & " node load failed"
@@ -396,14 +396,15 @@ Function LoadNode(byval f as FILE ptr, byval doc as DocPtr, byval force_recursiv
 			ret->numChildren -= 1
 			AddChild(ret, nod)
 		next
-		
-		if ftell(f) - here <> size then
+
+		dim bytesread as integer = seek(fh) - here
+		if bytesread <> size then
 			FreeNode(ret)
-			debug "GOSH-diddly-DARN-it! Why did we read " & (ftell(f) - here) & " bytes instead of " & size & "!?"
+			reporterr doc->fileName & " corrupt: GOSH-diddly-DARN-it! Why did we read " & bytesread & " bytes instead of " & size & "!?", serrError
 			return null
 		end if
 	end if
-	
+
 	return ret
 End Function
 
@@ -411,53 +412,51 @@ End Function
 'Note: won't do a recursive load if the node is loaded already but its child aren't, so you will have to
 'call LoadNode before the node's children are first accessed!
 Function LoadNode(byval ret as nodeptr, byval recursive as bool = YES) as bool
-	if ret = null then return no
-	if (ret->flags AND nfNotLoaded) = 0 then return yes
-	
-	dim f as FILE ptr = ret->doc->fileHandle
-	
-	fseek(f, ret->fileLoc, 0)
-	
+	if ret = null then return NO
+	if (ret->flags and nfNotLoaded) = 0 then return YES
+
+	dim fh as integer = ret->doc->fileHandle
+
+	seek fh, ret->fileLoc
+
 	for i as integer = 0 to ret->numChildren - 1
-		dim nod as nodeptr = LoadNode(f, ret->doc, recursive)
+		dim nod as nodeptr = LoadNode(fh, ret->doc, recursive)
 		if nod = null then
-			debug "LoadNode: node @" & ret->fileLoc & " child " & i & " node load failed"
+			debug "LoadNode: node @" & (ret->fileLoc - 1) & " child " & i & " node load failed"
 			return NO
 		end if
 		ret->numChildren -= 1
 		AddChild(ret, nod)
 	next
-	
-	ret->flags AND= NOT nfNotLoaded
-	
-	return yes
+
+	ret->flags and= not nfNotLoaded
+
+	return YES
 End Function
 
 'This loads the string table from a binary document (as if the name didn't clue you in)
-Sub LoadStringTable(byval f as FILE ptr, byval doc as docptr)
+Sub LoadStringTable(byval fh as integer, byval doc as docptr)
 	dim as uinteger count, size
-	
-	count = cint(ReadVLI(f))
-	
+
+	count = cint(ReadVLI(fh))
+
 	if count <= 0 then exit sub
-	
+
 	for i as integer = 1 to doc->numAllocStrings - 1
 		if doc->strings[i].str then RDeallocate(doc->strings[i].str, doc)
 	next
-	
+
 	doc->strings = RReallocate(doc->strings, doc, (count + 1) * sizeof(StringTableEntry))
 	doc->numStrings = count + 1
 	doc->numAllocStrings = count + 1
-	
+
 	for i as integer = 1 to count
-		size = cint(ReadVLI(f))
-		'get #f, , size
+		size = cint(ReadVLI(fh))
 		doc->strings[i].str = RCallocate(size + 1, doc)
-		dim zs as zstring ptr = doc->strings[i].str
 		if size > 0 then
-			fread(zs, 1, size, f)
+			get #fh, , *cast(byte ptr, doc->strings[i].str), size
 		end if
-		
+
 		AddItem(doc->stringHash, doc->strings[i].str, i)
 	next
 end sub
@@ -465,80 +464,74 @@ end sub
 Function LoadDocument(fil as string, byval options as LoadOptions = optNone) as DocPtr
 	dim starttime as double = timer
 	dim ret as DocPtr
-	dim f as FILE ptr
-	
-	f = fopen(fil, "rb")
-	if f = 0 then
+	dim fh as integer
+
+	if openfile(fil, for_binary + access_read, fh) then
 		debug "failed to open file " & fil
 		return null
 	end if
-	
-	dim as ubyte ver
+
 	dim as integer headSize, datSize
 	dim as string magic = "    "
-	
 	dim b as ubyte, i as integer
-	
-	fread(strptr(magic), 1, 4, f)
-	
+
+	get #fh, , magic
 	if magic <> "RELD" then
-		fclose(f)
-		debug "Failed to load " & fil & ": No magic RELD signature"
+		close #fh
+		reporterr "Failed to load " & fil & ": No magic RELD signature", serrError
 		return null
 	end if
-	
-	ver = fgetc(f)
-	
+
+	dim as ubyte ver
+	get #fh, , ver
+
 	select case ver
 		case 1 ' no biggie
-			fread(@headSize, 4, 1, f)
+			get #fh, , headSize
 			if headSize <> 13 then 'uh oh, the header is the wrong size
-				fclose(f)
-				debug "Failed to load " & fil & ": Reload header is " & headSize & "instead of 13"
+				close #fh
+				reporterr "Failed to load " & fil & ": Reload header is " & headSize & "instead of 13", serrError
 				return null
 			end if
-			
-			fread(@datSize, 4, 1, f)
-			
+			get #fh, , datSize
+
 		case else ' dunno. Let's quit.
-			fclose(f)
-			debug "Failed to load " & fil & ": Reload version " & ver & " not supported"
+			close #fh
+			reporterr "Failed to load " & fil & ": Reload version " & ver & " not supported", serrError
 			return null
 	end select
-	
+
 	'if we got here, the document is... not yet corrupt. I guess.
-	
 	ret = CreateDocument()
 	ret->version = ver
-	'ret->fileName = fil
+	ret->fileName = fil
 	'debuginfo "reload: opened " & fil
-	
+
 	if options and optNoDelay then
 		ret->delayLoading = NO
 	else
 		ret->delayLoading = YES
-		ret->fileHandle = f
+		ret->fileHandle = fh
 	end if
-	
+
 	'We'll load the string table first, to assist in debugging.
-	
-	fseek(f, datSize, 0)
-	LoadStringTable(f, ret)
-	
-	fseek(f, headSize, 0)
-	
-	ret->root = LoadNode(f, ret, NO)
-	
+	seek fh, 1 + datSize
+	LoadStringTable(fh, ret)
+
+	seek fh, 1 + headSize
+
+	ret->root = LoadNode(fh, ret, NO)
+
 	'Is it possible to serialize a null root? I mean, I don't know why you would want to, but...
 	'regardless, if it's null here, it's because of an error
 	if ret->root = null then
-		fclose(f)
+		close #fh
 		FreeDocument(ret)
 		return null
 	end if
-	
+
 	if options and optNoDelay then
-		fclose(f)
+		close #fh
 	end if
 	debug_if_slow(starttime, 0.1, fil)
 	return ret
@@ -716,8 +709,8 @@ sub SerializeBin(file as string, byval doc as DocPtr)
 		'Now it's very likely that we're writing back to the original file, which means
 		'that on Windows we have to close this file, otherwise we can't delete it!
 		'debuginfo "reload: closing file " & doc->fileName
-		fclose(doc->fileHandle)
-		doc->fileHandle = NULL
+		close doc->fileHandle
+		doc->fileHandle = 0
 	end if
 
 	safekill file
@@ -1916,7 +1909,7 @@ Sub WriteVLI(outfile as integer, v as longint)
         _WriteVLI(WRITEBYTE_FB)
 end sub
 
-
+'(This is no longer used.)
 #macro READBYTE_stdio(DEST)
         scope
 		dim tmp as integer = fgetc(infile)
@@ -1937,7 +1930,7 @@ end sub
 
 	READBYTE(byt)
 	if byt AND &b1000000 then neg = YES
-	
+
 	ret OR= (byt AND &b111111) SHL bit
 	bit += 6
 
@@ -1953,6 +1946,7 @@ end sub
 
 'This reads the number back in again
 'Returns 0 on error.
+'(This overload is no longer used.)
 function ReadVLI(infile as FILE ptr) as longint
         _ReadVLI(READBYTE_stdio)
 end function

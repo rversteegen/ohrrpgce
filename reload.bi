@@ -63,8 +63,8 @@ TYPE NodePtr as Node ptr
 #endif
 		stringHash as HashPtr
 		delayLoading as integer
-		fileHandle as FILE ptr
-		'fileName as string
+		fileHandle as integer
+		fileName as string   'Used for error messages only
 
 		'The following members are used only by RELOADBASIC
 		RBSignature as integer
