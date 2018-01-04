@@ -386,6 +386,9 @@ Type TextSliceData
  first_line as integer 'Top-most line to show. Used for scrolling
  line_limit as integer = -1 'Number of lines to display. -1 is no limit
  line_count as integer 'automatically populated when the slice changes
+ linespacing as integer 'pixels added to the default line spacing.
+                        'negative shrinks, positive grows. This
+                        'alters the vertical size of the slice.
 End Type
 
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!

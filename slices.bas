@@ -1269,6 +1269,7 @@ Sub NewDrawTextSlice(byval sl as Slice ptr, byval p as integer, col as integer)
  end if
 
  textcolor col, ColorIndex(dat->bgcol)
+ 'TODO: dat->linespacing isn't supported yet
  wrapprint text, sl->ScreenX, sl->ScreenY, , p, wide, YES, fontnum
 end sub
 
@@ -1306,7 +1307,8 @@ Sub DrawTextSlice(byval sl as Slice ptr, byval p as integer)
 
  for linenum as integer = dat->first_line to last_line
   dim ypos as integer
-  ypos = (linenum - dat->first_line) * 10
+  ypos = (linenum - dat->first_line) * (10 + dat->linespacing)
+  if ypos > get_cliprect().b then exit sub
   if dat->show_insert then
    dim offset_in_line as integer  '0-based offset
    offset_in_line = dat->insert - line_starts(linenum)
@@ -1383,7 +1385,7 @@ Private Sub UpdateTextSliceHeight(byval sl as Slice ptr, lines() as string)
  if dat->line_limit > -1 then  'If not unlimited
   high = small(high, dat->line_limit)
  end if
- sl->Height = high * 10
+ sl->Height = high * (10 + dat->linespacing)
 end sub
 
 Function GetTextSliceData(byval sl as Slice ptr) as TextSliceData ptr
@@ -1403,6 +1405,7 @@ Sub CloneTextSlice(byval sl as Slice ptr, byval cl as Slice ptr)
   .outline = dat->outline
   .wrap    = dat->wrap
   .bgcol   = dat->bgcol
+  .linespacing = dat->linespacing
  end with
 end sub
 
@@ -1415,6 +1418,7 @@ Sub SaveTextSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  SaveProp node, "outline", dat->outline
  SaveProp node, "wrap", dat->wrap
  SaveProp node, "bgcol", dat->bgcol
+ SaveProp node, "linespacing", dat->linespacing
 End Sub
 
 Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
@@ -1426,6 +1430,7 @@ Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->outline = LoadPropBool(node, "outline")
  dat->wrap    = LoadPropBool(node, "wrap")
  dat->bgcol   = LoadProp(node, "bgcol")
+ dat->linespacing = LoadProp(node, "linespacing")
 End Sub
 
 Function NewTextSlice(byval parent as Slice ptr, byref dat as TextSliceData) as Slice ptr
