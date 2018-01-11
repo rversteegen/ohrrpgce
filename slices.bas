@@ -2093,31 +2093,45 @@ Sub GridChildDraw(byval s as Slice Ptr, byval page as integer)
   dim w as integer = .Width \ large(1, dat->cols)
   dim h as integer = .Height \ large(1, dat->rows)
 
+  select case dat->primary_dir
+   case dirUp
+    axis0 = 1
+    yslot = dat->rows - 1
+   case dirDown
+    axis0 = 1
+    yslot = 0
+   case dirLeft
+    axis1 = 0
+    xslot = dat->cols - 1
+   case dirRight
+    axis1 = 0
+  end select
+
+
   'draw the slice's children
   dim ch as Slice ptr = .FirstChild
   dim childindex as integer = 0
-  for yslot as integer = 0 to dat->rows - 1
-   for xslot as integer = 0 to dat->cols - 1
-    if ch = 0 then exit for, for
+  while ch
 
-    dim clippos as XYPair
-    clippos.x = .ScreenX + xslot * w
-    clippos.y = .ScreenY + yslot * h
-    dim rememclip as ClipState = cliprect
-    shrinkclip clippos.x + .paddingLeft, _
-               clippos.y + .paddingTop, _
-               clippos.x + w - .paddingRight - 1, _
-               clippos.y + h - .paddingBottom - 1, _
-               vpages(page)
+   dim clippos as XYPair
+   clippos.x = .ScreenX + slot.x * w
+   clippos.y = .ScreenY + slot.y * h
+   dim rememclip as ClipState = cliprect
+   shrinkclip clippos.x + .paddingLeft, _
+              clippos.y + .paddingTop, _
+              clippos.x + w - .paddingRight - 1, _
+              clippos.y + h - .paddingBottom - 1, _
+              vpages(page)
 
-    DrawSliceRecurse(ch, page, childindex)
+   DrawSliceRecurse(ch, page, childindex)
 
-    cliprect = rememclip
+   cliprect = rememclip
 
-    ch = ch->NextSibling
-    childindex += 1
-   next
-  next
+   ch = ch->NextSibling
+   childindex += 1
+
+   slot.n(axis0) += 
+  wend
  end with
 End Sub
 
