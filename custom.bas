@@ -233,6 +233,33 @@ check_for_crashed_workingdirs
 setup_workingdir
 
 
+declare sub giftry(infile as string, outfile as string, dither as bool)
+
+'dim surf as Surface ptr = image_import_as_surface("../testfiles/5737-DEFAULT-l.jpg", yes)
+
+' dim suff as string = "_new_range"
+
+' ' 'avg leaves = 29.3056 avg nodes = 70.9137 average diff = 20.7084 selected cols = 248
+' giftry("../testfiles/5750.bmp", "out3"+suff+".gif", yes)
+
+' ' 'avg leaves = 58.2395 avg nodes = 129.375 average diff = 54.3254 selected cols = 255
+' giftry("../testfiles/mountain.png", "out"+suff+".gif", yes)
+
+' giftry("../testfiles/mountain.png", "out4"+suff+".gif", no)
+
+' 'avg leaves = 16.4616 avg nodes = 55.6595 average diff = 7.10239 selected cols = 135
+' giftry("audio20015.bmp", "out2"+suff+".gif", no)
+
+' giftry("../testfiles/Fenrir/forest.bmp", "out5"+suff+".gif", yes)
+
+' giftry("../testfiles/Fenrir/Mountains.png", "out6"+suff+".gif", no)
+' giftry("../testfiles/Fenrir/Mountains.png", "out7"+suff+".gif", yes)
+' giftry("../testfiles/tcd.png", "out8"+suff+".gif", no)
+
+' giftry("4col.bmp", "out9"+suff+".gif", no)
+
+' quad_transforms_menu
+
 '=============================== Select a game ================================
 
 DIM scriptfile as string
@@ -2020,7 +2047,7 @@ SUB quad_transforms_menu ()
  DIM vertices(3) as Float3
 
  DIM angle as single
- DIM scale as Float2 = (2.0, 2.0)
+ DIM scale as Float2 = (6.0, 6.0)
  DIM position as Float2 = (150, 50)
 
  switch_to_32bit_vpages()
@@ -2276,3 +2303,11 @@ SUB new_graphics_tests
  notification gen(genNumBackdrops) & " backdrops loaded from .rgfx in " & CINT(rgfx_time * 1000) & "ms; " _
      "loaded from mxs in " & CINT((timer - starttime) * 1000) & "ms"
 END SUB
+
+sub giftry(infile as string, outfile as string, dither as bool)
+ dim surf as Surface ptr = image_import_as_surface(infile, yes)
+ dim as double tt = timer
+ surface_export_gif surf, "gifcomp/" & outfile, dither
+ tt= timer - tt
+ ? outfile & " done in " & tt & " from " & infile
+end sub
