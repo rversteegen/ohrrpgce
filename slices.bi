@@ -380,6 +380,7 @@ Type GridSliceData
  show as bool     'Whether to draw the lines of the grid
  rows as integer
  cols as integer
+ color as integer
 End Type
 
 Type LayoutSliceData

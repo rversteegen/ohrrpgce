@@ -1972,19 +1972,18 @@ Sub DrawGridSlice(byval sl as Slice ptr, byval p as integer)
  if sl->SliceData = 0 then exit sub
  
  dim dat as GridSliceData ptr = cptr(GridSliceData ptr, sl->SliceData)
-
+ dim col as integer = SliceColor(dat->color)
  
  if dat->show then
-  drawbox sl->screenx, sl->screeny, sl->width, sl->height, uilook(uiText), 1, p
+  drawbox sl->screenx, sl->screeny, sl->width, sl->height, col, 1, p
   dim w as integer = sl->width \ large(1, dat->cols)
   dim h as integer = sl->height \ large(1, dat->rows)
   for row as integer = 0 to dat->rows - 1
-   for col as integer = 0 to dat->cols - 1
-    'drawbox sl->screenx + col * w, sl->screeny + row * h, w, h, uilook(uiText), 1, p
-    rectangle sl->screenx + col * w, sl->screeny + row * h, w, 1, uilook(uiText), p
-    rectangle sl->screenx + col * w, sl->screeny + row * h, 1, h, uilook(uiText), p
-   next col
+   rectangle sl->screenx, sl->screeny + row * h, sl->Width, 1, col, p
   next row
+  for col as integer = 0 to dat->cols - 1
+   rectangle sl->screenx + col * w, sl->screeny, 1, sl->Height, col, p
+  next col
  end if
 end sub
 
@@ -1998,6 +1997,7 @@ Sub CloneGridSlice(byval sl as Slice ptr, byval cl as Slice ptr)
   .cols = dat->cols
   .rows = dat->rows
   .show = dat->show
+  .color = dat->color
  end with
 end sub
 
@@ -2008,6 +2008,7 @@ Sub SaveGridSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  SavePropAlways node, "cols", dat->cols
  SavePropAlways node, "rows", dat->rows
  SavePropAlways node, "show", dat->show
+ SavePropAlways node, "color", dat->color
 End Sub
 
 Sub LoadGridSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
@@ -2017,6 +2018,7 @@ Sub LoadGridSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->cols = large(1, LoadProp(node, "cols", 1))
  dat->rows = large(1, LoadProp(node, "rows", 1))
  dat->show = LoadPropBool(node, "show")
+ dat->color = bound(LoadProp(node, "rows"), -1 * uiText - 1, 255)
 End Sub
 
 Function GridSliceXAlign(byval sl as Slice Ptr, byval alignTo as Slice Ptr, byval w as integer) as integer
@@ -2154,7 +2156,8 @@ End Function
 Sub ChangeGridSlice(byval sl as Slice ptr,_
                       byval rows as integer=0,_
                       byval cols as integer=0,_
-                      byval show as integer=-2)
+                      byval show as integer=-2,_
+                      byval color as integer=-999)
  if sl = 0 then debug "ChangeGridSlice null ptr" : exit sub
  if sl->SliceType <> slGrid then reporterr "Attempt to use " & SliceTypeName(sl) & " slice " & sl & " as a grid" : exit sub
  dim dat as GridSliceData Ptr = sl->SliceData
@@ -2166,6 +2169,11 @@ Sub ChangeGridSlice(byval sl as Slice ptr,_
  end if
  if show > -2 then
   dat->show = show
+ end if
+ if dat->show = NO then
+  dat->color = 0
+ elseif color <> -999 then
+  dat->color = color
  end if
 end sub
 
