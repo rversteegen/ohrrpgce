@@ -65,6 +65,8 @@ def startfile(filename):
 
 ########################################################################
 
+########################################################################
+
 def delete_pattern(filename_pattern):
     for filename in glob.iglob(filename_pattern):
         os.unlink(filename)
@@ -118,6 +120,10 @@ This script can be used with 'git bisect run': it returns 0 on pass, 1 on fail o
 ########################################################################
 
 class Context(object):
+
+    # self.using_svn says whether we're using svn instead of git
+    # self.rev is the current commit (revision number in svn, actually branch name in git)
+    # self.svn_rev is the most recent svn revision
     
     def __init__(self, autotester):
         self._autotester = autotester # needed only for quithelp()
@@ -132,6 +138,7 @@ class Context(object):
                 match = re.match(r"^Revision: (.*)$", line)
                 if match:
                     self.rev = match.group(1)
+            self.svn_rev = self.rev
         elif os.path.isdir(".git"):
             self.using_svn = False
             self.absolute_rev = get_run_command("git rev-parse HEAD")[0]
@@ -141,6 +148,7 @@ class Context(object):
             if self.rev == "HEAD":
                 # Not on a branch
                 self.rev = self.absolute_rev
+            _, self.svn_rev = query_git(os.getcwd())
         else:
             self._autotester.quithelp("This is neither an svn nor a git (root) directory. This script should be run from an svn or git working copy of the OHRRPGCE source")
 
@@ -231,6 +239,7 @@ class AutoTest(object):
         self.compare_output(shortname, olddir, newdir)
         
     def prepare_rev(self, rev, rpg, d):
+        "Check out the requested revision and compile Game"
         if not os.path.isdir(d):
             self.againfail(rpg)
             os.mkdir(d)
@@ -295,6 +304,7 @@ class AutoTest(object):
             ohrkey = prefix + ".ohrkey"
             if os.path.isfile(ohrkey):
                 replay = "-autosnap 1 -replayinput '%s'" % (ohrkey)
+            if 
         cmd = "%s -z 1 -autotest %s '%s'" % (self.plat.game, replay, rpg)
         run_command(cmd, 1)
         move_pattern("checkpoint*.bmp", dump_dir)

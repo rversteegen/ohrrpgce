@@ -143,6 +143,9 @@ def query_git (rootdir):
         date, rev = '', 0
     return date, rev
 
+def svn_rev_from_git_commit (rootdir, commit):
+    
+
 ########################################################################
 
 def get_euphoria_version():
