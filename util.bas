@@ -536,6 +536,20 @@ FUNCTION rect_collide_point_vertical_chunk (r as RectType, p as XYPair, chunk_sp
  RETURN -1
 END FUNCTION
 
+FUNCTION rect_clamp_point (r as RectType, p as XYPair) as XYPair
+ RETURN XY(bound(p.x, r.x, r.x + r.wide - 1), bound(p.y, r.y, r.y + r.high - 1))
+END FUNCTION
+
+' 'Modifies rect1 in-place to be the intersection of two rects
+' 'TODO: Not tested in the case that there is no intersection. Want it to set w/h to 0.
+' FUNCTION rect_intersection_with(rect1 as RectType, rect2 as RectType) as RectType
+' 	rect1.y = bound(rect1.y, 0, rect2.high - 1)
+' 	rect1.x = bound(rect1.x, 0, rect2.wide - 1)
+' 	rect1.bottom = bound(rect1.bottom, rect1.y, rect2.high - 1);
+' 	rect1.right = bound(rect1.right, rect1.x, rect2.wide - 1);
+' }
+
+
 FUNCTION rando () as double
  'STATIC count as integer = 0
  'This is a simple wrapper for RND to facilitate debugging
