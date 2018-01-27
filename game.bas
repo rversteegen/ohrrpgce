@@ -5016,10 +5016,10 @@ SUB update_hero_pathfinding_display(byval tile as XYpair)
     EXIT SUB
    END IF
   END IF
-  DIM destpos as XYPair
-  framewalkabout tile * 20 + 10, destpos, mapsizetiles * 20, gmap(5)
-  sl->X = mapx + destpos.x
-  sl->Y = mapy + destpos.y + gmap(11) 'foot offset
+  'DIM destpos as XYPair
+  'framewalkabout tile * 20 + 10, destpos, mapsizetiles * 20, gmap(5)
+  sl->X = tile.x * 20 + 10  'mapx + destpos.x
+  sl->Y = tile.y * 20 + 10 + gmap(11)  'mapy + destpos.y + gmap(11) 'foot offset
  END IF
 END SUB
 

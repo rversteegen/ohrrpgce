@@ -141,10 +141,10 @@ SUB update_walkabout_pos (byval walkabout_cont as slice ptr, byval x as integer,
   EXIT SUB
  END IF
 
- DIM where as XYPair
+' DIM where as XYPair
  '+ gmap(11)
- framewalkabout XY(x, y), where, mapsizetiles * 20, gmap(5)
- walkabout_cont->Pos = where + XY(mapx, mapy)
+' framewalkabout XY(x, y), where, mapsizetiles * 20, gmap(5)
+ walkabout_cont->Pos = XY(x, y) 'where + XY(mapx, mapy)
 
  DIM sprsl as Slice Ptr
  sprsl = LookupSlice(SL_WALKABOUT_SPRITE_COMPONENT, walkabout_cont)

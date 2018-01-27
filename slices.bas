@@ -114,7 +114,34 @@ Sub DefaultChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childinde
   end if
  end with
 End sub
+/'
+'Used by wrapping map layers
+Sub WrappingChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
+ if ch = 0 then showerror "WrappingChildRefresh null ptr": exit sub
+ if visibleonly and (ch->Visible = NO) then exit sub
+ DefaultChildRefresh par, ch, childindex, visibleonly
 
+ with *ch
+  .ScreenX -= par->ScreenX
+  rightedge = (.ScreenX + .Width) MOD par->Width
+
+
+
+  .ScreenX = .X + SliceXAlign(ch, par) - SliceXAnchor(ch)
+  .ScreenY = .Y + SliceYAlign(ch, par) - SliceYAnchor(ch)
+  if .Fill then
+   if .FillMode = sliceFillFull ORELSE .FillMode = sliceFillHoriz then
+    .ScreenX = par->ScreenX + par->paddingLeft
+    .Width = par->Width - par->paddingLeft - par->paddingRight
+   end if
+   if .FillMode = sliceFillFull ORELSE .FillMode = sliceFillVert then
+    .ScreenY = par->ScreenY + par->paddingTop
+    .height = par->Height - par->paddingTop - par->paddingBottom
+   end if
+  end if
+ end with
+End sub
+'/
 Sub DefaultChildDraw(byval s as Slice Ptr, byval page as integer)
  'NOTE: we don't bother to null check s here because this sub is only
  '      ever called from DrawSliceRecurse which does null check it.
