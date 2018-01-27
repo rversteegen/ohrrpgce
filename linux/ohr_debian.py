@@ -159,8 +159,8 @@ def quiet_mkdir(dir):
   except OSError:
     pass # ignore dir-already-exists
 
-def run_dpkg(package, ver):
-  os.system("fakeroot dpkg -b %s %s_%s_amd64.deb" % (package, package, ver))
+def run_dpkg(package, ver, arch):
+  os.system("fakeroot dpkg -b %s %s_%s_%s.deb" % (package, package, ver, arch))
 
 def menu_entry(destdir, package_name, title, command, append=False, desktop_file_suffix="", prefix = "/usr", icon = None):
   mode = "w"

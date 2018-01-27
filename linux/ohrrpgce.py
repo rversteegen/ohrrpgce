@@ -45,8 +45,9 @@ recommends = "madplay, vorbis-tools"
 ############################################################################
 
 def create_dpkg():
-    "Creates ohrrpgce_${version}_amd64.deb"
+    "Creates ohrrpgce_${version}_${arch}.deb"
     version = read_version()
+    arch = 'amd64'
     quiet_mkdir(package_name + '/DEBIAN')
     write_control_file(package_name + '/DEBIAN/control',
     """Package: %s
@@ -54,7 +55,7 @@ Priority: optional
 Section: games
 Installed-Size: %d
 Maintainer: %s
-Architecture: amd64
+Architecture: %s
 Version: %s
 Depends: %s
 Recommends: %s
@@ -66,9 +67,9 @@ Description: Official Hamster Republic Role Playing Game Construction Engine
  RPG genre. To learn how to create your own game, or to download other
  people's games, visit http://HamsterRepublic.com/ohrrpgce/
 """
-    , (package_name, calculate_size(files, executables), maintainer, version, depends, recommends))
+    , (package_name, calculate_size(files, executables), maintainer, arch, version, depends, recommends))
     install(package_name)
-    run_dpkg(package_name, version)
+    run_dpkg(package_name, version, arch)
 
 def install(destdir = '', prefix = '/usr', dry_run = False):
     """Installs the OHRRPGCE on the local machine (not including Vikings of Midgard).
