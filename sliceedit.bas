@@ -168,6 +168,7 @@ DECLARE SUB slice_editor_import_file(byref ses as SliceEditState, byref edslice 
 DECLARE FUNCTION slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as Slice Ptr) as bool
 DECLARE FUNCTION slice_lookup_code_caption(byval code as integer, slicelookup() as string) as string
 DECLARE FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState, lowerlimit as integer, upperlimit as integer) as bool
+DECLARE FUNCTION name_list_editor(names() as string, start_at_code as integer, byref menu as SimpleMenuItem vector, helpkey as string) as integer
 DECLARE FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as string, byval start_at_code as integer, byval slicekind as SliceTypes) as integer
 DECLARE FUNCTION slice_caption (sl as Slice Ptr, slicelookup() as string, rootsl as Slice Ptr, edslice as Slice Ptr) as string
 DECLARE SUB slice_editor_copy(byref ses as SliceEditState, byval slice as Slice Ptr, byval edslice as Slice Ptr)
@@ -2013,14 +2014,9 @@ FUNCTION lookup_code_grabber(byref code as integer, byref ses as SliceEditState,
 END FUNCTION
 
 FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as string, byval start_at_code as integer, byval slicekind as SliceTypes) as integer
-
- DIM result as integer
- result = start_at_code
-
  DIM menu as SimpleMenuItem vector
  v_new menu, 0
- append_simplemenu_item menu, "Previous Menu...", , , -1
- append_simplemenu_item menu, "None", , , 0
+ 'append_simplemenu_item menu, "None", , , 0
 
  DIM special_header as bool = NO 
  FOR i as integer = 0 TO UBOUND(ses.specialcodes)
@@ -2135,12 +2131,41 @@ FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as s
 '</SLICE LOOKUP NAMES>
 
  END IF
- 
- append_simplemenu_item menu, "User Defined Lookup Codes", YES, uiLook(uiText) 
+
+ append_simplemenu_item menu, "User Defined Lookup Codes", YES, uiLook(uiText)
+ DIM result as integer
+ result = name_list_editor(slicelookup(), start_at_code, menu, "slice_lookup_codes")
+
+ '--shrink the end of the list to exclude blank ones.
+ shrink_lookup_list slicelookup()
+
+ '--Make sure the 0 string is blank
+ slicelookup(0) = ""
+
+ IF can_write_to_workingdir THEN  'not live previewing
+  save_string_list slicelookup(), workingdir & SLASH & "slicelookup.txt"
+ END IF
+
+ RETURN result
+END FUNCTION
+
+' menu is freed
+FUNCTION name_list_editor(names() as string, start_at_code as integer, byref menu as SimpleMenuItem vector, helpkey as string) as integer
+
+ v_insert menu, 0, SimpleMenuItem()
+ v_insert menu, 0, SimpleMenuItem()
+ append_simplemenu_item menu, "Previous Menu...", , , -1, 0  'set menu[0]
+ append_simplemenu_item menu, "None", , , 0, 1  'set menu[1]
+
+ DIM result as integer
+ result = start_at_code
+
+ ' Now we go to append the contents of names()
+
  DIM userdef_start as integer = v_len(menu) - 1
  
- FOR i as integer = 1 TO UBOUND(slicelookup)
-  append_simplemenu_item menu, slicelookup(i), , , i
+ FOR i as integer = 1 TO UBOUND(names)
+  append_simplemenu_item menu, names(i), , , i
  NEXT i
 
  DIM st as MenuState
@@ -2167,7 +2192,7 @@ FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as s
   usemenu st, cast(BasicMenuItem vector, menu)
   curcode = v_at(menu, st.pt)->dat
   IF keyval(scEsc) > 1 THEN EXIT DO
-  IF keyval(scF1) > 1 THEN show_help "slice_lookup_codes"
+  IF keyval(scF1) > 1 THEN show_help helpkey
   IF keyval(scSpace) = 0 ANDALSO enter_space_click(st) THEN
    IF curcode <> -1 THEN result = curcode  'Not 'Previous Menu'
    EXIT DO
@@ -2177,18 +2202,17 @@ FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as s
   IF st.pt > userdef_start THEN
    
    'Edit lookup codes
-   IF strgrabber(slicelookup(curcode), 40) THEN
-    slicelookup(curcode) = sanitize_script_identifier(slicelookup(curcode))
-    v_at(menu, st.pt)->text = slicelookup(curcode)
+   IF strgrabber(names(curcode), 40) THEN
+    names(curcode) = sanitize_script_identifier(names(curcode))
+    v_at(menu, st.pt)->text = names(curcode)
    END IF
   
    '--make the list longer if we have selected the last item in the list and it is not blank
-   IF st.pt = st.last ANDALSO TRIM(slicelookup(curcode)) <> "" THEN
-    REDIM PRESERVE slicelookup(UBOUND(slicelookup) + 1) as string
-    append_simplemenu_item menu, "", , , UBOUND(slicelookup)
+   IF st.pt = st.last ANDALSO TRIM(names(curcode)) <> "" THEN
+    REDIM PRESERVE names(UBOUND(names) + 1) as string
+    append_simplemenu_item menu, "", , , UBOUND(names)
     st.last += 1
    END IF
-   
   END IF
 
   clearpage dpage
@@ -2199,16 +2223,8 @@ FUNCTION edit_slice_lookup_codes(byref ses as SliceEditState, slicelookup() as s
   setvispage vpage
   dowait
  LOOP
- 
- '--shrink the end of the list to exclude blank ones.
- shrink_lookup_list slicelookup()
 
- '--Make sure the 0 string is blank
- slicelookup(0) = ""
-
- IF can_write_to_workingdir THEN  'not live previewing
-  save_string_list slicelookup(), workingdir & SLASH & "slicelookup.txt"
- END IF
+ v_free menu
 
  RETURN result
 END FUNCTION
