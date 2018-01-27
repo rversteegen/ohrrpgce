@@ -3857,6 +3857,49 @@ Sub DrawSlice(byval s as Slice ptr, byval page as integer)
  v_free context_stack
 end sub
 
+ 'Layout slices are special and handle convexity in their own way,
+ 'because child positions depend on sizes child sizes
+' if par->SliceType = slLayout then exit sub
+
+  'Each slice should be processed in this order:
+  '-[NPC, hero, etc slices] - positions & visibility updated based on in-game logic (done separately)
+  '-AdvanceSlice() - update position based on movement (done separately)
+  'Before parent is processed:
+  '-Update() - update size due to internal data, eg. text content changes
+  '-UpdateCoverSize() - update size if .CoverChildren
+  '-Its order is updated by AutoSortChildren()
+  'After parent is processed:
+  '-if width%/height%, effective size is updated
+  '-refresh: if filling, the size is changed by the parent
+  '          and screen position (and possibly visibility)
+  ' (ChildRefresh/ChildrenRefresh)
+  '-Draw()
+  '-ChildDraw()
+
+
+  'Draw outline:
+  '-ADVANCE (if not paused)
+  '-UPDATE:
+  ' -Update() size of children due to internal data, or due to convex
+  ' -AutoSortChildren()
+  ' -If have ChildrenRefresh():
+  '  -ChildrenRefresh() simultaneously recomputes child screen positions and possibly changes parent size
+  ' -Else:
+  '  -update self size if convex
+  '  -arrange (refresh/reposition) children  ChildrenRefresh()
+  '-DRAW:
+  ' -Draw() self 
+  ' -ChildDraw(): clip, and recursively draw children
+  ' --refresh each child: ChildRefresh()
+
+  'loop over and Update each child
+  ' dim ch as Slice ptr = s->FirstChild
+  ' while ch
+  '  if ch->Update then ch->Update()
+  '  if ch->CoverChildren then TODO 'recursive
+  '  ch = ch->NextSibling
+  ' wend
+
 'Draw a slice tree (usually a subtree of the full tree) as if it were parented
 'to a container slice with given position and size.
 'ignore_offset causes the slice's offset from its parent to be ignored
