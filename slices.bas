@@ -366,6 +366,7 @@ Function NewSlice(byval parent as Slice ptr = 0) as Slice ptr
  ret->Visible = YES
  ret->Attached = 0
  ret->Attach = slSlice
+ ret->AnimVariants = NULL
  
  ret->Draw = NULL
  ret->Dispose = @DisposeNullSlice
@@ -438,6 +439,7 @@ Sub DeleteSlice(byval s as Slice ptr ptr, byval debugme as integer=0)
  
  'Call the slice's type-specific Dispose function
  if sl->Dispose <> 0 then sl->Dispose(sl)
+ v_free sl->AnimVariants
  
  OrphanSlice sl
  DeleteSliceChildren sl, debugme
@@ -771,6 +773,39 @@ Function LookupSlice(byval lookup_code as integer, byval start_sl as Slice ptr, 
    IF result THEN RETURN result '--found in recursion, pass the result back
    child = child->NextSibling
   WEND
+End Function
+
+Sub SliceAddVariant(sl as Slice ptr, name as NameID)
+ if sl->AnimVariants = NULL then v_new sl->AnimVariants
+
+ ' Check for a duplicate
+ if v_find(sl->AnimVariants, name) >= 0 then exit sub
+ ' Or replace its opposite
+ dim where as integer = v_find(sl->AnimVariants, -name)
+ if where >= 0 then
+  sl->AnimVariants[where] = name
+  exit sub
+ end if
+ ' Otherwise append
+ v_append sl->AnimVariants, name
+End Sub
+
+Sub SliceRemoveVariant(sl as Slice ptr, name as NameID)
+ if sl->AnimVariants = NULL then exit sub
+
+ v_remove sl->AnimVariants, name
+ v_remove sl->AnimVariants, -name
+End Sub
+
+' Returns true if pushed the old state to the stack
+Private Function UpdateAnimVariants(sl as Slice ptr, byref state as NameID vector, byref statestack as NameID vector vector) as bool
+ if v_len(sl->AnimVariants) = 0 then return NO
+
+ v_append statestack, state
+ state = NULL  'No longer own the memory, so prevent v_copy from deleting it
+ v_copy state, sl->AnimVariants
+
+ return YES
 End Function
 
 'Return the root of the tree by going up.

@@ -175,6 +175,25 @@ End Type
 
 DECLARE_VECTOR_OF_TYPE(SliceContext ptr, SliceContext_ptr)
 
+' The id of a variant (which is a positive value starting at 10000)
+' or its negation.
+' Positive values add a property to a slice, negative values remove it if present.
+TYPE NameID as integer
+
+' Built-in NameIDs.
+' Built-in variants have values from 10000-19999. User defined variants
+' have values from 20000-99999. This prevents overlap with many other things like slice lookup codes.
+' 0 is used to indicate an invalid/nonexistent variant.
+CONST varBUILTIN = 10000
+CONST varLAST_BUILTIN = 19999
+CONST varUSER = 20000
+CONST varLAST_USER = 99999
+CONST varUp = 10000
+CONST varRight = 10001
+CONST varDown = 10002
+CONST varLeft = 10003
+
+
 Extern "C"
 Type SliceFwd as Slice
 Type SliceDraw as Sub(Byval as SliceFwd ptr, byval stupidPage as integer)
@@ -249,6 +268,8 @@ Type Slice
   Context as SliceContext ptr  'NULL if none
   TableSlot as integer 'which slot in plotslices() holds a reference to this slice, or 0 for none
   Lookup as integer
+
+  AnimVariants as NameID vector
 
   EditorColor as integer 'Not saved, used only by slice editor
   EditorHideChildren as bool 'Saved, but only matters for the editor
@@ -526,11 +547,15 @@ DECLARE Sub AutoSortChildren(byval s as Slice Ptr)
 DECLARE Function SliceIndexAmongSiblings(byval sl as slice ptr) as integer
 DECLARE Function SliceChildByIndex(byval sl as slice ptr, byval index as integer) as Slice ptr
 DECLARE Function LookupSlice(byval lookup_code as integer, byval start_sl as Slice ptr, byval onlytype as SliceTypes=slInvalid) as Slice ptr
+
 DECLARE Function FindRootSlice(slc as Slice ptr) as Slice ptr
 DECLARE Function NextDescendent(desc as Slice ptr, parent as Slice ptr) as Slice ptr
 DECLARE Function IsAncestor(byval sl as slice ptr, byval ancestor as slice ptr) as bool
 DECLARE Function VerifySliceLineage(byval sl as slice ptr, parent as slice ptr) as bool
+
 DECLARE Function CalcContextStack(byval sl as Slice ptr) as SliceContext ptr vector
+DECLARE Sub SliceAddVariant(sl as Slice ptr, name as NameID)
+
 DECLARE Function UpdateRootSliceSize(sl as slice ptr) as bool
 DECLARE Function UpdateScreenSlice(clear_changed_flag as bool = YES) as bool
 DECLARE Sub RefreshSliceScreenPos(byval sl as slice ptr)
