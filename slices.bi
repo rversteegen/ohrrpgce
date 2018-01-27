@@ -505,6 +505,7 @@ DECLARE Function FindSliceAtPoint(parent as Slice Ptr, point as XYPair, byref nu
 
 DECLARE Function SliceIsInvisible(byval sl as Slice Ptr) as bool
 DECLARE Function SliceIsInvisibleOrClipped(byval sl as Slice Ptr) as bool
+DECLARE Function SliceIsClipped(sl as Slice ptr, byref clippedto as RectType) as bool
 
 DECLARE Sub ScrollToChild(byval sl as slice ptr, byval ch as slice ptr)
 DECLARE Sub ScrollAllChildren(byval sl as slice ptr, byval xmove as integer, byval ymove as integer)

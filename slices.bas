@@ -124,6 +124,7 @@ Sub DefaultChildDraw(byval s as Slice Ptr, byval page as integer)
 
   if .Clip then
    rememclip = cliprect
+   ' Note that if Width/Height (minus padding) are negative, then cliprect has zero width and height.
    shrinkclip .ScreenX + .paddingLeft, _
               .ScreenY + .paddingTop, _
               .ScreenX + .Width - .paddingRight - 1, _
@@ -3520,6 +3521,19 @@ Function SliceCollidePoint(byval sl as Slice Ptr, byval point as XYPair) as bool
  return NO
 end function
 
+Function SliceChildAreaCollidePoint(byval sl as Slice Ptr, byval point as XYPair) as bool
+ 'Check if a point collides with a slice's screen position
+ 'Note RefreshSliceScreenPos not called here
+ if sl = 0 then return NO
+ with *sl
+ if point.x >= .ScreenX + .PaddingLeft and point.x < .ScreenX + .Width - .paddingLeft - .paddingRight then
+  if point.y >= sl->ScreenY + .PaddingLeft and point.y < sl->ScreenY + sl->Height - .paddingTop - .paddingBottom then
+   return YES
+  end if
+ end if
+ return NO
+end function
+
 Function SliceContains(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr) as bool
  'Check if sl2 is completely contained inside sl1
  if sl1 = 0 or sl2 = 0 then return NO
@@ -3687,6 +3701,34 @@ Sub SliceClamp(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr)
   if diff > 0 then sl2->Y -= abs(diff)
  end if
 end sub
+
+'Return the slice's position on the screen.
+'Note that negative width/height is taken into account, so ret.size is always non-negative.
+Function SliceBounds(sl as Slice ptr) as RectType
+ dim ret as RectType
+ corners_to_rect sl->ScreenPos, sl->Size, ret
+ return ret
+end function
+
+'Calculate the screen position of a slice after clipping off 
+'Returns whether it's at least partially cut off by clipping.
+'Warning: this doesn't account for negative width or height!
+Function SliceClippedBounds(sl as Slice ptr, byref clippedto as RectType) as bool
+ RefreshSliceScreenPos(sl)
+ dim as XYPair topleft = sl->ScreenPos, botright = sl->ScreenPos + sl->Size
+ dim ancs as Slice ptr = sl->Parent
+ while ancs
+  if ancs->Clip then
+   topleft.X =  large(topleft.X,  ancs->ScreenX)
+   topleft.Y =  large(topleft.Y,  ancs->ScreenY)
+   botright.X = small(botright.X, ancs->ScreenX + ancs->Width)
+   botright.Y = small(botright.Y, ancs->ScreenY + ancs->Height)
+  end if
+  ancs = ancs->Parent
+ wend
+ corners_to_rect topleft, botright, clippedto
+ return topleft <> sl->ScreenPos orelse botright <> sl->ScreenPos + sl->Size
+end function
 
 Function SliceColor(byval n as integer) as integer
  if n >= 0 andalso n <= 255 then return n

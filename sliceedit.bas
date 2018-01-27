@@ -1903,9 +1903,17 @@ END SUB
 SUB DrawSliceAnts (byval sl as Slice Ptr, byval dpage as integer)
  IF sl = 0 THEN EXIT SUB
  IF sl->Width = 0 OR sl->Height = 0 THEN
-  ' A 1x1 flashing pixel is hard to spot
+  ' A 1x1 flashing pixel is hard to spot, and width 0 and width 1 slices
+  ' otherwise show the same ants, so draw a 3x3 box at the top-left corner
   drawants vpages(dpage), sl->ScreenX - 1, sl->ScreenY - 1, 3, 3
  END IF
+
+ '--If this slice is clipped, show it
+ DIM clippedto as RectType
+ IF SliceClippedBounds(sl, clippedto) THEN
+  drawants vpages(dpage), clippedto.x, clippedto.y, clippedto.wide, clippedto.high, uilook(uiHighlight2)
+ END IF
+
  drawants vpages(dpage), sl->ScreenX, sl->ScreenY, sl->Width, sl->Height
 
  '--Draw gridlines if this is a grid
