@@ -578,6 +578,38 @@ declare sub palette16_mix_n_match(pal as Palette16 ptr, byval col as RGBcolor, c
 '==========================================================================================
 '                                 SpriteSets and Animations
 
+
+' Contexts in which an animation or animation variant name has a builtin meaning
+Enum AnimationContext
+	acWalkaboutSprite = 1
+	acHeroSprite = 2
+	acEnemySprite = 4
+	acAttackSprite = 8
+	acWeaponSprite = 16
+	acPortraitSprite = 32
+
+	acAny       = 65535
+	'Heroes, enemies, and walkabouts
+	acActor     = acWalkaboutSprite or acHeroSprite or acEnemySprite
+	'Walkabouts (heroes/npcs)
+	acWalkabout = acWalkaboutSprite
+	'In-battle heroes and enemies (BattleSprites)
+	acBattler   = acHeroSprite or acEnemySprite
+	'In-battle heroes
+	acBatHero   = acHeroSprite
+	'In-battle enemies
+	acBatEnemy  = acEnemySprite
+	'Walkabout and in-battle heroes
+	acHero      = acWalkaboutSprite or acHeroSprite
+End Enum
+
+' Describes a builtin animation or variant name
+Type AnimVariantInfo
+	name as zstring ptr
+	context as AnimationContext
+	description as zstring ptr
+End Type
+
 Enum AnimOpType
 	animOpWait      = 0 '(ms)
 	animOpWaitMS    = 1 '(ms)
@@ -635,6 +667,8 @@ declare sub spriteset_unload(ss as SpriteSet ptr ptr)
 declare function spriteset_for_frame(fr as Frame ptr) as SpriteSet ptr
 declare function empty_spriteset() as SpriteSet ptr
 declare function load_global_animations(sprtype as SpriteType, rgfxdoc as Reload.DocPtr = NULL) as SpriteSet ptr
+
+declare sub split_variantname(variantname as string, byref anim as string, byref variant as string)
 
 ' The animation state of a SpriteSet instance
 Type SpriteState
@@ -727,5 +761,8 @@ extern max_display_fps as integer
 extern use_speed_control as bool
 extern user_toggled_fullscreen as bool
 extern default_page_bitdepth as integer
+
+extern builtin_animations(32) as AnimVariantInfo
+extern builtin_anim_variants(32) as AnimVariantInfo
 
 #ENDIF
