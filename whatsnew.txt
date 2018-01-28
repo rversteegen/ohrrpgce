@@ -430,6 +430,22 @@ August 31 2017 [Dwimmercrafty]
       16383 -> 50000 [James]
     * "set active battle pause for animations" [Ralph]
 
+
+set variant(sl, $1="left")
+set variant(sl, $1="-left")
+
+set variant(sl, var:Left)
+set variant(sl, -1*var:Left)
+
+add variant(sl, var:Left)
+hide variant(sl, var:Left)
+remove variant(sl, var:Left)
+
+check variant(sl, var:Left)
+get variants(sl, getcount)
+get active variants(sl, getcount)
+
+
   * Changes
     * Sound effects used to play at max volume, which has now changed
       to a default of 80% (because music defaulted to just 50%). In

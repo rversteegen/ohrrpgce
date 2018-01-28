@@ -32,6 +32,27 @@ EXTERN slave_channel as IPCChannel
 REDIM lookup1_bin_cache(-1 TO -1) as TriggerData
 REDIM script_names() as IntStrPair
 
+REDIM user_variants_table() as IntStrPair
+
+DECLARE FUNCTION variant_name_to_int(user_variants() as IntStrPair, name as string) as NameID
+
+
+' Built-in variants have names starting with :, which are not allowed for user names
+DIM SHARED builtin_variants_table(4) as IntStrPair
+'  => { _
+'   (varUp,       "up"), _
+'   (varRight,    "right"), _
+'   (varDown,     "down"), _
+'   (varLeft,     "left"), _
+'   (varHurt,     "hurt") _
+' }
+'   '(varSelected, "selected"), _
+'   '(varHover,    "hover"), _
+'   '(varDisabled, "disabled"), _
+
+
+
+
 DIM builtin_animations(...) as AnimVariantInfo => { _
   (@"idle",        acAny,        @"Default when no other animation running, e.g. standing still"), _
   (@"walk",        acActor,      @"Normal/default movement"), _
@@ -3374,6 +3395,99 @@ SUB Palette16_save(pal as Palette16 ptr, pal_num as integer)
   IF slave_channel <> NULL_CHANNEL THEN channel_write_line slave_channel, "PAL " & pal_num
  #ENDIF
 END SUB
+
+
+'==========================================================================================
+'                                      Variants
+'==========================================================================================
+
+' Load the names of variants from a text file into an array.
+' Each line is of the format "number name", separated by a space, with a decimal number
+' in the range varBUILTIN to varLAST_USER. Also, lines prefixed by # are ignored,
+' for future expansion
+SUB load_variants(variants() as IntStrPair, fname as string)
+  REDIM lines() as string
+  lines_from_file lines(), fname, NO
+  REDIM variants(0 TO UBOUND(lines))
+  DIM saw_invalid as bool = NO
+
+  DIM varidx as integer = 0  'Index in variants()
+  FOR lineidx as integer = 0 TO UBOUND(lines)
+    IF lines(lineidx)[0] = ASC("#") THEN CONTINUE FOR
+    DIM where as integer = INSTR(lines(lineidx), " ")  ' split
+    DIM varnum as NameID = -1
+    IF where > 0 THEN varidx = str2int(LEFT(lines(lineidx), where - 1), -1)
+    IF varnum = -1 OR where = LEN(lines(lineidx)) THEN
+      debug "load_variants: invalid line " & lineidx & " " & lines(lineidx)
+      saw_invalid = YES
+    ELSEIF varnum < varBUILTIN OR varnum > varLAST_USER THEN
+      debug "load_variants: line " & lineidx & " invalid variant num " & varnum
+      saw_invalid = YES
+    ELSE
+      variants(varidx).i = varnum
+      variants(varidx).s = MID(lines(lineidx), where + 1)
+      varidx += 1
+    END IF
+  NEXT
+  REDIM PRESERVE variants(0 TO varidx - 1)
+
+  IF saw_invalid THEN showerror "Data file " & trimpath(fname) & " contains corrupt or unsupported data"
+END SUB
+
+SUB save_variants(variants() as IntStrPair, fname as string)
+  DIM lines(UBOUND(variants)) as string
+  FOR idx as integer = 0 TO UBOUND(variants)
+    lines(idx) = variants(idx).i & " " & variants(idx).s
+  NEXT
+  lines_to_file lines(), fname
+END SUB
+
+' Name a new variant (or returns existing index if it already exists)
+FUNCTION new_variant(variants() as IntStrPair, name as string) as NameID
+  IF name[0] = ASC(":") THEN
+    debugc errPromptBug, "new_variant: invalid name " & name
+    RETURN 0
+  END IF
+
+  ' Check exists
+  DIM ret as NameID
+  ret = variant_name_to_int(variants(), name)
+  IF ret THEN RETURN ret
+  ret = variants(UBOUND(variants)).i + 1
+  intstr_array_append(variants(), ret, name)
+  RETURN ret
+END FUNCTION
+
+' intstr_array_append
+
+' Lookup a variant in either user_variants() or in builtin_variants_table() and return its ID or 0.
+FUNCTION variant_name_to_int(user_variants() as IntStrPair, name as string) as NameID
+  IF LEN(name) = 0 THEN RETURN 0
+  DIM idx as integer
+  IF name[0] = ASC(":") THEN
+    idx = intstr_array_find(builtin_variants_table(), name)
+    IF idx > -1 THEN RETURN builtin_variants_table(idx).i
+  ELSE
+    idx = intstr_array_find(user_variants(), name)
+    IF idx > -1 THEN RETURN user_variants(idx).i
+  END IF
+  RETURN 0
+END FUNCTION
+
+' Lookup a variant in either user_variants() or in builtin_variants_table() and return its name
+FUNCTION variant_int_to_name(user_variants() as IntStrPair, varid as NameID) as string
+  varid = ABS(varid)
+  DIM idx as integer
+  IF varid <= varLAST_BUILTIN THEN
+    idx = intstr_array_find(builtin_variants_table(), varid)
+    IF idx > -1 THEN RETURN builtin_variants_table(idx).s
+  ELSE
+    idx = intstr_array_find(user_variants(), varid)
+    IF idx > -1 THEN RETURN user_variants(idx).s
+  END IF
+  debugc errError, "Invalid variant ID " & varid
+  RETURN "[invalid" & varid & "]"
+END FUNCTION
 
 
 '==========================================================================================
