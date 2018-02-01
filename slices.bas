@@ -2245,11 +2245,18 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
 
  dim available_size as integer  'Max length of a row
  available_size = par->Size.n(axis0)
+ dim parent_padding as integer
  if axis0 = 0 then
-  available_size -= par->PaddingLeft + par->PaddingRight
+  parent_padding = par->PaddingLeft + par->PaddingRight
  else
-  available_size -= par->PaddingTop + par->PaddingBottom
+  parent_padding = par->PaddingTop + par->PaddingBottom
  end if
+ available_size -= parent_padding
+ 'If the layout slice is set to Cover in this dimension, then everything will be on a single row
+ dim cover_row as bool = NO
+ if axis0 = 0 andalso par->CoverChildren and coverHoriz then cover_row = YES
+ if axis0 = 1 andalso par->CoverChildren and coverVert then cover_row = YES
+ if cover_row then available_size = 999999999
 
  dim offset as integer = 0 ' along axis 0
  breadth = this.min_row_breadth  ' in axis 1
@@ -2269,7 +2276,7 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
   end if
 
   dim temp as integer = dir0 * offset
-  if dir0 = -1 then temp += available_size - ch->Size.n(axis0)
+  if dir0 = -1 and cover_row = NO then temp += available_size - ch->Size.n(axis0)
   v_append offsets, temp
   offset += ch->Size.n(axis0) + this.primary_padding
   breadth = large(breadth, ch->Size.n(1 xor axis0))
@@ -2278,12 +2285,15 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
  wend
  dim is_last_row as bool = (ch = NULL)
 
- dim row_length as integer = offset - this.primary_padding
+ dim row_length as integer = offset - this.primary_padding  'We added the padding once too many
  dim extra_space as integer = available_size - row_length  'at the end of the row
 
  dim shift as integer = 0  'To add to each offset
 
- if v_len(offsets) > 1 andalso justified then
+ if cover_row then
+  'Row alignment or justification doesn't make sense
+  par->Size.n(axis0) = row_length - parent_padding
+ elseif v_len(offsets) > 1 andalso justified then
   '(This implies extra_space >= 0.)
   'Add extra spacing to cause the children to be spaced out across the row.
   dim spacing as double = extra_space / (v_len(offsets) - 1)
@@ -2326,7 +2336,7 @@ Sub LayoutSliceData.Validate()
  'Could do everything else too...
 end Sub
 
-'Layout slices work
+'Implements
 Sub LayoutChildrenRefresh(byval par as Slice ptr)
  if par = 0 then debug "LayoutChildRefresh null ptr": exit sub
 
@@ -2363,9 +2373,27 @@ Sub LayoutChildrenRefresh(byval par as Slice ptr)
 
  dat->_previous_row_spacing = 0
 
+ 'Whether set to cover in the 2ndary dir
+ dim cover_rows as bool = par->CoverChildren and (1 shl axis1)
+ if cover_rows then
+  if axis1 = 0 then
+   par->Size.n(axis1) = par->PaddingLeft + par->PaddingRight
+  else
+   par->Size.n(axis1) = par->PaddingTop + par->PaddingBottom
+  end if
+ end if
+
  dim as Slice ptr ch = dat->SkipForward(par->FirstChild)
  while ch
+  'If par is set to CoverChildren in the primary direction, SpaceRow sets
+  'par's size
   dat->SpaceRow(par, ch, axis0, dir0, offsets, breadth)
+
+  'If set to cover in the 2ndary dir, compute that
+  'FIXME: this doesn't work if dat->secondary_dir is dirUp or dirLeft!
+  'That requires processing all rows to calculate the size, and then setting
+  'all child positions afterwards!
+  if cover_rows then par->Size.n(axis1) += breadth
 
   'Iterate over each child on this row and set the final position
   for idx as integer = 0 to v_len(offsets) - 1
@@ -2376,7 +2404,7 @@ Sub LayoutChildrenRefresh(byval par as Slice ptr)
 
     'The child's X/Y offsets it from its computed position,
     'but doesn't affect the positioning out of anything else.
-    'Anchor, align points and Fill are ignored
+    'Anchor and align points are ignored
     .ScreenX = par->ScreenX + offset.x + .X
     .ScreenY = par->ScreenY + offset.y + .Y
 
@@ -3262,6 +3290,7 @@ Sub UpdateCoverSize(par as Slice ptr)
  'to both fill and cover.
 
  'Panel, grid, layout are special, and will have to implement covering in their own way if at all.
+ 'They will probably do so in ChildRefresh or ChildrenRefresh, where Fill Parent is also handled.
  if par->SliceType = slPanel orelse par->SliceType = slGrid orelse par->SliceType = slLayout then exit sub
 
  dim size as XYPair
