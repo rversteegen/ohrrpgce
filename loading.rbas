@@ -3775,7 +3775,8 @@ FUNCTION rgfx_load_spriteset(sprtype as SpriteType, setnum as integer, expect_ex
   RETURN ret
 END FUNCTION
 
-SUB rgfx_save_spriteset(rgfxdoc as DocPtr, fr as Frame ptr, sprtype as SpriteType, setnum as integer, defpal as integer = -1)
+SUB rgfx_save_spriteset(rgfxdoc as DocPtr, fr as Frame ptr, sprtype as SpriteType, setnum as integer)
+  DIM sprset as SpriteSet ptr = fr->sprset
   DIM as Node ptr ss_node, root_node, frameset_node
   root_node = DocumentRoot(rgfxdoc)
 
@@ -3799,12 +3800,11 @@ SUB rgfx_save_spriteset(rgfxdoc as DocPtr, fr as Frame ptr, sprtype as SpriteTyp
   frameset_to_node fr, ss_node
 
   'Default palette
-  IF defpal > -1 THEN
-    AppendChildNode(ss_node, "defpal", defpal)
+  IF sprset->defpal > -1 THEN
+    AppendChildNode(ss_node, "defpal", sprset->defpal)
   END IF
 
   'Animations
-  DIM sprset as SpriteSet ptr = fr->sprset
   IF sprset THEN
     IF UBOUND(sprset->animations) >= 0 THEN
       save_animations_node ss_node, sprset

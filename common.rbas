@@ -940,15 +940,25 @@ Function seconds2str(byval sec as integer, f as string = " %m: %S") as string
   return ret
 end function
 
+'Only used in old non-rgfx games
 FUNCTION getdefaultpal(byval fileset as SpriteType, byval index as integer) as integer
  IF fileset < 0 OR fileset > sprTypeLastPT THEN
   debugc errBug, "getdefaultpal: bad fileset " & fileset
   RETURN -1
  END IF
- DIM as string lumpsdir, fname
- ' Use a default if no game has been loaded
- lumpsdir = IIF(LEN(game), workingdir, finddatadir("defaultgfx"))
- fname = lumpsdir & SLASH & "defpal" & fileset & ".bin"
+
+ 'First try rgfx
+ DIM ss as Frame ptr
+ rgfx_load_spriteset(fileset, index, NO)
+ IF ss THEN
+  'Might be -1: not saved
+  DIM ret as integer = ss->sprset->defpal
+  frame_unload @ss
+  RETURN ret
+ END IF
+
+ DIM fname as string
+ fname = workingdir & SLASH & "defpal" & fileset & ".bin"
  DIM fh as integer
  IF OPENFILE(fname, FOR_BINARY + ACCESS_READ, fh) = 0 THEN
   DIM v as short
@@ -998,6 +1008,7 @@ SUB savedefaultpals(byval fileset as SpriteType, poffset() as integer, maxset as
  CLOSE #fh
 END SUB
 
+'Upgrade routine
 SUB guessdefaultpals(byval fileset as SpriteType, poffset() as integer)
  DIM her as herodef
  DIM found as integer

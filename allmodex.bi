@@ -617,6 +617,7 @@ declare function frames_to_ms(frames as integer) as integer
 Type SpriteSet
 	animations(any) as Animation
 	frames as Frame ptr    'Does NOT count as a reference
+	defpal as integer      '-1 if not recorded
 	'uses refcount from frames
 	global_animations as SpriteSet ptr  'The default animations for sprites of this type. May be NULL
 	                                    '(This counts as a reference)

@@ -4290,6 +4290,7 @@ SUB SpriteSetBrowser.add_spriteset()
 
   DIM newfr as Frame ptr
   newfr = frame_new(framesize.w, framesize.h, numframes, YES)
+  spriteset_for_frame(newfr)->defpal = 0
 
   DIM fridx as integer = 0
   FOR groupidx as integer = 0 TO UBOUND(info)
@@ -4301,7 +4302,7 @@ SUB SpriteSetBrowser.add_spriteset()
 
   gen(genmax) += 1
   REDIM PRESERVE defpalettes(gen(genmax))
-  rgfx_save_spriteset newfr, sprtype, gen(genmax), 0
+  rgfx_save_spriteset newfr, sprtype, gen(genmax)
 
   rebuild_menu()
   set_focus(gen(genmax), 0)
@@ -4319,7 +4320,8 @@ SUB SpriteSetBrowser_save_callback(spr as Frame ptr, context as any ptr, defpal 
  frame_draw spr, NULL, 0, 0, , NO, this.editing_frame
 
  this.defpalettes(this.editing_setnum) = defpal
- rgfx_save_spriteset this.editing_spriteset, this.sprtype, this.editing_setnum, this.defpalettes(this.editing_setnum)
+ spriteset_for_frame(this.editing_spriteset)->defpal = defpal
+ rgfx_save_spriteset this.editing_spriteset, this.sprtype, this.editing_setnum
  '? "saved in " & (TIMER - tt)
 END SUB
 
@@ -4375,17 +4377,13 @@ SUB SpriteSetBrowser.edit_frame(setnum as integer, framenum as integer)
   'and writes to rgfx.
 
   frame_unload @editing_spriteset
-  defpalettes(setnum) = edstate.pal_num
-  'Save default palettes immediately for live previewing
-  '(TODO: should really be handled in the save_callback instead)
-  savedefaultpals sprtype, defpalettes(), UBOUND(defpalettes)
 
   'All palettes might have been modified, but they would have been modified
   'in-place.  The Frame would also have been modified in-place, and is shared
   'with the Sprite slices.
   'However, we still need to rebuild the menu if the default palette changed,
   'because that doesn't affect existing Sprite slices loaded with pal=-1
-  '(unless we force them to be reloaded with ChangeSpriteSlice
+  '(unless we force them to be reloaded with ChangeSpriteSlice)
   rebuild_menu()
 END SUB
 
@@ -4466,6 +4464,7 @@ SUB SpriteSetBrowser.delete_frame(setnum as integer, delete_framenum as integer)
 
   DIM new_ss as Frame ptr
   new_ss = frame_new(src_ss->w, src_ss->h, src_ss->arraylen - 1, YES)
+  spriteset_for_frame(new_ss)->copy_metadata(src_ss->sprset)
 
   DIM shift as bool = NO
   DIM destidx as integer = 0
@@ -4502,7 +4501,10 @@ END SUB
 SUB SpriteSetBrowser.change_def_pal(diff as integer)
   IF cur_setnum < 0 THEN EXIT SUB
   defpalettes(cur_setnum) = bound(defpalettes(cur_setnum) + diff, 0, gen(genMaxPal) + 1)
+  rgfx_save_spriteset new_ss, sprtype, setnum, defpalettes(setnum)
+
   savedefaultpals sprtype, defpalettes(), UBOUND(defpalettes)
+  'Must reload sprites
   rebuild_menu()
 END SUB
 
@@ -4550,7 +4552,7 @@ SUB SpriteSetBrowser.paste_any(transparent as bool)
     'Also copy over the default palette
     IF copied_defpal > -1 THEN
       defpalettes(cur_setnum) = copied_defpal
-      savedefaultpals sprtype, defpalettes(), UBOUND(defpalettes)
+      'Need to reload the sprites for this spriteset
       rebuild_menu()
     END IF
   ELSE

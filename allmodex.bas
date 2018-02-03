@@ -9345,7 +9345,22 @@ constructor SpriteSet(frameset as Frame ptr)
 	'redim animations(0 to -1)
 	frames = frameset
 	frameset->sprset = @this
+	defpal = -1
 end constructor
+
+sub SpriteSet.copy_metadata(rhs as SpriteSet ptr)
+	defpal = rhs->defpal
+
+	redim animations(ubound(rhs->animations))
+	for i as integer = 0 to ubound(animations)
+		animations(i) = rhs->animations(i)
+	next
+
+	global_animations = rhs->global_animations
+	if global_animations then
+		frame_reference global_animations->frames
+	end if
+end sub
 
 function SpriteSet.num_frames() as integer
 	return frames->arraylen
