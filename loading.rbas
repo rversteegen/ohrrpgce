@@ -3749,7 +3749,7 @@ FUNCTION rgfx_load_spriteset(rgfxdoc as DocPtr, sprtype as SpriteType, setnum as
   DIM sprset as SpriteSet ptr
   sprset = spriteset_for_frame(fr)
 
-  'TODO: default palette
+  sprset->defpal = ss_node."defpal".default(-1)
 
   'Animations, if they exist
   load_animations_node(ss_node, sprset)

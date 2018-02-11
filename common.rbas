@@ -5772,6 +5772,7 @@ SUB load_sprite_and_pal (byref img as GraphicPair, byval spritetype as SpriteTyp
  ELSEIF spritetype >= 0 AND spritetype <= sprTypeLastLoadable THEN
   img.sprite = frame_load(spritetype, index)
   IF spritetype <> sprTypeTileset THEN
+   IF palnum = -1 THEN palnum = spriteset_for_frame(img.sprite)->defpal
    img.pal    = palette16_load(palnum, spritetype, index)
   END IF
  ELSE
