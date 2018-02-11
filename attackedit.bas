@@ -27,7 +27,7 @@ DECLARE SUB attack_editor_build_damage_menu(recbuf() as integer, menu() as strin
 DECLARE SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
 DECLARE FUNCTION browse_base_attack_stat(byval base_num as integer) as integer
 
-DECLARE SUB atk_edit_preview(byval pattern as integer, sl as Slice Ptr)
+DECLARE SUB atk_edit_display_summary(recbuf() as integer, preview_box as Slice ptr, vpage as integer)
 DECLARE SUB atk_edit_pushptr(state as MenuState, laststate as MenuState, byref menudepth as integer)
 DECLARE SUB atk_edit_backptr(workmenu() as integer, mainMenu() as integer, state as MenuState, laststate as menustate, byref menudepth as integer)
 
@@ -1612,10 +1612,7 @@ DO
  END IF
 
  clearpage dpage
- IF drawpreview THEN
-  atk_edit_preview recbuf(AtkDatAnimPattern), preview
-  DrawSlice preview_box, dpage
- END IF
+ IF drawpreview THEN atk_edit_display_summary recbuf(), preview_box, dpage
 
  'Damage preview, blank on most menus.
  'It really can get 13 lines long! *shudder*
@@ -1722,8 +1719,7 @@ FUNCTION atk_edit_add_new (recbuf() as integer, preview_box as Slice Ptr) as boo
       textcolor uilook(uiMenuItem), 0
       printstr " Name: " & attack.name, 20, 48, vpage
       printstr RIGHT(" Description: " & attack.description, 40), 20, 56, vpage
-      atk_edit_preview recbuf(AtkDatAnimPattern), preview
-      DrawSlice preview_box, vpage
+      atk_edit_display_summary recbuf(), preview_box, vpage
     END IF
     setvispage vpage
     dowait
@@ -2130,7 +2126,7 @@ SUB attack_editor_build_damage_menu(recbuf() as integer, menu() as string, menut
 
 END SUB
 
-SUB atk_edit_preview(byval pattern as integer, sl as Slice Ptr)
+SUB atk_edit_preview_animate(byval pattern as integer, sl as Slice Ptr)
  STATIC anim0 as integer
  STATIC anim1 as integer
  anim0 = anim0 + 1
@@ -2142,6 +2138,18 @@ SUB atk_edit_preview(byval pattern as integer, sl as Slice Ptr)
   IF pattern = 3 THEN anim1 = randint(3)
  END IF
  ChangeSpriteSlice sl, , , ,ABS(anim1)
+END SUB
+
+SUB atk_edit_display_summary(recbuf() as integer, preview_box as Slice ptr, vpage as integer)
+  DIM preview as Slice ptr = preview_box->FirstChild
+  atk_edit_preview_animate recbuf(AtkDatAnimPattern), preview
+  DrawSlice preview_box, vpage
+
+  DIM attack as AttackData
+  convertattackdata recbuf(), attack
+
+  DIM non_elemental_elements(maxElements - 1) as bool
+  load_non_elemental_elements non_elemental_elements()
 END SUB
 
 
