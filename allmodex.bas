@@ -488,7 +488,7 @@ local sub modex_init()
 	'redim fixedsize_vpages(3)  'Initially all NO
 	vpagesp = @vpages(0)
 	for i as integer = 0 to 3
-		vpages(i) = frame_new(320, 200, , YES)
+		vpages(i) = frame_new(windowsize.w, windowsize.h, , YES)
 	next
 	'other vpages slots are for temporary pages
 	'They are currently still used in the tileset editor, importmxs,
@@ -551,6 +551,7 @@ local sub after_backend_init()
 end sub
 
 ' Initialise this module and backends, create a window
+' (set_resolution can be called before this to set initial resolution. Other functions generally can't!)
 sub setmodex()
 	modex_init()
 	'Select and initialise a graphics/io backend
@@ -904,7 +905,8 @@ end function
 'resize all videopages (except compatpages) to the new window size.
 'The videopages are either trimmed or extended with colour 0.
 local sub screen_size_update ()
-	'Changes windowsize if user tried to resize, otherwise does nothing
+	'Modifies windowsize to requested size if user or possibly something else
+	'(e.g. 'get_setoption("zoomonly",...)') tried to resize. Does nothing else.
 	if gfx_get_resize(windowsize) then
 		'debuginfo "User window resize to " & windowsize.wh
 		show_overlay_message windowsize.w & " x " & windowsize.h, 0.7
@@ -1010,12 +1012,15 @@ end function
 'Set the window size, if possible, subject to min size bound. Doesn't modify resizability state.
 'This will resize all videopages (except compatpages) to the new window size.
 sub set_resolution (w as integer, h as integer)
-	if gfx_supports_variable_resolution() = NO then
+	if gfx_supports_variable_resolution andalso gfx_supports_variable_resolution() = NO then
 		exit sub
 	end if
 	debuginfo "set_resolution " & w & "*" & h
 	windowsize.w = large(w, minwinsize.w)
 	windowsize.h = large(h, minwinsize.h)
+	if modex_initialised = NO then
+		exit sub
+	end if
 	'Ignore any pending resize request
 	gfx_get_resize(XY(0,0))
 	'Update page size

@@ -154,7 +154,7 @@ DIM SHARED remember_windowtitle as string
 DIM SHARED remember_enable_textinput as bool = NO
 DIM SHARED mouse_visibility as CursorVisibility = cursorDefault
 DIM SHARED sdlpalette(0 TO 255) as SDL_Color
-DIM SHARED framesize as XYPair
+DIM SHARED framesize as XYPair = XY(320, 200)
 DIM SHARED dest_rect as SDL_Rect
 DIM SHARED mouseclipped as bool = NO   'Whether we are ACTUALLY clipped
 DIM SHARED forced_mouse_clipping as bool = NO
@@ -401,9 +401,6 @@ FUNCTION gfx_sdl_init(byval terminate_signal_handler as sub cdecl (), byval wind
 
   *info_buffer = *info_buffer & " (" & SDL_NumJoysticks() & " joysticks) Driver:"
   SDL_VideoDriverName(info_buffer + LEN(*info_buffer), info_buffer_size - LEN(*info_buffer))
-
-  framesize.w = 320
-  framesize.h = 200
 
 #IFDEF __FB_ANDROID__
   IF SDL_ANDROID_IsRunningOnConsole() THEN

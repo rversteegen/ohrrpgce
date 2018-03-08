@@ -172,6 +172,7 @@ load_default_master_palette master()
 DefaultUIColors master(), uilook(), boxlook()
 getdefaultfont current_font()
 
+set_resolution read_config_int("gfx.resolution_w", 480), read_config_int("gfx.resolution_h", 320)
 setmodex
 setpal master()
 setfont current_font()
@@ -179,6 +180,7 @@ textcolor uilook(uiText), 0
 
 setwindowtitle "O.H.R.RPG.C.E"
 showmousecursor
+set_scale_factor read_config_int("gfx.zoom", 2), YES
 unlock_resolution 320, 200   'Minimum window size
 
 debuginfo musicbackendinfo  'Preliminary info before initialising backend
@@ -720,6 +722,9 @@ END SUB
 
 SUB cleanup_and_terminate (show_quit_msg as bool = YES, retval as integer = 0)
  debuginfo "Cleaning up and terminating " & retval
+
+ save_window_state_to_config "edit."
+
  IF slave_channel <> NULL_CHANNEL THEN
   channel_write_line(slave_channel, "Q ")
   #IFDEF __FB_WIN32__
