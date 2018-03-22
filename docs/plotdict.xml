@@ -4166,7 +4166,18 @@ show string(0)</example>
 		<command id="stringcompare">
 			<canon>string compare (ID1, ID2)</canon>
 			<shortname>string compare</shortname>
-			<description>Returns true if the two strings #<p>ID1</p> and #<p>ID2</p> are identical, case sensitive.</description>
+			<description>
+				Returns true if the two strings #<p>ID1</p> and #<p>ID2</p> are identical, case sensitive.
+				<note>An easier way to write <tt>string compare(x, y)</tt> is as <tt>x $== y</tt>.</note>
+				<example>
+show textbox(10)  # "What's the password?"
+suspend box advance
+input string(0)
+resume box advance
+if (0 $== $"bobblefish") then (set tag(tag:entered password, on))
+show textbox(11)  # Continue textbox chain, according to the tag
+				</example>
+			</description>
 		</command>
 		<command id="replacechar">
 			<canon>replace char (ID, position, char)</canon>
