@@ -344,26 +344,26 @@ end
 
 ########################################################################
 
+@optimize always
+script, optimizer math tests, begin
+  include, mathtests.hsi
+end
+
+@optimize never
+script, interpreter math tests, begin
+  include, mathtests.hsi
+end
+
 # Very incomplete
 # This script tests basic operations work
 script, math tests, begin
   $0="math tests"
 
-  # These tests have to be carefully written to not contain any constant
-  # expressions that HSpeak will optimise out
   variable(n, m)
   assert(n == 0)
   n := 10
   assert(n == 10)
-  assert(n + 5 == 15)
-  assert(n -- 15 == -5)
-  assert(n * -1 == -10)
-  assert(abs(-1*n) == 10)
-  assert(abs(n) == 10)
-  assert(sign(n) == 1)
-  assert(sign(n--10) == 0)
-  assert(sign(-1*n) == -1)
-
+  n := 10
   n += 1
   assert(n == 11)
   n -= 10
@@ -371,19 +371,6 @@ script, math tests, begin
 
   assert((m := 3) == 3)
   assert((m -= 6) == -3)
-
-  # mod and divide
-  n := -9
-  assert(n / 10 == 0)
-  assert(n, mod, 10 == -9)
-  assert(n / 9 == -1)
-  assert(n, mod, 9 == 0)
-  assert(n / 5 == -1)
-  assert(n, mod, 5 == -4)
-  assert(n / -9 == 1)
-  assert(n, mod, -9 == 0)
-  assert(n / -10 == 0)
-  assert(n, mod, -10 == -9)
 
   # This brackets are mandatory, := is left-associative
   n := (m := 9)
@@ -395,6 +382,9 @@ script, math tests, begin
   n -= (m -= 1)
   assert(m == 11)
   assert(n == 10)
+
+  optimizer math tests
+  interpreter math tests
 
   assert(another global == 0)
   another global := 10

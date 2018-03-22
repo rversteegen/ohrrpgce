@@ -226,6 +226,7 @@ define function, begin
 205,setheroname,2,0,0         # (string, hero) - sets the name of hero(hero) to string(string)
 206,getitemname,2,0,0         # (string, item) - puts the name of item(item) in string(string)
 207,getmapname,2,0,0          # (string, map) - puts the name of map(map) in string(string)
+@obsolete("This command can't be used with atk: constants. ", read attack name)
 208,getattackname,2,0,0       # deprecated. Use "read attack name" instead
 #209,getglobalstring,2,0,0     # (string, global) - puts the global string (global) in string(string)
 210,showstring,1,0            #shows string on the bottom(stringID)

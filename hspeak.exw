@@ -13,6 +13,7 @@
 ---------------------------------------------------------------------------
 
 --Changelog
+--3Ub 2018-08-18 @optimize always/never attributes
 --3Ua 2018-08-18 Script can also have attributes
 --3U  2018-08-12 @obsolete attribute
 --3Tl 2018-05-14 Delete (possibly-bad) .hs output file on error
@@ -252,7 +253,11 @@ constant FUNC_POS=6     --srcpos of start of function/script. Not used by math_l
 --ATTR_* are for attribute_list
 constant ATTR_NAME=1
 constant ATTR_FLAGS=2   --An integer which gets OR'd into FUNC_FLAGS
-constant FLAG_OBSOLETE=#01  --Has @obsolete attribute
+--Flags for FUNC_FLAGS
+constant FLAG_OBSOLETE=#01        --Has @obsolete attribute
+constant FLAG_ALWAYS_OPTIMIZE=#02 --Perform optimizations regardless of -f cmdline option
+constant FLAG_NEVER_OPTIMIZE=#04  --Never optimize, regardless of -f cmdline option
+
 constant GLB_POS=3      --srcpos of globalvariable definition
 constant CONST_VALUE=1
 constant CONST_POS=2
@@ -454,6 +459,8 @@ sequence math_list        math_list={
 
 sequence attribute_list   attribute_list={     --type {ATTR_NAME, ATTR_FLAGS}
                              {"@obsolete",FLAG_OBSOLETE}
+                             {"@optimizealways",FLAG_ALWAYS_OPTIMIZE}
+                             {"@optimizenever",FLAG_NEVER_OPTIMIZE}
                           }
 
 sequence separator_list   separator_list={
@@ -2560,7 +2567,10 @@ end procedure
 
 ---------------------------------------------------------------------------
 
---Parse a script or subscript
+--Parse a script or subscript, handling the trigger, name, and arguments
+--and adding an all_scripts entry.
+--Then globbles up tokens with get_cmd() until a balanced number of begin/end
+--pairs have occurred - the AST is built out of tokens later in build_ast.
 --parent_name is a fully-scoped name of parent script, or ""
 --if this script isn't a subscript of another.
 --Returns Token with name of parsed script
@@ -2765,7 +2775,7 @@ procedure parse_top_level()
       --ignore
       get_cmd_block(false)
     elsif triggeridx>0 then
-      --A script
+      --script/plotscript/etc
       if trigger_list[triggeridx][PAIR_NUM]<0 then
         src_error(
           sprintf_utf(
@@ -2824,7 +2834,7 @@ procedure dump_script_and_function_info(integer fh, sequence list)
       ,this[PAIR_NAME]
     })
     if equal(this[FUNC_ARGS],VAR_ARGS) then
-      print_utf(fh,"VARIABLE ARGS",{})
+      print_utf(fh,"Variable num args",{})
     else
       for j=1 to length(this[FUNC_ARGS]) do
         if j>1 then
@@ -2838,6 +2848,10 @@ procedure dump_script_and_function_info(integer fh, sequence list)
       end for
     end if
     print_utf(fh,")\n",{})
+    --Flags
+    if this[FUNC_FLAGS] then
+      print_utf(fh,"  flags=%x\n",{this[FUNC_FLAGS]})
+    end if
   end for
 end procedure
 
@@ -3061,6 +3075,7 @@ procedure dump_debug_report()
       print_utf(fh,"[Script Dumps]\n",{})
       for i=1 to length(all_scripts) do
         script=all_scripts[i]
+        --Name and ID
         src_position=decode_srcpos(script[SCRIPT_POS])
         print_utf(fh,"%s %d\tID=%d\t%s (%s)\n",{
            src_position[POS_FILENAME]
@@ -3069,6 +3084,7 @@ procedure dump_debug_report()
           ,script[SCRIPT_NAME]
           ,script[SCRIPT_FULL_NAME]
         })
+        --Parent
         idx=script[SCRIPT_PARENT_IDX]
         if idx then
           src_position=decode_srcpos(script[SCRIPT_POS])
@@ -3080,6 +3096,7 @@ procedure dump_debug_report()
             ,script[SCRIPT_NUM_NONLOCALS]
           })
         end if
+        --Trigger
         src_position=decode_srcpos(script[SCRIPT_TRIGGER_TOK][CMD_POS])
         print_utf(fh,"%s %d\tTrigger=%d\t%s\n",{
            src_position[POS_FILENAME]
@@ -3087,6 +3104,7 @@ procedure dump_debug_report()
           ,script[SCRIPT_TRIGGER_ID]
           ,script[SCRIPT_TRIGGER_TOK][CMD_TEXT]
         })
+        --Variables
         locals=script[SCRIPT_VARIABLES]
         for j=1 to length(locals) do
           src_position=decode_srcpos(locals[j][CMD_POS])
@@ -3098,9 +3116,11 @@ procedure dump_debug_report()
             ,locals[j][CMD_TEXT]
           })
         end for
+        --Commands
         print_utf(fh,"%d bytes compiled\n",{length(script[SCRIPT_BINARY])})
 --        print_utf(fh,"%s\n\n",{dump_script_tree(script[SCRIPT_AST],0)})
         print_utf(fh,"%s",{dump_script_binary(script[SCRIPT_BINARY][CODE_START_BYTE_OFFSET+1..$],0,0,script[SCRIPT_VARIABLES])})
+        --Strings
         print_utf(fh,"%s\n\n",{dump_script_strings(script[SCRIPT_BINARY])})
       end for
       print_utf(fh,"\n",{})
@@ -3460,6 +3480,18 @@ end function
 
 ---------------------------------------------------------------------------
 
+function process_directives(NodeList args)
+  Script script
+  string s
+  script=all_scripts[cur_script_num][SCRIPT_FLAGS]
+  for idx=1 to length(vars) do
+    s=args[idx][CMD_TEXT]
+    if equal("no optimisze",s) then
+  end for
+end function
+
+---------------------------------------------------------------------------
+
 --There are only two, hardcoded, macros right now: tracevalue, assert.
 function expand_macros(NodeList tree)
   NodeList newtree
@@ -3772,6 +3804,7 @@ end function
 
 ---------------------------------------------------------------------------
 
+--Converts the list of AST
 --parse the script tree and make if absorb then and else, for and while absorb do, switch absorb stuff, check correctness of flow statements
 --Note that several of these checks are now redundant to the check for 'begin' performed in get_script_node
 function normalize_flow_control(NodeList tree, VarList vars, string parent)
@@ -4593,7 +4626,7 @@ function optimized_arg(Node tree, VarList vars)
            --if too large, Euphoria will signal an overflow, but I'm also worried
            --about overflow_int32 giving inaccurate results
            if log(abs(arg1)+1)+log(abs(arg2)+1)<log(1e14) then
-             return(overflow_int32(power(arg1,arg2)))
+             return(overflow_int32(power(arg1,arg2) - 1e-7))
            end if
          elsif arg2=0 then
            --FB takes 0^0=1 (the most useful definition), Euphoria throws an error
@@ -4787,7 +4820,9 @@ procedure compile_a_script(integer script_idx)
   integer num_nonlocals
   integer parent_idx
   integer trigger_idx
+  integer func_idx  --index in all_scripts
   integer trigger
+  integer flags
 
   cur_script_num=script_idx
   script=all_scripts[script_idx]
@@ -4795,6 +4830,9 @@ procedure compile_a_script(integer script_idx)
   trigger=trigger_list[trigger_idx][PAIR_NUM]
   current_script=script[SCRIPT_FULL_NAME]
   parent_idx=script[SCRIPT_PARENT_IDX]
+
+  func_idx=find_in_column(name[CMD_TEXT],script_list,PAIR_NAME)
+
 
   reenter_timing_zone("gather_local_vars")
   if parent_idx then
@@ -4841,10 +4879,12 @@ procedure compile_a_script(integer script_idx)
   reenter_timing_zone("collapse_floaty_brackets")
   script_tree=collapse_floaty_brackets(script_tree)
   exit_timing_zone()
-  if not fast_mode then
+  if and_bits(flags,FLAG_NEVER_OPTIMIZE)=0 and (fast_mode=false or and_bits(flags,FLAG_ALWAYS_OPTIMIZE)) then
     reenter_timing_zone("optimize_script")
     script_tree=optimize_script(script_tree,local_vars)
     exit_timing_zone()
+  end if
+  if not fast_mode then
     reenter_timing_zone("sanity_check")
     script_tree=sanity_check(script_tree,local_vars,"")
     exit_timing_zone()
