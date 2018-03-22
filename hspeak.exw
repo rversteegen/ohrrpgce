@@ -230,6 +230,7 @@ constant CMD_POS=2
 constant SYM_KIND=1     --KIND_*
 constant SYM_ID=2       --ID or 0
 constant SYM_POS=3      --srcpos or 0
+constant SYM_EXTRA=4    --for scripts, the index in all_scripts, if it exists
 constant PAIR_NUM=1
 constant PAIR_NAME=2
 constant PAIR_START=1
@@ -2209,8 +2210,9 @@ procedure create_global(atom id, string name, srcpos pos)
     src_error(sprintf_utf("global variable ID "&COLYEL&"%d"&COLRED&" is already defined as "&COLYEL&"%s"&COLRED,{id,global_list[PAIR_NAME][at]}),pos)
   else
     if id>=0 and id<=MAXGLOBAL then
-      global_list[PAIR_NUM]=append(global_list[PAIR_NUM],id)
-      global_list[PAIR_NAME]=append(global_list[PAIR_NAME],name)
+--fixme
+      global_list[PAIR_NUM]&={id}
+      global_list[PAIR_NAME]&={name}
       global_list[GLB_POS]=append(global_list[GLB_POS],pos)
       map:put(global_scope,name,{KIND_GLOBAL,id,pos})
     else
@@ -2255,7 +2257,9 @@ procedure parse_operator_block(TokenList block)
     sym=map:get(global_scope,name,nil_sym)
     kind=sym[SYM_KIND]
     if kind then
-      if kind!=KIND_SEPARATOR and kind!=KIND_MATH then
+      if equal(name,truename) and (kind=KIND_MATH or kind=KIND_SCRIPT or kind=KIND_FUNCTION) then
+        --Turning a function into an operator is OK, as long as it maps to itself!
+      elsif kind!=KIND_SEPARATOR then -- and kind!=KIND_MATH then
         src_error(sprintf_utf("%s "&COLYEL&"%s"&COLRED&" may not be used as an operator",{KIND_LONGNAMES[kind],name}),pos)
       else
         --Existing names do not get added to global_scope, because we need to be able to use
@@ -2306,7 +2310,7 @@ end function
 function create_function(sequence list, integer id, string name, object arglist, integer func_type, srcpos pos)
   integer at
   if func_type=KIND_SCRIPT then
-    at=find(id,column(list,PAIR_NUM))
+    at=find(id,column(list,PAIR_NUM))--fixme
     if at then
       src_error(sprintf_utf("%s ID "&COLYEL&"%d"&COLRED&" is already defined as "&COLYEL&"%s"&COLRED,{KIND_LONGNAMES[func_type],id,list[at][PAIR_NAME]}),pos)
     end if
@@ -2419,6 +2423,10 @@ function parse_script(Token trigger, string parent_name, integer parent_idx)
   Symbol sym
   integer temp
   integer idx
+  sequence args_and_defaults
+  integer id, parent_id
+  integer at
+
   name=get_cmd()
   if parent_idx=0 then
     full_name=name[CMD_TEXT]
@@ -2435,13 +2443,17 @@ function parse_script(Token trigger, string parent_name, integer parent_idx)
     end if
   end if
   previous_script=current_script
-  current_script=full_name --name[CMD_TEXT]
+  current_script=full_name
 
-  --Check not already a script
+  --Check name doesn't clash with another script
+  --(even though may have different full_name)
   cur_script_num=parent_idx
   temp=lookup_scoped_script_name(name[CMD_TEXT])
+--?{name[CMD_TEXT], cur_script_num}
   cur_script_num=0
-  if temp then
+  if temp<0 then
+    --has appeared in definescript, but not defined yet
+  elsif temp>0 then
     if parent_idx then
       msg="There already is a script or subscript named "&COLYEL&"%s"&COLRED&" in this context/scope, defined on line %d of "&COLPNK&"%s"&COLRED
     else
@@ -2477,18 +2489,43 @@ function parse_script(Token trigger, string parent_name, integer parent_idx)
     arglist=append(arglist,this)
   end while
 
-  --Create all_scripts entry now for recursive calls; SCRIPT_BODY_TOKS filled in later
+
+
+  at=find_in_column(full_name,script_list,PAIR_NAME)
+
+  if at>0 then
+    id=script_list[at][PAIR_NUM]
+  else
+
+    if parent_idx=0 then
+      parent_id=0
+    else
+      parent_id=all_scripts[parent_idx][SCRIPT_ID]
+    end if
+    id=pick_script_id(parent_id,name[CMD_TEXT])
+
+    args_and_defaults=process_arglist(arglist)
+
+    script_list=create_function(script_list,id,full_name,args_and_defaults[2],KIND_SCRIPT,name[CMD_POS])
+  end if
+
+    --Create all_scripts entry now for recursive calls
   all_scripts=append(all_scripts,{
            trigger
           ,name[CMD_TEXT]
           ,name[CMD_POS]
           ,full_name
           ,arglist
-          ,{}
+          ,{}            --SCRIPT_BODY_TOKS filled in below
           ,parent_idx
           ,nest_depth
+          ,id
   })
   idx=length(all_scripts)
+  --printf(stdout,"allscripts %d %s\n",{length(all_scripts),full_name})
+
+  --Append idx
+  map:put(global_scope,full_name,{KIND_SCRIPT,id,name[CMD_POS],idx})
 
   --Every script is nested inside a big fat do() block
   body={{"do",this[CMD_POS]}}
@@ -2934,17 +2971,38 @@ end function
 
 --Look up the name of a script in all current scopes, returning all_scripts
 --index if found, or 0 if not
+--This returns 0 if a name has been declared with definescript, but the
+--actual script hasn't been processed with parse_script yet.
 function lookup_scoped_script_name(string name)
   string s
   integer at
   integer idx
+  Symbol sym
+
+  --First, check global scope because that's the most common case, and
+  --subscripts aren't allowed to shadow other scripts in scope, so the
+  --order we check doesn't matter
+  sym=map:get(global_scope,name,nil_sym)
+  if sym[SYM_KIND]=KIND_SCRIPT then
+    --at=find_in_column(sym[SYM_ID],all_scripts,SCRIPT_ID)
+    at=0
+    if length(sym)>=4 then
+      at=sym[SYM_EXTRA]
+      return at
+    end if
+    --has appeared only in definescript, hasn't been defined yet
+    return 0
+  end if
+
   idx=cur_script_num
   while true do
     if idx then
+--printf(stdout,"+")
       s=all_scripts[idx][SCRIPT_FULL_NAME]&"<-"&name     
     else
       s=name
-    end if   
+      return 0  --Already checked global scope
+    end if
     at=find_in_column(s,all_scripts,SCRIPT_FULL_NAME)
     if at then
       return at
@@ -2974,7 +3032,7 @@ function what_kind_and_id(Token command, VarList local_vars, integer look_for_op
     kind=KIND_NUMBER
     id=string_to_object(s,{})
   elsif look_for_operators and find_in_column(s,operator_list,PAIR_NAME) then
-    kind=KIND_OPERATOR --this MUST go before KIND_MATH, because some operators and math functions have the same name
+    kind=KIND_OPERATOR --this MUST go before KIND_MATH/FUNCTION/SCRIPT, because some operators and functions have the same name
     id=0
   else
     sym=map:get(global_scope,s,nil_sym)
@@ -3006,7 +3064,8 @@ function what_kind_and_id(Token command, VarList local_vars, integer look_for_op
       else
         --It may be a subscript, in which case the scoped name needs to be looked up
         at=lookup_scoped_script_name(s)
-        if at then
+        if at>0 then
+printf(stdout,"-")
           kind=KIND_SCRIPT
           id=all_scripts[at][SCRIPT_ID]
         else
@@ -4083,7 +4142,7 @@ function binary_compile_recurse(Node tree, VarList vars)
     else
       --is it a script?
       at=lookup_scoped_script_name(str_temp)
-      if at then
+      if at>0 then
         --Yes, it is a script. Compile to a script ID unless it's a reference to a subscript, as
         --I want to eventually make subscript handles closures (without which subscript handles can't work)
         if all_scripts[at][SCRIPT_PARENT_IDX] then
@@ -4640,7 +4699,7 @@ end procedure
 
 ---------------------------------------------------------------------------
 
---Parse argument declarations (initially containing default values)
+--Parse argument declarations (initially containing "=" tokens and default values)
 --in a script argument list, returns {arg_names_list, default_vals_list} pair
 --where any default values have been removed from the argument names
 function process_arglist(TokenList args)
@@ -4699,19 +4758,23 @@ procedure check_script_declarations()
 
   scripts_found=repeat(false,length(script_list))
 
+--pretty_print(stdout,column(script_list,PAIR_NAME),{2})
+
   for i=1 to length(all_scripts) do
     fullname=all_scripts[i][SCRIPT_FULL_NAME]
     parent_id=get_parent_id(all_scripts[i])
-
+--printf(stdout,"%d %s\n",{i,fullname})
     current_script=fullname  --global
     script_pos=all_scripts[i][SCRIPT_POS]
-    at=find(fullname,column(script_list,PAIR_NAME))
+    at=find(fullname,column(script_list,PAIR_NAME))--fixme
     at=find_in_column(fullname,script_list,PAIR_NAME)
 
     args_and_defaults=process_arglist(all_scripts[i][SCRIPT_ARG_TOKS])
     if not at then
+      simple_error("Compiler bug: create_function didn't happen for a script")
       --define script optional, add to script list
       id=pick_script_id(parent_id,all_scripts[i][PAIR_NAME])
+      --id=all_scripts[i][SCRIPT_ID]
       script_list=create_function(script_list,id,current_script,args_and_defaults[2],KIND_SCRIPT,script_pos)
       at=length(script_list)
       scripts_found&={true}
@@ -4724,6 +4787,7 @@ procedure check_script_declarations()
       --(doesn't really matter, all_scripts would have ended up with that srcpos anyway)
       script_list[at][FUNC_POS]=script_pos
 
+      --FIXME: do this in parse_script
       if length(args_and_defaults[1]) != length(script_list[at][FUNC_ARGS]) then
         src_error(
           sprintf_utf(
@@ -4746,7 +4810,7 @@ procedure check_script_declarations()
       end for
     end if
     all_scripts[i][SCRIPT_ARG_TOKS]=args_and_defaults[1]
-    all_scripts[i]&={script_list[at][PAIR_NUM]}  --append SCRIPT_ID
+--    all_scripts[i][SCRIPT_ID]=script_list[at][PAIR_NUM]   --comment out
   end for
   current_script=""
 
