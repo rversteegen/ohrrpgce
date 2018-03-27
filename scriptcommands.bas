@@ -683,11 +683,20 @@ SUB script_functions(byval cmdid as integer)
   IF bound_arg(retvals(1), 0, maxNPCDataField, "NPCstat: constant") THEN
    DIM npcid as integer = get_valid_npc_id(retvals(0), serrBound)
    IF npcid <> -1 THEN
-    DIM as integer writesafe = 1
+    DIM as bool writesafe = YES
     IF retvals(1) = 0 THEN
-     IF retvals(2) < 0 OR retvals(2) > gen(genMaxNPCPic) THEN
-      writesafe = 0
-     ELSE
+     IF retvals(2) = -1 THEN
+      DIM original_npcs() as NPCType
+      LoadNPCD maplumpname(mapnum, "n"), original_npcs()
+      IF UBOUND(original_npcs) <= npcid THEN
+       retvals(2) = npcs(npcid).picture
+      ELSE
+       writesafe = NO
+      END IF
+     ELSEIF retvals(2) < 0 OR retvals(2) > gen(genMaxNPCPic) THEN
+      writesafe = NO
+     END IF
+     IF writesafe ELSE
       change_npc_def_sprite npcid, retvals(2)
      END IF
     END IF
