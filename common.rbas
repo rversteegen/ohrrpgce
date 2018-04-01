@@ -5946,7 +5946,9 @@ END FUNCTION
 FUNCTION inputfilename (query as string, ext as string, byref directory as string, helpkey as string, default as string="", allow_overwrite as bool=YES) as string
  DIM filename as string = default
  DIM tog as integer
+ DIM menu(1) as string
  DIM foldermode as bool = NO
+ DIM state as MenuState
  'Can get passed a filename maybe because it's shared with browse() (as it is in importmxs)
  IF real_isfile(directory) THEN directory = trimfilename(directory)
  IF directory = "" THEN directory = CURDIR
@@ -5991,21 +5993,28 @@ FUNCTION inputfilename (query as string, ext as string, byref directory as strin
   printstr query, pCentered, 20, dpage
   printstr "Output directory (TAB to select):", pCentered, 35, dpage
 
-  IF foldermode THEN
-   textcolor uilook(uiSelectedItem + tog), uilook(uiHighlight)
-  ELSE
-   textcolor uilook(uiMenuItem), uilook(uiHighlight)
-  END IF
+  ' IF foldermode THEN
+  '  textcolor uilook(uiSelectedItem + tog), uilook(uiHighlight)
+  ' ELSE
+  '  textcolor uilook(uiMenuItem), uilook(uiHighlight)
+  ' END IF
   DIM display_dir as string = decode_filename(directory)
-  printstr display_dir, pCenteredRight, 45, dpage
-  
-  IF foldermode THEN
-   textcolor uilook(uiMenuItem), uilook(uiHighlight)
-  ELSE
-   textcolor uilook(uiSelectedItem + tog), uilook(uiHighlight)
-  END IF
+  'printstr display_dir, pCenteredRight, 45, dpage
+
+  ' IF foldermode THEN
+  '  textcolor uilook(uiMenuItem), uilook(uiHighlight)
+  ' ELSE
+  '  textcolor uilook(uiSelectedItem + tog), uilook(uiHighlight)
+  ' END IF
   DIM display_fname as string = IIF(LEN(filename), filename, "<type filename>")
-  printstr display_fname + fgtag(uilook(uiText)) + ext, pCenteredRight, 60, dpage, YES
+  'printstr display_fname + fgtag(uilook(uiText)) + ext, pCenteredRight, 60, dpage, YES
+
+  menu(0) = display_dir
+  menu(1) = display_fname
+  init_menu_state state, menu()
+  state.pt = iif(foldermode, 0, 1)
+  standardmenu menu(), state, pCenteredRight, 45, dpage
+
 
   SWAP vpage, dpage
   setvispage vpage
