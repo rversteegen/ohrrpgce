@@ -61,6 +61,7 @@ DECLARE SUB gamestate_vehicle_from_reload(byval node as Reload.NodePtr)
 DECLARE SUB gamestate_slices_from_reload(byval node as Reload.NodePtr)
 
 DECLARE SUB rsav_warn (s as string)
+DECLARE SUB rsav_err (s as string)
 
 DECLARE SUB new_loadglobalvars (byval slot as integer, byval first as integer, byval last as integer)
 
@@ -81,8 +82,10 @@ DECLARE SUB old_erase_save_slot (byval slot as integer)
 DIM SHARED old_savefile as string
 DIM savedir as string  'Global
 
-DIM SHARED current_save_slot as integer '--used in rsav_warn
-DIM SHARED current_save_prefix as string '--used in rsav_warn
+'Used in rsav_warn and rsav_err
+DIM SHARED show_rsav_errors as bool = NO
+DIM SHARED current_save_slot as integer
+DIM SHARED current_save_prefix as string
 
 '-----------------------------------------------------------------------
 
@@ -204,7 +207,8 @@ SUB savegame (byval slot as integer, prefix as string="")
  debuginfo "Saving in slot " & prefix & slot
  current_save_slot = slot
  current_save_prefix = prefix
- 
+ show_rsav_errors = YES
+
  DIM doc as DocPtr
  doc = CreateDocument()
  
@@ -220,6 +224,7 @@ SUB savegame (byval slot as integer, prefix as string="")
  FreeDocument doc
  current_save_slot = -1
  current_save_prefix = ""
+ show_rsav_errors = NO
 END SUB
 
 'Returns an error message on failure
@@ -239,6 +244,7 @@ FUNCTION new_loadgame(byval slot as integer, prefix as string="") as string
 
  current_save_slot = slot
  current_save_prefix = prefix
+ show_rsav_errors = YES
 
  DIM node as NodePtr
  node = DocumentRoot(doc)
@@ -248,15 +254,21 @@ FUNCTION new_loadgame(byval slot as integer, prefix as string="") as string
  FreeDocument doc
  current_save_slot = -1
  current_save_prefix = ""
+ show_rsav_errors = NO
 END FUNCTION
 
+'Used for silent warnings, anything that may be recoverable
 SUB rsav_warn (s as string)
  debug "Save slot " & current_save_prefix & current_save_slot & ": " & s
 END SUB
 
+'If an rsav
+'SUB rsav_warn (s as string)
+ 'If we're not loading or saving, then we're probably just 
+
 '-----------------------------------------------------------------------
 
-'These are RELOADBasic directives, see reloadbasic/RELOADbasic.txt and reloadtest.bas
+'These are RELOADBasic directives, see reloadbasic/RELOADbasic.txt and rbtest.rbas
 #warn_func = rsav_warn
 #error_func = rsav_warn
 
@@ -1347,6 +1359,7 @@ SUB new_loadglobalvars (byval slot as integer, byval first as integer, byval las
  root = DocumentRoot(doc)
 
  current_save_slot = slot
+ show_rsav_errors = YES
 
  'Can't check the RSAV version (root."ver"), because globals-only saves don't store the version number!
 
@@ -1355,6 +1368,7 @@ SUB new_loadglobalvars (byval slot as integer, byval first as integer, byval las
  
  FreeDocument doc
  current_save_slot = -1
+ show_rsav_errors = NO
 END SUB
 
 '-----------------------------------------------------------------------
