@@ -5118,6 +5118,30 @@ destructor Font()
 	Palette16_unload @pal
 end destructor
 
+/'
+'Split up a FontLayer's spr (atlas) into an vector of Frames, suitable for editing or saving
+'(We use a vector instead of a normal Frame array/SpriteSet, because each Frame in a SpriteSet
+'must be the same size)
+function fontlayer_split_atlas (fntlayer as FontLayer ptr) as Frame ptr vector
+
+end function
+
+'Replace a font's atlas with an array of Frames
+sub fontlayer_replace_atlas(fntlayer as FontLayer ptr, frames as Frame ptr)
+	FAILIF(frames = NULL)
+	FAILIF(frames->arraylen <> 256)
+
+	frame_unload @fntlayer.spr
+
+	'FIXME: not a real atlas
+	'FIXME: each frme in an array normall
+
+	for ch as integer = 0 to 255
+		fntlayer.chdata(ch).
+	next
+end sub
+'/
+
 'Create a version of a font with an outline around each character (in a new palette colour)
 function font_create_edged (basefont as Font ptr) as Font ptr
 	if basefont = null then
@@ -5301,6 +5325,15 @@ function font_loadold1bit (fontdata as ubyte ptr) as Font ptr
 
 	return newfont
 end function
+
+/'
+function font_load_rgfx (filename as string) as Font ptr
+
+	dim newfont as Font ptr = callocate(sizeof(Font))
+
+	return newfont
+end function
+'/
 
 'Load each character from an individual BMP in a directory, falling back to some other
 'font for missing BMPs
