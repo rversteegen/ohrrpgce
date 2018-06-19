@@ -1073,4 +1073,19 @@ TYPE BoxStyle
  border as integer '0 for none, >= 1 is border sprite id -1
 END TYPE
 
+TYPE FnThread as SUB(data as any ptr)
+
+TYPE AsyncFuture
+  thread as any ptr
+  want_cancel as bool     'Ask the child the exit. Written only by the parent.
+  'done as bool       'Set by the child when it finishes
+  UNION
+    retval as any ptr  'The return value
+    frame as Frame ptr
+  END UNION
+
+  Declare Sub cancel()
+  Declare Destructor()
+END TYPE
+
 #ENDIF

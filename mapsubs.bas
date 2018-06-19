@@ -16,6 +16,7 @@
 #include "loading.bi"
 #include "common_menus.bi"
 #include "thingbrowser.bi"
+#include "fbthread.bi"  'For threaddetach
 
 CONST tilew = 20
 CONST tileh = 20
@@ -186,6 +187,84 @@ END TYPE
 DIM SHARED wall_styles(2) as WallStyle = {(@"ants", 1, 1), (@"outlined", 0, 3), (@"pulse", 1, 4)}
 
 
+TYPE PreviewThreadArgs
+ future as AsyncFuture ptr
+ map_id as integer
+END TYPE
+
+'sub previewthread(map_id as integer, xx as integer, future as any ptr)'AsyncFuture)
+sub previewthread(byref args as PreviewThreadArgs) 
+' DIM map_id as integer, xx as integer, future as any ptr)'AsyncFuture)
+ DIM map as MapData
+ DIM tilesets(maplayerMax) as TilesetData ptr
+ map.load_for_minimap(args.map_id)
+ loadmaptilesets tilesets(), map.gmap()
+
+ DIM minimap as Frame ptr
+ minimap = createminimap(map.tiles(), tilesets(), @map.pass, , minimapScaled, args.future)
+
+ unloadmaptilesets tilesets()
+ DELETE @args
+END SUB
+
+DIM SHARED map_preview_future as AsyncFuture
+
+'If already running, exit
+SUB AsyncFuture.cancel()
+ if thread then
+  want_cancel = YES
+  threadwait thread
+  thread = NULL
+  want_cancel = NO
+ end if
+END SUB
+
+/'
+SUB AsyncFuture.start()
+
+END SUB
+'/
+
+DESTRUCTOR AsyncFuture()
+ IF thread THEN
+  'Stop the thread, but don't wait
+  want_cancel = YES
+  threaddetach thread
+ END IF
+END DESTRUCTOR
+
+
+/'
+TYPE AsyncFutureFrame EXTENDS AsyncFuture
+ 'Declare Sub cleanup()
+ Declare Function frame() byref as Frame ptr
+END TYPE
+
+FUNCTION AsyncFutureFrame.frame(byref future as AsyncFuture) byref as Frame ptr
+ RETURN cast(Frame ptr, future.retval)
+END FUNCTION
+'/
+
+/'
+DESTRUCTOR MinimapAsyncFuture()
+ 
+END DESTRUCTOR
+'/
+
+SUB get_map_minimap_async(map_id as integer, byref future as AsyncFuture)
+ future.cancel()
+ frame_unload @future.frame
+
+ DIM args as PreviewThreadArgs ptr = NEW PreviewThreadArgs(@future, map_id)
+ 'future.thread = threadcall previewthread(map_id, 89, cast(any ptr, forbar))'@future))
+ future.thread = threadcreate(cast(FnThread, @previewthread), args)
+ IF future.thread = NULL THEN
+  debug "get_map_minimap_async: threadcall failed"
+ END IF
+END SUB
+
+
+
 '==========================================================================================
 '                                    Map listing menu
 '==========================================================================================
@@ -227,7 +306,8 @@ SUB map_picker ()
  menuopts.highlight = YES
  menuopts.bgfuzz = YES
 
- DIM preview as Frame ptr
+ 'DIM preview as Frame ptr
+ DIM future as AsyncFuture
 
  make_map_picker_menu topmenu(), state
 
@@ -262,17 +342,26 @@ SUB map_picker ()
    state.need_update = NO
    make_map_picker_menu topmenu(), state
    IF map_id >= 0 AND map_id <= gen(genMaxMap) THEN
+    get_map_minimap_async(map_id, future)
+   ELSE
+    future.cancel()
+    frame_unload @future.frame
+   END IF
+   /'
+   IF map_id >= 0 AND map_id <= gen(genMaxMap) THEN
     frame_assign @preview, get_map_minimap(map_id)
    ELSE
     frame_unload @preview
    END IF
+   '/
   END IF
 
   clearpage vpage
-  IF preview THEN
+  'IF preview THEN
+  IF future.frame THEN
    'If there's a scrollbar, shift the preview over to avoid it
    DIM previewx as RelPos = pRight - IIF(state.would_have_scrollbar(), 8, 0)
-   frame_draw preview, , previewx, pBottom, , , vpage
+   frame_draw future.frame, , previewx, pBottom, , , vpage
   END IF
   draw_fullscreen_scrollbar state, 0, vpage
 
@@ -283,7 +372,9 @@ SUB map_picker ()
   dowait
  LOOP
  switch_to_8bit_vpages
- frame_unload @preview
+ 'frame_unload @preview
+ future.cancel()
+ frame_unload @future.frame
 END SUB
 
 
@@ -401,6 +492,7 @@ FUNCTION mapedit_npc_instance_count(st as MapEditState, byval id as integer) as 
  RETURN num
 END FUNCTION
 
+'This sub assumes that the engine is already set to 32-bit graphics mode
 SUB mapeditor (byval mapnum as integer)
 STATIC remember_menu_pt as integer = 0
 
@@ -578,6 +670,8 @@ st.clone_merge = YES
 
 st.cur_door = find_first_free_door(st.map.door())
 
+DIM preview as Frame ptr  'For the toplevel menu only (FIXME: why is this menu mixed up with the rest of the editor?)
+
 DIM mapeditmenu(16) as string
 DIM mapeditmenu_display(16) as string
 
@@ -623,6 +717,7 @@ DO
  END IF
 
  IF enter_space_click(st.menustate) THEN
+  'switch_to_8bit_vpages
   SELECT CASE st.menustate.pt
    CASE 0
     mapedit_savemap st
@@ -668,21 +763,28 @@ DO
   IF slave_channel <> NULL_CHANNEL THEN     'If live previewing, give quick feedback
    mapedit_savemap st
   END IF
+  'switch_to_32bit_vpages
  END IF
 
  IF st.menustate.need_update THEN
   mapeditmenu(16) = "Map name:" + st.map.name
+  frame_assign @preview, get_map_minimap(st.map.id)
   st.menustate.need_update = NO
  END IF
 
  clearpage vpage
+ IF preview THEN frame_draw preview, , pRight, pBottom, , , vpage
+
  highlight_menu_typing_selection mapeditmenu(), mapeditmenu_display(), selectst, st.menustate
  standardmenu mapeditmenu_display(), st.menustate, 0, 0, vpage
  setvispage vpage
  dowait
 LOOP
+'switch_to_32bit_vpages
 
 '---------------------------------- CLEANUP CODE -------------------------------------
+
+frame_unload @preview
 
 'Unload NPC graphics
 FOR i as integer = 0 TO UBOUND(st.npc_img)
