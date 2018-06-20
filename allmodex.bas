@@ -7541,6 +7541,7 @@ CONST SPRCACHE_BASE_SZ = 4096  'bytes
 
 
 ' removes a sprite from the cache, and frees it.
+' Assumes sprcache_mutex is held.
 private sub sprite_remove_cache(entry as SpriteCacheEntry ptr)
 	if entry->p->refcount <> 1 then
 		debug "error: invalidly uncaching sprite " & entry->hashed.hash & " " & frame_describe(entry->p)
@@ -7561,6 +7562,7 @@ end sub
 
 'Free some sprites from the end of the B cache
 'Returns true if enough space was freed
+'Assumes sprcache_mutex is held.
 private function sprite_cacheB_shrink(amount as integer) as bool
 	sprite_cacheB_shrink = (amount <= SPRCACHEB_SZ)
 	if sprcacheB_used + amount <= SPRCACHEB_SZ then exit function
@@ -7576,7 +7578,8 @@ private function sprite_cacheB_shrink(amount as integer) as bool
 end function
 
 'freeleaks = YES will causes a crash if those pointers are accessed
-sub sprite_empty_cache_range(minkey as integer, maxkey as integer, leakmsg as string, freeleaks as bool = NO)
+'Assumes sprcache_mutex is held.
+private sub sprite_empty_cache_range(minkey as integer, maxkey as integer, leakmsg as string, freeleaks as bool = NO)
 	dim iterstate as integer = 0
 	dim as SpriteCacheEntry ptr pt, nextpt
 
@@ -7597,6 +7600,7 @@ end sub
 
 'Unlike sprite_empty_cache, this reloads (in-use) sprites from file, without changing the pointers
 'to them. Any sprite that's not actually in use is removed from the cache as it's unnecessary to reload.
+'Assumes sprcache_mutex is held.
 private sub sprite_update_cache_range(minkey as integer, maxkey as integer)
 	dim iterstate as integer = 0
 	dim as SpriteCacheEntry ptr pt, nextpt
@@ -7681,6 +7685,7 @@ end sub
 'By default, remove everything. With an argument: remove specific sprite type,
 'or with two: remove a specific spriteset
 sub sprite_empty_cache(sprtype as SpriteType = sprTypeInvalid, setnum as integer = -1)
+	mutexlock sprcache_mutex
 	if sprtype = sprTypeInvalid then
 		sprite_empty_cache_range(INT_MIN, INT_MAX, "leaked sprite ")
 		if sprcacheB_used <> 0 or sprcache.numitems <> 0 then
@@ -7692,9 +7697,11 @@ sub sprite_empty_cache(sprtype as SpriteType = sprTypeInvalid, setnum as integer
 		dim which as integer = SPRITE_CACHE_MULT * sprtype + setnum
 		sprite_empty_cache_range(which, which, "leaked sprite ")
 	end if
+	mutexunlock sprcache_mutex
 end sub
 
 sub sprite_debug_cache()
+	mutexlock sprcache_mutex
 	debug "==sprcache=="
 	dim iterstate as integer = 0
 	dim pt as SpriteCacheEntry ptr = NULL
@@ -7709,9 +7716,11 @@ sub sprite_debug_cache()
 		debug pt->hashed.hash & " cost=" & pt->cost & " : " & frame_describe(pt->p)
 		pt = pt->cacheB.next
 	wend
+	mutexunlock sprcache_mutex
 end sub
 
 'a sprite has no references, move it to the B cache
+'Assumes sprcache_mutex is held.
 private sub sprite_to_B_cache(entry as SpriteCacheEntry ptr)
 	dim pt as SpriteCacheEntry ptr
 
@@ -7737,6 +7746,7 @@ private sub sprite_to_B_cache(entry as SpriteCacheEntry ptr)
 end sub
 
 ' move a sprite out of the B cache
+' Assumes sprcache_mutex is held.
 private sub sprite_from_B_cache(entry as SpriteCacheEntry ptr)
 	dlist_remove(sprcacheB.generic, entry)
 	entry->Bcached = NO
@@ -7746,6 +7756,7 @@ private sub sprite_from_B_cache(entry as SpriteCacheEntry ptr)
 end sub
 
 ' search cache, update as required if found
+' Assumes sprcache_mutex is held.
 private function sprite_fetch_from_cache(sprtype as SpriteType, record as integer) as Frame ptr
 	dim entry as SpriteCacheEntry ptr
 
@@ -7763,6 +7774,7 @@ private function sprite_fetch_from_cache(sprtype as SpriteType, record as intege
 end function
 
 ' adds a newly loaded frame to the cache with a given type/record
+' Assumes sprcache_mutex is held.
 private sub sprite_add_cache(sprtype as SpriteType, record as integer, p as Frame ptr)
 	if p = 0 then exit sub
 
@@ -7796,6 +7808,7 @@ end sub
 'By default not initialised; pass clr=YES to initialise to 0
 'with_surface32: if true, create a 32-it Surface-backed Frame.
 'no_alloc: ignore this; internal use only.
+'sprcache_mutex may or may not be held.
 function frame_new(w as integer, h as integer, frames as integer = 1, clr as bool = NO, wantmask as bool = NO, with_surface32 as bool = NO, no_alloc as bool = NO) as Frame ptr
 	if w < 1 or h < 1 or frames < 1 then
 		debugc errPromptBug, "frame_new: bad size " & w & "*" & h & "*" & frames
@@ -7902,7 +7915,9 @@ function frame_new_view(spr as Frame ptr, x as integer, y as integer, w as integ
 		else
 			.base = spr
 		end if
+		mutexlock sprcache_mutex
 		if .base->refcount <> NOREFC then .base->refcount += 1
+		mutexunlock sprcache_mutex
 	end with
 	return ret
 end function
@@ -7977,6 +7992,7 @@ sub frame_drop_surface(fr as Frame ptr)
 	end if
 end sub
 
+' sprcache_mutex is not needed, and may or may not be held.
 private sub frame_delete_members(f as Frame ptr)
 	if f->arrayelem then debug "can't free arrayelem!": exit sub
 	for i as integer = 0 to f->arraylen - 1
@@ -7997,6 +8013,7 @@ end sub
 ' You should never need to call this: use frame_unload
 ' Should only be called on the head of an array (and not a view, obv)!
 ' Warning: not all code calls frame_freemem to free sprites! Grrr!
+' sprcache_mutex is not needed, and may or may not be held.
 private sub frame_freemem(f as Frame ptr)
 	if f = 0 then exit sub
 	frame_delete_members f
@@ -8012,10 +8029,15 @@ end sub
 ' will be immediately after it in memory. (This is a hack, and will probably be removed)
 ' For tilesets, the tileset will already be reordered as needed.
 function frame_load(sprtype as SpriteType, record as integer) as Frame ptr
+	mutexlock sprcache_mutex
 	dim ret as Frame ptr = sprite_fetch_from_cache(sprtype, record)
-	if ret then return ret
+	if ret then
+		mutexunlock sprcache_mutex
+		return ret
+	end if
 	ret = frame_load_uncached(sprtype, record)
 	if ret then sprite_add_cache(sprtype, record, ret)
+	mutexunlock sprcache_mutex
 	return ret
 end function
 
@@ -8042,6 +8064,7 @@ function graphics_file(lumpname_or_extn as string) as string
 end function
 
 ' Loads a 4-bit or 8-bit sprite/backdrop/tileset from the appropriate game lump. See frame_load.
+' Assumes sprcache_mutex is held.
 private function frame_load_uncached(sprtype as SpriteType, record as integer) as Frame ptr
 	if sprtype < 0 or sprtype > sprTypeLastLoadable or record < 0 then
 		debugc errBug, "frame_load: invalid type=" & sprtype & " and rec=" & record
@@ -8094,6 +8117,7 @@ end function
 ' No code does this. Does not use a cache.
 ' It will return a pointer to the first frame (of num frames), and subsequent frames
 ' will be immediately after it in memory. (This is a hack, and will probably be removed)
+' sprcache_mutex may or may not be held.
 function frame_load_4bit(filen as string, rec as integer, numframes as integer, wid as integer, hei as integer) as Frame ptr
 	dim ret as Frame ptr
 
@@ -8298,6 +8322,7 @@ end sub
 ' elements also have 1 refcount, indicating that they are 'in use' by the head element,
 ' but this is just for feel-good book keeping
 ' (cdecl so that it can be used in the Frame ptr vector typetable)
+' sprcache_mutex must not be held.
 sub frame_unload cdecl(ppfr as Frame ptr ptr)
 	if ppfr = 0 then exit sub
 	dim fr as Frame ptr = *ppfr
@@ -8307,9 +8332,12 @@ sub frame_unload cdecl(ppfr as Frame ptr ptr)
 	dim byref cliprect as ClipState = get_cliprect()
 	if cliprect.frame = fr then cliprect.frame = 0
 
+	mutexlock sprcache_mutex
+
 	with *fr
 		if .refcount = FREEDREFC then
 			debug frame_describe(fr) & " already freed!"
+			mutexunlock sprcache_mutex
 			exit sub
 		end if
 		'Theoretically possible to have an un-refcounted Frame/SpriteSet which uses refcounted default animations
@@ -8317,6 +8345,7 @@ sub frame_unload cdecl(ppfr as Frame ptr ptr)
 			spriteset_unload @.sprset->global_animations
 		end if
 		if .refcount = NOREFC then
+			mutexunlock sprcache_mutex
 			exit sub
 		end if
 		.refcount -= 1
@@ -8326,6 +8355,7 @@ sub frame_unload cdecl(ppfr as Frame ptr ptr)
 			if .arrayelem then
 				'this should not happen, because each arrayelem gets an extra refcount
 				debug "arrayelem with refcount = " & .refcount
+				mutexunlock sprcache_mutex
 				exit sub
 			end if
 			if .isview then
@@ -8341,6 +8371,8 @@ sub frame_unload cdecl(ppfr as Frame ptr ptr)
 			end if
 		end if
 	end with
+
+	mutexunlock sprcache_mutex
 end sub
 
 'Takes a 320x200 Frame and produces a 20x3200 Frame in the format expected of tilesets:
@@ -8416,7 +8448,9 @@ function frame_is_valid(p as Frame ptr) as bool
 	if ret = NO then
 		debugc errBug, "Invalid sprite " & frame_describe(p)
 		'if we get here, we are probably doomed, but this might be a recovery
+		mutexlock sprcache_mutex
 		if p->cacheentry then sprite_remove_cache(p->cacheentry)
+		mutexunlock sprcache_mutex
 	end if
 	return ret
 end function
@@ -8455,7 +8489,7 @@ function frame_duplicate(p as Frame ptr, clr as bool = NO, addmask as bool = NO)
 		return ret
 	end if
 
-	ret = callocate(sizeof(frame))
+	ret = callocate(sizeof(Frame))
 	if ret = 0 then return 0
 
 	ret->w = p->w
@@ -8505,11 +8539,13 @@ end function
 
 function frame_reference cdecl(p as Frame ptr) as Frame ptr
 	if p = 0 then return 0
+	mutexlock sprcache_mutex
 	if p->refcount = NOREFC then
 		'showerror "tried to reference a non-refcounted sprite!"
 	else
 		p->refcount += 1
 	end if
+	mutexunlock sprcache_mutex
 	return p
 end function
 
@@ -9559,6 +9595,7 @@ end function
 'loaded from the cache, or from rgfx or the defaults if missing.
 'Use spriteset_unload to free the result.
 'If rgfxdoc is already open you can optionally pass it to avoid reloading.
+'sprcache_mutex may or may not be held.
 function load_global_animations(sprtype as SpriteType, rgfxdoc as Doc ptr = NULL) as SpriteSet ptr
 	dim cached as Frame ptr
 	cached = sprite_fetch_from_cache(sprtype, SPRITE_CACHE_GLOBAL_ANIMS)
@@ -9578,6 +9615,7 @@ end function
 
 'Called when updating the sprite cache. Updates a SpriteSet in-place.
 'Variant on rgfx_load_global_animations.
+FIXME
 private sub reload_global_animations(def_anim as SpriteSet ptr, sprtype as SpriteType)
 	dim rgfxdoc as Doc ptr = rgfx_open(sprtype, YES)
 	if rgfxdoc = NULL then debug "reload_global_animations failed" : exit sub
