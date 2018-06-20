@@ -1624,7 +1624,7 @@ FUNCTION createminimap (tiles() as TileMap, tilesets() as TilesetData ptr, pmapp
 
  DIM mini as Frame Ptr
  DIM with_surface32 as bool = (algorithm = minimapScaled)
- mini = frame_new(zoom * tiles(0).wide, zoom * tiles(0).high, , , , with_surface32)
+ mini = frame_new(zoom * tiles(0).wide, zoom * tiles(0).high, , YES, , with_surface32)
 
  IF future THEN future->retval = mini
 

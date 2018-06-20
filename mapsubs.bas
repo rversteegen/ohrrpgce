@@ -260,6 +260,10 @@ SUB get_map_minimap_async(map_id as integer, byref future as AsyncFuture)
  future.thread = threadcreate(cast(FnThread, @previewthread), args)
  IF future.thread = NULL THEN
   debug "get_map_minimap_async: threadcall failed"
+ ELSE
+  'A short delay, to give the thread time to do some work before we draw the screen.
+  'This greatly reduces flickering when scrolling through a list of small maps
+  SLEEP 10
  END IF
 END SUB
 
