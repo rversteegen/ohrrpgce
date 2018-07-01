@@ -966,7 +966,7 @@ FUNCTION teleporttool () as bool
  DIM minisize as XYPair 'Minimap size in pixels
  DIM offset as XYPair   'Top-left position where the on-screen map viewport starts
  DIM camera as XYPair   'In pixels
- DIM dest as XYPair = herotpos(0)
+ DIM dest as XYPair = herotpos(0)  'Tile to teleport to, in tiles
 
  'Switch unconditionally, in-case live-previewing and genMinimapAlgorithm is changed
  switch_to_32bit_vpages
@@ -1118,7 +1118,7 @@ SUB teleporttool_load_map (map as integer, maptiles2() as TileMap, pass2 as Tile
  loadtilemap pass2, maplumpname(map, "p")
 END SUB
 
-'Generate the minimap given a zoom factor, and determinate viewport and camera positions
+'Generate the minimap given a zoom factor, and determinate viewport and camera positions and clamp dest
 SUB teleporttool_generate_minimap(byref mini as Frame Ptr, maptilesX() as TileMap, passX as TileMap, tilesetsX() as TilesetData ptr, byref zoom as integer, byref maxzoom as integer, byref mapsize as XYPair, byref minisize as XYPair, byref offset as XYPair, byref camera as XYPair, dest as XYPair)
  mapsize = maptilesX(0).size
  DIM screenw as integer = vpages(vpage)->w
@@ -1136,6 +1136,14 @@ SUB teleporttool_generate_minimap(byref mini as Frame Ptr, maptilesX() as TileMa
  offset.y = large(screenh \ 2 - mini->h \ 2, 0)
  minisize.x = screenw - offset.x * 2
  minisize.y = screenh - offset.y * 2
+
+ ' dest.y = large(dest.y - yrate, 0)
+ '   IF slowkey(scUp, 45) THEN dest.y = large(dest.y - yrate, 0)
+ '   IF slowkey(scDown, 45) THEN dest.y = small(dest.y + yrate, mapsize.y - 1)
+ '   IF slowkey(scLeft, 45) THEN dest.x = large(dest.x - xrate, 0)
+ '   IF slowkey(scRight, 45) THEN dest.x = small(dest.x + xrate, mapsize.x - 1)
+
+
  camera.x = bound(dest.x * zoom - minisize.x \ 2, 0, mapsize.x * zoom - minisize.x)
  camera.y = bound(dest.y * zoom - minisize.y \ 2, 0, mapsize.y * zoom - minisize.y)
 END SUB

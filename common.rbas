@@ -1634,6 +1634,10 @@ FUNCTION createminimap (tiles() as TileMap, tilesets() as TilesetData ptr, pmapp
  DIM prng_state as uinteger = 0
 
  FOR ty as integer = 0 TO tiles(0).high - 1
+  if ty mod 10 = 9 then
+   setwait 5
+   dowait
+  end if
   FOR tx as integer = 0 TO tiles(0).wide - 1
    IF future ANDALSO future->want_cancel THEN EXIT FOR, FOR
 

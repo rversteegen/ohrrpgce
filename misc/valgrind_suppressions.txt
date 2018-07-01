@@ -351,3 +351,10 @@
    ...
    fun:clone
 }
+
+
+{
+   <insert_a_suppression_name_here>
+   Helgrind:Race
+   fun:SETCLIP
+}
