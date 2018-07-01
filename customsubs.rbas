@@ -993,15 +993,15 @@ END FUNCTION
 'max_record is the maximum object ID, not the upper range of datum.
 PRIVATE FUNCTION thinggrabber (byref datum as integer, state as MenuState, offset as integer, min as integer, max_record as integer, intgrab as bool = YES, editor_func as FnEditor) as bool
  DIM editor_arg as integer  'What to pass to editor_func.
- IF keyval(scPlus) > 1 OR keyval(scInsert) > 1 THEN
+ IF keyval(scPlus) > 1 OR keyval(scInsert) > 1 THEN  'Update enter_or_add_new() if this changes
   editor_arg = max_record + 1
- ELSEIF enter_space_click(state) THEN
+ ELSEIF enter_space_click(state) THEN  'Update enter_or_add_new() if this changes
   ' A value < 0 would mean None; default to 0 in that case
   editor_arg = large(datum - offset, 0)
  ELSE
   ' Check this only after checking scPlus, because intgrabber reads it
   IF intgrab THEN
-   IF offset <> 0 AND offset <> 1 THEN showerror "thinggrabber: weird offset " & offset
+   IF offset <> 0 AND offset <> 1 THEN debugc errPromptBug, "thinggrabber: weird offset " & offset
    'min and max for zintgrabber are offset by one: -1 means datum=0
    IF (offset = 1 ANDALSO zintgrabber(datum, min - 1, max_record)) OR _
       (offset = 0 ANDALSO intgrabber(datum, min, max_record)) THEN
