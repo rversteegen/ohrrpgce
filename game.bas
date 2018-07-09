@@ -4283,7 +4283,7 @@ FUNCTION active_party_slots() as integer
  RETURN 4
 END FUNCTION
 
-FUNCTION is_active_party_slot(byval slot as integer) as integer
+FUNCTION is_active_party_slot(byval slot as integer) as bool
  RETURN slot >= 0 ANDALSO slot <= active_party_slots() - 1
 END FUNCTION
 

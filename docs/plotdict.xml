@@ -2152,22 +2152,72 @@ wait for text box # wait until the player continues</example>
 		<command id="addhero">
 			<canon>add hero (who)</canon>
 			<shortname>add hero</shortname>
-			<description>Puts the named hero in your party. If there is no room, the hero will be added to your reserve. Use the constants defined in your HSI file. They are in the form of hero:name. This command returns the party slot that the hero was added to, or -1 if both the active and reserve parties are completely full.</description>
+			<description>
+				Adds the named hero <p>who</p>
+				(a hero ID: use constants from your HSI file of the form of <tt>hero:name</tt>)
+				to your party. If there is no room, the hero will be added to the reserve party.
+				<lb/>
+				This command returns the party slot that the hero was added to,
+				or -1 if both the active and reserve parties are completely full.
+				<note>
+					You can have multiple copies of the same hero in the party.
+					However, many script commands use hero IDs instead of party slots,
+					and operate only on the first copy of the hero,
+					so writing scripts which work with multiple copies can be difficult.
+				</note>
+			</description>
 		</command>
 		<command id="deletehero">
 			<canon>delete hero (who)</canon>
 			<shortname>delete hero</shortname>
-			<description>Removes the named hero from your party. If you have more than one copy of the hero in your party, only the first one will be deleted. Use the constants defined in your HSI file. They are in the form of hero:name</description>
+			<description>
+				Deletes the named hero <p>who</p>
+				(a hero ID: use constants from your HSI file of the form of <tt>hero:name</tt>)
+				from your party.
+				If you have more than one copy of the hero in your party, only the first one will be deleted.
+				<note>
+					If you only want to temporarily remove a hero from the party, instead
+					use <ref>swapouthero</ref> followed by <ref>lockhero</ref> to hide them
+					from the player;
+					then later you can unlock and swap them back in.
+				</note>
+				<note>
+					You must always have at least one hero in the active party!
+					If you delete the last hero in the active party, then the first hero in
+					the reserve party will automatically be swapped back in!
+					And attempting to delete the last hero in the whole party will do nothing.
+				</note>
+			</description>
 		</command>
 		<command id="swapinhero">
 			<canon>swap in hero (who)</canon>
 			<shortname>swap in hero</shortname>
-			<description>Moves the named hero in your from your reserves to your active party. If there is no room in your active party, the hero will not be moved. Use the constants defined in your HSI file. They are in the form of hero:name</description>
+			<description>
+				Moves the named hero <p>who</p>
+				(a hero ID: use constants from your HSI file of the form of <tt>hero:name</tt>)
+				from the reserve party to the active party.
+				If there is no room in the active party, the hero will not be moved.
+				<lb/>
+				The return value is the new party slot, or -1 if the hero isn't in the party
+				(which causes a warning) or there was no empty party slot.
+			</description>
 		</command>
 		<command id="swapouthero">
 			<canon>swap out hero (who)</canon>
 			<shortname>swap out hero</shortname>
-			<description>Moves the named hero from your active party into your reserve. Use the constants defined in your HSI file. They are in the form of hero:name</description>
+			<description>
+				Moves the named hero <p>who</p>
+				(a hero ID: use constants from your HSI file of the form of <tt>hero:name</tt>)
+				from the active party into your reserve.
+				<lb/>
+				The return value is the new party slot, or -1 if the hero isn't in the party
+				(which causes a warning) or there was no empty slot in the reserve party.
+				<note>
+					You must always have at least one hero in the active party!
+					If you swap out the last hero, then the first hero in the reserve party
+					will automatically be swapped back in!
+				</note>
+			</description>
 		</command>
 		<command id="lockhero">
 			<canon>lock hero (who)</canon>

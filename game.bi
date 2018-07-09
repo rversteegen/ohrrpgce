@@ -83,7 +83,7 @@ DECLARE FUNCTION caterpillar_size () as integer
 'See also liveherocount
 DECLARE FUNCTION active_party_slots() as integer
 DECLARE FUNCTION last_active_party_slot() as integer 'FIXME: use this everywhere!
-DECLARE FUNCTION is_active_party_slot(byval slot as integer) as integer
+DECLARE FUNCTION is_active_party_slot(byval slot as integer) as bool
 DECLARE FUNCTION loop_active_party_slot(byval slot as integer, byval direction as integer=1) as integer
 
 DECLARE SUB queue_fade_in (delay as integer = 0, script_overridable as bool = NO)

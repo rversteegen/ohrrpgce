@@ -4009,32 +4009,36 @@ SUB script_functions(byval cmdid as integer)
    scriptret = slot
   END IF
  CASE 67'--delete hero (hero ID)
-  IF party_size() > 1 AND retvals(0) >= 0 THEN
-   DIM i as integer = findhero(retvals(0), , serrWarn)
-   IF i > -1 THEN gam.hero(i).id = -1
+  DIM slot as integer = findhero(retvals(0), , serrWarn)
+  IF slot > -1 ANDALSO party_size() > 1 THEN
+   gam.hero(slot).id = -1
    IF active_party_size() = 0 THEN forceparty
    party_change_updates
   END IF
  CASE 68'--swap out hero
-  DIM i as integer = findhero(retvals(0), , serrWarn)
-  IF i > -1 THEN
-   FOR o as integer = 40 TO 4 STEP -1
-    IF gam.hero(o).id = -1 THEN
-     doswap i, o
+  scriptret = -1
+  DIM from_slot as integer = findhero(retvals(0), , serrWarn)
+  IF from_slot > -1 THEN
+   'Backcompat: swapouthero, when used on a hero in reserve party, has always
+   'swapped the hero to another reserve party slot
+   FOR to_slot as integer = UBOUND(gam.hero) TO active_party_size() STEP -1
+    IF gam.hero(to_slot).id = -1 THEN
+     doswap from_slot, to_slot
      IF active_party_size() = 0 THEN forceparty
+     scriptret = to_slot
      EXIT FOR
     END IF
-   NEXT o
+   NEXT
   END IF
  CASE 69'--swap in hero
-  DIM i as integer = findhero(retvals(0), -1, serrWarn)
-  IF i > -1 THEN
-   FOR o as integer = 0 TO 3
-    IF gam.hero(o).id = -1 THEN
-     doswap i, o
-     EXIT FOR
-    END IF
-   NEXT o
+  scriptret = -1
+  DIM from_slot as integer = findhero(retvals(0), -1, serrWarn)
+  IF from_slot > -1 THEN
+   'Backcompat: swapinhero, when used on a hero in active party, has always
+   'swapped the hero to another active party slot
+   DIM to_slot as integer = first_free_slot_in_active_party()
+   IF to_slot > -1 THEN doswap from_slot, to_slot
+   scriptret = to_slot
   END IF
  CASE 83'--set hero stat (hero, stat, value, type)
   'FIXME: this command can also set hero level (without updating stats)
