@@ -4016,14 +4016,15 @@ SUB script_functions(byval cmdid as integer)
    party_change_updates
   END IF
  CASE 68'--swap out hero
-  scriptret = -1
   DIM from_slot as integer = findhero(retvals(0), , serrWarn)
   IF from_slot > -1 THEN
    IF is_active_party_slot(from_slot) ANDALSO party_size() = 1 THEN
-    'Refuse to swap out (instead of shuffling hero to slot 0). Return -1
+    'Refuse to swap out (instead of shuffling hero to slot 0).
+    scriptret = -1
    ELSE
     'Backcompat: swapouthero, when used on a hero in reserve party, has always
     'swapped the hero to another reserve party slot
+    scriptret = from_slot  'If hero not moved
     FOR to_slot as integer = UBOUND(gam.hero) TO active_party_size() STEP -1
      IF gam.hero(to_slot).id = -1 THEN
       doswap from_slot, to_slot
@@ -4040,8 +4041,12 @@ SUB script_functions(byval cmdid as integer)
    'Backcompat: swapinhero, when used on a hero in active party, has always
    'swapped the hero to another active party slot
    DIM to_slot as integer = first_free_slot_in_active_party()
-   IF to_slot > -1 THEN doswap from_slot, to_slot
-   scriptret = to_slot
+   IF to_slot > -1 THEN
+    doswap from_slot, to_slot
+    scriptret = to_slot
+   ELSE
+    scriptret = from_slot  'If hero not moved
+   END IF
   END IF
  CASE 83'--set hero stat (hero, stat, value, type)
   'FIXME: this command can also set hero level (without updating stats)
