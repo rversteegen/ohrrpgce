@@ -2211,7 +2211,8 @@ wait for text box # wait until the player continues</example>
 				from the active party into your reserve.
 				<lb/>
 				The return value is the new party slot, or -1 if the hero isn't in the party
-				(which causes a warning) or there was no empty slot in the reserve party.
+				(which also shows a warning), or there was no empty slot in the reserve party,
+				or the hero is the last hero and couldn't be swapped out.
 				<note>
 					You must always have at least one hero in the active party!
 					If you swap out the last hero, then the first hero in the reserve party

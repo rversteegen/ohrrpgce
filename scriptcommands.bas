@@ -4019,16 +4019,19 @@ SUB script_functions(byval cmdid as integer)
   scriptret = -1
   DIM from_slot as integer = findhero(retvals(0), , serrWarn)
   IF from_slot > -1 THEN
-   'Backcompat: swapouthero, when used on a hero in reserve party, has always
-   'swapped the hero to another reserve party slot
-   FOR to_slot as integer = UBOUND(gam.hero) TO active_party_size() STEP -1
-    IF gam.hero(to_slot).id = -1 THEN
-     doswap from_slot, to_slot
-     IF active_party_size() = 0 THEN forceparty
-     scriptret = to_slot
-     EXIT FOR
-    END IF
-   NEXT
+   IF is_active_party_slot(from_slot) ANDALSO party_size() = 1 THEN
+    'Refuse to swap out (instead of shuffling hero to slot 0). Return -1
+   ELSE
+    'Backcompat: swapouthero, when used on a hero in reserve party, has always
+    'swapped the hero to another reserve party slot
+    FOR to_slot as integer = UBOUND(gam.hero) TO active_party_size() STEP -1
+     IF gam.hero(to_slot).id = -1 THEN
+      doswap from_slot, to_slot
+      scriptret = to_slot
+      EXIT FOR
+     END IF
+    NEXT
+   END IF
   END IF
  CASE 69'--swap in hero
   scriptret = -1
