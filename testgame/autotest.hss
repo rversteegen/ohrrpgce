@@ -486,20 +486,64 @@ script, hero party management tests, begin
   $0="hero party management tests"
   # Preconditions
   assert(room in active party == 3)
-  variable(h0x, h0y, h0speed, h0d)
+  assert(find hero(hero:Freki) == 0)
+   variable(h0x, h0y, h0speed, h0d)
   h0x := hero x(0)
   h0y := hero y(0)
   h0speed := get hero speed(0)
   h0d := hero direction(0)
 
-  add hero(hero:Helga)
-  add hero(hero:Olaf)
-  add hero(hero:Frumpy)
+  assert(check tag(tag:Freki in active party))
+  assert(check tag(tag:Freki is leader))
+
+  # Only one hero in party: swapping them out fails
+  assert(swap out hero(hero:Freki) == -1)
+  assert(find hero(hero:Freki) == 0)
+  assert(check tag(tag:Freki in active party))
+  assert(check tag(tag:Freki is leader))
+
+  # Only one hero in party: deleting them fails
+  delete hero(hero:Freki)
+  assert(find hero(hero:Freki) == 0)
+  assert(check tag(tag:Freki in active party))
+  assert(check tag(tag:Freki is leader))
+
+  # Add a second hero and put them in reserve
+  assert(add hero(hero:Helga) == 1)
+  assert(check tag(tag:Helga in active party))
+  # FIXME: if we do
+  #  swap out hero(hero:Freki)
+  # instead of
+  swap by position(1, 4)
+  # then the assert marked (*) fails, because Freki goes to slot 40, Helga to slot 39,
+  # and then gets auto-swapped back in
+  assert(check tag(tag:Helga in active party) == false)
+
+  # Swapping out only active hero swaps in a new hero
+  slot := swap out hero(hero:Freki)
+  assert(slot >= 4)  # (*) see above
+  assert(find hero(hero:Freki) == slot)
+  tracevalue(hero by slot(0), hero by slot(1), hero by slot(2), hero by slot(3), hero by slot(4))
+  assert(hero by slot(0) == hero:Helga)
+  assert(find hero(hero:Helga) == 0)
+  assert(check tag(tag:Freki in active party) == false)
+  assert(check tag(tag:Freki is leader) == false)
+  assert(check tag(tag:Helga is leader))
+
+  swap by position(0, slot)  # make Freki the leader again
+  assert(swap in hero(hero:Helga) == 1)
+  assert(add hero(hero:Olaf) == 2)
+  assert(add hero(hero:Frumpy) == 3)
   assert(room in active party == 0)
   assert(hero by rank(0) == hero:Freki)
   assert(hero by rank(1) == hero:Helga)
   assert(hero by rank(2) == hero:Olaf)
   assert(hero by rank(3) == hero:Frumpy)
+  assert(check tag(tag:Frumpy in party))
+  assert(check tag(tag:Frumpy in active party))
+  assert(check tag(tag:Frumpy is leader) == false)
+
+
   # with a full party, hero by rank and hero by slot should return the same values
   assert(hero by rank(0) == hero by slot(0))
   assert(hero by rank(1) == hero by slot(1))
@@ -534,6 +578,7 @@ script, hero party management tests, begin
   assert(find hero(hero:Frumpy) == 3)
   assert(find hero(hero:Styrge) == 0)
   # test rank in caterpillar
+
   assert(rank in caterpillar(hero:Freki)  == -1)
   assert(rank in caterpillar(hero:Helga)  == 1)
   assert(rank in caterpillar(hero:Olaf)   == 2)
@@ -571,9 +616,12 @@ script, hero party management tests, begin
   # Swapping
   # Note: swapinhero when used on a hero in the active party swaps them to another
   # slot. That could either be considered a bug, or kept for backcompat. So not testing for it...
-  slot := find hero(hero:Kitt)
   # The active party is full, so swapinhero should do nothing
-  assert(swap in hero(hero:Kitt) == -1)
+  slot := find hero(hero:Helga)
+  assert(swap in hero(hero:Helga) == slot)  # Already an active hero: returns existing slot
+  assert(find hero(hero:Helga) == slot)
+  slot := find hero(hero:Kitt)
+  assert(swap in hero(hero:Kitt) == -1) # In reserve party: returns -1
   assert(find hero(hero:Kitt) == slot)
   assert(swap out hero(hero:Helga) >= 4)
   #assert(swap out hero(hero:Freki) == -1)  # not in party (causes a warning, so not tested)
@@ -593,6 +641,7 @@ script, hero party management tests, begin
   assert(find hero(hero:Kitt) >= 4)
   assert(swap out hero(hero by slot(0)) >= 4) # swap out frumpy
   assert(hero by slot(0) == -1)
+  assert(check tag(tag:Frumpy is leader) == false)
   # restore numeric order
   add hero(hero:Freki) # Freki
   assert(hero by slot(0) == hero:Freki)

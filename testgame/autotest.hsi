@@ -13,6 +13,13 @@ define constant, begin
 11,tag:Freki level 0
 12,tag:Freki level teens
 13,tag:boat tag
+14,tag:Frumpy is leader
+15,tag:Frumpy in party
+16,tag:Frumpy inactiveparty
+17,tag:Freki is leader
+18,tag:Freki in activeparty
+19,tag:Helga is leader
+20,tag:Helga in activeparty
 1,song:tinglazedandnoncommutative
 0,hero:UNUSED
 1,hero:Helga

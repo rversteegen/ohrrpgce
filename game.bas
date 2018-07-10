@@ -4182,9 +4182,12 @@ END FUNCTION
 SUB forceparty ()
  '---MAKE SURE YOU HAVE AN ACTIVE PARTY---
  DIM fpi as integer = findhero(-1)
+?"forceparty", fpi
  IF fpi > -1 THEN
   FOR fpo as integer = 0 TO 3
+?fpo
    IF gam.hero(fpo).id = -1 THEN
+?"swap", fpi, fpo
     doswap fpi, fpo
     EXIT FOR
    END IF
@@ -4199,9 +4202,8 @@ FUNCTION findhero (byval id as integer, byval direction as integer = 1, errlvl a
  DIM as integer first, last
  IF direction = -1 THEN first = UBOUND(gam.hero) ELSE last = UBOUND(gam.hero)
  FOR i as integer = first TO last STEP direction
-  IF gam.hero(i).id = id ORELSE (id = -1 ANDALSO gam.hero(i).id >= 0) THEN
-   RETURN i
-  END IF
+  IF id >= 0 ANDALSO gam.hero(i).id = id THEN RETURN i
+  IF id = -1 ANDALSO gam.hero(i).id >= 0 THEN RETURN i
  NEXT i
  IF errlvl > serrIgnore THEN
   reporterr "Couldn't find hero with ID " & id & " in the party", errlvl

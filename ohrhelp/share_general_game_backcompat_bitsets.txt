@@ -32,3 +32,8 @@ In newly created games you normally wouldn't change any of these bitsets. When s
 "Wrap map layers over edge of Crop maps" affects maps set to Map Edge Mode: Crop. Normally on a cropping map you can't see past the map edge and this bitset has no effect. When this is ON, if you view an off-map position then the map layers continue forever by wrapping around. This is only possible if you use scripting to move map layers, or if the map is smaller than the game window.
 
 "Draw Backdrop slice above Script layer" causes normal backdrops (sl:backdrop) to be drawn above the sprite layer (sl:script layer) instead of below. This was the behaviour in Alectormancy and earlier.
+
+"Old hero swapping behaviour" causes "swap in hero"/"swap out hero" to act slightly differently (and strangely) in some cases, but is almost certainly safe to turn off in old games:
+-heroes get swapped out to party slot 40 or less, instead of to the first free slot
+-swapping in a hero already in the active party, or swapping out a hero already swapped out caused the party to be shuffled instead of doing nothing
+-"swap out hero" might immediately swap the hero back into the party if the party is empty even if not necessary

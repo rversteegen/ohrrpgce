@@ -4021,6 +4021,9 @@ SUB script_functions(byval cmdid as integer)
    IF is_active_party_slot(from_slot) ANDALSO party_size() = 1 THEN
     'Refuse to swap out (instead of shuffling hero to slot 0).
     scriptret = -1
+   ELSEIF first_free_slot_in_reserve_party() = -1 THEN
+    'Can't swap out
+    scriptret = -1
    ELSE
     'Backcompat: swapouthero, when used on a hero in reserve party, has always
     'swapped the hero to another reserve party slot
@@ -4028,6 +4031,9 @@ SUB script_functions(byval cmdid as integer)
     FOR to_slot as integer = UBOUND(gam.hero) TO active_party_size() STEP -1
      IF gam.hero(to_slot).id = -1 THEN
       doswap from_slot, to_slot
+?"swap ", from_slot, to_slot
+?"active:", active_party_size()
+      IF active_party_size() = 0 THEN forceparty
       scriptret = to_slot
       EXIT FOR
      END IF
