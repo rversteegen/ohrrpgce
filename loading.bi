@@ -43,9 +43,7 @@ declare sub CleanNPCInst(inst as NPCInst)
 declare sub CleanNPCL(dat() as npcinst)
 
 
-'*** Requires construction + destruction ***
 declare sub UnloadTilemap(map as TileMap)
-declare sub UnloadTilemaps(layers() as TileMap)
 declare sub LoadTilemap(map as TileMap, filename as string)
 declare function LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
 declare sub SaveTilemap(tmap as TileMap, filename as string)

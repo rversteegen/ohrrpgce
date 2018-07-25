@@ -1020,7 +1020,8 @@ SUB reset_game_final_cleanup()
  resetinterpreter 'unload scripts
  unloadmaptilesets tilesets()
  refresh_map_slice_tilesets '--zeroes out now-invalid pointers
- unloadtilemaps maptiles()
+ 'Explicitly unloading these tilemaps should be unnecessary; they have destructors
+ ERASE maptiles
  unloadtilemap pass
  unloadtilemap foemap
  DeleteZonemap zmap

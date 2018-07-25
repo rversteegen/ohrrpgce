@@ -1126,8 +1126,6 @@ SUB testanimpattern (tastuf() as integer, byref taset as integer)
   dowait
  LOOP
  frame_unload @tileset
- unloadtilemap sample
- unloadtilemap tilesetview
 END SUB
 
 'This is four different sub-editors of the tileset editor!

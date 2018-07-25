@@ -141,12 +141,14 @@ Type TilesetData
   tastuf(40) as integer
 End Type
 
-'*** Requires construction + destruction ***
 Type TileMap
   wide as integer
   high as integer
   data as ubyte ptr
   layernum as integer
+
+  'CleanTilemap() is the normal constructor for blank TileMaps.
+  DECLARE DESTRUCTOR()
 End Type
 
 DECLARE FUNCTION readblock (map as TileMap, x as integer, y as integer, default as integer = 112343211) as integer

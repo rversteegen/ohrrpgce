@@ -650,12 +650,9 @@ FOR i as integer = 0 TO UBOUND(st.npc_img)
 NEXT i
 
 unloadmaptilesets st.tilesets()
-unloadtilemap st.menubar
 v_free st.history
 IF st.secondary_undo_buffer THEN debugc errPromptBug, "mapedit cleanup: secondary_undo_buffer exists!"
 v_free st.cloned
-unloadtilemap st.zoneviewmap
-unloadtilemap st.zoneoverlaymap
 v_free st.defaultwalls
 unload_sprite_and_pal st.cursor
 unload_sprite_and_pal st.hero_gfx
@@ -3193,7 +3190,6 @@ SUB mapedit_gmapdata(st as MapEditState)
   dowait
  LOOP
  music_stop
- unloadtilemap sampmap
  v_free menu
  v_free menu_display
 END SUB
@@ -3803,6 +3799,7 @@ SUB mapedit_copy_layer(st as MapEditState, byval src as integer, byval dest as i
   write_map_layer_name(.gmap(), dest, "copy of " & src & " " & read_map_layer_name(.gmap(), src))
   CopyTilemap .tiles(dest), .tiles(src)
  END WITH
+ fix_tilemaps st.map
 END SUB
 
 'Add blank map layers
@@ -3841,7 +3838,6 @@ SUB mapedit_delete_layer(st as MapEditState, byval which as integer)
   FOR i as integer = which TO UBOUND(.tiles) - 1
    mapedit_swap_layers st, i, i + 1
   NEXT
-  UnloadTilemap .tiles(UBOUND(.tiles))
   'currently (temporarily) tilesets for unused layers are still loaded, so reset to default
   .gmap(layer_tileset_index(UBOUND(.tiles))) = 0
   write_map_layer_name(.gmap(), UBOUND(.tiles), "")
@@ -4114,14 +4110,10 @@ SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
   choice = multichoice(menu_caption, menu_choices(), 1, 0)
 
   IF choice = 0 THEN
-   UnloadTilemaps newlayers()
    EXIT SUB
   ELSE
    'keep a single layer
    SWAP newlayers(choice), newlayers(0)
-   FOR i as integer = 1 TO UBOUND(newlayers)
-    UnloadTilemap newlayers(i)
-   NEXT
    REDIM PRESERVE newlayers(0)
   END IF
  END IF
@@ -4140,14 +4132,12 @@ SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
 
   choice = multichoice(menu_caption, menu_choices(), 1, 0, "mapedit_importing_wrong_size_tilemap")
   IF choice = 0 THEN
-   UnloadTilemaps newlayers()
    EXIT SUB
   ELSEIF choice = 1 THEN
    'Goto resize menu
    mapedit_resize st
    IF st.map.wide <> newwide OR st.map.high <> newhigh THEN  'Either cancelled or wrong size
     notification "Map still the wrong size, cancelling import"
-    UnloadTilemaps newlayers()
     EXIT SUB
    END IF
   ELSEIF choice = 2 THEN
@@ -4157,8 +4147,6 @@ SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
 
  mapedit_append_imported_tilemaps st, newlayers(), appending
  notification "Imported " & num_new_layers & " layers"
-
- UnloadTilemaps newlayers()
 END SUB
 
 'Overwrite a map layer, reading a tile per pixel of a paletted image
@@ -4746,19 +4734,16 @@ SUB resizetiledata (tmap as TileMap, x_off as integer, y_off as integer, new_wid
  setvispage page, NO
 
  dim tmp as TileMap
- cleantilemap tmp, new_width, new_height
- tmp.layernum = tmap.layernum  'the unexpected ingredient!
+ CopyTilemap tmp, tmap
+ CleanTilemap tmap, new_width, new_height, tmap.layernum
 
  dim as integer x, y
- for x = large(x_off, 0) to small(tmap.wide, new_width + x_off) - 1
-	for y = large(y_off, 0) to small(tmap.high, new_height + y_off) - 1
+ for x = large(x_off, 0) to small(tmp.wide, new_width + x_off) - 1
+	for y = large(y_off, 0) to small(tmp.high, new_height + y_off) - 1
 		'newarray((x - tempx) * tempw + (y - tempy) + 2) = tmp(x * st.map.wide + y + 2)
-		writeblock(tmp, x - x_off, y - y_off, readblock(tmap, x, y))
+		writeblock(tmap, x - x_off, y - y_off, readblock(tmp, x, y))
 	next
  next
- unloadtilemap tmap
- memcpy(@tmap, @tmp, sizeof(TileMap))
- 'obviously don't free tmp
 END SUB
 
 SUB resizemapmenu (st as MapEditState, byref rs as MapResizeState)
@@ -5330,7 +5315,6 @@ SUB mapedit_pickblock(st as MapEditState)
    END IF
   END IF
  LOOP
- unloadtilemap tilesetview
 END SUB
 
 

@@ -1096,8 +1096,6 @@ FUNCTION teleporttool () as bool
  LOOP
  frame_unload @mini
  freepage holdscreen
- unloadtilemaps maptiles2()
- unloadtilemap pass2
  unloadmaptilesets tilesets2()
  restore_previous_palette
  setkeys

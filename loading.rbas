@@ -522,9 +522,7 @@ CONSTRUCTOR MapData()
 END CONSTRUCTOR
 
 DESTRUCTOR MapData()
-  UnloadTilemaps tiles()
-  UnloadTilemap pass
-  UnloadTilemap foemap
+  'TileMap has a destructor, tilemaps are automatically cleaned up
   DeleteZoneMap zmap
   id = -1
 END DESTRUCTOR
@@ -573,16 +571,14 @@ END SUB
 '==========================================================================================
 
 
+DESTRUCTOR TileMap()
+  UnloadTilemap this
+END DESTRUCTOR
+
+'Call the destructor explicitly
 SUB UnloadTilemap(map as TileMap)
   DEALLOCATE map.data
   map.data = NULL
-END SUB
-
-SUB UnloadTilemaps(layers() as TileMap)
-  FOR i as integer = 0 TO UBOUND(layers)
-    DEALLOCATE layers(i).data
-    layers(i).data = NULL
-  NEXT
 END SUB
 
 SUB TilemapInfo.seterr(filename as string, errmsg as string)
@@ -648,10 +644,7 @@ END SUB
 'This will cause extra spurious map layers to be loaded!
 FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
   DIM as integer fh, numlayers, i, wide, high
-  FOR i = 0 TO UBOUND(layers)
-    IF layers(i).data THEN DEALLOCATE layers(i).data
-    layers(i).data = NULL
-  NEXT
+  ERASE layers
 
   OPENFILE(filename, FOR_BINARY + ACCESS_READ, fh)
   DIM as integer tempw = readshort(fh, 8)
@@ -715,15 +708,9 @@ END SUB
 
 SUB CleanTilemaps(layers() as TileMap, byval wide as integer, byval high as integer, byval numlayers as integer)
   'two purposes: allocate a new tilemap, or blank an existing one
-  UnloadTilemaps layers()
   REDIM layers(numlayers - 1)
   FOR i as integer = 0 TO numlayers - 1
-    WITH layers(i)
-      .wide = wide
-      .high = high
-      .data = CALLOCATE(wide * high)
-      .layernum = i
-    END WITH
+    CleanTilemap layers(i), wide, high, i
   NEXT
 END SUB
 
@@ -754,18 +741,14 @@ SUB MergeTileMap(mine as TileMap, theirs_file as string, base_file as string)
      theirs.wide <> tmbase.wide OR theirs.high <> tmbase.high THEN
     'We we could actually continue...
     debug "MergeTilemap: nonmatching map sizes!"
-    UnloadTilemap tmbase
-    UnloadTilemap theirs
     EXIT SUB
   END IF
   MergeTileMapData mine, theirs, tmbase
-  UnloadTilemap tmbase
-  UnloadTilemap theirs
 END SUB
 
 SUB MergeTileMaps(mine() as TileMap, theirs_file as string, base_file as string)
   'Do a three-way merge of changes to an array of TileMap
-  REDIM as TileMap tmbase(0), theirs(0)
+  REDIM as TileMap tmbase(), theirs()
   LoadTileMaps tmbase(), base_file
   LoadTileMaps theirs(), theirs_file
   IF theirs(0).wide <> mine(0).wide OR theirs(0).high <> mine(0).high OR _
@@ -773,15 +756,11 @@ SUB MergeTileMaps(mine() as TileMap, theirs_file as string, base_file as string)
      UBOUND(theirs) <> UBOUND(mine) THEN
     'We we could actually continue...
     debug "MergeTilemap: nonmatching map sizes/num layers!"
-    UnloadTilemaps tmbase()
-    UnloadTilemaps theirs()
     EXIT SUB
   END IF
   FOR i as integer = 0 TO UBOUND(mine)
     MergeTileMapData mine(i), theirs(i), tmbase(i)
   NEXT
-  UnloadTilemaps tmbase()
-  UnloadTilemaps theirs()
 END SUB
 
 
