@@ -3261,6 +3261,7 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 	tileframe.w = 20
 	tileframe.h = 20
 	tileframe.pitch = 20
+	tileframe.refcount = NOREFC
 
 	ty = yoff
 	while ty < dest->h
