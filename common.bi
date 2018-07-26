@@ -95,6 +95,7 @@ DECLARE FUNCTION dimbinsize (byval id as integer) as integer
 
 DECLARE FUNCTION readarchinym (gamedir as string, sourcefile as string) as string
 DECLARE FUNCTION maplumpname (byval map as integer, oldext as string) as string
+DECLARE FUNCTION rmaplumpname (map_id as integer, lname as string) as string
 
 DECLARE FUNCTION shorten_to_left (text as string, byval wide as integer) as string
 DECLARE FUNCTION shorten_to_right (text as string, byval wide as integer) as string

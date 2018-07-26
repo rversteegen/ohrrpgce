@@ -144,7 +144,7 @@ End Type
 Type TileMap
   wide as integer
   high as integer
-  data as ubyte ptr
+  data as ushort ptr
   layernum as integer
 
   'CleanTilemap() is the normal constructor for blank TileMaps.

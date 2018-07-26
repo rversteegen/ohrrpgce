@@ -148,6 +148,7 @@ Declare Function GetChildByName(byval nod as NodePtr, byval nam as zstring ptr) 
 Declare Function FindDescendentByName(byval nod as NodePtr, nam as string) as NodePtr 'recursive depth first search
 'Other overloads unimplemented
 Declare Function GetChildByContent(byval nod as NodePtr, content as longint, name as zstring ptr = null, reverse as bool = NO) as NodePtr
+Declare Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as zstring ptr = NULL) as NodePtr
 
 Declare Function DocumentRoot(byval doc as DocPtr) as NodePtr
 Declare Function GetDocument(byval nod as NodePtr) as DocPtr
@@ -183,7 +184,6 @@ Declare Function AppendChildNode Overload (byval parent as NodePtr, n as string)
 Declare Function AppendChildNode(byval parent as NodePtr, n as string, byval val as longint) as NodePtr
 Declare Function AppendChildNode(byval parent as NodePtr, n as string, byval val as double) as NodePtr
 Declare Function AppendChildNode(byval parent as NodePtr, n as string, val as string) as NodePtr
-Declare Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as zstring ptr = NULL) as NodePtr
 
 Declare function ReadVLI overload(byval f as integer) as longint
 Declare Sub WriteVLI overload(byval f as integer, byval v as Longint)

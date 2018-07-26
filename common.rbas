@@ -1190,6 +1190,10 @@ FUNCTION maplumpname (byval map_id as integer, oldext as string) as string
  END IF
 END FUNCTION
 
+FUNCTION rmaplumpname (map_id as integer, lname as string) as string
+ RETURN workingdir & SLASH & "map" & map_id & "_" & lname & ".reload"
+END FUNCTION
+
 SUB fatal_error_shutdown
  save_backtrace
 

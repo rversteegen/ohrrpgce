@@ -460,6 +460,8 @@ TYPE TilemapInfo
   wide as integer
   high as integer
   layers as integer
+  format as integer  '0 for BSAVE, 1 is current RELOAD format
+  bits as integer    '8 (original) or 16 (new format)
 
   err as string      'Error message if the file is bad, otherwise blank
   DECLARE SUB seterr(filename as string, errmsg as string)

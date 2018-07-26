@@ -581,13 +581,16 @@ SUB UnloadTilemap(map as TileMap)
   map.data = NULL
 END SUB
 
+'==========================================================================================
+'                                BSAVE TileMap loading/saving
+
 SUB TilemapInfo.seterr(filename as string, errmsg as string)
   this.err = errmsg
   debuginfo filename & ": " & errmsg
 END SUB
 
 'Get size of a tilemap file; returns false if badly formed
-FUNCTION GetTilemapInfo(filename as string, info as TilemapInfo) as bool
+FUNCTION GetTilemapInfo_BSAVE(filename as string, info as TilemapInfo) as bool
   info.err = ""
   DIM as integer fh
   IF OPENFILE(filename, FOR_BINARY + ACCESS_READ, fh) <> 0 THEN
@@ -595,6 +598,8 @@ FUNCTION GetTilemapInfo(filename as string, info as TilemapInfo) as bool
     RETURN NO
   END IF
   WITH info
+    .format = 0
+    .bits = 8
     .wide = readshort(fh, 8)  'skip over BSAVE header
     .high = readshort(fh, 10)
     IF in_bound(.wide, 16, 32678) = NO ORELSE in_bound(.high, 10, 32678) = NO THEN
@@ -620,8 +625,8 @@ FUNCTION GetTilemapInfo(filename as string, info as TilemapInfo) as bool
   RETURN YES
 END FUNCTION
 
-SUB LoadTilemap(map as TileMap, filename as string)
-  IF map.data THEN DEALLOCATE map.data
+SUB LoadTilemap_BSAVE(map as TileMap, filename as string)
+  UnloadTilemap map
 
   DIM as integer fh
   OPENFILE(filename, FOR_BINARY + ACCESS_READ, fh)
@@ -642,7 +647,7 @@ END SUB
 'When allowfail is true, returns false if the data looks dubious instead of loading
 'FIXME: early versions always saved 32000 bytes of tile data (ie, 32011 total)!
 'This will cause extra spurious map layers to be loaded!
-FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
+FUNCTION LoadTilemaps_BSAVE(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
   DIM as integer fh, numlayers, i, wide, high
   ERASE layers
 
@@ -676,7 +681,7 @@ FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool
   RETURN YES
 END FUNCTION
 
-SUB SaveTilemap(tmap as TileMap, filename as string)
+SUB SaveTilemap_BSAVE(tmap as TileMap, filename as string)
   DIM fh as integer
   OPENFILE(filename, FOR_BINARY + ACCESS_WRITE, fh)  'Truncate to zero
   writeshort fh, 8, tmap.wide
@@ -685,7 +690,7 @@ SUB SaveTilemap(tmap as TileMap, filename as string)
   CLOSE #fh
 END SUB
 
-SUB SaveTilemaps(tmaps() as TileMap, filename as string)
+SUB SaveTilemaps_BSAVE(tmaps() as TileMap, filename as string)
   DIM fh as integer
   OPENFILE(filename, FOR_BINARY + ACCESS_WRITE, fh)  'Truncate to zero
   writeshort fh, 8, tmaps(0).wide
@@ -696,6 +701,138 @@ SUB SaveTilemaps(tmaps() as TileMap, filename as string)
   NEXT
   CLOSE #fh
 END SUB
+
+'==========================================================================================
+'                               RELOAD TileMap loading/saving
+
+'Get size in tiles of a RELOAD tilemap node; returns false if badly formed
+FUNCTION GetTilemapInfo(node as Node ptr, info as TilemapInfo) as bool
+  IF node = NULL THEN
+    debugc errError, "RTilemap: NULL node"
+    RETURN NO
+  END IF
+
+  info.wide = node."w"
+  info.high = node."h"
+  IF info.wide < 1 ORELSE info.wide > 32768 ORELSE info.high < 1 ORELSE info.high > 32768 THEN
+    debugc errError, "RTilemap: bad map size " & info.wide & "*" & info.high
+    RETURN NO
+  END IF
+
+  info.format = node."format".default(1)
+  info.bits = node."bits"
+  IF info.format <> 1 ORELSE (info.bits <> 8 ANDALSO info.bits <> 16) THEN
+    debugc errError, "RTilemap: Unsupported format (" & info.format & ") or bitdepth (" & info.bits & ")"
+    RETURN NO
+  END IF
+
+  DIM tiles_size as integer = info.wide * info.high * info.bits \ 8
+  IF node."tiles".zstringsize <> tiles_size THEN
+    debugc errError, "RTilemap: tiles missing or wrong size"
+    RETURN NO
+  END IF
+
+  RETURN YES
+END FUNCTION
+
+FUNCTION LoadTilemap(map as TileMap, node as Node ptr) as bool
+  UnloadTilemap map
+
+  DIM info as TilemapInfo
+  IF GetTilemapInfo(node, info) = NO THEN RETURN NO
+
+  map.layernum = 0
+  map.wide = info.wide
+  map.high = info.high
+  DIM tiles_size as integer = info.wide * info.high * SIZEOF(*map.data) \ 8
+  map.data = ALLOCATE(tiles_size)
+
+  DIM rawdata as ubyte ptr = node."tiles".zstring
+  IF SIZEOF(*map.data) = 8 * info.bits THEN
+   memcpy(map.data, rawdata, tiles_size)
+  ELSE
+   FOR i as integer = 0 TO tiles_size - 1
+    map.data[i] = rawdata[i]
+   NEXT
+  END IF
+
+  RETURN YES
+END FUNCTION
+
+
+'Returns true if there was no error (acts like allowfail=YES).
+'layers_node should have an array of "tilemap" child nodes.
+FUNCTION LoadTilemaps(layers() as TileMap, layers_node as Node ptr) as bool
+  ERASE layers
+
+  DIM nlayers as integer = CountChildren(layers_node, "tilemap")
+  IF nlayers = 0 THEN
+   debugc errError, "LoadTilemaps: no tilemap nodes"
+   RETURN NO
+  END IF
+  REDIM layers(nlayers - 1)
+
+  DIM ret as bool = YES
+  FOR i as integer = 0 TO nlayers - 1
+   'Keep going if any layer fails to load
+   IF LoadTilemap(layers(i), ChildByIndex(layers_node, i, "tilemap") = NO THEN ret = NO
+   layers(i).layernum = i
+  NEXT
+  RETURN NO
+END FUNCTION
+
+
+'==========================================================================================
+'                               Generic TileMap functions
+
+'Returns true if there was no error (acts like allowfail=YES).
+'layers_node should have an array of "tilemap" child nodes.
+FUNCTION LoadTilemaps(layers() as TileMap, layers_node as Node ptr) as bool
+  ERASE layers
+
+  DIM nlayers as integer = CountChildren(layers_node, "tilemap")
+  IF nlayers = 0 THEN
+   debugc errError, "LoadTilemaps: no tilemap nodes"
+   RETURN NO
+  END IF
+  REDIM layers(nlayers - 1)
+
+  DIM ret as bool = YES
+  FOR i as integer = 0 TO nlayers - 1
+   'Keep going if any layer fails to load
+   IF LoadTilemap(layers(i), ChildByIndex(layers_node, i, "tilemap") = NO THEN ret = NO
+   layers(i).layernum = i
+  NEXT
+  RETURN NO
+END FUNCTION
+
+'When allowfail is true, returns false if the data looks dubious instead of loading
+'FIXME: early versions always saved 32000 bytes of tile data (ie, 32011 total)!
+'This will cause extra spurious map layers to be loaded!
+FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
+
+
+
+SUB LoadTilemaps (layers() as TileMap, map_id )
+ IF NOT isfile(filename) THEN
+  debugc errError, "load_npc_instances: file doesn't exist: '" & filename & "'"
+  EXIT SUB
+ END IF
+
+ DIM doc as DocPtr
+ doc = LoadDocument(filename, optNoDelay)
+ 
+ DIM node as NodePtr
+ node = DocumentRoot(doc)
+ 
+ load_npc_instances node, npc()
+ 
+ FreeDocument doc
+END SUB
+
+
+FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
+
 
 SUB CleanTilemap(map as TileMap, byval wide as integer, byval high as integer, byval layernum as integer = 0)
   'two purposes: allocate a new tilemap, or blank an existing one
@@ -739,7 +876,7 @@ SUB MergeTileMap(mine as TileMap, theirs_file as string, base_file as string)
   LoadTileMap theirs, theirs_file
   IF theirs.wide <> mine.wide OR theirs.high <> mine.high OR _
      theirs.wide <> tmbase.wide OR theirs.high <> tmbase.high THEN
-    'We we could actually continue...
+    'We could actually continue...
     debug "MergeTilemap: nonmatching map sizes!"
     EXIT SUB
   END IF
@@ -754,7 +891,7 @@ SUB MergeTileMaps(mine() as TileMap, theirs_file as string, base_file as string)
   IF theirs(0).wide <> mine(0).wide OR theirs(0).high <> mine(0).high OR _
      theirs(0).wide <> tmbase(0).wide OR theirs(0).high <> tmbase(0).high OR _
      UBOUND(theirs) <> UBOUND(mine) THEN
-    'We we could actually continue...
+    'We could actually continue...
     debug "MergeTilemap: nonmatching map sizes/num layers!"
     EXIT SUB
   END IF
