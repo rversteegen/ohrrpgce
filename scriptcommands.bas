@@ -4662,6 +4662,18 @@ SUB script_functions(byval cmdid as integer)
   END IF
 
 
+ CASE 665 'draw pix
+'  IF valid_plotsprite(retvals(0)) THEN
+   DIM dat as SpriteSliceData Ptr
+   dat = plotslices(retvals(0))->SliceData
+   'Ensure loaded
+   ForceLoadSpriteSlice plotslices(retvals(0)), dat
+   DIM fr as Frame ptr = dat->img.sprite
+   IF fr THEN
+    putpixel fr, retvals(1), retvals(2), retvals(3)
+   END IF
+'  END IF
+
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
   scripterr "Unsupported script command " & cmdid & " " & commandname(cmdid) & ". " _
