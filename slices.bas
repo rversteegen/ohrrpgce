@@ -2408,6 +2408,7 @@ Sub ChangeSpriteSlice(byval sl as Slice ptr,_
    .loaded = NO
   end if
   if pal >= -1 then
+  'FIXME: must remove this limit.
    if .paletted = NO then
     reporterr "Attempt to set a palette (" & pal & ") on an unpaletted " & sprite_sizes(.spritetype).name & " sprite slice"
    else
