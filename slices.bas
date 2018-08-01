@@ -3370,7 +3370,8 @@ Function SliceLegalCoverModes(sl as Slice ptr) as CoverModes
 end Function
 
 'This function does not consider fill mode! A slice set to fill is not resizable either.
-Function SlicePossiblyResizable(sl as Slice ptr) as bool
+'Returns whether resizable along the specified axes, eg along either axis (axisNone is not a valid arg).
+Function SlicePossiblyResizable(sl as Slice ptr, axes as AxisSpecifier = axisEither) as bool
  if sl = 0 then return NO
  select case sl->SliceType
   case slSpecial, slRectangle, slLine, slContainer, slGrid, slEllipse, _
@@ -3380,6 +3381,7 @@ Function SlicePossiblyResizable(sl as Slice ptr) as bool
    if sl->TextData = 0 then return NO
    'Text slices are never resizable vertically (they autoset their height),
    'and resizable horizontally if wrapping.
+   if axes <> axisEither andalso axes and axisVert then return NO
    return sl->TextData->wrap
   case slSprite
    if sl->SpriteData = 0 then return NO

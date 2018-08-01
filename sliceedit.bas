@@ -84,6 +84,7 @@ CONST kindlimitPOSITIONING = 6  'Either Grid or Layout
 
 ENUM EditRuleMode
   erNone              'Used for labels and links
+  erDisabled          'Can't be edited (only needed for hack at end of slice_edit_detail_refresh)
   erIntgrabber
   erEnumgrabber       'Must be used for anything that's an Enum
   erShortStrgrabber   'No full-screen text editor
@@ -100,6 +101,8 @@ TYPE EditRule
   upper as integer
   group as integer    'Marks this rule as a member of a numbered group, the meaning of which is defined in the implementation
   helpkey as string   'actually appended to "sliceedit_" to get the full helpkey
+
+  DECLARE FUNCTION disable_if(condition as bool) byref as EditRule
 END TYPE
 
 '==============================================================================
@@ -179,12 +182,12 @@ DECLARE FUNCTION slice_edit_detail_browse_slicetype(byref slice_type as SliceTyp
 DECLARE SUB preview_SelectSlice_parents (byval sl as Slice ptr)
 
 'Slice EditRule convenience functions
-DECLARE SUB sliceed_rule (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as integer ptr, lower as integer=0, upper as integer=0, group as integer = 0)
-DECLARE SUB sliceed_rule_str (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as string ptr, upper as integer=0, group as integer = 0)
-DECLARE SUB sliceed_rule_enum (rules() as EditRule, helpkey as string, dataptr as ssize_t ptr, lower as integer=0, upper as integer=0, group as integer = 0)
-DECLARE SUB sliceed_rule_double (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as double ptr, lower as integer=0, upper as integer=0, group as integer = 0)
-DECLARE SUB sliceed_rule_tog (rules() as EditRule, helpkey as string, dataptr as bool ptr, group as integer=0)
-DECLARE SUB sliceed_rule_none (rules() as EditRule, helpkey as string, group as integer = 0)
+DECLARE FUNCTION sliceed_rule (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as integer ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
+DECLARE FUNCTION sliceed_rule_str (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as string ptr, upper as integer=0, group as integer = 0) byref as EditRule
+DECLARE FUNCTION sliceed_rule_enum (rules() as EditRule, helpkey as string, dataptr as ssize_t ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
+DECLARE FUNCTION sliceed_rule_double (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as double ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
+DECLARE FUNCTION sliceed_rule_tog (rules() as EditRule, helpkey as string, dataptr as bool ptr, group as integer=0) byref as EditRule
+DECLARE FUNCTION sliceed_rule_none (rules() as EditRule, helpkey as string, group as integer = 0) byref as EditRule
 
 '==============================================================================
 
@@ -1113,6 +1116,9 @@ SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr)
   'Covering and Filling are mutually exclusive
   IF dataptr = @.Fill OR dataptr = @.FillMode THEN
    .CoverChildren AND= SliceLegalCoverModes(sl)
+
+   IF SlicePossiblyResizable(sl, axisVert) = NO THEN disable_vert_fill(sl) ' .Fill = NO
+   IF SlicePossiblyResizable(sl, axisHoriz) = NO THEN disable_horiz_fill(sl) ' .Fill = NO
   END IF
   IF dataptr = @.CoverChildren THEN
    IF .CoverChildren AND coverHoriz THEN disable_horiz_fill(sl)
@@ -1128,6 +1134,8 @@ SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr)
   'After the type changes
   IF dataptr = @.SliceType THEN
    .CoverChildren AND= SliceLegalCoverModes(sl)
+   IF SlicePossiblyResizable(sl, axisVert) = NO THEN disable_vert_fill(sl) ' .Fill = NO
+   IF SlicePossiblyResizable(sl, axisHoriz) = NO THEN disable_horiz_fill(sl) ' .Fill = NO
   END IF
 
  END WITH
@@ -1374,8 +1382,16 @@ SUB slice_editor_xy (byref x as integer, byref y as integer, byval focussl as Sl
  LOOP
 END SUB
 
+FUNCTION EditRule.disable_if(condition as bool) byref as EditRule
+ IF condition THEN
+  mode = erDisabled
+  group = 0
+ END IF
+ RETURN this
+END FUNCTION
+
 'Add a menu item to edit a piece of data (EditRule) to rules()
-SUB sliceed_rule (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as integer ptr, lower as integer=0, upper as integer=0, group as integer = 0)
+FUNCTION sliceed_rule (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as integer ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
  DIM index as integer = UBOUND(rules) + 1
  REDIM PRESERVE rules(index) as EditRule
  WITH rules(index)
@@ -1385,44 +1401,46 @@ SUB sliceed_rule (rules() as EditRule, helpkey as string, mode as EditRuleMode, 
   .upper = upper
   .group = group
   .helpkey = helpkey
- END WITH 
-END SUB
+ END WITH
+ RETURN rules(index)
+END FUNCTION
 
 'We have a lot of apparently redundant functions to allow error compile-
 'and possibly also run-time error checking. In particular, in 64 bit builds,
 'enums are 64 bit, so to catch errors we shouldn't allow passing them to sliceed_rule
 'by giving it "dataptr as any ptr" argument.
 
-SUB sliceed_rule_enum (rules() as EditRule, helpkey as string, dataptr as ssize_t ptr, lower as integer=0, upper as integer=0, group as integer = 0)
- sliceed_rule rules(), helpkey, erEnumgrabber, cast(integer ptr, dataptr), lower, upper, group
-END SUB
+FUNCTION sliceed_rule_enum (rules() as EditRule, helpkey as string, dataptr as ssize_t ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
+ RETURN sliceed_rule(rules(), helpkey, erEnumgrabber, cast(integer ptr, dataptr), lower, upper, group)
+END FUNCTION
 
-SUB sliceed_rule_double (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as double ptr, lower as integer=0, upper as integer=0, group as integer = 0)
- sliceed_rule rules(), helpkey, mode, cast(integer ptr, dataptr), lower, upper, group
-END SUB
+FUNCTION sliceed_rule_double (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as double ptr, lower as integer=0, upper as integer=0, group as integer = 0) byref as EditRule
+ RETURN sliceed_rule(rules(), helpkey, mode, cast(integer ptr, dataptr), lower, upper, group)
+END FUNCTION
 
 ' upper is the maximum string length
-SUB sliceed_rule_str (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as string ptr, upper as integer=0, group as integer = 0)
- sliceed_rule rules(), helpkey, mode, cast(integer ptr, dataptr), 0, upper, group
-END SUB
+FUNCTION sliceed_rule_str (rules() as EditRule, helpkey as string, mode as EditRuleMode, dataptr as string ptr, upper as integer=0, group as integer = 0) byref as EditRule
+ RETURN sliceed_rule(rules(), helpkey, mode, cast(integer ptr, dataptr), 0, upper, group)
+END FUNCTION
 
-SUB sliceed_rule_none(rules() as EditRule, helpkey as string, group as integer = 0)
- sliceed_rule rules(), helpkey, erNone, 0, 0, 0, group
-END SUB
+FUNCTION sliceed_rule_none(rules() as EditRule, helpkey as string, group as integer = 0) byref as EditRule
+ RETURN sliceed_rule(rules(), helpkey, erNone, 0, 0, 0, group)
+END FUNCTION
 
-SUB sliceed_rule_tog(rules() as EditRule, helpkey as string, dataptr as bool ptr, group as integer=0)
- sliceed_rule rules(), helpkey, erToggle, dataptr, -1, 0, group
-END SUB
+FUNCTION sliceed_rule_tog(rules() as EditRule, helpkey as string, dataptr as bool ptr, group as integer=0) byref as EditRule
+ RETURN sliceed_rule(rules(), helpkey, erToggle, dataptr, -1, 0, group)
+END FUNCTION
 
-SUB sliceed_header(menu() as string, rules() as EditRule, text as string, helpkey as string = "")
+FUNCTION sliceed_header(menu() as string, rules() as EditRule, text as string, helpkey as string = "") byref as EditRule
  str_array_append menu(), fgtag(uilook(uiText), text)
- sliceed_rule_none rules(), helpkey
-END SUB
+ RETURN sliceed_rule_none(rules(), helpkey)
+END FUNCTION
 
 SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
  DIM prev_item as string
  IF state.pt <= UBOUND(menu) THEN prev_item = menu(state.pt)
 
+ DIM disabled as string = fgtag(uilook(uiDisabledItem))
  REDIM menu(0) as string
  REDIM rules(0) as EditRule
  rules(0).helpkey = "detail"
@@ -1434,30 +1452,47 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    str_array_append menu(), "X: " & .X
    sliceed_rule rules(), "pos", erIntgrabber, @.X, -9999, 9999, slgrPICKXY
   ELSE
-   'str_array_append menu(), "X: " & fgtag(uilook(uiDisabledItem), "0 (filling)")
-   'sliceed_rule_none rules(), "pos"
+   str_array_append menu(), "X: " & disabled & "0 (filling)"
+   sliceed_rule_none rules(), "pos"
   END IF
   IF .Fill = NO ORELSE .FillMode = sliceFillHoriz THEN
    str_array_append menu(), "Y: " & .Y
    sliceed_rule rules(), "pos", erIntgrabber, @.Y, -9999, 9999, slgrPICKXY
   ELSE
-   'str_array_append menu(), "Y: " & fgtag(uilook(uiDisabledItem), "0 (filling)")
-   'sliceed_rule_none rules(), "pos"
+   str_array_append menu(), "Y: " & disabled & "0 (filling)"
+   sliceed_rule_none rules(), "pos"
   END IF
   DIM minsize as integer = IIF(.SliceType = slLine, -9999, 0)
-  str_array_append menu(), "Width: " & .Width
-  sliceed_rule rules(), "size", erIntgrabber, @.Width, minsize, 9999, slgrPICKWH
-  str_array_append menu(), "Height: " & .Height
-  sliceed_rule rules(), "size", erIntgrabber, @.Height, minsize, 9999, slgrPICKWH
+
+'  IF SlicePossiblyResizable(sl) THEN
+   str_array_append menu(), "Width: " & .Width
+   sliceed_rule(rules(), "size", erIntgrabber, @.Width, minsize, 9999, slgrPICKWH) _
+               .disable_if(SlicePossiblyResizable(sl, axisHoriz) = NO)
+  ' ELSE
+  '  str_array_append menu(), "Width: " & disabled & .Width
+  '  sliceed_rule_none rules(), "size"
+  ' END IF
+
+'  IF SlicePossiblyResizable(sl) THEN
+   str_array_append menu(), "Height: " & .Height
+   sliceed_rule(rules(), "size", erIntgrabber, @.Height, minsize, 9999, slgrPICKWH) _
+               .disable_if(SlicePossiblyResizable(sl, axisVert) = NO)
+   
+  ' ELSE
+  '  str_array_append menu(), "Height: " & disabled & .Height
+  '  sliceed_rule_none rules(), "size"
+  ' END IF
   IF ses.privileged THEN
    str_array_append menu(), "Cover Children: " & CoverModeCaptions(.CoverChildren)
    sliceed_rule_enum rules(), "cover", @.CoverChildren, 0, 3
   END IF
-  str_array_append menu(), "Fill Parent: " & yesorno(.Fill)
-  sliceed_rule_tog rules(), "fill", @.Fill
-  IF .Fill THEN
-   str_array_append menu(), " Fill Type: " & FillModeCaptions(.FillMode)
-   sliceed_rule_enum rules(), "fillmode", @.FillMode, 0, 2
+  IF .Fill ORELSE SlicePossiblyResizable(sl, axisEither) THEN
+   str_array_append menu(), "Fill Parent: " & yesorno(.Fill)
+   sliceed_rule_tog rules(), "fill", @.Fill
+   IF .Fill THEN
+    str_array_append menu(), " Fill Type: " & FillModeCaptions(.FillMode)
+    sliceed_rule_enum rules(), "fillmode", @.FillMode, 0, 2
+   END IF
   END IF
 
   str_array_append menu(), "Lookup code: " & slice_lookup_code_caption(.Lookup, ses.slicelookup())
@@ -1716,6 +1751,14 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    IF LEFT(menu(idx), LEN(prev_item)) = prev_item THEN state.pt = idx
   NEXT idx
  END IF
+
+ 'Grey out disabled options
+ '(This is a separate step for convenience of EditRule.disable_if
+ FOR idx as integer = 0 TO UBOUND(menu)
+  IF rules(idx).mode = erDisabled THEN
+   replacestr menu(idx), ":", ":" & disabled, 1
+  END IF
+ NEXT
 END SUB
 
 'Pick a slice type in allowed_types(), return YES if didn't cancel

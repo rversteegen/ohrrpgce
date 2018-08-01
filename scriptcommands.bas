@@ -2488,7 +2488,7 @@ SUB script_functions(byval cmdid as integer)
    IF plotslices(retvals(0))->SliceType = slRectangle THEN scriptret = 1
   END IF
  CASE 372 '--set slice width
-  IF valid_resizeable_slice(retvals(0), NO, YES) THEN
+  IF valid_resizeable_slice(retvals(0), axisHoriz) THEN
    plotslices(retvals(0))->Width = retvals(1)
   END IF
  CASE 373 '--set slice height
@@ -2629,7 +2629,7 @@ SUB script_functions(byval cmdid as integer)
    scriptret = plotslices(retvals(0))->PaddingRight
   END IF
  CASE 400 '--fill parent
-  IF valid_resizeable_slice(retvals(0), YES, YES) THEN
+  IF valid_resizeable_slice(retvals(0), axisEither, YES) THEN
    plotslices(retvals(0))->Fill = (retvals(1) <> 0)
   END IF
  CASE 401 '--is filling parent
@@ -4922,13 +4922,15 @@ FUNCTION valid_plotpanelslice(byval handle as integer) as bool
  RETURN NO
 END FUNCTION
 
-FUNCTION valid_resizeable_slice(byval handle as integer, byval horiz_fill_ok as bool=NO, byval vert_fill_ok as bool=NO) as bool
+'axes: which axes we want to resize
+'want_to_fill: we're asking whether we can change the fill setting (so don't care about existing fill setting)
+FUNCTION valid_resizeable_slice(byval handle as integer, axes as AxisSpecifier, want_to_fill as bool=NO) as bool
  IF valid_plotslice(handle) THEN
   DIM sl as Slice Ptr
   sl = plotslices(handle)
-  IF SlicePossiblyResizable(sl) = NO THEN
-   'Text slices are resizable horizontally only if and only if they wrap
-   'TODO: they are never resizable vertically, but for backcompat not doing anything about that now...
+  'FIXME: have to think about backcompat before enabling this more-correct code
+  IF SlicePossiblyResizable(sl, axes) = NO THEN
+   'Text slices are resizable horizontally if and only if they wrap
    IF sl->SliceType = slText THEN
     scripterr current_command_name() & ": text slice handle " & handle & " cannot be resized unless wrap is enabled", serrBadOp
    ' Scaling sprite slices aren't available in games yet.
@@ -4940,14 +4942,19 @@ FUNCTION valid_resizeable_slice(byval handle as integer, byval horiz_fill_ok as 
    RETURN NO
   END IF
 
+  IF want_to_fill THEN RETURN YES  'Don't check fill settings
+
   IF sl->Fill = NO THEN RETURN YES
   SELECT CASE sl->Fillmode
    CASE sliceFillFull
-    IF horiz_fill_ok ANDALSO vert_fill_ok THEN RETURN YES
+    'Not resizable
+    'IF horiz_fill_ok ANDALSO vert_fill_ok THEN RETURN YES
    CASE sliceFillHoriz
-    IF horiz_fill_ok THEN RETURN YES
+    IF axes = axisEither OR axes = axisVert THEN RETURN YES
+    'IF horiz_fill_ok THEN RETURN YES
    CASE sliceFillVert
-    IF vert_fill_ok THEN RETURN YES
+    IF axes = axisEither OR axes = axisHoriz THEN RETURN YES
+'    IF vert_fill_ok THEN RETURN YES
   END SELECT
   scripterr current_command_name() & ": slice handle " & handle & " cannot be resized while filling parent", serrBadOp
  END IF

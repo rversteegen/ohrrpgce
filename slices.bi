@@ -166,6 +166,15 @@ Enum CoverModes
  coverFull = 3
 End Enum
 
+Enum AxisSpecifier
+ axisEither = -1
+ axisNone = 0
+ axisHoriz = 1
+ axisVert = 2
+ axisBoth = 3
+ axisFull = 3
+End Enum
+
 ' Stores information about what this slice is used for, if that isn't explained
 ' by the lookup code.
 Type SliceContext Extends Object
