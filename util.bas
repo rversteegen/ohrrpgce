@@ -3517,6 +3517,11 @@ END FUNCTION
 
 '----------------------------------------------------------------------
 
+' Returns a timestamp which is consistent between different programs running at once
+FUNCTION logtimestamp() as string
+ RETURN FORMAT(fmod(TIMER, 1000.), "00000.000")
+END FUNCTION
+
 ' For commandline utilities. Wait for a keypress and return it.
 FUNCTION readkey () as string
   DO

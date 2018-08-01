@@ -1313,6 +1313,7 @@ END SUB
 SUB handshake_with_master ()
  DIM line_in as string
  FOR i as integer = 1 TO 3
+  debuginfo logtimestamp & " handshake_with_master " & i
   IF channel_input_line(master_channel, line_in) = 0 THEN
    'Custom is meant to have already sent the initialisation messages by now
    debuginfo "handshake_with_master: no message on channel"

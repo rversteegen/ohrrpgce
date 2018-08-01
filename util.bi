@@ -709,6 +709,8 @@ declare sub invert_permutation overload (indices() as integer)
 declare function starts_with(s as string, prefix as string) as integer
 declare function ends_with(s as string, suffix as string) as integer
 
+declare function logtimestamp() as string
+
 declare function readkey () as string
 
 #macro debug_if_slow(starttime, seconds, extrainfo)

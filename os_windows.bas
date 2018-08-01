@@ -17,6 +17,7 @@ include_windows_bi()
 #include "crt/string.bi"
 #include "crt/limits.bi"
 #include "crt/stdio.bi"
+#include "crt/math.bi"
 #include "crt/io.bi"
 #include "common_base.bi"
 #include "util.bi"

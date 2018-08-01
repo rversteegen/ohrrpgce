@@ -52,6 +52,15 @@ static long long milliseconds() {
 	return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
+static char _timestamp_buf[16];
+
+// Returns a timestamp which is consistent between different programs running at once
+static const char *timestamp() {
+	long long now = milliseconds();
+	snprintf(_timestamp_buf, 15, "%05lld.%03lld", (now / 1000) % 1000, now % 1000);
+	return _timestamp_buf;
+}
+
 int memory_usage() {
 #ifdef HAVE_GLIBC
 	struct mallinfo info = mallinfo();
@@ -389,6 +398,7 @@ static void channel_delete(PipeState *channel) {
 void channel_close(PipeState **channelp) {
 	PipeState *channel = *channelp;
 	if (!channel) return;
+	debuginfo("%s channel_close(%s) readfd=%d writefd=%d", timestamp(), channel->basename, channel->readfd, channel->writefd);
 	if (channel->readfd != -1) close(channel->readfd);
 	if (channel->writefd != -1) close(channel->writefd);
 	channel_delete(channel);
@@ -398,32 +408,37 @@ void channel_close(PipeState **channelp) {
 // Attempts to open a FIFO file for reading
 // Returns true on success
 static int fifo_open_read(char *name, int *out_fd) {
+	debuginfo("%s fifo_open_read(%s)...", timestamp(), name);
+
 	*out_fd = open(name, O_RDONLY | O_NONBLOCK);
 	if (*out_fd == -1) {
-		debug(errError, "fifo_open_read: open(%s) error: %s", name, strerror(errno));
+		debug(errError, "%s fifo_open_read: open(%s) error: %s", timestamp(), name, strerror(errno));
 		return 0;
 	}
+	debuginfo("%s ...success", timestamp());
 	return 1;
 }
 
 // Attempts to open a FIFO file for writing
 // Returns true on success
 static int fifo_open_write(char *filename, int *out_fd, int timeout_ms) {
+	debuginfo("%s fifo_open_write(%s)...", timestamp(), filename);
 	*out_fd = -1;
 	long long timeout = milliseconds() + timeout_ms;
 	do {
 		int fd = open(filename, O_WRONLY | O_NONBLOCK);
 		if (fd != -1) {
+			debuginfo("%s ...success", timestamp());
 			*out_fd = fd;
 			return 1;
 		}
 		if (errno != ENXIO && errno != EINTR) {	
-			debug(errError, "fifo_open_write: open(%s) error: %s", filename, strerror(errno));
+			debug(errError, "%s fifo_open_write: open(%s) error: %s", timestamp(), filename, strerror(errno));
 			return 0;
 		}
 		usleep(10000);
 	} while (milliseconds() < timeout);
-	debug(errError, "timeout while waiting for writer to connect to %s", filename);
+	debug(errError, "%s %dms timeout while waiting for writer to connect", timestamp(), timeout_ms);
 	return 0;
 }
 
@@ -436,6 +451,8 @@ int channel_open_server(PipeState **result, FBSTRING *name) {
 	char *readfile = alloca(strlen(name->data) + 8 + 1);
 	sprintf(writefile, "%s.2client", name->data);
 	sprintf(readfile,  "%s.2server", name->data);
+
+	debuginfo("%s channel_open_server(%s)...", timestamp(), name->data);
 
 	remove(writefile);
 	if (mkfifo(writefile, 0777) == -1) {
@@ -457,6 +474,7 @@ int channel_open_server(PipeState **result, FBSTRING *name) {
 		remove(writefile);
 		return 0;
 	}
+	debuginfo("%s channel_open_server success", timestamp());
 
 	// If a FIFO is opened for write in non-blocking mode and it hasn't been opened for read
 	// yet, then the open fails. So we have to wait for the client to connect to the 'in'
@@ -491,6 +509,8 @@ int channel_open_client(PipeState **result, FBSTRING *name) {
 		return 0;
 	}
 
+	debuginfo("%s channel_open_client success", timestamp());
+
 	// write() normally throws a SIGPIPE on broken pipe; ignore those and receive EPIPE instead
 	signal(SIGPIPE, SIG_IGN);
 
@@ -504,6 +524,8 @@ int channel_wait_for_client_connection(PipeState **channelp, int timeout_ms) {
 	PipeState *chan = *channelp;
 
 	if (!chan) return 0;
+
+	debuginfo("%s channel_wait_for_client_connection", timestamp());
 
 	char *namebuf = alloca(strlen(chan->basename) + 8 + 1);
 	sprintf(namebuf, "%s.2client", chan->basename);
@@ -533,9 +555,9 @@ static int channel_write_internal(PipeState **channelp, const char *buf, int buf
 				return 2;
 			if (errno == EPIPE)
 				// Reading end closed
-				debuginfo("channel_write: pipe closed.");
+				debuginfo("%s channel_write: pipe closed.", timestamp());
 			else
-				debug(errError, "channel_write: error: %s", strerror(errno));
+				debug(errError, "%s channel_write: error: %s", timestamp(), strerror(errno));
 			channel_close(channelp);
 			return 0;
 		}
@@ -596,7 +618,7 @@ int channel_write(PipeState **channelp, const char *buf, int buflen) {
 	if (res == 2) {
 		if (!channel->writebuf_head) {
 			// This is the first overflow
-			debuginfo("channel_write warning: OS pipe buffer full, starting internal buffering");
+			debuginfo("%s channel_write warning: OS pipe buffer full, starting internal buffering", timestamp());
 		}
 		channel_writebuf_push_msg(channel, buf, buflen);
 		return 1;
@@ -647,7 +669,7 @@ int channel_input_line(PipeState **channelp, FBSTRING *output) {
 		int res = read(chan->readfd, chan->readbuf, PIPEBUFSZ);
 		if (res == 0) {
 			// EOF: write end of pipe has closed
-			debuginfo("channel_input_line: pipe closed");
+			debuginfo("%s channel_input_line: pipe closed", timestamp());
 			channel_close(channelp);
 			goto cutshort;
 		}
@@ -659,7 +681,7 @@ int channel_input_line(PipeState **channelp, FBSTRING *output) {
 				if (outlen) {
 					// Strange -- expected newline! Lets wait for a bit
 					if (!wait_times)
-						debug(errError, "channel_read_input: unexpected blocking input");
+						debug(errError, "%s channel_read_input: unexpected blocking input", timestamp());
 					if (wait_times++ > 20)
 						goto cutshort;
 					usleep(1000);
@@ -667,7 +689,7 @@ int channel_input_line(PipeState **channelp, FBSTRING *output) {
 				}
 				// not sinister
 			} else {
-				debug(errError, "channel_input_line: pipe closed due to error %s\n", strerror(errno));
+				debug(errError, "%s channel_input_line: pipe closed due to error %s\n", timestamp(), strerror(errno));
 				channel_close(channelp);
 			}
 			goto cutshort;
@@ -739,7 +761,7 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 		ret->file = popen(buf, "r");  //No intention to read or write
 		int err = errno;  //errno from popen is not reliable
 		if (!ret->file) {
-			debug(errError, "popen(%s, %s) failed: %s", program->data, args->data, strerror(err));
+			debug(errError, "%s popen(%s, %s) failed: %s", timestamp(), program->data, args->data, strerror(err));
 		}
 	} else {
 		// Version for fire-and-forget running of programs
@@ -754,7 +776,6 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 			_exit(status);  // Don't flush buffers, etc, that would be bad
 		}
 	}
-
 	free(buf);
 	return ret;
 #endif

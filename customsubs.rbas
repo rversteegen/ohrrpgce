@@ -2829,7 +2829,7 @@ FUNCTION spawn_game(gdb as bool = NO, valgrind as bool = NO) as bool
   slave_process = open_process(executable, arguments, YES, YES)
  END IF
 
- 'debuginfo "Spawning: " & executable & " " & arguments
+ debuginfo logtimestamp & " spawning: " & executable & " " & arguments
 
  IF slave_process = 0 THEN
   notification "Couldn't run " & gameexename
@@ -2838,6 +2838,8 @@ FUNCTION spawn_game(gdb as bool = NO, valgrind as bool = NO) as bool
  'We currently do nothing at all with slave_process except cleanup (on Unix
  'closing the channel freezes until the child finishes).
  'Instead we test Game is still running with slave_channel <> NULL_CHANNEL
+
+sleep 200
 
  'Need Game to connect before we can safely write to the pipe; wait up to 3000ms
  DIM waitms as integer = IIF(valgrind, 9000, 3000)
@@ -2848,11 +2850,15 @@ FUNCTION spawn_game(gdb as bool = NO, valgrind as bool = NO) as bool
   RETURN NO
  END IF
 
+sleep 200
+
  'Write version info
  DIM tmp as string
  'msgtype magickey,proto_ver,program_ver,version_string
  tmp = "V OHRRPGCE," & CURRENT_TESTING_IPC_VERSION & "," & version_revision & "," & version
  channel_write_line(slave_channel, tmp)
+ debuginfo logtimestamp & " wrote first message to Game; success=" & (slave_channel <> NULL_CHANNEL)
+
  tmp = "G " & sourcerpg
  channel_write_line(slave_channel, tmp)
  tmp = "W " & workingdir
