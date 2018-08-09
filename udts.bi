@@ -484,6 +484,9 @@ Type ZoneInfo
   hidden as bool  'used in the map editor only, not saved
   numtiles as integer  'number of set tiles
   extra(2) as integer
+
+  settag1 as integer
+  settag2 as integer
 End Type
 
 'A set of zones

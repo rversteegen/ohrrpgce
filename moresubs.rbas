@@ -2011,6 +2011,22 @@ NEXT i
 
 END SUB
 
+SUB show_hero_zones (page as integer)
+ DIM info as string
+ FOR rank as integer = 0 TO caterpillar_size() - 1
+  DIM slot as integer = rank_to_party_slot(rank)
+  info &= "Hero rank " & rank & " id " & herobyrank(rank) & !"\n"
+  FOR idx as integer = 0 TO v_len(herow(rank).curzones) - 1
+   DIM zone as integer = herow(rank).curzones[idx]
+   info &= " in zone " & zone & " " & GetZoneInfo(zmap, zone)->name & !"\n"
+  NEXT
+ NEXT
+
+ DIM size as XYPair = textsize(info, , fontEdged)
+ fuzzyrect 8, 0, size.w, size.h, uilook(uiOutline), page
+ wrapprint info, 8, 0, uilook(uiText), page
+END SUB
+
 SUB writejoysettings
  DIM fh as integer = FREEFILE
  OPEN exepath & SLASH & "joyset.ini" FOR OUTPUT as #fh

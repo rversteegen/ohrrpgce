@@ -1226,7 +1226,7 @@ PRIVATE SUB DeserializeZoneTiles(zmap as ZoneMap, byval root as NodePtr)
           ELSE
 
             'Everything else is RELOAD parsing, here's the actual spans decoding (see lump documentation)
-            DIM spans as string = GetChildNodeStr(idnode, "spans")
+            DIM spans as string = idnode."spans".string
             x = 0
             FOR i = 0 TO (LEN(spans) \ 2) * 2 - 1 STEP 2
               x += spans[i]
@@ -1267,6 +1267,8 @@ SUB SaveZoneMap(zmap as ZoneMap, filename as string, rsrect as RectType ptr = NU
         FOR j as integer = 0 TO UBOUND(.extra)
           IF .extra(j) <> 0 THEN SetKeyValueNode(node, "extra", j, .extra(j))
         NEXT
+        IF .settag1 THEN AppendChildNode(node, "settag1", .settag1)
+        IF .settag2 THEN AppendChildNode(node, "settag2", .settag2)
       END WITH
     NEXT
 
@@ -1297,14 +1299,14 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
     FreeDocument doc
     EXIT SUB
   END IF
-  w = GetChildNodeInt(root, "w")
-  h = GetChildNodeInt(root, "h")
+  w = root."w"
+  h = root."h"
   IF w <= 0 OR h <= 0 THEN
     debug "LoadZoneMap: " & filename & " - bad size " & w & "*" & h
     FreeDocument doc
     EXIT SUB
   END IF
-  zonesnode = GetChildByName(root, "zones")
+  zonesnode = root."zones".ptr
   IF zonesnode = 0 THEN
     debug "LoadZoneMap: 'zones' missing"
     FreeDocument doc
@@ -1325,14 +1327,16 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
             EXIT SUB
           END IF
 
-          .name = GetChildNodeStr(node, "name")
+          .name = node."name".string
+          .settag1 = node."settag1"
+          .settag2 = node."settag2"
 
           '--extra data
           subnode = FirstChild(node, "extra")
           WHILE subnode
             DIM extranum as integer = GetInteger(subnode)
             IF extranum >= 0 AND extranum <= 2 THEN
-              .extra(extranum) = GetChildNodeInt(subnode, "int")
+              .extra(extranum) = subnode."int"
             ELSE
               debug "LoadZoneMap: " & filename & " - unprocessed extra num " & extranum
             END IF

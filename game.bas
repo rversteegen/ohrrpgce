@@ -1172,6 +1172,7 @@ SUB displayall()
  IF gam.debug_npc_info > 0 THEN npc_debug_display(gam.debug_npc_info = 2)
  IF gam.debug_textbox_info THEN show_textbox_debug_info
  IF gam.debug_showtags THEN tagdisplay dpage
+ IF gam.debug_show_hero_zones THEN show_hero_zones dpage
  IF gam.debug_scripts THEN scriptwatcher gam.debug_scripts, -1
 END SUB
 
@@ -4478,6 +4479,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  IF dbg.def(      , scF4, "Tag debugger (F4)") THEN
   loopvar gam.debug_showtags, 0, 2
   gam.debug_scripts = 0
+  gam.debug_show_hero_zones = NO
  END IF
 
  IF dbg.def(scCtrl, scF4, "View/edit slice tree (Ctrl-F4)") THEN
@@ -4519,10 +4521,12 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  IF dbg.def(      , scF10) THEN
   loopvar gam.debug_scripts, 0, 2
   gam.debug_showtags = 0
+  gam.debug_show_hero_zones = NO
  END IF
  IF dbg.def(      ,      , "Script debugger (F10)") THEN
   gam.debug_scripts = 2  'Go straight in instead of showing the memory usage bars
   gam.debug_showtags = 0
+  gam.debug_show_hero_zones = NO
  END IF
 
  IF dbg.def(scCtrl, scF10, "Toggle script logging (Ctrl-F10)") THEN
@@ -4597,6 +4601,12 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  IF dbg.def( , , "Set zoom to 2x") THEN set_scale_factor 2
  IF dbg.def( , , "Set zoom to 3x") THEN set_scale_factor 3
  IF dbg.def( , , "Set zoom to 4x") THEN set_scale_factor 4
+
+ IF dbg.def( , , "Show zones under hero") THEN
+  gam.debug_scripts = 0
+  gam.debug_showtags = 0
+  gam.debug_show_hero_zones XOR= YES
+ END IF
 
  IF dbg.def( , , "List slices to g_debug.txt") THEN
   debug "----------------Slice Tree Dump---------------"

@@ -181,6 +181,7 @@ TYPE GameState
   'The following are mutually exclusive
   debug_scripts as integer           '0: off, 1: show running scripts, 2: pause and enter debugger
   debug_showtags as integer          '0: off, 1: small display, 2: full-length display
+  debug_show_hero_zones as bool
 
   paused as bool                     'Pause the game (only in map mode; this is a debug key)
   autorungame as bool                'Game was autorun, not selected from RPG browser

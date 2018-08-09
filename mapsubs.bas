@@ -2866,9 +2866,10 @@ END SUB
 SUB mapedit_edit_zoneinfo(st as MapEditState)
  'We could first build sorted list of zones, and only show those that actually exist?
 
- DIM menu(6) as string
- DIM menu_display(6) as string
- DIM enabled(6) as bool
+ CONST LASTITEM = 8
+ DIM menu(LASTITEM) as string
+ DIM menu_display(LASTITEM) as string
+ DIM enabled(LASTITEM) as bool
  flusharray enabled(), -1, YES
 
  DIM selectst as SelectTypeState
@@ -2902,6 +2903,8 @@ SUB mapedit_edit_zoneinfo(st as MapEditState)
     IF enable_strgrabber ANDALSO strgrabber(st.cur_zinfo->name, 35) THEN state.need_update = YES
    CASE 4 TO 6
     IF intgrabber(st.cur_zinfo->extra(state.pt - 4), -2147483648, 2147483647) THEN state.need_update = YES
+   CASE 7 TO 8
+    state.need_update OR= tag_grabber(st.cur_zinfo->settag1, state)
   END SELECT
 
   IF state.need_update THEN
