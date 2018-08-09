@@ -1372,15 +1372,15 @@ FUNCTION load_vehicle_name(vehID as integer) as string
  RETURN vehicle.name
 END FUNCTION
 
-FUNCTION load_item_name (it as integer, hidden as integer, offbyone as integer) as string
+FUNCTION load_item_name (it as integer, add_id as bool, offbyone as bool) as string
  'it - the item number
- 'hidden - whether to *not* prefix the item number
+ 'add_id - whether to prefix the item number
  'offbyone - whether it is the item number (1), or the itemnumber + 1 (0)
  IF it <= 0 AND offbyone = NO THEN RETURN "NONE"
  DIM itn as integer
  IF offbyone THEN itn = it ELSE itn = it - 1
  DIM result as string = readitemname(itn)
- IF hidden = 0 THEN result = itn & " " & result
+ IF add_id THEN result = itn & " " & result
  RETURN result
 END FUNCTION
 
