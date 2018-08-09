@@ -170,7 +170,8 @@ FUNCTION exportnames (outdir as string = "") as string
  printstr "attack names", 0, pl * 8, 0: pl = pl + 1
  REDIM u(0) as string
  FOR i as integer = 0 TO gen(genMaxAttack)
-  writeconstant fh, i + 1, readattackname(i), u(), "atk"
+  DIM id as integer = i + backcompat_attack_id_offset()
+  writeconstant fh, id, readattackname(i), u(), "atk"
  NEXT i
  setvispage 0
 

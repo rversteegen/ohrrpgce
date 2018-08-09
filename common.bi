@@ -142,6 +142,7 @@ DECLARE FUNCTION readglobalstring (byval index as integer, default as string, by
 DECLARE SUB load_default_master_palette (master_palette() as RGBColor)
 DECLARE SUB dump_integer_array_as_hex (arraydim as string, byval start as uinteger ptr, byval _ubound as integer, byval nibbles as integer = 8)
 
+DECLARE FUNCTION backcompat_attack_id_offset() as integer
 DECLARE FUNCTION readattackname (byval index as integer) as string
 DECLARE FUNCTION readattackcaption (byval index as integer) as string
 DECLARE FUNCTION readenemyname (byval index as integer) as string

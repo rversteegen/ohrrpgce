@@ -80,6 +80,10 @@ June (mumble) 2018 [Fufluns]
       of Labels renamed to "Disabled", and the "Close menu if selected" bit
       renamed to "Close menu when activated"
     * In-battle instant-run debug key moved from Ctrl-F4 to Ctrl-F5
+    * Added "Attack IDs in scripts aren't offset by +1" backcompat bitset
+      (defaults ON in old games) can be turned off to fix off-by-one 
+      so you. [Ralph]
+
 
   * Bugfixes
     * Fix a major memory leak while recording .gifs [Ralph]

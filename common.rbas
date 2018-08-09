@@ -1568,6 +1568,13 @@ FUNCTION createminimap (layer as TileMap, tileset as TilesetData ptr, byref zoom
  RETURN createminimap(layers(), tilesetsdata(), NULL, zoom)
 END FUNCTION
 
+'Attack IDs used by most script commands are offset by this amount.
+'Do not apply the offset anywhere other than (all new) commands and hsi export.
+FUNCTION backcompat_attack_id_offset() as integer
+ 'Attack IDs in scripts aren't offset by +1
+ IF readbit(gen(), genBits2, 29) THEN RETURN 0 ELSE RETURN 1
+END FUNCTION
+
 FUNCTION readattackname (byval index as integer) as string
  RETURN readbadgenericname(index, game + ".dt6", 80, 24, 10, 1)
 END FUNCTION

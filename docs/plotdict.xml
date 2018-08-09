@@ -3113,7 +3113,11 @@ end</example>
 		<command id="mapcure">
 			<canon>map cure (attack, target, attacker)</canon>
 			<shortname>map cure</shortname>
-			<description>Uses an attack on a hero outside of battle as if you had used it from an item or cast it as a spell. In spite of the name, it works for both cure spells and damage spells. The first argument, <p>attack</p> is name of the attack from your HSI file in the form atk:name. (You may also use the attack&apos;s ID number. This is the number you see in the attack editor + 1.) The second argument, <p>target</p> is the position in the party of the hero to cure (or harm). The third optional argument, <p>attacker</p> is the position in the party of the hero who is using the attack. If this argument is omitted or set to -1, then the average stats of the active party will be used, just like when the attack is used from an item. The return value is <ref>true</ref> if the cure/attack succeeded, and <ref>false</ref> if it did nothing.
+			<description>Uses an attack on a hero outside of battle as if you had used it from an item or cast it as a spell. In spite of the name, it works for both cure spells and damage spells. The first argument, <p>attack</p> is name of the attack from your HSI file in the form atk:name. The second argument, <p>target</p> is the position in the party of the hero to cure (or harm). The third optional argument, <p>attacker</p> is the position in the party of the hero who is using the attack. If this argument is omitted or set to -1, then the average stats of the active party will be used, just like when the attack is used from an item. The return value is <ref>true</ref> if the cure/attack succeeded, and <ref>false</ref> if it did nothing.
+			<warning>
+				If you want to use this command with attack ID numbers, make sure you turn off
+				the "Attack IDs in scripts are offset by +1" backcompat bitset in old games.
+			</warning>
 			<note>The <p>map cure</p> command replaces the old command <p>outside battle cure</p> which had a bug which required you to use <p>atk:name -- 1</p> instead of <p>atk:name</p> for the <p>attack</p> argument.</note>
 			<note>If the attack results in all the heroes in the party being dead (outside of battles a hero isn't counted as dead if their maximum HP is zero or negative), a normal game over occurs: the game over script is run if there is one, otherwise the game ends. However the game over won't happen until the next wait command (such as <ref>wait</ref>).</note>
 			</description>
@@ -4148,7 +4152,7 @@ end</example>
 
 
 	<section title="String Functions">
-		<description>In HamsterSpeak, strings are special variables which hold pieces of text, and are referred to by their ID numbers. There are 100 string variables, with IDs 0 to 99. Strings variables can be displayed onscreen directly, or alternatively embedded in textboxes or displayed with text slices. For more information, see the <a href="rpg.hamsterrepublic.com/ohrrpgce/Strings">wiki article on strings</a>.<lb/>
+		<description>In HamsterSpeak, strings are special variables which hold pieces of text, and are referred to by their ID numbers. There are 100 string variables, with IDs 0 to 99. Strings variables can be displayed onscreen directly, or alternatively embedded in textboxes or displayed with text slices. For more information, see the <a href="https://rpg.hamsterrepublic.com/ohrrpgce/Strings">wiki article on strings</a>.<lb/>
 You can set the value of a string directly with <ref>__setstring__</ref> and append to an existing string with <ref>__appendstring__</ref>.
 There is no limit on string length.<lb/>
 <note>Unlike almost all other indices in the OHRRPGCE, when referring to a position in a string, <p>position</p> is a 1-based index into the string, not a 0-based index. For example, given a string "ABCDEFG", position=3 is "C", not "D". This means that position 0 is invalid. Beware!</note>
@@ -4389,15 +4393,25 @@ get hero name (1, find hero (leader))
 			<canon>read attack name (ID, attack)</canon>
 			<shortname>read attack name</shortname>
 			<description>This command will take the name of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
-			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
-			<note>This command replaces the old <p>get attack name</p> which required you to use <p>atk:name -- 2</p> or the attack id number <p>-- 1</p></note>
+			<warning>
+				If you want to use this command with attack ID numbers instead of <p>atk:name</p>
+				constants, make sure you turn off the "Attack IDs in scripts are offset by +1"
+				backcompat bitset in old games.
+			</warning>
+			<warning>
+				This command replaces the obsolete <p>get attack name</p> which required you to use <p>atk:name -- 2</p> or the attack id number <p>-- 1</p>.
+			</warning>
 			</description>
 		</command>
 		<command id="getattackcaption">
 			<canon>get attack caption (ID, attack)</canon>
 			<shortname>get attack caption</shortname>
 			<description>This command will take the caption of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
-			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
+			<warning>
+				If you want to use this command with attack ID numbers instead of <p>atk:name</p>
+				constants, make sure you turn off the "Attack IDs in scripts are offset by +1"
+				backcompat bitset in old games.
+			</warning>
 			</description>
 		</command>
 		<command id="getsongname">
@@ -5317,7 +5331,7 @@ set menu on close script(m, @my menu exit handler)
 
 	<section title="Slices">
 		<description>
-			To learn what a slice is, read the <a href="http://rpg.hamsterrepublic.com/ohrrpgce/Slices">Slices article</a> on the wiki,
+			To learn what a slice is, read the <a href="https://rpg.hamsterrepublic.com/ohrrpgce/Slices">Slices article</a> on the wiki,
 			or a tutorial linked to from it.
 			Although there are many commands here for manipulating slices, it's much easier to create slices
 			in the Slice Collection Editor and then use <ref>loadslicecollection</ref>.
@@ -6976,7 +6990,7 @@ end
 
 		<section title="Slice Types">
 			<description>
-				For a description of the different slice types, see the <a href="http://rpg.hamsterrepublic.com/ohrrpgce/Slices#Slice_types">Slices</a> article on the wiki.
+				For a description of the different slice types, see the <a href="https://rpg.hamsterrepublic.com/ohrrpgce/Slices#Slice_types">Slices</a> article on the wiki.
 				<note>
 					There are two types of slice used by the engine for which there are no commands:
 					'special' slices (like <ref>sprite layer</ref>),

@@ -205,6 +205,7 @@ SUB edit_backcompat_bitsets()
  bitname(36) = "Old attack positioning at bottom-left of target"
  bitname(37) = "Wrap map layers over edge of Crop maps"
  bitname(39) = "Draw Backdrop slice above Script layer"
+ bitname(45) = "Attack IDs in scripts aren't offset by +1"
  edit_global_bitsets bitname(), "share_general_game_backcompat_bitsets"
 END SUB
 

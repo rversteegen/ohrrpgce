@@ -1175,15 +1175,15 @@ script, hero exp and levels tests, begin
   )
   # level-based spell learning/forgetting
   set hero level(0, 9)
-  assert(knows spell (0, 2) == false) # Freki should not have L.10 Wolf at level 9
+  assert(knows spell (0, atk:L10 Wolf) == false) # Freki should not have L.10 Wolf at level 9
   set hero level(0, 10)
-  assert(knows spell (0, 2) == true) # Freki should learn L.10 Wolf at level 10
+  assert(knows spell (0, atk:L10 Wolf) == true) # Freki should learn L.10 Wolf at level 10
   set hero level(0, 0, false)
   assert(get hero level(0) == 0)
   assert(hero levelled(0) == -10)
-  assert(knows spell (0, 2) == true) # Freki should not forget L.10 Wolf because of how we deleveled
+  assert(knows spell (0, atk:L10 Wolf) == true) # Freki should not forget L.10 Wolf because of how we deleveled
   update level up learning(0, true)
-  assert(knows spell (0, 2) == false) # Now Freki should forget L.10 Wolf.
+  assert(knows spell (0, atk:L10 Wolf) == false) # Now Freki should forget L.10 Wolf.
   # experience
   assert(experience to next level(0) == 30)
   give experience(0, 5)
@@ -1205,7 +1205,7 @@ script, hero exp and levels tests, begin
   assert(get hero level(0) == 10)
   assert(hero levelled(0) == 1)
   assert(spells learned(0, get count) == 1)
-  assert(spells learned(0, 0) == 2)
+  assert(spells learned(0, 0) == atk:L10 Wolf)
   assert(spells learnt(0, 0) == 1) #deprecated, but why not test it?
   give experience(0, 1) # should not cause levelling
   assert(hero levelled == 0)
@@ -5253,13 +5253,29 @@ end
 script, string load tests, begin
   $0="string load tests"
 
-  $1="SelfStab"
+  read attack name(2, atk:SelfStab)
+  assert(string compare($1="SelfStab", 2))
+
+  get attack caption(2, atk:SelfStab)
+  assert(string compare($1="Attack self", 2))
+
+  #Obsolete getattackname command uses ID offset in wrong direction...
+  get attack name(2, 0 -- 1)
+  assert(string compare($1="SelfStab", 2))
+
+  # Test "Attack IDs in scripts aren't offset by +1" backcompat bit
+  variable(orig backcompat)
+  orig backcompat := read preference bitset(177, 29)
+  write preference bitset(177, 29, 1)
+  get attack caption(2, 0)
+  assert(string compare($1="Attack self", 2))
+
+  write preference bitset(177, 29, 0)
   read attack name(2, 0 + 1)
-  assert(string compare(1,2))
-  
-  $1="Attack self"
+  assert(string compare($1="SelfStab", 2))
   get attack caption(2, 0 + 1)
-  assert(string compare(1,2))
+  assert(string compare($1="Attack self", 2))
+  write preference bitset(177, 29, orig backcompat)
 
   embedding global := -1234
   $3="<embedded> "
@@ -5560,7 +5576,6 @@ end
 #free sprite (handle)
 #game over
 #get ambient music
-#get attack name
 #get color(index)
 #get damage cap
 #get each step script
@@ -5673,7 +5688,6 @@ end
 #put sprite (handle, x, y)
 #random (lownumber, highnumber)
 #random formation (formation set)
-#read attack name (ID, attack)
 #read color (index, element)
 #read map block (x,y,layer)
 #read NPC (who,NPCstat)

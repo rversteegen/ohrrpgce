@@ -1074,6 +1074,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 304'--outside battle cure
   'WARNING: This exists for backcompat, but "map cure" should be prefered.
+  'This always uses non-offset ID, "map cure" obeys backcompat_attack_id_offset
   'See bug 719
   IF bound_arg(retvals(0), 0, gen(genMaxAttack), "attack ID") THEN
    IF valid_hero_party(retvals(1)) THEN
@@ -1849,7 +1850,8 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 208'--get attack name(str,atk)
   'WARNING: backcompat only. new games should prefer read attack name
-  IF valid_plotstr(retvals(0)) = NO OR retvals(1) < 0 OR retvals(1) > gen(genMaxAttack) THEN
+  'This always uses ID offset +1 (instead of -1!!!), "map cure" obeys backcompat_attack_id_offset
+  IF valid_plotstr(retvals(0)) = NO OR retvals(1) < -1 OR retvals(1) > gen(genMaxAttack) - 1 THEN
    scriptret = 0
   ELSE
    plotstr(retvals(0)).s = readattackname(retvals(1) + 1)
@@ -3062,17 +3064,17 @@ SUB script_functions(byval cmdid as integer)
   NEXT
   debug "TRACE: " & result
  CASE 467 '--map cure
-  IF bound_arg(retvals(0), 1, gen(genMaxAttack)+1, "attack ID") THEN
+  IF valid_attack(retvals(0)) THEN
    IF valid_hero_party(retvals(1)) THEN
     IF valid_hero_party(retvals(2), -1) THEN
-     scriptret = ABS(outside_battle_cure(retvals(0) - 1, retvals(1), retvals(2), NO))
+     scriptret = ABS(outside_battle_cure(retvals(0) - backcompat_attack_id_offset, retvals(1), retvals(2), NO))
     END IF
    END IF
   END IF
  CASE 468 '--read attack name
   scriptret = 0
-  IF valid_plotstr(retvals(0)) AND bound_arg(retvals(1), 1, gen(genMaxAttack)+1, "attack ID") THEN
-   plotstr(retvals(0)).s = readattackname(retvals(1) - 1)
+  IF valid_plotstr(retvals(0)) AND valid_attack(retvals(1)) THEN
+   plotstr(retvals(0)).s = readattackname(retvals(1) - backcompat_attack_id_offset)
    scriptret = 1
   END IF
  CASE 470'--allocate timers
@@ -3361,8 +3363,8 @@ SUB script_functions(byval cmdid as integer)
    scriptret = iif(thisdoor.exists, 1, 0)
   END IF
  CASE 526 '--get attack caption
-  IF valid_plotstr(retvals(0), 5) AND bound_arg(retvals(1), 1, gen(genMaxAttack)+1, "attack ID", , serrBadOp) THEN
-   plotstr(retvals(0)).s = readattackcaption(retvals(1) - 1)
+  IF valid_plotstr(retvals(0), 5) AND valid_attack(retvals(1)) THEN
+   plotstr(retvals(0)).s = readattackcaption(retvals(1) - backcompat_attack_id_offset)
    scriptret = 1
   END IF
  CASE 527 '--get rect fuzziness (slice)
@@ -5215,6 +5217,18 @@ END FUNCTION
 
 FUNCTION valid_plotstr(byval n as integer, byval errlvl as scriptErrEnum = serrBound) as bool
  RETURN bound_arg(n, 0, UBOUND(plotstr), "string ID", , errlvl)
+END FUNCTION
+
+'NOTE: You must subtract backcompat_attack_id_offset from the ID value!
+'This function isn't used by obsolete attack commands like "outside battle cure".
+FUNCTION valid_attack(byval atk as integer) as bool
+ DIM argname as zstring ptr
+ IF backcompat_attack_id_offset THEN
+  argname = @"attack ID + 1 (backcompat bit enabled)"
+ ELSE
+  argname = @"attack ID"
+ END IF
+ RETURN bound_arg(atk - backcompat_attack_id_offset, 0, gen(genMaxAttack), argname, , serrBadOp)
 END FUNCTION
 
 FUNCTION valid_formation(byval form as integer) as bool
