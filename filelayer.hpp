@@ -64,6 +64,8 @@ extern "C" {
 	void send_lump_modified_msg(const char *filename);
 	boolint copyfile(FBSTRING *source, FBSTRING *destination);
 	boolint renamefile(FBSTRING *source, FBSTRING *destination);
+	boolint set_file_size(int fnum, int size);
+	boolint truncate_file(int fnum);
 
 	void set_OPEN_hook(FnOpenCallback lumpfile_filter, boolint lump_writes_allowed, IPCChannel *channel);
 	void clear_OPEN_hook();

@@ -1434,13 +1434,13 @@ function inworkingdir(filename as string, writable as boolint, writes_allowed as
 	dim ret as FilterActionEnum = FilterActionEnum.hook
 	if strncmp(strptr(filename), strptr(workingdir), len(workingdir)) <> 0 then ret = FilterActionEnum.dont_hook
 	if right(filename, 4) = ".tmp" then ret = FilterActionEnum.dont_hook
-
 #ifdef IS_GAME
 	if ret = FilterActionEnum.hook andalso writable andalso writes_allowed = NO then
 		debugc errPromptBug, "Engine bug: Illegally tried to open protected file " & filename & " for writing"
 		ret = FilterActionEnum.deny
 	end if
 #endif
+	if right(filename, 4) = ".bmp" then ret = FilterActionEnum.hook
 
 	return ret
 end function

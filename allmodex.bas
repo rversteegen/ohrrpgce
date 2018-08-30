@@ -5630,10 +5630,11 @@ private function write_bmp_header(filen as string, w as integer, h as integer, b
 	info.biClrUsed = 1 shl bitdepth
 	info.biClrImportant = 1 shl bitdepth
 
-	if openfile(filen, for_binary + access_write, of) then  'Truncate
+	if openfile(filen, for_binary + access_read_write, of) then  'dont Truncate
 		debugc errError, "write_bmp_header: couldn't open " & filen
 		return -1
 	end if
+	set_file_size of, 0
 
 	put #of, , header
 	put #of, , info
@@ -5656,7 +5657,7 @@ function open_bmp_and_read_header(bmp as string, byref header as BITMAPFILEHEADE
 	get #bf, , header
 	if header.bfType <> 19778 then
 		close #bf
-		errmsg = "Is not a BMP file"
+		errmsg = "Is not a BMP file (len " & lof(bf) & ")"
 		debuginfo bmp & ": " & errmsg
 		return -1
 	end if

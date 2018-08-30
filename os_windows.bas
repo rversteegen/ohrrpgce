@@ -419,6 +419,24 @@ function copy_file_replacing(byval source as zstring ptr, byval destination as z
 	return YES
 end function
 
+' Set the file size and leave the file position at the new end of the file.
+' Unlike Unix, if the file is extended it is NOT necessarily zero-filled
+function truncate_filep(fh as CFILE_ptr, newsize as integer) as bool
+	' We should call fseek in order to synchronise the FILE buffers
+	if fseek(fh, size) then
+		debugc errError, "trunc_file: fseek error: " & strerror(errno)
+		' Continue anyway
+	end if
+
+	' Truncate to current position
+	if SetEndOfFile(get_file_handle(fh)) = 0 then
+		dim errstr as string = error_string
+		debugc errError, "trunc_file: SetEndOfFile() failed: " & errstr
+		return NO
+	end if
+	return YES
+end function
+
 
 '==========================================================================================
 '                                    Advisory locking

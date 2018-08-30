@@ -286,6 +286,24 @@ int copy_file_replacing(const char *source, const char *destination) {
 	return 0;
 }
 
+// Set the file size and leave the file position at the new end of the file.
+// Zero-fills the file, if extended
+boolint truncate_filep(FILE *fh, int size) {
+	// ftruncate doesn't change file pointer, so a write would extend the file,
+	// and we should call fseek anyway in order to synchronise the FILE buffers
+	if (fseek(fh, size, SEEK_SET)) {  // Doesn't return EINTR, on linux anyway
+		debug(errError, "trunc_file: fseek error: %s", strerror(errno));
+		// Continue anyway
+	}
+	while (ftruncate(fileno(fh), size)) {
+		if (errno != EINTR) {
+			debug(errError, "ftruncate error: %s", strerror(errno));
+			return 0;
+		}
+	}
+	return -1;
+}
+
 
 //==========================================================================================
 //                                    Advisory locking

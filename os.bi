@@ -10,6 +10,10 @@
 
 #include "vector.bi"
 
+'C FILE* type. Can be retrieved with FILEATTR from a FB filehandle
+type CFILE as __FILE  ' __FILE is not defined
+type CFILE_ptr as CFILE ptr
+
 #ifdef __FB_WIN32__
 declare function is_windows_9x () as bool
 declare function get_windows_version () as string
@@ -31,6 +35,10 @@ declare sub interrupt_self ()
 'Actually in filelayer.cpp
 declare function copyfile(source as string, destination as string) as boolint
 declare function renamefile(source as string, destination as string) as boolint
+declare function set_file_size(fnum as integer, newsize as integer) as boolint
+declare function truncate_file(fnum as integer) as boolint
+
+declare function truncate_filep(fh as CFILE_ptr, newsize as integer) as bool
 
 declare function copy_file_replacing(source as zstring ptr, destination as zstring ptr) as bool
 
@@ -59,9 +67,6 @@ declare function isremovable (drive as string) as integer
 declare function hasmedia (drive as string) as integer
 
 declare function setwriteable (fname as string, towhat as bool) as bool
-
-'C FILE* type. Can be retrieved with FILEATTR from a FB filehandle
-type CFILE_ptr as any ptr
 
 'Advisory locking (actually mandatory on Windows).
 declare function lock_file_for_write (byval fh as CFILE_ptr, byval timeout_ms as integer) as integer

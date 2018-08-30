@@ -81,8 +81,8 @@ const int kGifAccumMargin = 64;
 //#define GIF_STATS(x)  x
 #define GIF_STATS(x)
 
-//#define GIF_ASSERT(x) assert(x)
-#define GIF_ASSERT(x)
+#define GIF_ASSERT(x) assert(x)
+//#define GIF_ASSERT(x)
 
 struct GifStats {
     int leaves, searches, totalDiff, nodes, totalLeafCost, maxLeafCost, maxLeafSize, maxLeafRange;

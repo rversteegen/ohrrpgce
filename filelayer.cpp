@@ -181,10 +181,10 @@ int lump_file_opener(FB_FILE *handle, const char *filename, size_t filename_len)
 
 	if (lock_lumps) {
 		if (handle->access & FB_FILE_ACCESS_WRITE) {
-			//debuginfo("write-locking %s", filename);
+			debuginfo("write-locking %s", filename);
 			lock_file_for_write((FILE *)handle->opaque, 1000);
 		} else {
-			//debuginfo("read-locking %s", filename);
+			debuginfo("read-locking %s", filename);
 			lock_file_for_read((FILE *)handle->opaque, 1000);
 		}
 		//debuginfo("read-lock:%d write-lock:%d", test_locked(filename, 0), test_locked(filename, 1));
@@ -358,6 +358,36 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int &fnum) {
 	return (FB_RTERROR)ret;
 }
 
+// Set the file size and leave the file position at the new end of the file.
+// If the file is extended it is NOT necessarily zero-filled.
+// Returns YES on success
+boolint set_file_size(int fnum, int size) {
+	if (!FB_FILE_INDEX_VALID(fnum)) {
+		debug(errPromptBug, "set_file_size: bad file number");
+		return 0;
+	}
+	FB_FILE *handle = FB_FILE_TO_HANDLE(fnum);
+	if (!FB_HANDLE_USED(handle)) {
+		debug(errPromptBug, "set_file_size: file number not open");
+		return 0;
+	}
+
+	// FB files have an internal putback buffer for reads. We must cause that to be wiped
+	handle->putback_size = 0;
+	// Non-internals-aware solution
+	// if (fb_FileSeekLarge(fnum, size))  // SEEK #fnum, size
+	// 	debug(errError, "set_file_size: SEEK failed");
+	// 	// Continue anyway
+
+	// trunc_file ensures the FILE* buffers are flushed
+	return truncate_filep((FILE *)handle->opaque, size);
+}
+
+// Pass a FB file number. Truncates to current file position.
+// Returns YES on success
+boolint truncate_file(int fnum) {
+	return set_file_size(fnum, fb_FileTell(fnum));
+}
 
 // A replacement for FB's filecopy which sends modification messages and deals with open files
 // NOTE: return values are opposite to FileCopy (true for success)
@@ -410,7 +440,8 @@ void set_OPEN_hook(FnOpenCallback lumpfile_filter, boolint lump_writes_allowed, 
 #ifndef _WIN32
 	lock_lumps = true;
 #endif
-	allow_lump_writes = lump_writes_allowed;
+	lock_lumps = true;
+	allow_lump_writes = true;//lump_writes_allowed;
 	lump_updates_channel = channel;
 }
 
