@@ -1273,9 +1273,11 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
    DIM as integer wy = bslot(24).hand(0).y
    DIM as integer dx = hx - wx
    DIM as integer dy = hy - wy
-  
-   anim_align2 24, who, 0, 0, dx, 16
+
+   'Make sure the base of the 
+   anim_align2 24, who, 0, 0, dx, 16   'Position at (dx,16) relative to top-left of hero sprite
    anim_setz 24, 16 - dy
+'   anim_overlay 24, who, dx, dy
   
    anim_setframe 24, 0
    anim_appear 24
@@ -1291,6 +1293,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
   
    anim_align2 24, who, 0, 0, dx, 16
    anim_setz 24, 16 - dy
+   '   anim_overlay 24, who, alignLeft, alignTop, dx, dy
    anim_setframe 24, 1
 
   CASE atkrAnimSpinStrike

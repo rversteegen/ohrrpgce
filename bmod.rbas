@@ -498,6 +498,8 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     bslot(w1).x = (bslot(w2).w - bslot(w1).w) / 2 + bslot(w2).x + popdw
     bslot(w1).y = (bslot(w2).h - bslot(w1).h) / 2 + bslot(w2).y + popdw
   CASE 19 'align2(who, target, edgex, edgey, offx, offy)
+   'Position who relative to target
+   'edgex/y: 0 is left/top, 1 is right/bottom
    w1 = popdw
    w2 = popdw
    DIM xd as integer = popdw
@@ -560,6 +562,26 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
    bslot(ww).zmov = moveticks
   CASE 25 'anim_checkpoint
     IF autotestmode THEN write_checkpoint
+  CASE 26 'anim_set_parent
+    
+/'
+  CASE 26 'overlay(who, target, alignx, aligny, offx, offy)
+   'Position who relative to target
+   w1 = popdw
+   w2 = popdw
+   DIM as AlignType alignx = popdw, aligny = popdw
+   DIM as integer x = popdw, y = popdw
+   if xd then
+    bslot(w1).x = bslot(w2).x + bslot(w2).w - bslot(w1).w + popdw
+   else
+    bslot(w1).x = bslot(w2).x + popdw
+   end if
+   if yd then
+    bslot(w1).y = bslot(w2).y + bslot(w2).h - bslot(w1).h + popdw
+   else
+    bslot(w1).y = bslot(w2).y + popdw
+   end if
+'/
 
   END SELECT
  LOOP UNTIL bat.wait_frames <> 0 OR bat.atk.id = -1
@@ -2244,8 +2266,17 @@ SUB anim_setcenter(byval who as integer, byval target as integer, byval offx as 
  pushdw 18: pushdw who: pushdw target: pushdw offx: pushdw offy
 END SUB
 
+' Set X and Y of one battlesprite relative to another
+' edgex/y: 0 is left/top, 1 is right/bottom
 SUB anim_align2(byval who as integer, byval target as integer, byval edgex as integer, byval edgey as integer, byval offx as integer, byval offy as integer)
  pushdw 19: pushdw who: pushdw target: pushdw edgex: pushdw edgey: pushdw offx: pushdw offy
+END SUB
+
+' Set screen position of one battlesprite relative to another
+' by adjusting X, Y and Z, so that it appears immediately in front of 'target'
+' alignx/y are which point on the parent to be relative to.
+SUB anim_overlay(byval who as integer, byval target as integer, byval alignx as AlignType, byval aligny as AlignType, byval offx as integer, byval offy as integer)
+ pushdw 26: pushdw who: pushdw target: pushdw alignx: pushdw aligny: pushdw offx: pushdw offy
 END SUB
 
 ' Move relative from the current X position in ABS(xticks) ticks, ditto for Y.
