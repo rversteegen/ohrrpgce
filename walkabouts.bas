@@ -823,6 +823,7 @@ FUNCTION wrapzonecheck (byval zone as integer, byval pos as XYPair, byval xygo a
 END FUNCTION
 
 FUNCTION wrapcollision (byval posa as XYPair, byval xygoa as XYPair, byval posb as XYPair, byval xygob as XYPair) as bool
+FUNCTION wrapcollision (byval posa as XYPair, byval xygoa as XYPair, byval sizea as XYPair, byval posb as XYPair, byval xygob as XYPair, byval sizeb as XYPair) as bool
  DIM as XYPair dest1, dest2
  dest1.x = (posa.x - bound(xygoa.x, -20, 20)) \ 20
  dest2.x = (posb.x - bound(xygob.x, -20, 20)) \ 20
@@ -832,7 +833,11 @@ FUNCTION wrapcollision (byval posa as XYPair, byval xygoa as XYPair, byval posb 
  IF gmap(5) = mapEdgeWrap THEN
   RETURN (dest1 - dest2) MOD mapsizetiles = 0
  ELSE
-  RETURN dest1 = dest2
+  'RETURN dest1 = dest2
+  ' Adapted from SliceCollide
+  IF sizea.w + sizeb.w <= ABS(2 * dest1.x + sizea.w - 2 * dest2.x - sizeb.w) THEN RETURN NO
+  IF sizea.h + sizeb.h <= ABS(2 * dest1.y + sizea.h - 2 * dest2.y - sizeb.h) THEN RETURN NO
+  RETURN YES
  END IF
 END FUNCTION
 
