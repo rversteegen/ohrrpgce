@@ -446,8 +446,7 @@ DO
   IF needaddset(palnum, gen(genMaxMasterPal), "Master Palette") THEN
    IF importmasterpal("", palnum) THEN
     setpal master()
-    LoadUIColors uilook(), boxlook(), palnum
-    state.need_update = YES     
+    state.need_update = YES
    ELSE
     palnum -= 1
     gen(genMaxMasterPal) = palnum
@@ -476,7 +475,6 @@ DO
   CASE 2
     IF importmasterpal("", palnum) THEN
      setpal master()
-     LoadUIColors uilook(), boxlook(), palnum
      state.need_update = YES
     END IF
   CASE 3
@@ -581,6 +579,9 @@ SUB update_masterpalette_menu(menu() as string, shaded() as bool, palnum as inte
  END IF
 END SUB
 
+'Import master palette from a file and save it and UI colors.
+'Note: also modifies activepalette, master(), uilook(), and boxlook()
+'to the new palette, but doesn't call setpal.
 'Returns true on success
 FUNCTION importmasterpal (filename as string = "", palnum as integer) as bool
  STATIC default as string
@@ -599,14 +600,25 @@ FUNCTION importmasterpal (filename as string = "", palnum as integer) as bool
    image_load_palette filename, master()
   END IF
  END IF
+ importmasterpal master(), palnum
+ RETURN YES
+END FUNCTION
+
+'Save new master palette newmaster() and UI colors.
+'Note: also modifies activepalette, master(), uilook(), and boxlook()
+'to the new palette, but doesn't call setpal.
+SUB importmasterpal (newmaster() as RGBcolor, palnum as integer)
+ FOR i as integer = 0 TO 255
+  master(i) = newmaster(i)
+ NEXT
+
  'get a default set of ui colours - nearest match to the current
  nearestui activepalette, master(), uilook(), boxlook()
 
  IF palnum > gen(genMaxMasterPal) THEN gen(genMaxMasterPal) = palnum
  savepalette master(), palnum
  SaveUIColors uilook(), boxlook(), palnum
- RETURN YES
-END FUNCTION
+END SUB
 
 SUB nearestui (byval mimicpal as integer, newmaster() as RGBcolor, newui() as integer, newbox() as BoxStyle)
  'finds the nearest match newui() in newpal() to mimicpal's ui colours
