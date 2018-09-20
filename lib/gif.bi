@@ -36,6 +36,6 @@ declare sub GifOverwriteLastDelay(byval writer as GifWriter ptr, byval delay as 
 declare function GifEnd(byval writer as GifWriter ptr) as bool
 
 ' In gif.cpp, not part of gif.h itself
-declare sub dither_image(byval image as const GifRGBA ptr, byval width as ulong, byval height as ulong, byval result as ubyte ptr, byval palette as const GifRGBA ptr, byval bitDepth as long, byval firstindex as long)
+declare sub dither_image(byval image as const GifRGBA ptr, byval width as ulong, byval height as ulong, byval result as ubyte ptr, byval computePalette as boolint, byval palette as GifRGBA ptr, byval bitDepth as long, byval firstindex as long)
 
 end extern

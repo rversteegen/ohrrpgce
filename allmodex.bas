@@ -6627,6 +6627,7 @@ function image_read_info (filename as string) as ImageFileInfo
 end function
 
 'Loads the palette of a <= 8-bit image file into pal().
+'(Note: initialisation of alpha is inconsistent throughout the engine! Assume it is garbage)
 'Returns the number of bits, or 0 if the file can't be read or isn't paletted.
 function image_load_palette (filename as string, pal() as RGBcolor) as integer
 	select case image_file_type(filename)
@@ -6859,6 +6860,7 @@ declare sub quantize_surface_threshold(surf as Surface ptr, ret as Frame ptr, pa
 'Any pixels with alpha=0 are mapped to 0; otherwise alpha is ignored.
 'Optionally, any RGB colour matching 'transparency' gets mapped to index 0 (by default none);
 'the Surface's alpha is ignored and transparency.a must be 0 or it won't be matched.
+'If options.computepalette is true, then pal() is output rather than input, and must be pre-dimmed to length 256.
 function quantize_surface(byref surf as Surface ptr, pal() as RGBcolor, options as QuantizeOptions) as Frame ptr
 	if surf->format <> SF_32bit then
 		showerror "quantize_surface only works on 32 bit Surfaces (bad image_import_as_frame_quantized call?)"
@@ -6873,7 +6875,8 @@ function quantize_surface(byref surf as Surface ptr, pal() as RGBcolor, options 
 		if surf->pitch <> surf->width or ret->pitch <> surf->width then
 			debugc errPromptBug, "Can't call dither_image due to pitch mismatch"
 		else
-			dither_image(surf->pColorData, surf->width, surf->height, ret->image, @pal(0), 8, options.firstindex)
+			dither_image(surf->pColorData, surf->width, surf->height, ret->image, _
+				     options.computepalette, @pal(0), 8, options.firstindex)
 			'Handle options.transparency
 			quantize_surface_threshold(surf, ret, pal(), options, NO)
 		end if
