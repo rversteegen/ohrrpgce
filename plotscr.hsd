@@ -322,7 +322,8 @@ define function, begin
 301,findmenuid,1,0            #find menu(menu ID) search open menus for menu ID and return menu handle
 302,menuisopen,1,0            #menu is open(menu handle) # return true as long as the handle is still valid
 303,menuitemslot,1,0          #menu item slot(menu item handle) returns a menu slot number
-304,outsidebattlecure,3,0,0,-1 #backcompat only, should prefer "map cure"
+@obsolete("It can't be used with atk:... constants. ", map cure)
+304,outsidebattlecure,4,0,0,-1,0 #backcompat only, should prefer "map cure"
 305,changetileset,2,-1,-1     #similar to loadtileset. (tileset,layer)
 306,layertileset,1,0          #layer tileset(layer) returns tileset number in use
 307,getformationsong,1,0      #returns the song associated with a given formation
@@ -487,7 +488,7 @@ define function, begin
 464,getslicelookup,1,0        #get a slice's lookup code
 465,setslicelookup,2,0,0      #change a slice's lookup code
 466,tracevalueinternal,-1     #tracevalue is translated to this
-467,mapcure,3,0,0,-1          #uses a cure attack on a hero
+467,mapcure,4,0,0,-1,0        #uses a cure attack on a hero
 468,readattackname,2,0,0      #puts an attack name in a string (string id, attack id+1 / attack .hsi constant)
 469,spellslearned,2,0,0       #number spells and spell ids hero learnt at last battle/giveexperience command.
 470,allocatetimers,1,16       #change the number of timers
@@ -698,6 +699,7 @@ define function, begin
 673,menuitemvisible,1,0       # Isn't hidden
 674,setlastsaveslot,1,-1      # Set return value of lastsaveslot (0-1000)
 675,speakingnpc,0             # NPC reference for the NPC which is currently talking
+676,checkattackcosts,2,0,-1   # Check costs for an attack met (attack, attacker or -1)
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end

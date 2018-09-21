@@ -2968,12 +2968,12 @@ end</example>
 		<command id="getlevelmp">
 			<canon>get level MP (who, mp level slot, type)</canon>
 			<shortname>get level MP</shortname>
-			<description>Returns a hero's level MP (FF1-style MP). The argument <p>who</p> is the hero's position in the party, as returned by <ref>findhero</ref>. The argument <p>mp level slot</p> is a number from 0 to 7 that represents a row of spells in the hero's spell list. The optional third argument is either <ref>currentstat</ref> or <ref>maximumstat</ref>. If you leave out the type <ref>currentstat</ref> will be assumed. Pass <ref>maximumstat</ref> instead to get the hero's maximum amount of level MP for that slot. The maximum depends only on the hero's experience level.</description>
+			<description>Returns a hero's level MP (FF1-style MP). The argument <p>who</p> is the hero's position in the party, as returned by <ref>findhero</ref>. The argument <p>mp level slot</p> is a number from 0 to 7 that represents a row of spells in the hero's spell list (the level is NOT counted from 1 to 8, as it's displayed in-game and in the spell-list editor!). The optional third argument is either <ref>currentstat</ref> or <ref>maximumstat</ref>. If you leave out the type <ref>currentstat</ref> will be assumed. Pass <ref>maximumstat</ref> instead to get the hero's maximum amount of level MP for that slot. The maximum depends only on the hero's experience level.</description>
 		</command>
 		<command id="setlevelmp">
 			<canon>set level MP (who, mp level slot, new value)</canon>
-			<shortname>get level MP</shortname>
-			<description>Changes a hero's level MP (FF1-style MP). The argument <p>who</p> is the hero's position in the party, as returned by <ref>findhero</ref>. The argument <p>mp level slot</p> is a number from 0 to 7 that represents a row of spells in the hero's spell list. The argument <p>new value</p> is the new number of level MP points. Each point represents one spell from that row.</description>
+			<shortname>set level MP</shortname>
+			<description>Changes a hero's level MP (FF1-style MP). The argument <p>who</p> is the hero's position in the party, as returned by <ref>findhero</ref>. The argument <p>mp level slot</p> is a number from 0 to 7 that represents a row of spells in the hero's spell list (the level is NOT counted from 1 to 8, as it's displayed in-game and in the spell-list editor!). The argument <p>new value</p> is the new number of level MP points. Each point represents one spell from that row.</description>
 		</command>
 		<command id="herobaseelementalresistasint">
 			<canon>hero base elemental resist as int (who, element)</canon>
@@ -3143,7 +3143,7 @@ end</example>
 
 		<section title="Out-of-battle Attacks">
 		<command id="outsidebattlecure">
-			<canon>outside battle cure (attack minus 1, target, attacker)</canon>
+			<canon>outside battle cure (attack minus 1, target, attacker, subtract costs)</canon>
 			<shortname>outside battle cure</shortname>
 			<deprecated>zenzizenzic</deprecated>
 			<description>
@@ -3152,17 +3152,85 @@ end</example>
 			</description>
 		</command>
 		<command id="mapcure">
-			<canon>map cure (attack, target, attacker)</canon>
+			<canon>map cure (attack, target, attacker, subtract costs)</canon>
 			<shortname>map cure</shortname>
-			<description>Uses an attack on a hero outside of battle as if you had used it from an item or cast it as a spell. In spite of the name, it works for both cure spells and damage spells. The first argument, <p>attack</p> is name of the attack from your HSI file in the form atk:name. (You may also use the attack&apos;s ID number. This is the number you see in the attack editor + 1.) The second argument, <p>target</p> is the position in the party of the hero to cure (or harm). The third optional argument, <p>attacker</p> is the position in the party of the hero who is using the attack. If this argument is omitted or set to -1, then the average stats of the active party will be used, just like when the attack is used from an item. The return value is <ref>true</ref> if the cure/attack succeeded, and <ref>false</ref> if it did nothing.
-			<note>The <p>map cure</p> command replaces the old command <p>outside battle cure</p> which had a bug which required you to use <p>atk:name -- 1</p> instead of <p>atk:name</p> for the <p>attack</p> argument.</note>
-			<note>If the attack results in all the heroes in the party being dead (outside of battles a hero isn't counted as dead if their maximum HP is zero or negative), a normal game over occurs: the game over script is run if there is one, otherwise the game ends. However the game over won't happen until the next wait command (such as <ref>wait</ref>).</note>
+			<description>
+				Uses an attack on a hero outside of battle as if you had used it from an item or cast it as a spell.
+				In spite of the name, it works for both cure spells and damage spells.
+				<lb/>
+				The first argument, <p>attack</p> is name of the attack from your HSI file in the form <tt>atk:name</tt>.
+				(You may also use the attack's ID number. This is the number you see in the attack editor + 1.)
+				<lb/>
+				The second argument, <p>target</p> is the position in the party of the hero to cure (or harm).
+				<lb/>
+				The third optional argument, <p>attacker</p> is the position in the party of the hero who is using the attack.
+				If this argument is omitted or set to -1, then the average stats of the active party will be used,
+				just like when the attack is used from an item.
+				<lb/>
+				The fourth argument <p>subtract costs</p> controls whether costs (HP, MP, items, etc) for the attack
+				should be deducted.
+				If omitted, it defaults to <tt>false</tt>!
+				If <p>attacker</p> is -1, then there's no specific attacker, so HP and MP costs are ignored.
+				Level-MP can't be deducted because it's not used from a spell-list,
+				but you can use the <ref>setlevelmp</ref> command to manually deduct it.
+				<lb/>
+				The return value is <ref>true</ref> if the cure/attack succeeded, and <ref>false</ref> if it did nothing.
+				<note>
+					Regardless of <p>subtract costs</p>, the attack will be performed even if the costs aren't met.
+					(HP, MP, gold, etc won't be reduced below zero.)
+					To check for costs, call the <ref>checkattackcosts</ref> command first.
+				</note>
+				<note>
+					Most attack effects and settings have no effect outside of battle.
+					For example, outside of battle there are no status effects like Mute.
+				</note>
+				<note>
+					The <p>map cure</p> command replaces the old command <p>outside battle cure</p> which had a bug which
+					required you to use <p>atk:name -- 1</p> instead of <p>atk:name</p> for the <p>attack</p> argument.
+				</note>
+				<note>
+					If the attack results in all the heroes in the party being dead 
+					(outside of battles a hero isn't counted as dead if their maximum HP is zero or negative),
+					a normal game over occurs: the game over script is run if there is one, otherwise the game ends.
+					However the game over won't happen until the next wait command (such as <ref>wait</ref>).
+				</note>
 			</description>
+			<example>variable(healer, target)
+healer := find hero (hero:cleric)
+if (healer > -1 &amp;&amp; healer &lt;= 3) then (  # Check Cleric is in the active party
+  # The spell might cost some MP and herbs, so check you have them
+  if (check attack costs(atk: minor heal, healer)) then (
+    target := pick hero($0="Whom should I heal?")
+    if (target > -1) then (  # Check the player didn't cancel
+      map cure(atk: minor heal, target, healer, true)
+    )
+  ) else (
+    show textbox(123)   # "I don't have everything I need to cast this right now..."
+  )
+)</example>
 			<seealso>
+				<ref>checkattackcosts</ref>
 				<ref>useitem</ref>
 				<ref>setherostat</ref>
 				<ref>setdeathscript</ref>
 			</seealso>
+		</command>
+		<command id="checkattackcosts">
+			<canon>check attack costs (attack, attacker)</canon>
+			<shortname>check attack costs</shortname>
+			<description>
+				Check whether you have all the costs needed for a spell/attack.
+			  This is normally used with <ref>mapcure</ref>, which uses an attack even if its costs aren't met.
+				<lb/>
+				The first argument, <p>attack</p> is name of the attack from your HSI file in the form <tt>atk:name</tt>.
+				(You may also use the attack's ID number. This is the number you see in the attack editor + 1.)
+				<lb/>
+				The optional second argument, <p>attacker</p> is the position in the party of the hero who is using the attack.
+				You can use <ref>findhero</ref> to get this.
+				If this argument is omitted or set to -1, then there is no specific hero casting the spell,
+				just like when the attack is used from an item,
+				so HP and MP costs are ignored.
+			</description>
 		</command>
 		</section>		<!-- Out-of-battle Attacks-->
 

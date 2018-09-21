@@ -1073,7 +1073,7 @@ SUB script_functions(byval cmdid as integer)
   IF valid_menu_item_handle(retvals(0), menuslot, mislot) THEN
    scriptret = mislot
   END IF
- CASE 304'--outside battle cure
+ CASE 304'--outside battle cure (attack, target, attacker-or-whole-party)
   'WARNING: This exists for backcompat, but "map cure" should be prefered.
   'See bug 719
   IF bound_arg(retvals(0), 0, gen(genMaxAttack), "attack ID") THEN
@@ -3062,7 +3062,7 @@ SUB script_functions(byval cmdid as integer)
    END IF
   NEXT
   debug "TRACE: " & result
- CASE 467 '--map cure
+ CASE 467 '--map cure (attack, target, attacker-or-whole-party)
   IF bound_arg(retvals(0), 1, gen(genMaxAttack)+1, "attack ID") THEN
    IF valid_hero_party(retvals(1)) THEN
     IF valid_hero_party(retvals(2), -1) THEN
@@ -4669,6 +4669,13 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 675 '--speaking npc
   scriptret = -1 - txt.sayer
+ CASE 676 '--check attack costs (attack, attacker or -1)
+  IF bound_arg(retvals(0), 1, gen(genMaxAttack)+1, "attack ID") THEN
+   IF valid_hero_party(retvals(1), -1) THEN
+    scriptret = ABS(atkallowed(retvals(0) - 1, retvals(1), retvals(2), NO))...
+   END IF
+  END IF
+
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
