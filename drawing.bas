@@ -558,7 +558,7 @@ FUNCTION importimage_process(filename as string, pmask() as RGBcolor) as Frame p
    clearpage vpage
    DIM menu(2) as string
    menu(0) = "Remap to current Master Palette"
-   menu(1) = "Import with new Master Palette"
+   menu(1) = "Import with new Master Palette (Advanced!)"
    menu(2) = "Do not remap colours"
    DIM paloption as integer
    paloption = multichoice("This image's palette is not identical to your master palette." _
@@ -609,19 +609,33 @@ FUNCTION importimage_process(filename as string, pmask() as RGBcolor) as Frame p
   END IF
 
  ELSE
+  DIM as integer paloption, ditheroption
   DIM menu(1) as string
-  menu(0) = "Dither image (better color matching)"
-  menu(1) = "No dithering"
-  DIM paloption as integer
-  paloption = multichoice("This image is unpaletted, and needs to be converted to your master palette. " _
-                          "How do you want to convert it?", _
-                          menu(), , , "importimage_dithering")
+  menu(0) = "Use current master palette (Recommended)"
+  menu(1) = "New optimal Master Palette (Advanced!)"
+  paloption = multichoice("This image is unpaletted, and needs to be converted to a 256-color master palette. " _
+                          "Use which master palette?", _
+                          menu(), , , "importimage_palette_32")
   IF paloption = -1 THEN RETURN NULL
+
+  menu(0) = "Dither image (better color matching, grainy)"
+  menu(1) = "No dithering"
+
+  ' menu(0) = "Use master palette, Dither image (better color matching)"
+  ' menu(1) = "Use master palette, No dithering"
+  ' menu(1) = "New master palette, dithering (Advanced!)"
+  ' menu(1) = "New master palette, no dithering (Advanced!)"
+
+
+  ditheroption = multichoice("How do you want to quantize the image colors?", _
+                             menu(), , , "importimage_dithering")
+  IF ditheroption = -1 THEN RETURN NULL
 
   DIM options as QuantizeOptions
   options.firstindex = 1
   options.transparency = TYPE(-1)  'No transparent color
-  options.dither = (paloption = 0)
+  options.dither = (ditheroption = 0)
+  options.computepalette = (paloption = 1)
 
   'Since the source image is not paletted, we don't know what the background colour
   'is (if any: not all backdrops and tilesets are transparent). Import it, disallowing anything to
@@ -629,6 +643,12 @@ FUNCTION importimage_process(filename as string, pmask() as RGBcolor) as Frame p
   'then let the user pick.
   '(If it's an image with an alpha channel, transparent pixels are also automatically mapped to 0)
   img = image_import_as_frame_quantized(filename, pmask(), options)
+
+  IF options.computepalette THEN
+   importmasterpal pmask(), gen(genMaxMasterPal) + 1  'Copies pmask() to master(), sets activepalette, etc
+   setpal pmask()
+  END IF
+
   importimage_change_background_color img
  END IF
 

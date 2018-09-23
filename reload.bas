@@ -1880,12 +1880,9 @@ Function CloneNodeTree(byval nod as NodePtr, byval doc as DocPtr=0) as NodePtr
 		debug "CloneNodeTree: null node pointer"
 		return null
 	end if
+	if doc = null then doc = nod->doc
 	dim n as NodePtr
-	if doc then
-		n = CreateNode(doc, NodeName(nod))
-	else
-		n = CreateNode(nod, NodeName(nod))
-	end if
+	n = CreateNode(doc, NodeName(nod))
 	select case NodeType(nod)
 		case rltInt:
 			SetContent(n, GetInteger(nod))

@@ -1,16 +1,22 @@
 extern "C" {
+
+// gif.h must be included in exactly one .cpp file - it's not really a header.
 #include "gif.h"
+
+// This is an extension to the gif.h library.
 
 #define boolint int
 
-// Convert from 32-bit 'image' to 8-bit 'result' using Floyd-Steinberg dithering.
-// firstindex is the lowest allowed palette index in the output. A value of 0
-// allows the whole palette, a value of 1 excludes palette[0].
+// Convert from 32-bit 'image' to 8-bit 'result' using Floyd-Steinberg dithering or nearest-neighbour.
+// firstindex:
+//     The lowest allowed palette index in the output. Eg. a value of 0
+//     allows the whole palette, a value of 1 excludes palette[0].
+//     Values > 1 unsupported if computePalette is true.
 // computePalette:
 //     If true, 'palette' is overwritten with a near-optimal palette. Otherwise,
 //     it is the palette to quantize to.
 // palette: a length 1<<bitDepth array, used either for input or output
-void dither_image(const GifRGBA* image, uint32_t width, uint32_t height, uint8_t* result, boolint computePalette, GifRGBA* palette, int bitDepth, int firstindex) {
+void GifQuantizeImage(const GifRGBA* image, uint32_t width, uint32_t height, uint8_t* result, boolint dither, boolint computePalette, GifRGBA* palette, int bitDepth, int firstindex) {
 
     uint32_t numPixels = width*height;
     GifKDTree tree;
@@ -34,12 +40,17 @@ void dither_image(const GifRGBA* image, uint32_t width, uint32_t height, uint8_t
 
         GIF_FREE(indexedPalette);
     } else {
-        // Compute a palette. firstindex is ignored - It is always taken as 1.
-        GifMakePalette(NULL, image, width, height, bitDepth, true, &tree);
+        // Compute a palette.
+        // Only firstindex 0 or 1 is supported
+        bool includeTransparent = (firstindex == 0);
+        GifMakePalette(NULL, image, width, height, bitDepth, includeTransparent, &tree);
     }
 
     GifRGBA* resultRGBA = (GifRGBA*)GIF_MALLOC(numPixels * sizeof(GifRGBA));
-    GifDitherImage(NULL, image, resultRGBA, width, height, &tree);
+    if (dither)
+        GifDitherImage(NULL, image, resultRGBA, width, height, &tree);
+    else
+        GifThresholdImage(NULL, image, resultRGBA, width, height, &tree);
 
     if (!computePalette) {
         // Extra remapping from the GifKDTree palette index to the 'palette' index

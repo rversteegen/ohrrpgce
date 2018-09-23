@@ -721,7 +721,7 @@ menutype(AtkDmgAct) = 1
 menu(AtkTargAct) = "Target and Aiming Settings..."
 menutype(AtkTargAct) = 1
 
-menu(AtkCostAct) = "Cost..."
+menu(AtkCostAct) = "Costs/Requirements..."
 menutype(AtkCostAct) = 1
 
 menu(AtkChainAct) = "Chaining and Counterattacks..."

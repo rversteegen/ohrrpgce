@@ -81,8 +81,8 @@ const int kGifAccumMargin = 64;
 //#define GIF_STATS(x)  x
 #define GIF_STATS(x)
 
-//#define GIF_ASSERT(x) assert(x)
-#define GIF_ASSERT(x)
+#define GIF_ASSERT(x) assert(x)
+//#define GIF_ASSERT(x)
 
 struct GifStats {
     int leaves, searches, totalDiff, nodes, totalLeafCost, maxLeafCost, maxLeafSize, maxLeafRange;
@@ -177,7 +177,7 @@ void GifHeapPush( GifHeapQueue* q, int cost, int key )
     // Start from end and bubble down the value until its parent isn't larger
     int hole = 1 + q->len;  // where to place
     ++q->len;
-    GIF_ASSERT(q->len < 511);
+    GIF_ASSERT(q->len < 512);
 
     while( hole > 1 && q->items[hole/2].cost < cost )
     {
@@ -324,7 +324,7 @@ int GifPartitionByMedian(GifRGBA* image, int com, uint8_t& pivotVal, int left, i
 }
 
 // Create the palette, by taking the average of all colors in each subcube (k-d tree leaf)
-void GifAverageColors(GifRGBA* image, GifKDTree* tree)
+void GifAverageColors(GifRGBA* image, GifKDTree* tree, bool includeTransparent)
 {
     tree->pal.colors[kGifTransIndex] = {0, 0, 0, 0};
 
@@ -332,7 +332,7 @@ void GifAverageColors(GifRGBA* image, GifKDTree* tree)
     int palIndex = 0;
     for( int qIndex = 1; qIndex <= tree->queue.len; ++qIndex, ++palIndex )
     {
-        if( palIndex == kGifTransIndex ) ++palIndex;
+        if( includeTransparent && palIndex == kGifTransIndex ) ++palIndex;
         GifHeapQueue::qitem& qitem = tree->queue.items[qIndex];
         GifKDNode& node = tree->nodes[qitem.nodeIndex];
 
@@ -437,10 +437,10 @@ void GifSplitNode( GifRGBA* image, GifKDTree* tree, GifKDNode& node )
 }
 
 // Builds a palette by creating a k-d tree of all pixels in the image
-void GifSplitPalette( GifRGBA* image, GifKDTree* tree )
+void GifSplitPalette( GifRGBA* image, GifKDTree* tree, bool includeTransparent )
 {
-    // -1 for transparent color
-    int maxLeaves = (1 << tree->pal.bitDepth) - 1;
+    int maxLeaves = (1 << tree->pal.bitDepth);
+    if( includeTransparent ) maxLeaves -= 1;  // Save space for kGifTransIndex
     while( tree->queue.len < maxLeaves )
     {
         int nodeIndex = tree->queue.items[1].nodeIndex;  // Top of the heap
@@ -480,7 +480,7 @@ int GifPickChangedPixels( const GifRGBA* lastFrame, GifRGBA* frame, int numPixel
 
 // Creates a palette by placing all the image pixels in a k-d tree and then averaging the blocks at the bottom.
 // This is known as the "modified median split" technique
-void GifMakePalette( const GifRGBA* lastFrame, const GifRGBA* nextFrame, uint32_t width, uint32_t height, int bitDepth, bool buildForDither, GifKDTree* tree )
+void GifMakePalette( const GifRGBA* lastFrame, const GifRGBA* nextFrame, uint32_t width, uint32_t height, int bitDepth, bool includeTransparent, GifKDTree* tree )
 {
     tree->pal.bitDepth = bitDepth;
     tree->numNodes = 0;
@@ -499,8 +499,8 @@ void GifMakePalette( const GifRGBA* lastFrame, const GifRGBA* nextFrame, uint32_
     // initial node
     GifAddNode(tree, destroyableImage, 0, numPixels);
 
-    GifSplitPalette(destroyableImage, tree);
-    GifAverageColors(destroyableImage, tree);
+    GifSplitPalette(destroyableImage, tree, includeTransparent);
+    GifAverageColors(destroyableImage, tree, includeTransparent);
 
     GIF_TEMP_FREE(destroyableImage);
 }
@@ -1022,7 +1022,7 @@ bool GifWriteFrame( GifWriter* writer, const GifRGBA* image, uint32_t width, uin
     writer->firstFrame = false;
 
     GifKDTree tree;
-    GifMakePalette((dither? NULL : oldImage), image, width, height, bitDepth, dither, &tree);
+    GifMakePalette((dither? NULL : oldImage), image, width, height, bitDepth, true, &tree);
 
     if(dither)
         GifDitherImage(oldImage, image, writer->oldImage, width, height, &tree);

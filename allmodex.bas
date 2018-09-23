@@ -6871,16 +6871,17 @@ function quantize_surface(byref surf as Surface ptr, pal() as RGBcolor, options 
 	dim ret as Frame ptr
 	ret = frame_new(surf->width, surf->height)
 
-	if options.dither then
+	if YES then ' options.dither orelse options.computepalette then
 		if surf->pitch <> surf->width or ret->pitch <> surf->width then
-			debugc errPromptBug, "Can't call dither_image due to pitch mismatch"
+			debugc errPromptBug, "Can't call GifQuantizeImage due to pitch mismatch"
 		else
-			dither_image(surf->pColorData, surf->width, surf->height, ret->image, _
-				     options.computepalette, @pal(0), 8, options.firstindex)
+			GifQuantizeImage(surf->pColorData, surf->width, surf->height, ret->image, options.dither, _
+			                 options.computepalette, @pal(0), 8, options.firstindex)
 			'Handle options.transparency
 			quantize_surface_threshold(surf, ret, pal(), options, NO)
 		end if
 	else
+		'GifQuantizeImage doesn't properly
 		quantize_surface_threshold(surf, ret, pal(), options, YES)
 	end if
 
@@ -6888,7 +6889,7 @@ function quantize_surface(byref surf as Surface ptr, pal() as RGBcolor, options 
 	return ret
 end function
 
-'If quantizing=YES, converting the image to 8 bit, otherwise only post-processing result from dither_image
+'If quantizing=YES, converting the image to 8 bit, otherwise only post-processing result from GifQuantizeImage
 'to handle options.transparency.
 private sub quantize_surface_threshold(surf as Surface ptr, ret as Frame ptr, pal() as RGBcolor, options as QuantizeOptions, quantizing as bool)
 	dim inptr as RGBcolor ptr
