@@ -951,7 +951,7 @@ SUB generalmusicsfxmenu ()
 
     clearpage dpage
     highlight_menu_typing_selection disp(), menu_display(), selectst, state
-    standardmenu menu_display(), state, 0, 0, dpage 
+    standardmenu menu_display(), state, 4, 4, dpage
     edgeprint "F2: change preview volume", pRight, pBottom, uilook(uiMenuItem), dpage
 
     SWAP vpage, dpage
