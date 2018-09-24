@@ -241,7 +241,7 @@ addcaption caption(), capindex, "All of the above"
 
 '-------------------------------------------------------------------------
 '--menu content
-CONST MnuItems = 268
+CONST MnuItems = 269
 DIM menu(MnuItems) as string
 DIM menutype(MnuItems) as integer
 DIM menuoff(MnuItems) as integer
@@ -528,6 +528,11 @@ menutype(EnMenuSpawnAllElementsOnHit) = 2000 + EnCapSpawnAllElementsOnHit
 menuoff(EnMenuSpawnAllElementsOnHit) = EnDatSpawnAllElementsOnHit
 menulimits(EnMenuSpawnAllElementsOnHit) = EnLimSpawnAllElementsOnHit
 
+
+CONST EnMenuChooseAct2 = 269
+menu(EnMenuChooseAct2) = "Enemy"
+menutype(EnMenuChooseAct2) = 55
+
 'Next is 269, don't forget to update MnuItems
 
 '-------------------------------------------------------------------------
@@ -542,17 +547,18 @@ state.need_update = YES
 DIM menuopts as MenuOptions
 menuopts.fullscreen_scrollbar = YES
 
-DIM mainMenu(9) as integer
+DIM mainMenu(10) as integer
 mainMenu(0) = EnMenuBackAct
 mainMenu(1) = EnMenuChooseAct
-mainMenu(2) = EnMenuName
-mainMenu(3) = EnMenuAppearAct
-mainMenu(4) = EnMenuRewardAct
-mainMenu(5) = EnMenuStatAct
-mainMenu(6) = EnMenuBitsetAct
-mainMenu(7) = EnMenuElementalsAct
-mainMenu(8) = EnMenuSpawnAct
-mainMenu(9) = EnMenuAtkAct
+mainMenu(2) = EnMenuChooseAct2
+mainMenu(3) = EnMenuName
+mainMenu(4) = EnMenuAppearAct
+mainMenu(5) = EnMenuRewardAct
+mainMenu(6) = EnMenuStatAct
+mainMenu(7) = EnMenuBitsetAct
+mainMenu(8) = EnMenuElementalsAct
+mainMenu(9) = EnMenuSpawnAct
+mainMenu(10) = EnMenuAtkAct
 
 DIM appearMenu(9) as integer
 appearMenu(0) = EnMenuBackAct

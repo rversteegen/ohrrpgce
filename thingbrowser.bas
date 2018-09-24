@@ -24,6 +24,15 @@
 
 '-----------------------------------------------------------------------
 
+' SUB ThingBrowser.sort_thing_list()
+'  dim txt as Slice ptr
+'  txt = LookupSlice(SL_PLANK_MENU_SELECTABLE, plank, slText)
+'  ChangeTextSlice txt, id & !"\n" & enemy.name
+
+
+' END SUB
+
+
 Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=NO, editor_func as FnThingBrowserEditor=0, byval edit_by_default as bool=YES, byval skip_zero as bool=NO) as integer
  dim result as integer = start_id
  this.or_none = or_none
@@ -56,6 +65,8 @@ Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=
  thinglist = LookupSlice(SL_EDITOR_THINGBROWSER_THINGLIST, root)
  RefreshSliceScreenPos thinglist
  build_thing_list()
+ 'sort_thing_list()
+CustomSortChildSlices thinglist, NO
 
  dim ps as PlankState
  ps.m = root
@@ -651,6 +662,7 @@ Function EnemyBrowser.create_thing_plank(byval id as integer) as Slice ptr
  end if
  dim plank as Slice Ptr
  plank = CloneSliceTree(plank_template)
+plank->Sorter = randint(900)
  
  dim spr as Slice Ptr
  spr = LookupSlice(SL_EDITOR_THINGBROWSER_PLANK_SPRITE, plank)

@@ -2487,7 +2487,9 @@ FOR i = 0 TO size
    nospace = YES
   CASE 5 '--record index
    'Special, $$ text replacement not available
-   nowmenu(i) = CHR(27) & nowmenu(i) & " " & recindex & CHR(26)
+   nowmenu(i) = CHR(27) & nowmenu(i) & CHR(26)
+  case 55
+   nowmenu(i) = "ID: " & recindex
   CASE 6 '--extrabadstring
    maxl = maxtable(menulimits(nowdat(i)))
    datatext = readbadbinstring(datablock(), menuoff(nowdat(i)), maxl, 1)
