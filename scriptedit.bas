@@ -306,10 +306,13 @@ FUNCTION importscripts (hsfile as string, srcfile as string = "", quickimport as
 
   'Open either scripts.bin or (if compiled by ancient hspeak) scripts.txt to read list of scripts
   safekill tmpdir & "scripts.bin"
+  'DIM res as UnlumpResult
+  'res =
   unlumpfile(hsfile, "scripts.bin", tmpdir)
-  IF isfile(tmpdir & "scripts.bin") THEN
+  IF YES THEN' isfile(tmpdir & "scripts.bin") THEN
    dotbin = YES
-   OPENFILE(tmpdir + "scripts.bin", FOR_BINARY, fptr)
+debug "oepning"
+   IF OPENFILE(tmpdir + "scriptssd.bin", FOR_BINARY + ACCESS_READ + OR_ERROR, fptr) THEN RETURN NO
    'load header
    DIM headersize as integer
    DIM temp as short
@@ -321,7 +324,7 @@ FUNCTION importscripts (hsfile as string, srcfile as string = "", quickimport as
    
    'the scripts.bin lump does not have a format version field in its header, instead use header size
    IF headersize <> 4 THEN
-    pop_warning hsfile + " is in an unrecognised format. Please upgrade to the latest version of CUSTOM."
+    pop_warning hsfile + " is in an unrecognised format. " + IIF(headersize > 4, "Please upgrade to the latest version of CUSTOM.", "")
     RETURN NO
    END IF
   ELSE

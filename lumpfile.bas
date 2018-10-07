@@ -729,8 +729,10 @@ function extract_lump(lf as integer, srcfile as string, destfile as string, size
 	dim csize as integer
 
 	if openfile(destfile, for_binary + access_write, of) then
+		dim errmsg as string
+		errmsg = "Could not unlump " & destfile & " (file not writeable) from " & srcfile & ". Some game data will be missing."
 		if showerrors then
-			showerror "Could not unlump " & destfile & " (file not writeable) from " & srcfile & ". Some game data will be missing."
+			showerror errmsg
 		else
 			debug "unlumpfile(" + srcfile + "): " + destfile + " not writable, skipping"
 		end if
@@ -961,6 +963,7 @@ function unlumpfile_internal (lumpfile as string, fmask as string, path as strin
 	dim namelen as integer  'not including nul
 	dim nowildcards as bool = NO
 	dim errmsg as string  'return value
+	files_unlumped = 0
 
 	if openfile(lumpfile, for_binary + access_read, lf) <> 0 then
 		return "Can't open file"
@@ -1016,6 +1019,8 @@ function unlumpfile_internal (lumpfile as string, fmask as string, path as strin
 			if matchmask(lname, lcase(fmask)) then
 				if extract_lump(lf, lumpfile, path + lname, size, showerrors) then
 					skiplump = NO
+				else
+					errmsg = 
 				end if
 
 				'early out if we're only looking for one file
@@ -1040,7 +1045,7 @@ function unlumpfile_internal (lumpfile as string, fmask as string, path as strin
 end function
 
 'lump may include * or ? wildcards
-sub copylump(package as string, lump as string, dest as string, byval ignoremissing as integer = NO)
+sub copylump(package as string, lump as string, dest as string, byval ignoremissing as bool = NO)
 	dest = add_trailing_slash(dest)
 	if isdir(package) then
 		#ifdef DEBUG_FILE_IO
