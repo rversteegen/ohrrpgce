@@ -550,6 +550,8 @@ END SUB
 SUB choose_rpg_to_open (rpg_browse_default as string)
  'This sub sets the globals: game and sourcerpg
 
+' switch_to_32bit_vpages
+
  DIM state as MenuState
  state.pt = 1
  state.last = 2
@@ -572,9 +574,13 @@ SUB choose_rpg_to_open (rpg_browse_default as string)
   setkeys
   IF keyval(ccCancel) > 1 THEN cleanup_and_terminate
   IF keyval(scF1) > 1 THEN show_help "choose_rpg"
-  IF keyval(scF6) > 1 THEN slice_editor root, SL_COLLECT_EDITOR, "choose_rpg.slice"
+  IF keyval(scF6) > 1 THEN slice_editor root, SL_COLLECT_EDITOR, finddatafile("choose_rpg.slice"), , YES  'privileged=YES
 
   DIM menusl as Slice ptr = LookupSliceSafe(SL_EDITOR_SPLASH_MENU, root)
+ DIM bgspr as Slice ptr = LookupSlice(-12, root)
+' bgspr->Velocity = XY(1,0)
+' bgspr->VelTicks.X = 1000
+SetSliceTarg bgspr, 0, 27, 70
 
   usemenu state
   IF enter_space_click(state) THEN
@@ -597,6 +603,7 @@ SUB choose_rpg_to_open (rpg_browse_default as string)
   END IF
  
   clearpage dpage
+  AdvanceSlice root
   DrawSlice root, dpage
   standardmenu chooserpg_menu(), state, menusl->ScreenX, menusl->ScreenY, dpage, opts
   wrapprint short_version & " " & gfxbackend & "/" & musicbackend, 8, pBottom - 14, uilook(uiMenuItem), dpage
@@ -607,6 +614,8 @@ SUB choose_rpg_to_open (rpg_browse_default as string)
   dowait
  LOOP
  DeleteSlice @root
+
+ switch_to_8bit_vpages
 END SUB
 
 SUB prompt_for_save_and_quit()
