@@ -494,6 +494,7 @@ Type ZoneInfo
   hidden as bool  'used in the map editor only, not saved
   numtiles as integer  'number of set tiles
   extra(2) as integer
+  pathcost as integer
 End Type
 
 'A set of zones

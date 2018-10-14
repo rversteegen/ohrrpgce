@@ -36,9 +36,14 @@ Destructor AStarPathfinder
  v_free path
 End Destructor
 
+dim shared runavg as double
+dim shared runcnt as integer = 0
+
 Sub AStarPathfinder.calculate(byval npc as NPCInst Ptr=0, byval should_collide_with_hero as bool=NO, byval check_npcs_as_hero as bool=NO, byval should_collide_with_npcs as bool=YES)
  'should_collide_with_hero is only checked when an npc instance is provided
  'check_npcs_as_hero should only be set when the npc ptr is null
+
+ dim startt as double = timer
 
  'debug "AStarPathfinder.calculate() " & startpos.x & "," & startpos.y & " -> " & destpos.x & "," & destpos.y
  redim nodes(mapsizetiles.x - 1, mapsizetiles.y - 1) as AStarNode
@@ -167,6 +172,12 @@ Sub AStarPathfinder.calculate(byval npc as NPCInst Ptr=0, byval should_collide_w
   'slow_debug()
  loop
  v_free openlist
+
+ 'Compute running average (exponential sum) of running time
+ startt = timer - startt
+ runcnt = small(10, runcnt + 1)
+ runavg = (runavg * (runcnt - 1) + startt) / runcnt
+ ? "done in " & CINT(startt * 1e6) & "us  avg " & (runavg * 1e6) & "us"
 End Sub
 
 Sub AStarPathfinder.set_result_path(found_dest as XYPair)
@@ -218,11 +229,29 @@ End Function
 Function AStarPathfinder.cost_before_node(n as AStarNode) as integer
  if n.p = startpos then return 0
  if not n.has_parent then return INT_MAX
+
+ dim tilecost as integer = 1  'Default
+
+ redim zones() as integer
+ GetZonesAtTile zmap, zones(), n.parent.x, n.parent.y
+ 'zones is unordered. Find the zone with the lowest id which has a non-zero pathcost set.
+ dim min_id as integer = INT_MAX
+ for i as integer = 0 to ubound(zones)
+  dim id as integer = zones(i)
+  if id < min_id then
+   dim zonecost as integer = GetZoneInfo(zmap, id)->pathcost
+   if zonecost <> 0 then
+    tilecost = zonecost
+    min_id = id
+   end if
+  end if
+ next
+
  if n.status = AStarNodeStatus.EMPTY then
   debug "ERROR empty node in cost_before_node at " & n.p
   return INT_MAX
  end if
- return 1 + getnode(n.parent).cost_before
+ return tilecost + getnode(n.parent).cost_before
 End Function
 
 Sub AStarPathfinder.guess_cost_after_node(n as AStarNode)

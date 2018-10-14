@@ -2978,9 +2978,8 @@ END SUB
 SUB mapedit_edit_zoneinfo(st as MapEditState)
  'We could first build sorted list of zones, and only show those that actually exist?
 
- DIM menu(6) as string
- DIM menu_display(6) as string
- DIM enabled(6) as bool
+ DIM menu(7) as string
+ DIM enabled(7) as bool
  flusharray enabled(), -1, YES
 
  DIM selectst as SelectTypeState
@@ -3014,6 +3013,11 @@ SUB mapedit_edit_zoneinfo(st as MapEditState)
     IF enable_strgrabber ANDALSO strgrabber(st.cur_zinfo->name, 35) THEN state.need_update = YES
    CASE 4 TO 6
     IF intgrabber(st.cur_zinfo->extra(state.pt - 4), -2147483648, 2147483647) THEN state.need_update = YES
+   CASE 7
+    'Reserve 255 for infinity... and we might want some other special values too, so reserve 128+.
+    '0 means "Not set"
+    '(Can't allow actual zero cost, that breaks A* by making the Manhatten distance heuristic inadmissable)
+    IF intgrabber(st.cur_zinfo->pathcost, 0, 127) THEN state.need_update = YES
   END SELECT
 
   IF state.need_update THEN
@@ -3025,11 +3029,18 @@ SUB mapedit_edit_zoneinfo(st as MapEditState)
    enabled(2) = NO
    menu(3) = "Name:" & st.cur_zinfo->name
    FOR i as integer = 0 TO 2
-    menu(4 + i) = "Extra data " & i & ":" & st.cur_zinfo->extra(i)
+    menu(4 + i) = "Extra data " & i & ": " & st.cur_zinfo->extra(i)
    NEXT
+   menu(7) = "Pathfinding cost: "
+   IF st.cur_zinfo->pathcost THEN
+    menu(7) &= st.cur_zinfo->pathcost
+   ELSE
+    menu(7) &= "Not set"
+   END IF
   END IF
 
   clearpage vpage
+  DIM menu_display(UBOUND(menu)) as string
   highlight_menu_typing_selection menu(), menu_display(), selectst, state
   standardmenu menu_display(), state, 0, 0, vpage
   setvispage vpage

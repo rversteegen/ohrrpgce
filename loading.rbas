@@ -1274,6 +1274,7 @@ SUB SaveZoneMap(zmap as ZoneMap, filename as string, rsrect as RectType ptr = NU
         FOR j as integer = 0 TO UBOUND(.extra)
           IF .extra(j) <> 0 THEN SetKeyValueNode(node, "extra", j, .extra(j))
         NEXT
+        IF .pathcost THEN AppendChildNode(node, "pathcost", .pathcost)
       END WITH
     NEXT
 
@@ -1304,8 +1305,8 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
     FreeDocument doc
     EXIT SUB
   END IF
-  w = GetChildNodeInt(root, "w")
-  h = GetChildNodeInt(root, "h")
+  w = root."w"
+  h = root."h"
   IF w <= 0 OR h <= 0 THEN
     debug "LoadZoneMap: " & filename & " - bad size " & w & "*" & h
     FreeDocument doc
@@ -1332,7 +1333,8 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
             EXIT SUB
           END IF
 
-          .name = GetChildNodeStr(node, "name")
+          .name = node."name".string
+          .pathcost = node."pathcost"
 
           '--extra data
           subnode = FirstChild(node, "extra")
@@ -1345,7 +1347,6 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
             END IF
             subnode = NextSibling(subnode, "extra")
           WEND
-
         END WITH
       END IF
       node = NextSibling(node)
