@@ -533,6 +533,35 @@ FUNCTION gfx_sdl_getversion() as integer
   RETURN 1
 END FUNCTION
 
+TYPE NewWindowState
+  resolution as XYPair
+  zoom as integer
+  fullscreen as bool
+  bitdepth as integer
+END TYPE
+
+SUB gfx_sdl_setwindowstate(newst as NewWindowState)
+  debuginfo "gfx_sdl_set_window_state: framesize changing from " & framesize.w & "*" & framesize.h & " to " & w & "*" & h
+  IF newst.w THEN framesize = newst.resolution
+  IF newst.zoom THEN
+    zoom = newst.zoom
+    zoom_has_been_changed = YES
+  END IF
+
+  'A bitdepth of 0 indicates 'same as previous, otherwise default (native)'. Not sure if it's best to use
+  'a native or 8 bit screen surface when we're drawing 8 bit; simply going to preserve the status quo for now.
+  'Silence debug output here, or we get a raft of resize messages when resizing the window w/ the mouse
+
+  windowedmode = newst.fullscreen = NO
+
+  gfx_sdl_set_screen_mode(newst.bitdepth)  'quiet=NO
+
+  IF screenbuffer THEN
+    SDL_FreeSurface(screenbuffer)
+    screenbuffer = NULL
+  END IF
+END SUB
+
 FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byval h as integer, byval bitdepth as integer) as integer
   'debuginfo "gfx_sdl_present_internal(w=" & w & ", h=" & h & ", bitdepth=" & bitdepth & ")"
 
