@@ -308,11 +308,6 @@ DFI_IMPLEMENT_CDECL(void, io_mouserect, int xmin, int xmax, int ymin, int ymax)
 	gfx_ClipCursor(xmin, ymin, xmax, ymax);
 }
 
-DFI_IMPLEMENT_CDECL(int, io_readjoysane, int joynum, unsigned int* button, int* x, int* y)
-{
-	return gfx_GetJoystick(joynum, x, y, button);
-}
-
 
 
 
@@ -686,20 +681,10 @@ DFI_IMPLEMENT_CDECL(int, gfx_SetMouse, int x, int y)
 	return g_Mouse.setPosition(x, y);
 }
 
-DFI_IMPLEMENT_CDECL(int, gfx_GetJoystick, int nDevice, int* x, int* y, unsigned int* buttons)
+DFI_IMPLEMENT_CDECL(int, io_readjoysane, int nDevice, unsigned int* buttons, int* x, int* y)
 {
 	g_Joystick.poll();
 	return g_Joystick.getState(nDevice, *buttons, *x, *y);
-}
-
-DFI_IMPLEMENT_CDECL(int, gfx_SetJoystick, int nDevice, int x, int y)
-{
-	return FALSE; //no support
-}
-
-DFI_IMPLEMENT_CDECL(int, gfx_GetJoystickCount)
-{
-	return g_Joystick.getJoystickCount();
 }
 
 SIZE CalculateNativeResolutionMultiple(UINT width, UINT height, UINT targetWidth, UINT targetHeight)

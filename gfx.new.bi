@@ -55,8 +55,4 @@ extern gfx_GetMouseMovement as function (byref dx as integer, byref dy as intege
 extern gfx_GetMousePosition as function (byref x as integer, byref y as integer, byref wheel as integer, byref buttons as integer) as integer 'gets the mouse position and button state; returns 0 on failure
 extern gfx_SetMousePosition as function (byval x as integer, byval y as integer) as integer 'sets the mouse position; returns 0 on failure
 
-extern gfx_GetJoystickMovement as function (byval nDevice as integer, byref dx as integer, byref dy as integer, byref buttons as integer) as integer 'gets the indexed joystick movement since last input poll and button state; returns 0 on failure
-extern gfx_GetJoystickPosition as function (byval nDevice as integer, byref x as integer, byref y as integer, byref buttons as integer) as integer 'gets the indexed joystick position and button state; returns 0 on failure
-extern gfx_SetJoystickPosition as function (byval nDevice as integer, byval x as integer, byval y as integer) as integer 'sets the indexed joystick position; returns 0 on failure
-
 end extern

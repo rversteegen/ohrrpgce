@@ -37,9 +37,6 @@ dim gfx_GetText as sub (byval pBuffer as wstring ptr, byval buffenLen as integer
 dim gfx_GetMouseMovement as function (byref dx as integer, byref dy as integer, byref dWheel as integer, byref buttons as integer) as integer
 dim gfx_GetMousePosition as function (byref x as integer, byref y as integer, byref wheel as integer, byref buttons as integer) as integer
 dim gfx_SetMousePosition as function (byval x as integer, byval y as integer) as integer
-dim gfx_GetJoystickMovement as function (byval nDevice as integer, byref dx as integer, byref dy as integer, byref buttons as integer) as integer
-dim gfx_GetJoystickPosition as function (byval nDevice as integer, byref x as integer, byref y as integer, byref buttons as integer) as integer
-dim gfx_SetJoystickPosition as function (byval nDevice as integer, byval x as integer, byval y as integer) as integer
 
 'Old graphics backend function pointers
 
@@ -468,9 +465,6 @@ local function gfx_load_library_new(byval backendinfo as GfxBackendStuff ptr, fi
 	MUSTLOAD(gfx_GetMouseMovement)
 	MUSTLOAD(gfx_GetMousePosition)
 	MUSTLOAD(gfx_SetMousePosition)
-	MUSTLOAD(gfx_GetJoystickMovement)
-	MUSTLOAD(gfx_GetJoystickPosition)
-	MUSTLOAD(gfx_SetJoystickPosition)
 
 	'success
 	backendinfo->dylib = hFile
