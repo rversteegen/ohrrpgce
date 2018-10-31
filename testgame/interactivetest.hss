@@ -138,11 +138,17 @@ script, suspend and wait tests, begin
 
   # Movement suspended
   set hero direction(me, north)
-  $message 2="Hit LEFT"
+  $message 2="Hit LEFT (on keyboard)"
   test wait for key(left key, key:left)
   assert(hero direction == north)
-  $message 2="Hit DOWN"
+  $message 2="Hit DOWN (on keyboard)"
   test wait for key(down key, key:down)
+  assert(hero direction == north)
+  $message 2="Hit RIGHT (any)"
+  test wait for key(right key, right key)
+  assert(hero direction == north)
+  $message 2="Hit UP (any)"
+  test wait for key(up key, up key)
   assert(hero direction == north)
 
   # NPC use suspended
@@ -150,6 +156,10 @@ script, suspend and wait tests, begin
   variable (npcref)
   npcref := create npc(1, hero x, hero y -- 1, east)  #linked to script 'crash'
   test wait for key(use key, key:enter)
+  wait
+  assert(npc direction(npcref) == east)
+  $message 2="Hit USE key (any)"
+  test wait for key(use key, use key)
   wait
   assert(npc direction(npcref) == east)
   destroy npc(npcref)
@@ -160,6 +170,9 @@ script, suspend and wait tests, begin
   assert(top menu == 0)
   $message 2="Hit ALT"
   test wait for key(menu key, key:alt)
+  assert(top menu == 0)
+  $message 2="Hit MENU key (any)"
+  test wait for key(menu key, menu key)
   assert(top menu == 0)
 
   # Textbox advance not suspended
@@ -174,6 +187,10 @@ script, suspend and wait tests, begin
   $message 2="Hit SPACE"
   show text box(2)
   test wait for key(use key, key:space)
+  assert(current textbox == -1)
+  $message 2="Hit USE key (any)"
+  show text box(2)
+  test wait for key(use key, use key)
   assert(current textbox == -1)
 
   $message 1="Testing suspendboxadvance"
