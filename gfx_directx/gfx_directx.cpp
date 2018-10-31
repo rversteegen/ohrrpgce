@@ -2,7 +2,7 @@
 
 #include "../config.h"
 #include "../gfx.h"
-#include "debugmsg.hpp"
+#include "gfx_directx.hpp"
 #include "window.hpp"
 #include "d3d.hpp"
 #include "keyboard.hpp"
@@ -47,7 +47,14 @@ struct gfx_BackendState
 	BOOL bDisableSysMsg;
 } g_State;
 
-void DefaultDebugMsg(ErrorLevel errlvl, const char* szMessage) {
+
+int postevent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0)
+{
+	return g_State.PostEvent(event, arg1, arg2);
+}
+
+void DefaultDebugMsg(ErrorLevel errlvl, const char* szMessage)
+{
 	//MessageBoxA(NULL, szMessage, "Debug Message", MB_OK);
 }
 
@@ -534,7 +541,7 @@ DFI_IMPLEMENT_CDECL(void, gfx_PresentOld, unsigned char *pSurface, int nWidth, i
 		g_DirectX.present(pSurface, nWidth, nHeight, NULL);
 }
 
-DFI_IMPLEMENT_CDECL(int, gfx_ScreenShot, const char *szFileName)
+DFI_IMPLEMENT_CDECL(int, gfx_ScreenShot, const char *szFileName)
 {
 	if(!g_DirectX.isScreenShotsActive())
 		return FALSE;
@@ -619,9 +626,9 @@ DFI_IMPLEMENT_CDECL(void, gfx_GetWindowState, int nID, WindowState *pState)
 		SIZE sz = g_Window.getClientSize();
 		pState->windowsize.w = sz.cx;
 		pState->windowsize.h = sz.cy;
-        }
-        if (pState->structsize >= 8)
-        {
+	}
+	if (pState->structsize >= 8)
+	{
 		SIZE res = g_DirectX.getResolution();
 		pState->zoom = min(res.cx / 320, res.cy / 200);
 	}

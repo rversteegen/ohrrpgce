@@ -1,5 +1,5 @@
 #define DFI_UNIQUE
-#include "debugmsg.hpp"
+#include "gfx_directx.hpp"
 #include "d3d.hpp"
 using namespace gfx;
 

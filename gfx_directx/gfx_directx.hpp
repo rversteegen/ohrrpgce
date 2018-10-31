@@ -1,5 +1,7 @@
 #pragma once
 
+//// Debug messages and errors
+
 #include <winerror.h>
 #include "../errorlevel.h"
 
@@ -17,4 +19,14 @@ namespace gfx
 {
     const char *LastErrorString();
     const char *HRESULTString(HRESULT hresult);
+}
+
+
+//// Events
+
+#include "../gfx.h"  // For EventEnum
+
+namespace gfx
+{
+    int postevent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0);
 }

@@ -1,6 +1,6 @@
 #include <string>
 #include "joystick.hpp"
-#include "debugmsg.hpp"
+#include "gfx_directx.hpp"
 #include "ohrstring.hpp"
 
 #pragma comment (lib, "dxguid.lib")

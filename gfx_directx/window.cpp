@@ -1,5 +1,5 @@
 #include "window.hpp"
-#include "debugmsg.hpp"
+#include "gfx_directx.hpp"
 using namespace gfx;
 
 /* Window is largely subservient to the D3D class, which also
