@@ -1792,13 +1792,11 @@ END FUNCTION
 'Otherwise: number of enemies left
 FUNCTION targenemycount (bslot() as BattleSprite, byval for_alone_ai as bool = NO) as integer
  DIM count as integer = 0
- DIM ignore as bool = NO
  FOR i as integer = 4 TO 11
-  IF for_alone_ai THEN
-   ignore = bslot(i).ignore_for_alone
-  END IF
-  IF bslot(i).stat.cur.hp > 0 AND bslot(i).vis AND ignore = NO THEN
-   count = count + 1
+  IF for_alone_ai ANDALSO bslot(i).ignore_for_alone THEN
+   CONTINUE FOR
+  ELSEIF bslot(i).stat.cur.hp > 0 ANDALSO bslot(i).vis THEN
+   count += 1
   END IF
  NEXT i
  RETURN count

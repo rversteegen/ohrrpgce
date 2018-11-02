@@ -11,6 +11,7 @@
 #INCLUDE "battle_udts.bi"
 
 ENUM EnemyAIEnum
+ aiNone = -1
  aiNormal = 0
  aiWeak = 1
  aiAlone = 2
