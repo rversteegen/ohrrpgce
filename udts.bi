@@ -242,7 +242,7 @@ TYPE NPCTypeID as integer
 TYPE NPCIndex as integer
 
 'Warning: when editing NPCType, update Get/SetNPCD,
-'readnpc, alternpc, plotscr.hsd constants, and plotdict.xml
+'readnpc, alternpc, plotscr.hsd constants, and plotdict.xml (TODO)
 'Note that instances of this type are copied in edit_npc (w/ default copy constructor)
 TYPE NPCType
   picture as integer     '+0
@@ -264,6 +264,7 @@ TYPE NPCType
   defaultwallzone as integer '+16
   ignore_passmap as integer '+17  (0 or 1) Can walk through walls (but not zones or map edges)
   pathfinding_obstruction_mode as PathfindingObstructionMode '+18 (only matters if .movetype=15)
+  name as string
 END TYPE
 
 ENUM NPCOverrideMove

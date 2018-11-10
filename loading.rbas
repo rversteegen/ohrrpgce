@@ -86,10 +86,16 @@ SUB LoadNPCD(file as string, dat() as NPCType)
 
   FOR i = 0 TO arraylen - 1
     loadrecord buf(), f, recordlen
-    FOR j = 0 TO recordlen - 1
+    FOR j = 0 TO small(19, recordlen - 1)
       SetNPCD(dat(i), j, buf(j))
     NEXT
     IF dat(i).speed = 3 THEN dat(i).speed = 10
+
+    IF recordlen >= 32 THEN
+      dat(i).name = readbinstring(buf(), 19, 24)  '19-31 is a VSTR(1i+24b=13i)
+    END IF
+'|-
+'|19-31||VSTR(1i+24b=13i)
   NEXT
 
   CLOSE #f
@@ -143,6 +149,7 @@ SUB SetNPCD (npcdata as NPCType, intoffset as integer, value as integer)
    CASE 16: .defaultwallzone = value
    CASE 17: .ignore_passmap = value
    CASE 18: .pathfinding_obstruction_mode = value
+   'Can not be used to set .name
    CASE ELSE
     showbug "SetNPCD: " & intoffset & " is an invalid integer offset"
   END SELECT
@@ -172,6 +179,7 @@ FUNCTION GetNPCD (npcdata as NPCType, intoffset as integer) as integer
    CASE 16: RETURN .defaultwallzone
    CASE 17: RETURN .ignore_passmap
    CASE 18: RETURN .pathfinding_obstruction_mode
+   'Can not be used to read .name
    CASE ELSE
     showbug "GetNPCD: " & intoffset & " is an invalid integer offset"
   END SELECT

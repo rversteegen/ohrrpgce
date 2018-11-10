@@ -705,6 +705,8 @@ define function, begin
 679,joystickbuttoncount,1,0   # Number of buttons a joystick has (might be 0 if not known) (joynum)
 680,joystickaxiscount,1,0     # Number of axes a joystick has (joynum)
 681,joystickhatcount,1,0      # Number of hats (eg dpads) a joystick has (joynum)
+682,getnpcname,2,0,0          # Fetch name of an npc definition (string id, NPC ID/reference)
+683,setnpcname,2,0,0          # Set name of an npc definition (string id, NPC ID/reference)
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end

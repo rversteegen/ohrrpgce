@@ -152,6 +152,15 @@ FUNCTION standard_embed_codes(act as string, byval arg as integer) as string
    IF where >= 0 AND where <= 3 THEN
     insert = gam.hero(where).name
    END IF
+  CASE "NPC": '--Name of NPC currently in conversation with (if any)
+   '--defaults blank if no NPC
+   insert = ""
+   IF txt.sayer > -1 THEN
+    insert = npcs(npc(txt.sayer).id).name
+    '--An underscore in the name is used to hide part of it from embedding
+    DIM where as integer = INSTR(insert, "_")
+    IF where THEN insert = LEFT(insert, where - 1)
+   END IF
   CASE "V": '--global variable by ID
    '--defaults blank if out-of-range
    insert = ""
@@ -3612,13 +3621,17 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 120'--NPC reference
   scriptret = 0
-  IF retvals(0) >= 0 AND retvals(0) <= UBOUND(npcs) THEN
+  DIM wantid as integer = retvals(0)
+  IF wantid <= FIRST_NAMED_NPC THEN
+   wantid = find_npctype_by_name(wantid)
+  END IF
+  IF wantid >= 0 AND wantid <= UBOUND(npcs) THEN
    DIM find_disabled as bool = get_optional_arg(2, 0) <> 0
    DIM found as integer = 0
    FOR i as integer = 0 TO UBOUND(npc)
     DIM id as integer = npc(i).id
     IF find_disabled THEN id = ABS(id)
-    IF id - 1 = retvals(0) THEN
+    IF id - 1 = wantid THEN
      IF found = retvals(1) THEN
       scriptret = (i + 1) * -1
       EXIT FOR
@@ -4674,6 +4687,11 @@ SUB script_functions(byval cmdid as integer)
     scriptret = info->num_hats
    END IF
   END IF
+ CASE 682 '--get npc name (string, npc)
+  IF valid_plotstr(retvals(0), serrBadOp) ANDALSO reallyvalid THEN
+   plotstr(retvals(0)).s = npc()
+  END IF
+ CASE 682 '--get npc name (string, npc)
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
@@ -4722,13 +4740,35 @@ END FUNCTION
 
 
 '==========================================================================================
-'                                      NPC references
+'                            NPC references, IDs and name lookup
 '==========================================================================================
 
+
+FUNCTION lookup_nameid(nameid as integer) as string
+ 
+END FUNCTION
+
+'Returns the ID of the first matching NPC type, or -1 if not found
+FUNCTION find_npctype_by_name(name as string) as integer
+ FOR idx as integer = 0 TO UBOUND(npcs)
+  IF npcs(idx).name = name THEN RETURN idx
+ NEXT
+ RETURN -1
+END FUNCTION
+
+'Returns the ID of the first matching NPC type, or -1 if not found
+FUNCTION find_npctype_by_name(nameid as integer) as integer
+ RETURN find_npctype_by_name(lookup_nameid(nameid))
+END FUNCTION
 
 'Implementation of "npc reference".
 'Deprecated; Use get_valid_npc for all new NPC commands
 FUNCTION getnpcref (byval seekid as NPCScriptref, byval copynum as integer) as NPCIndex
+ IF seekid <= FIRST_NAMED_NPC THEN
+  seekid = find_npctype_by_name(seekid)
+  IF seekid = -1 THEN RETURN -1
+ END IF
+
  SELECT CASE seekid
  CASE -300 TO -1'--direct reference
   RETURN (seekid + 1) * -1
@@ -4749,11 +4789,35 @@ FUNCTION getnpcref (byval seekid as NPCScriptref, byval copynum as integer) as N
  RETURN -1
 END FUNCTION
 
+FUNCTION valid_nameid(nameid as integer) as bool
+ IF nameid < FIRST_NAMED_NPC - UBOUND(name_table) ORELSE nameid > FIRST_NAMED_NPC THEN
+  scripterr current_command_name() & ": invalid npc reference " & nameid & " (maybe the NPC was deleted?)", serrBadOp
+  RETURN NO
+ END IF
+ RETURN YES
+END FUNCTION
+
+'Returns NO if it's invalid and an error has been thrown
+FUNCTION convert_to_npc_id_or_ref(byref seekid as integer) as bool
+ IF seekid <= FIRST_NAMED_NPC THEN
+  IF valid_nameid(seekid) = NO THEN RETURN NO
+  DIM name as string = lookup_nameid(seekid)
+  seekid = find_npctype_by_name(name)
+  IF seekid = -1 THEN
+   'Doesn't exist on this map. Not an error - the script command needs to decide whether
+   RETURN NO
+  END IF
+ END IF
+ RETURN YES
+END FUNCTION
+
 'Replacement for getnpcref.
-'Given NPC ref or NPC ID, return npc() index, or throw a scripterr and return -1
+'Given NPC ref or NPC ID, return npc() (NPCInst) index, or throw a scripterr and return -1
 'Note this is stricter than getnpcref: invalid npc refs are not alright!
 'References to Hidden/Disabled NPCs are alright.
 FUNCTION get_valid_npc (byval seekid as NPCScriptref, byval errlvl as scriptErrEnum = serrBadOp) as NPCIndex
+ IF convert_to_npc_id_or_ref(seekid) = NO THEN RETURN -1
+
  IF seekid < 0 THEN
   DIM npcidx as NPCIndex = (seekid + 1) * -1
   IF npcidx > UBOUND(npc) ORELSE npc(npcidx).id = 0 THEN
@@ -4773,6 +4837,8 @@ END FUNCTION
 'Given NPC ref or NPC ID, return an NPC ID, or throw a scripterr and return -1
 'References to Hidden/Disabled NPCs are alright.
 FUNCTION get_valid_npc_id (byval seekid as NPCScriptref, byval errlvl as scriptErrEnum = serrBadOp) as NPCTypeID
+ IF convert_to_npc_id_or_ref(seekid) = NO THEN RETURN -1
+
  IF seekid >= 0 THEN
   IF seekid > UBOUND(npcs) THEN
    scripterr current_command_name() & ": invalid NPC ID " & seekid, errlvl

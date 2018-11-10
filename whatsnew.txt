@@ -80,6 +80,9 @@ September 29 2018 [Fufluns]
     * Added fuzzy rect slice settings: fuzzy zoom, stationary pattern [Ralph]
     * Much nicer interactive stat preview graph in the Hero Stats menu [Ralph]
     * New F8 debug option "Show/test any battle formation" [Ralph]
+    * You can name NPCs, embed their names in textboxes with ${NPC} (hides any
+      _... suffix on the name, eg "Bob_2"), see names in the map editor, and
+      refer to them by name in scripts. [Ralph]
 
   * New Plotscripting Features
     * "save screenshot" [Ralph]
@@ -123,6 +126,8 @@ September 29 2018 [Fufluns]
       with joy: key constants), like "key is pressed" did [Ralph]
     * "get joystick name", "joystick button count", "joystick axis count",
       "joystick hat count" [Ralph]
+    * npc: constants (e.g. npc:savepoint) can be used to refer to an NPC/NPC ID
+      by name, even if the ID varies by map. Also, "get/set npc name" [Ralph]
 
   * Changes
     * "Previous attack" base ATK stat renamed to "Last damage by attacker"
