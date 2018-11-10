@@ -694,6 +694,7 @@ SUB battle_attack_anim_cleanup (byref attack as AttackData, byref bat as BattleS
  
  '--spawn the next after-chained attack (if any)
  IF spawn_chained_attack(attack.chain, NO, attack, bat, bslot()) = NO THEN
+  cause()
   spawn_chained_attack(attack.elsechain, NO, attack, bat, bslot())
  END IF
 
@@ -2528,24 +2529,29 @@ FUNCTION enemy_is_weak(byval who as integer, bslot() as BattleSprite) as bool
 END FUNCTION
 
 SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as Formation)
+ CausalContext("Pick enemy attack and spawn-when-alone", bslotname(bat.enemy_turn))
+ DIM ef as CauseNode ptr
 
  DIM as bool isweak, isalone
 
  'if HP is less than the threshold, go into desperation mode
- IF enemy_is_weak(bat.enemy_turn, bslot()) THEN isweak = YES
+ IF enemy_is_weak(bat.enemy_turn, bslot()) THEN isweak = YES : effect(IsWeak(bat.enemy_turn))
 
  'Go into alone mode if no other enemies without "Ignored for "Alone" AI" bitset
- IF targenemycount(bslot(), YES) <= 1 THEN isalone = YES
+ IF targenemycount(bslot(), YES) <= 1 THEN isalone = YES : effect(IsAlone(bat.enemy_turn))
 
  'spawn allies when alone
  WITH bslot(bat.enemy_turn)
   IF isalone ANDALSO .enemy.spawn.when_alone > 0 THEN
    FOR j as integer = 1 TO .enemy.spawn.how_many
+    ef = effect(SpawnEnemy(.enemy.spawn.when_alone - 1), IsAlone(bat.enemy_turn))
     DIM slot as integer
     slot = find_empty_enemy_slot(formdata)
     IF slot > -1 THEN
      formdata.slots(slot).id = .enemy.spawn.when_alone - 1
      loadfoe slot, formdata, bat, bslot()
+    ELSE
+     cause(Failed(ef), "No empty slot")
     END IF
    NEXT j
   END IF
@@ -2559,7 +2565,11 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
 
  #macro try_ai(condition, ailist)
   IF ai = aiNone ANDALSO condition THEN
-   IF count_attacks_in_ai_list(ailist, bat.enemy_turn, bslot()) > 0 THEN ai = ailist
+   IF count_attacks_in_ai_list(ailist, bat.enemy_turn, bslot()) > 0 THEN
+    ai = ailist
+   ELSE
+    cause(SkipAIList(bat.enemy_turn, ailist), NoValidAttacks())
+   END IF
   END IF
  #endmacro
 
@@ -2569,6 +2579,7 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
 
  'if no valid ai set is available, the enemy loses its turn
  IF ai = aiNone THEN
+  cause(LostTurn(bat.enemy), NoValidAttacks())
   bat.enemy_turn = -1
   EXIT SUB
  END IF
@@ -2591,6 +2602,7 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
 
    IF atkallowed(atk, bat.enemy_turn, 0, 0, bslot()) THEN
     'this attack is good, continue on to target selection
+    effect(PickedAttack(atk_id))
     EXIT DO
    ELSE
     'this attack is unusable
@@ -2600,6 +2612,8 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
      IF bslot(bat.enemy_turn).mp_idiot = YES THEN
        bslot(bat.enemy_turn).ready = NO
        bslot(bat.enemy_turn).ready_meter = 0
+       cause(LostTurn(bat.enemy), PickedAttack(atk_id, atk.name), _
+             HasStat(bat.enemy, statMP), BslotHasBit(bat.enemy, "MP Idiot"))
        bat.enemy_turn = -1
        EXIT SUB
      END IF
@@ -2649,6 +2663,7 @@ SUB heromenu (byref bat as BattleState, bslot() as BattleSprite, st() as herodef
   IF .stat.cur.stun < .stat.max.stun THEN
    'Normally a hero cannot get a turn when stunned, but this extra check is needed
    'for the race condition that happens when a hero gets stunned while it is their tirn in turnACTIVE mode
+   cause(LostTurn(bat.hero_turn), HasStat(bat.hero_turn, statStun))
    bat.next_hero = bat.hero_turn
    bat.hero_turn = -1
    EXIT SUB
@@ -2683,6 +2698,7 @@ SUB heromenu (byref bat as BattleState, bslot() as BattleSprite, st() as herodef
   IF do_close THEN
    '--skip turn
    'debug "Requested to cancel picking attacks"
+   cause(LostTurn(bat.hero_turn), UserCancelled())
    bat.next_hero = bat.hero_turn
    bat.hero_turn = -1
    IF bat.turn.mode = turnTURN THEN
@@ -3718,17 +3734,22 @@ SUB setup_targetting (byref bat as BattleState, bslot() as BattleSprite)
  bat.targ.mode = targMANUAL
 END SUB
 
-FUNCTION valid_statnum(byval statnum as integer, context as string) as bool
+FUNCTION valid_statnum(byval statnum as integer, context as zstring ptr) as bool
  RETURN bound_arg(statnum, 0, 15, "stat number", context, serrError)
 END FUNCTION
 
 FUNCTION check_attack_chain(byref ch as AttackDataChain, byref bat as BattleState, bslot() as BattleSprite) as bool
  'Returns YES if the chain may proceed, or NO if it fails
- 
- IF randint(100) >= ch.rate THEN RETURN NO '--random percentage failed
+
+ CausalContext(AttackChain(ch))
+
+ IF randint(100) >= ch.rate THEN failure(RandomChance(ch.rate)) : RETURN NO '--random percentage failed
  
  IF ch.must_know = YES THEN
-  IF knows_attack(bat.acting, ch.atk_id - 1, bslot()) = NO THEN RETURN NO
+  IF knows_attack(bat.acting, ch.atk_id - 1, bslot()) = NO THEN
+   failure(False(KnowsAttack(bat.acting, ch.atk_id - 1)), HasBit(AttackChain(ch), "Must know attack"))
+   RETURN NO
+  END IF
  END IF
  
  DIM targ as integer
@@ -3944,23 +3965,33 @@ FUNCTION check_attack_chain(byref ch as AttackDataChain, byref bat as BattleStat
   CASE ELSE
    debug "attack chain mode " & ch.mode & " unsupported"
  END SELECT
- RETURN ret XOR ch.invert_condition
+ ret XOR= ch.invert_condition
+ IF ch.invert_condition THEN effect(HasBit(SUBJ, "Invert condition"))
+ IF ret = NO THEN failure()
+ RETURN ret
 END FUNCTION
 
 'Try to spawn a chained attack. The new attack might either immediately become the
 'active attack (bat.atk.id), or be put on atkq.
 FUNCTION spawn_chained_attack(byref ch as AttackDataChain, instead_chain as bool, byref attack as AttackData, byref bat as battlestate, bslot() as BattleSprite) as bool
  IF ch.atk_id <= 0 THEN RETURN NO '--no chain defined
- IF bslot(bat.acting).stat.cur.hp <= 0 THEN RETURN NO '--attacker is dead
+
+ CausalContext("Consider attack chain", attack, AttackChain(ch))
+
+ IF bslot(bat.acting).stat.cur.hp <= 0 THEN failure(HasStat(bat.acting, statHP)) : RETURN NO '--attacker is dead
  IF instead_chain = NO ANDALSO attack.no_chain_on_failure = YES ANDALSO bslot(bat.acting).attack_succeeded = NO THEN
   'attack failed, and this chain configured to fail too
   '(.attack_succeeded is garbage for Instead chains)
+  Failure(AtkHasBit(attack, "No chain on failure"), "Attack failed")
   RETURN NO
  END IF
-  
+
  IF check_attack_chain(ch, bat, bslot()) THEN
   '--The conditions for this chain are passed
-  
+
+  success()
+  begin_effects()
+
   bat.wait_frames = 0
   bat.anim_ready = NO
   

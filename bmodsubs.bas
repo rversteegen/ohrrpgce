@@ -1791,10 +1791,11 @@ END FUNCTION
 'If for_alone_ai=YES: number of enemies left, for purpose of Alone AI
 'Otherwise: number of enemies left
 FUNCTION targenemycount (bslot() as BattleSprite, byval for_alone_ai as bool = NO) as integer
+ CausalContext("Count enemies")
  DIM count as integer = 0
  FOR i as integer = 4 TO 11
   IF for_alone_ai ANDALSO bslot(i).ignore_for_alone THEN
-   CONTINUE FOR
+   cause(IgnoreBslot(i), BslotHasBit(i, "Ignore for alone"))
   ELSEIF bslot(i).stat.cur.hp > 0 ANDALSO bslot(i).vis THEN
    count += 1
   END IF
