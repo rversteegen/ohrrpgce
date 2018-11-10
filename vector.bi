@@ -61,6 +61,12 @@ extern "C"
 'depends on the overload. Therefore, we wrap it.
 declare sub array_new (byref this as any vector, byval length as int32, byval reserve as int32, byval tbl as TypeTable ptr)
 
+' Returns a vector built from its list of arguments until
+' finding 'stop' as an argument (not added to the array).
+'This also requires a TypeTable
+'Should work for any type T with sizeof(T) == sizeof(void*)
+declare function v_of_ptrs alias "array_of_ptrs" (byval tbl as TypeTable ptr, byval stop as any ptr) as any ptr vector
+
 'Undocumented, if you need this, you're probably doing something wrong
 declare function array_is_temp (byval this as any vector) as boolint
 

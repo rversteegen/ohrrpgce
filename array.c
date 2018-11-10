@@ -215,21 +215,6 @@ static array_t mem_resize(array_t array, unsigned int len) {
 	return get_array_ptr(newmem);
 }
 
-
-
-
-/*
-array_t array_create_temp(struct typetable *typetbl, int len, ...) {
-	va_list va;
-	va_start(va, len);
-	array_t array = mem_alloc(typetbl, len, len);
-	FnCopy copier = typetbl->copy;
-	//FIXME
-	va_end(va);
-	return array;
-}
-*/
-
 /*
 void resize_and_init() {
 
@@ -697,6 +682,39 @@ array_t array_reverse(array_t *array) {
 
 	mem_free(*array);
 	return *array = newmem;
+}
+
+// Returns an array built from its list of arguments until
+// finding 'stop' as an argument (not added to the array).
+// Should work for any type T with sizeof(T) == sizeof(void*)
+array_t *array_of_ptrs (typetable *tbl, void *stop, ...) {
+	if (tbl->element_len != sizeof(void*))
+		throw_error("array_of_ptrs: typetable is not a ptr type");
+
+	int alloclen = 6;   // Reserve 6 places
+	array_t ret = mem_alloc(tbl, 0, alloclen);
+	//get_header(ret)->temp = 1;
+
+	va_list vl;
+	va_start(vl, stop);
+
+	int idx = 0;
+	void **slot = nth_elem(ret, 0);
+	for (;;) {
+		void *elmt = va_arg(vl, void*);
+		if (elmt == stop) break;
+		// For efficiency we don't use array_append
+		*slot = elmt;
+		idx++;
+		if (idx == alloclen) {
+			// Grow the array
+			slot = array_expand(ret, 1);
+			alloclen = get_header(ret)->allocated;
+		}
+	}
+	va_end(vl);
+
+	return ret;
 }
 
 /****************************** Priority Queue *******************************/
