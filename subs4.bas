@@ -744,6 +744,7 @@ SUB generate_battlesystem_menu(menu() as string, enabled() as bool, greyout() as
  menu(23) = "Damage Display Time: " & gen(genDamageDisplayTicks) & " ticks (" & seconds_estimate(gen(genDamageDisplayTicks)) & " sec)"
  menu(24) = "Damage Display Rises: " & gen(genDamageDisplayRise) & " pixels"
  menu(25) = "Rewards Display: " & IIF(gen(genSkipBattleRewardsTicks) = 0, "Wait for keypress", gen(genSkipBattleRewardsTicks) & " ticks (" & seconds_estimate(gen(genSkipBattleRewardsTicks)) & " secs)")
+ menu(26) = "Captions Display: " & IIF(gen(genSkipBattleRewardsTicks) = 0, "Wait for keypress", gen(genSkipBattleRewardsTicks) & " ticks (" & seconds_estimate(gen(genSkipBattleRewardsTicks)) & " secs)")
 
  enabled(26) = NO
  menu(27) = " Other Defaults"

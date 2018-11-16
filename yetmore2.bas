@@ -187,7 +187,7 @@ SUB showplotstrings
      printstr .s, .x, .y, dpage
     ELSE
      '-- with outline
-     edgeprint .s, .x, .y, col, dpage
+     edgeprint .s, .x, .y, col, dpage, , YES  'withnewlines = YES
     END IF
    END IF
   END WITH

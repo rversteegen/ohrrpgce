@@ -666,9 +666,8 @@ END SUB
 
 SUB battle_attack_anim_cleanup (byref attack as AttackData, byref bat as BattleState, bslot() as BattleSprite, formdata as Formation)
  
- '--hide the caption when the animation is done
+ '--hide the caption when the animation is done if set to "Full duration of attack"
  IF attack.caption_time = 0 THEN
-  '--clear duration-timed caption
   bat.caption_time = 0
   bat.caption_delay = 0
  END IF

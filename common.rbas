@@ -1357,6 +1357,11 @@ SUB showerror (zmsg as zstring ptr, byval isfatal as bool = NO, isbug as bool = 
   msg = !"        --  OHRRPGCE BUG  --\n" + msg
  END IF
 
+ 'Pausing & resuming replay/recording if not replay/recording is a noop.
+ 'Errors might occur only during replay or recording, and anyway waitforanykey queries the real state.
+ pause_replaying_input
+ pause_recording_input
+
  'Reset palette (in case the error happened in a fade-to-black or due to
  'corrupt/missing palette or UI colours)
  REDIM default_palette(255) as RGBcolor
@@ -1398,6 +1403,9 @@ SUB showerror (zmsg as zstring ptr, byval isfatal as bool = NO, isbug as bool = 
   END IF
  #ENDIF
  setpal master()
+
+ resume_replaying_input
+ resume_recording_input
 
  entered = 0
 END SUB

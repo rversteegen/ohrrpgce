@@ -825,10 +825,13 @@ FUNCTION safemultiply (byval number as integer, byval by as single) as integer
  return result
 END FUNCTION
 
-SUB setbatcap (bat as BattleState, cap as string, byval captime as integer, byval capdelay as integer)
+'Show a caption.
+'Note: capdelay counts towards captime. Both are in ticks.
+'Default caption time is set in Battle System Options
+SUB setbatcap (bat as BattleState, cap as string, byval captime as integer = 0, byval capdelay as integer = 0)
  bat.caption = cap
  embedtext(bat.caption)
- bat.caption_time = captime
+ bat.caption_time = iif(captime = 0, gen(genBattleCaptionTicks), captime)
  bat.caption_delay = capdelay
 END SUB
 
@@ -944,17 +947,17 @@ FUNCTION trytheft (bat as BattleState, byval who as integer, byval targ as integ
        '--only one theft permitted
        .thievability = -1
       END IF
-      setbatcap bat, readglobalstring(117, "Stole", 30) + " " + readitemname(stole - 1), 40, 0
+      setbatcap bat, readglobalstring(117, "Stole", 30) + " " + readitemname(stole - 1)
       menusound gen(genStealSuccessSFX)
       RETURN YES '--success
      ELSE
       '--steal failed
-      setbatcap bat, readglobalstring(114, "Cannot Steal", 30), 40, 0
+      setbatcap bat, readglobalstring(114, "Cannot Steal", 30)
       menusound gen(genStealFailSFX)
      END IF
     ELSE
      '--has nothing to steal / steal disabled
-     setbatcap bat, readglobalstring(111, "Has Nothing", 30), 40, 0
+     setbatcap bat, readglobalstring(111, "Has Nothing", 30)
      menusound gen(genStealNoItemSFX)
     END IF
    END WITH

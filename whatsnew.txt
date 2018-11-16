@@ -130,6 +130,8 @@ September 29 2018 [Fufluns]
       of Labels renamed to "Disabled", and the "Close menu if selected" bit
       renamed to "Close menu when activated"
     * In-battle instant-run debug key moved from Ctrl-F4 to Ctrl-F5
+    * "Default passability disabled by default" preference bitset replaced
+      with a map editor setting
 
   * Bugfixes
     * Fix a major memory leak while recording .gifs [Ralph]

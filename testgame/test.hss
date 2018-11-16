@@ -111,7 +111,11 @@ script,map autorun,begin
   highval:=random(4,6)
   set hero palette(0,highval)
   set hero palette(0,highval,inside battle)
-  show value(highval)
+$5="ugh\nboo\taa!"
+
+  show string(5)
+  show string at(5, 30, 30)
+  show textbox(2)
 end
 
 #-----------------------------------------------------------------------
