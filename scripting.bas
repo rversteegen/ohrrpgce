@@ -1311,6 +1311,13 @@ FUNCTION script_string_constant(scriptinsts_slot as integer, offset as integer) 
  END WITH
 END FUNCTION
 
+'Returns an index in plotstr()
+FUNCTION intern_string (s as string) as integer
+ DIM ret as integer
+
+ RETURN ret
+END FUNCTION
+
 FUNCTION commandname (byval id as integer) as string
  'cmd_default_names array
 #include "scrcommands.bi"

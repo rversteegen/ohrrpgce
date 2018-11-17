@@ -705,6 +705,7 @@ define function, begin
 679,joystickbuttoncount,1,0   # Number of buttons a joystick has (might be 0 if not known) (joynum)
 680,joystickaxiscount,1,0     # Number of axes a joystick has (joynum)
 681,joystickhatcount,1,0      # Number of hats (eg dpads) a joystick has (joynum)
+682,internstringfromtable,1,0 # Internal function, $"..." compiles to this
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
@@ -1776,6 +1777,25 @@ end
 script, reparent to hero, hsd:sl, hsd:hero rank, begin
   set parent(hsd:sl, lookup slice(sl:walkabout sprite component, get hero slice(hsd:hero rank)))
 end
+
+# script, walk npc along, npc, stringid, begin
+#   subscript, try getarg, begin
+#     variable(j)
+#     while(j < last && asciifromstring(stringid, j) == 32) do (j += 1)
+#     if (i < last)
+#   end
+
+#   variable(i, len)
+#   i := 1
+#   last := stringlength(stringid)
+#   for(i, 1, last) do(
+#     switch(asciifromstring(stringid, i)) do(
+#       case(32)  #space
+#         do ()#skip
+#       case()  # U
+#         walk npc(npc,
+#   )
+# end
 
 #--------------------------------------------------------------------------
 # script triggers

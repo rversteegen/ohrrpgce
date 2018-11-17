@@ -312,7 +312,7 @@ CONST maxMapHistoryMem = 2000000 'In number of MapEditUndoTiles (8 bytes)
 CONST maxSpriteHistoryMem = 16000000  'Max size of sprite undo history, in bytes
 CONST maxScriptGlobals = 50000 'Actually the index of the last global  (also "maximum global id" in plotscr.hsd)
                                'If you update this, also update the default argument to exportglobals in plotscr.hsd
-CONST maxScriptStrings = 99 'ID of last plotstring  (also "maximum string id" in plotscr.hsd)
+CONST maxScriptString = 99 'ID of last plotstring  (also "maximum string id" in plotscr.hsd)
 CONST maxScriptHeap = 8192 'Maximum number of local variables in use by all running scripts
 CONST maxScriptRunning = 128 'Number of scripts which can run at once
 CONST maxScriptNesting = 4 'Maximum subscript nesting depth
@@ -322,7 +322,7 @@ CONST scriptTableSize = 512  'hash table size, power of 2 please
 CONST scriptCheckDelay = 1.1     'How long, in seconds, before the script interpreter becomes interruptable
 CONST scriptCheckInterval = 0.1  'How often, in seconds, that the script interpreter should perform checks
 
-CONST maxScriptCmdID = 681  'Max ID number of any supported script command (checked when loading game)
+CONST maxScriptCmdID = 682  'Max ID number of any supported script command (checked when loading game)
 
 '--- Binary files in BINSIZE.BIN for getbinsize()
 CONST binATTACK = 0

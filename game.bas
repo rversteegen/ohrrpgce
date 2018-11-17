@@ -190,7 +190,7 @@ DIM interruption_grace_period as integer
 DIM scripts_use_cc_scancodes as bool
 REDIM global(maxScriptGlobals) as integer
 DIM mainFibreGroup as ScriptFibre ptr vector
-REDIM plotstr(maxScriptStrings) as Plotstring
+REDIM plotstr(maxScriptString) as Plotstring
 DIM insideinterpreter as bool
 DIM timing_fibre as bool
 DIM scriptprofiling as bool
