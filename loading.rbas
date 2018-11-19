@@ -2776,6 +2776,10 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
   .music           = boxbuf(198) ' +1
   .sound_effect    = boxbuf(205) ' +1
   .line_sound      = boxbuf(206) ' +1, 0=default, -1=none
+  .fade_type       = boxbuf(211)
+  .fade_args(0)    = boxbuf(212)
+  .fade_args(1)    = boxbuf(213)
+  .fade_args(2)    = boxbuf(214)
   '--Get portrait data
   .portrait_type   = boxbuf(200)
   .portrait_id     = boxbuf(201)
@@ -2857,6 +2861,10 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
   boxbuf(198) = .music     ' +1
   boxbuf(205) = .sound_effect ' +1
   boxbuf(206) = .line_sound ' +1, 0=default, -1=none
+  boxbuf(211) = .fade_type
+  boxbuf(212) = .fade_args(0)
+  boxbuf(213) = .fade_args(1)
+  boxbuf(214) = .fade_args(2)
   '--Save portrait data
   boxbuf(200) = .portrait_type
   boxbuf(201) = .portrait_id

@@ -3362,6 +3362,9 @@ SUB loadsay (byval box_id as integer)
   txt.remember_music = presentsong
   stopsong
  END IF
+ 'If the text box doesn't play music, keep txt.remember_music unchanged,
+ 'a previous textbox in the chain might have saved it.
+ '(That doesn't seem quite right, but probably just best to leave it for backcompat)
 
  '--play a sound effect
  IF txt.box.sound_effect > 0 THEN
@@ -3375,7 +3378,11 @@ SUB loadsay (byval box_id as integer)
 
  txt.showing = YES
  txt.fully_shown = NO
- txt.show_lines = -1  'Set to -1 because it will be incremented before the textbox is drawn
+ IF txt.box.fade_type = tbfadeByLine THEN
+  txt.show_lines = -1  'Set to -1 because it will be incremented before the textbox is drawn
+ ELSEIF txt.box.fade_type = tbfadeInstant THEN
+  txt.fully_shown = YES
+ END IF
 
  '--Create a set of slices to display the text box
  init_text_box_slices txt
@@ -3400,9 +3407,10 @@ SUB advance_text_box ()
  END IF
  '---RESET MUSIC----
  IF txt.box.restore_music THEN
+  ' Restart the map ambient music
   IF gmap(1) > 0 THEN
    wrappedsong gmap(1) - 1
-  ELSEIF gmap(1) = 0 THEN
+  ELSEIF gmap(1) = 0 THEN  'Silence
    stopsong
   ELSE
    ' Map music is set to "same as previous map".

@@ -221,16 +221,19 @@ END TYPE
 
 'Note that .showing, .fully_shown, .sayer need to be always correct even if no box is up
 TYPE TextBoxState
-  id             as integer = -1 'ID Number of the current box or -1 for none
-  box            as TextBox 'Contains the data about the content of the textbox
-  showing        as bool
-  fully_shown    as bool    'All lines have been displayed, player is allowed to advance. False if no textbox
-  choicestate    as MenuState 'Choicebox menu control
-  remember_music as integer
-  show_lines     as integer 'Number of lines currently on display
-  sayer          as integer = -1 'The NPC reference who triggered this textbox as a positive number, or -1 for none
-  old_dir        as integer 'For NPCs that return to their previos direction after speaking
+  id             as integer = -1  'ID Number of the current box or -1 for none
+  box            as TextBox       'The textbox being displayed, or else garbage
+  showing        as bool          'There is a textbox being displayed. False if and only if id = -1.
+  fully_shown    as bool          'Fade-in has finished, player is allowed to advance. False if no textbox
+  choicestate    as MenuState     'Choicebox menu state
+  remember_music as integer       'Used only when "Restore Map Music" set, on a map with music
+                                  '"Same as previous Map" - Song number or -1 for silence to restore to.
+  sayer          as NPCIndex = -1 'The NPC who triggered this textbox (>= 0), or -1 for none
+  old_dir        as DirNum        'For NPCs that return to their previous direction after speaking
   sl             as Slice Ptr
+
+  '.fade_type = tbfadeByLine only:
+  show_lines     as integer       'Number of lines currently on display
 
   Declare Destructor()
 END TYPE

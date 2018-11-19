@@ -284,28 +284,42 @@ SUB doswap (byval s as integer, byval d as integer)
 END SUB
 
 SUB update_textbox ()
-STATIC tog as integer
-tog = tog XOR 1
+ ' STATIC tog as integer
+ ' tog = tog XOR 1
 
-'On the first tick, show_lines is -1
-IF txt.fully_shown = NO THEN
- txt.show_lines += 1
- '--play sounds for non-blank lines
- IF TRIM(txt.box.text(txt.show_lines)) <> "" THEN
-  IF txt.box.line_sound > 0 THEN
-   ' Don't subtract 1, since menusound takes sfx id + 1
-   menusound txt.box.line_sound
-  ELSEIF txt.box.line_sound = 0 THEN
-   ' Default
-   menusound gen(genTextboxLine)
-  ELSEIF txt.box.line_sound < 0 THEN
-   ' Silence
-  END IF
+ DIM line_sound as integer
+ IF txt.box.line_sound > 0 THEN
+  ' Don't subtract 1, since menusound takes sfx id + 1
+  line_sound = txt.box.line_sound
+ ELSEIF txt.box.line_sound = 0 THEN
+  ' Default
+  line_sound = gen(genTextboxLine)
+ ELSEIF txt.box.line_sound < 0 THEN
+  ' Silence
+  line_sound = -1
  END IF
- '--note when the display of lines is done
- IF txt.show_lines >= UBOUND(txt.box.text) THEN
-  txt.fully_shown = YES
+
+ IF txt.fully_shown = NO THEN
+  SELECT CASE txt.box.fade_type
+   CASE tbfadeByLine
+    'On the first tick, show_lines is -1
+    txt.show_lines += 1
+    '--play sounds for non-blank lines
+    IF TRIM(txt.box.text(txt.show_lines)) <> "" THEN
+     IF line_sound >= 0 THEN menusound line_sound
+    END IF
+    '--note when the display of lines is done
+    IF txt.show_lines >= UBOUND(txt.box.text) THEN
+     txt.fully_shown = YES
+    END IF
+
+   CASE tbfadeInstant
+    'Should never happen
+    txt.fully_shown = YES
+
+  END SELECT
  END IF
+
  '--update the slice to show the right number of lines
  DIM text_sl As Slice Ptr
  text_sl = LookupSlice(SL_TEXTBOX_TEXT, txt.sl)
@@ -319,23 +333,23 @@ IF txt.fully_shown = NO THEN
    END IF
   END IF
  END IF
-END IF
 
-IF txt.box.choice_enabled THEN
- '--Make the selected choice flash
- DIM choice_sl(1) as Slice Ptr
- choice_sl(0) = LookupSlice(SL_TEXTBOX_CHOICE0, SliceTable.Root)
- choice_sl(1) = LookupSlice(SL_TEXTBOX_CHOICE1, SliceTable.Root)
- DIM col as integer
- IF choice_sl(0) <> 0 AND choice_sl(1) <> 0 THEN
-  FOR i as integer = 0 TO 1
-   col = uilook(uiMenuItem)
-   IF txt.choicestate.hover = i THEN col = uilook(uiMouseHoverItem)
-   IF txt.choicestate.pt = i THEN col = uilook(uiSelectedItem + tog)
-   ChangeTextSlice choice_sl(i), ,col
-  NEXT i
+ IF txt.box.choice_enabled THEN
+  '--Make the selected choice flash
+  DIM choice_sl(1) as Slice Ptr
+  choice_sl(0) = LookupSlice(SL_TEXTBOX_CHOICE0, SliceTable.Root)
+  choice_sl(1) = LookupSlice(SL_TEXTBOX_CHOICE1, SliceTable.Root)
+  DIM col as integer
+  IF choice_sl(0) <> 0 AND choice_sl(1) <> 0 THEN
+   FOR i as integer = 0 TO 1
+    col = menu_item_color(txt.choicestate, i)
+    ' col = uilook(uiMenuItem)
+    ' IF txt.choicestate.hover = i THEN col = uilook(uiMouseHoverItem)
+    ' IF txt.choicestate.pt = i THEN col = uilook(uiSelectedItem + tog)
+    ChangeTextSlice choice_sl(i), ,col
+   NEXT i
+  END IF
  END IF
-END IF
 END SUB
 
 SUB choicebox_controls()

@@ -957,6 +957,11 @@ TYPE HeroFormation
   slots(3) as FormationSlot
 END TYPE
 
+ENUM TextboxFadeType
+  tbfadeByLine = 0   'The default
+  tbfadeInstant = 1
+END ENUM
+
 TYPE TextBox
   text(7) as string
 
@@ -1003,6 +1008,8 @@ TYPE TextBox
   boxstyle    as integer
   backdrop    as integer     ' +1
   backdrop_trans as bool
+  fade_type   as TextboxFadeType
+  fade_args(2) as integer
 
   portrait_box  as integer
   portrait_type as integer

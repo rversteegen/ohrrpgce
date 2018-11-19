@@ -970,6 +970,10 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
  music_stop
 END SUB
 
+CONST TextboxFadeTypeNames(...) as zstring ptr = {@"By line", @"Instant"}
+CONST TextboxFadeArgNames(..., 2) as zstring ptr = {{@"Ticks per line", 0}, {0}}
+
+
 ' Append a menu item; first argument is menu item type
 PRIVATE SUB menuitem(itemdata as integer, byref menu as SimpleMenuItem vector, caption as zstring ptr, unselectable as bool = NO, col as integer = 0)
  IF itemdata = -1 THEN unselectable = YES : col = uilook(eduiHeading)
@@ -991,6 +995,11 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
   menuitem 4, menu, "Box Style: " & box.boxstyle
   menuitem 2, menu, "Shrink: " & IIF(box.shrink = -1, "Auto", STR(box.shrink))
  END IF
+
+ menuitem -1, menu, ""
+ menuitem -1, menu, " Fade in"
+ menuitem 19, menu, "Animation: " & TextboxFadeTypeNames(box.fade_type)
+ FOR argn as integer = 0 TO 2
 
  menuitem -1, menu, ""
  menuitem -1, menu, " Backdrop"
@@ -1063,6 +1072,8 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
   menutemp = (box.line_sound - 1) & " " & getsfxname(box.line_sound - 1)
  END IF
  menuitem 17, menu, "Line Sound: " & menutemp
+
+ 'Next unused .dat is 18
 
  load_text_box_portrait box, st.portrait
 END SUB
