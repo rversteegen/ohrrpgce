@@ -175,8 +175,44 @@ end
 
 #-----------------------------------------------------------------------
 
+script, dirX, dir, begin
+    switch (dir) do (
+    case (up, down) do (return (0))
+    case (right) do (return (1))
+    case (left) do (return (-1))
+    )
+end
+
+script, dirY, dir, begin
+    switch (dir) do (
+    case (left, right) do (return (0))
+    case (down) do (return (1))
+    case (up) do (return (-1))
+    )
+end
+
+plotscript, on key press, begin
+    if (player is suspended) then (exit script)
+
+    if (keypress(usekey)) then (
+        variable(x, y, door, map1, map2)
+        x := hero X + dirX(hero direction)
+        y := hero Y + dirY(hero direction)
+        door := door at spot(x, y)
+        if (door > -1) then (
+
+#             walk hero(me, hero direction, 0)
+map1:=currentmap
+            use door(door)
+map2:=currentmap
+tracevalue(map1,map2)
+        )
+    )
+end
+
 # onkeypress on 'nameless other map' and 'foolish wrapping map place'
 script,key trigger,begin
+on key press
   if (current map == map:foolish wrapping map place) then (
     if (key is pressed(key:plus)) then (set npc z(2, npc z(2) + 1))
     if (key is pressed(key:minus)) then (set npc z(2, npc z(2) -- 1))

@@ -3115,6 +3115,8 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  'Hero/caterpillar party and vehicle
  IF afterbat = NO AND gam.map.same = NO THEN
   forcedismount
+'fixme: fix z value
+'fixme: cancel pathing
  END IF
  IF afterbat = NO AND afterload = NO THEN
   resetcaterpillar

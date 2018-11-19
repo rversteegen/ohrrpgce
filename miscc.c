@@ -154,7 +154,7 @@ uint32_t stringhash(const unsigned char *strp, int length) {
 
 	//No need to be too thorough, will get rehashed if needed anyway
 	hash += ROT(hash, 2);
-	hash ^= ROT(hash, 27);
+	hash ^= ROT(hash, 27); // There are only 2^31 possible results of this step
 	hash += ROT(hash, 16);
 	return hash;
 }
