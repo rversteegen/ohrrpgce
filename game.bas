@@ -3744,18 +3744,22 @@ SUB init_text_box_slices(txt as TextBoxState)
    IF .Y > txt.sl->Height - (.Height + 4) THEN .Y = 32
   END WITH
   ChangeRectangleSlice choice_box, txt.box.boxstyle
-  REDIM choice_sl(1) as Slice Ptr
+
+  ClearMenuData txt.choicemenu
   FOR i as integer = 0 TO 1
-   choice_sl(i) = NewSliceOfType(slText, choice_box)
-   ChangeTextSlice choice_sl(i), txt.box.choice(i), uilook(uiMenuItem), YES
-   WITH *(choice_sl(i))
-    .AnchorHoriz = 1
-    .AlignHoriz = 1
-    .Y = 2 + i * 10
-   END WITH
+   append_menu_item txt.choicemenu, txt.box.choice(i), mtypeLabel
+  NEXT
+  menudef_to_slices txt.choicemenu, choice_box
+
+  'Set the lookup codes on the choicebox items, yuck
+  FOR i as integer = 0 TO 1
+   'Index by the true menu item slot, not the visible-sorted-to-top order in .items[]
+   DIM as MenuDefItem mi = dlist_nth(txt.choicemenu.itemlist, i)
+   IF mi THEN
+    DIM as Slice ptr sl = CAST(Slice ptr, mi->dataptr)
+    IF sl THEN sl->Lookup = SL_TEXTBOX_CHOICE0 - 1
+   END IF
   NEXT i
-  choice_sl(0)->Lookup = SL_TEXTBOX_CHOICE0
-  choice_sl(1)->Lookup = SL_TEXTBOX_CHOICE1
  END IF
 END SUB
 

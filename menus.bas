@@ -11,6 +11,7 @@
 #include "common.bi"
 #include "menus.bi"
 #include "loading.bi"
+#include "slices.bi"
 
 #IFDEF IS_GAME
  #include "scriptcommands.bi"
@@ -1531,9 +1532,9 @@ SUB draw_menu (menu as MenuDef, state as MenuState, byval page as integer)
 
     IF .visible THEN
      position_menu_item menu, .text, i, where
+
      IF .t = mtypeSpecial THEN
       ' Check for menu items with bars behind
-      DIM bar_width as integer = 0
       DIM metermax as integer
       metermax = small(state.rect.wide, 80)  'large(48, textwidth(.text))
       IF .sub_t = spMusicVolume OR .sub_t = spVolumeMenu THEN
@@ -1543,15 +1544,60 @@ SUB draw_menu (menu as MenuDef, state as MenuState, byval page as integer)
       ELSEIF .sub_t = spMargins THEN ' TV Safe Margin meter
        bar_width = get_safe_zone_margin() * metermax \ 10
       END IF
-      edgeboxstyle menu.rect.x + (menu.rect.wide - metermax) \ 2, where.y, bar_width, 10, menu.boxstyle, page, NO, YES
+      edgeboxstyle menu.rect.x + (menu.rect.wide - metermax) \ 2, where.y, bar_width, 10, menu.boxstyle, page, NO, YES  'fuzzy=NO, suppress_borders=YES
      END IF
      edgeprint .text, where.x, where.y, col, page, menu.withtags
     END IF
    END WITH
   END IF
  NEXT i
- 
 END SUB
+
+'Incomplete slice-based implementation of MenuDefs.
+'Only creates the menu item text slices - the caller
+SUB menudef_to_slices(menu as MenuDef, state as MenuState, parentsl as Slice ptr)
+ DIM boxsl as Slice Ptr
+ boxsl = NewSliceOfType(slRectangle, parentsl)
+ DIM scrollsl as Slice Ptr
+ scrollsl = NewSliceOfType(slScroll, boxsl)
+ DIM layoutsl as Slice Ptr
+ layoutsl = NewSliceOfType(slLayout, scrollsl)
+ WITH layoutsl->LayoutData
+  .primary_dir = dirDon
+
+
+
+ FOR idx as integer = 0 TO menu.numitems - 1
+  DIM sl as Slice ptr
+  sl = NewSliceOfType(slText, boxsl)
+
+  ChangeTextSlice sl, txt.box.choice(i), , YES  'outline=YES
+  WITH *sl
+   .AnchorHoriz = alignCenter
+   .AlignHoriz = alignCenter
+   .Y = 2 + i * 10
+  END WITH
+
+  NEXT i
+ NEXT
+
+ 'Set correct menu item colors
+ update_menudef_slices menu, state
+END SUB
+
+SUB update_menudef_slices(menu as MenuDef, state as MenuState)
+ FOR idx as integer = 0 TO menu.last
+  IF idx < menu.numitems THEN  'Double check
+   WITH *menu.items[idx]
+    DIM col as integer
+    col = menu_item_color(state, idx, .disabled, .unselectable, .col, .disabled_col, menu.textcolor, menu.disabled_textcolor)
+    DIM sl as Slice ptr = .dataptr
+    ChangeTextSlice sl, , col
+   END WITH
+  END IF
+ NEXT
+END SUB
+
 
 ' Calculate top-left corner of the text, placed in 'where'
 SUB position_menu_item (menu as MenuDef, cap as string, byval i as integer, byref where as XYPair)

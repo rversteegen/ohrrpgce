@@ -322,6 +322,10 @@ IF txt.fully_shown = NO THEN
 END IF
 
 IF txt.box.choice_enabled THEN
+ update_menudef_slices txt.choicemenu, txt.choicestate
+END IF
+/'
+IF txt.box.choice_enabled THEN
  '--Make the selected choice flash
  DIM choice_sl(1) as Slice Ptr
  choice_sl(0) = LookupSlice(SL_TEXTBOX_CHOICE0, SliceTable.Root)
@@ -336,6 +340,7 @@ IF txt.box.choice_enabled THEN
   NEXT i
  END IF
 END IF
+'/
 END SUB
 
 SUB choicebox_controls()

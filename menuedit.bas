@@ -59,9 +59,9 @@ DIM detail as MenuDef
 WITH detail
  .textalign = alignLeft
  .anchorhoriz = alignLeft
- .anchorvert = alignBottom
+ .anchorvert = alignTop
  .offset.x = -152
- .offset.y = 92
+' .offset.y = 92
  .min_chars = 36
 END WITH
 
