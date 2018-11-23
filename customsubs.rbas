@@ -186,8 +186,8 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
 
  DIM int_browsing as bool = NO
  DIM uninterrupted_alt_press as bool = NO
- DIM alt_pt as integer 
- 
+ DIM alt_pt as integer
+
  DIM do_search as bool = NO
  DIM search_cur_str as string
  DIM search_found as bool = NO
@@ -296,7 +296,7 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
     END IF
    END IF
    thisname = safe_tag_name(tagid[state.pt])
-   IF int_browsing = NO ANDALSO strgrabber(thisname, 20) THEN
+   IF int_browsing = NO ANDALSO strgrabber(thisname, 30) THEN
     uninterrupted_alt_press = NO
     save_tag_name thisname, tagid[state.pt]
     menu[state.pt].text = "Tag " & tagid[state.pt] & ":" & thisname
@@ -324,13 +324,11 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    tmpstr = "Alt:Tag #"
   END IF
   printstr tmpstr, pRight, 0, dpage
-  
+
   IF NOT int_browsing THEN
-   tmpstr = "CTRL+F Search"
-   printstr tmpstr, pRight, 10, dpage
+   printstr "CTRL+F Search", pRight, 10, dpage
    IF LEN(searchstring) > 0 THEN
-    tmpstr = "F3 Again"
-    printstr tmpstr, pRight, 20, dpage
+    printstr "F3 Again", pRight, 20, dpage
    END IF
   END IF
 

@@ -7,7 +7,7 @@
 'See README.txt for code docs and apologies for crappyness of this code ;)
 '
 
-CONST CURRENT_RPG_VERSION = 21
+CONST CURRENT_RPG_VERSION = 22
 ' It is a good idea to increment this number each time a major feature
 ' has been added, if opening a new game in an old editor would cause data-loss
 ' Don't be afraid to increment this. Backcompat warnings are a good thing!
@@ -34,6 +34,7 @@ CONST CURRENT_RPG_VERSION = 21
 ' 19 - beelzebufo replaced .DT0 with heroes.reld
 ' 20 - callipygous release. Added general.reld (including new version system) and maxScriptCmdID checking.
 ' 21 - fufluns replaced all .PT# and .MXS with .rgfx
+' 22 - fufluns made .TMN binsized
 
 CONST CURRENT_RGFX_VERSION = 1
 ' Version number embedded in each .rgfx file.
@@ -338,8 +339,9 @@ CONST binN = 9
 CONST binDT0 = 10
 CONST binDT1 = 11
 CONST binITM = 12
+CONST binTMN = 13
 
-CONST binLASTENTRY = 12 ' *** Update this when adding binsize records ***
+CONST binLASTENTRY = 13 ' *** Update this when adding binsize records ***
 
 Enum SpriteType
 	sprTypeInvalid = -2
