@@ -25,7 +25,7 @@ DECLARE SUB hero_swap_menu (byval reserve_too as bool)
 DECLARE SUB settag OVERLOAD (byval tagnum as integer, byval value as integer = 4444)
 DECLARE SUB settag OVERLOAD (tagbits() as integer, byval tagnum as integer, byval value as integer = 4444)
 DECLARE FUNCTION istag OVERLOAD (num as integer, zero as bool=NO) as bool
-DECLARE FUNCTION istag OVERLOAD (tagbits() as integer, num as integer, zero as bool=NO) as bool
+DECLARE FUNCTION istag OVERLOAD (tagbits() as integer, num as integer, zero as bool=NO, onetime as bool) as bool
 DECLARE SUB minimap (heropos as XYPair)
 DECLARE FUNCTION teleporttool () as bool
 DECLARE FUNCTION onwho (caption as string, skip_if_alone as bool = YES) as integer

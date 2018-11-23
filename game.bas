@@ -2354,6 +2354,13 @@ SUB interpret_scripts()
  script_log_tick
  gam.script_log.tick += 1
 
+ 'Chained autoset tags may have toggled due to a global variable that was changed - unlike
+ 'setting a tag, tag_updates is not called after changing a global, for efficiency.
+ 'So we have to call it now to cause things to update.
+ 'However, text box conditionals delay updating NPC visibility until the end of the text box chain,
+ 'so we have to support that behaviour.
+ tag_updates (txt.showing = NO)
+
  'Do spawned text boxes, battles, etc.
  'The actual need for these gam.want.* variables is now gone, but they are kept around for backcompat.
  'They could be removed and the implementations moved straight into the command handlers,
@@ -2932,6 +2939,8 @@ END FUNCTION
 
 'Call this any time a tag is changed!
 SUB tag_updates (npc_visibility as bool=YES)
+ 'We don't update chained tags here, that would be too inefficient. Instead,
+ 'chained tags are recomputed when istag() is called
  IF npc_visibility THEN visnpc
  update_menu_items
 END SUB

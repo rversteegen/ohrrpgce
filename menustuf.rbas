@@ -555,7 +555,7 @@ FUNCTION buystuff_can_show(byval slot as NodePtr, buyst as ShopBuyState) as bool
  IF stock = 1 THEN RETURN NO  'This item is out of stock
 
  IF buy."require_tag".exists THEN
-  IF NOT istag(tag(), buy."require_tag", YES) THEN
+  IF NOT istag(buy."require_tag", YES) THEN
    RETURN NO
   END IF
  END IF

@@ -3446,7 +3446,7 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 540'--check onetime
   IF bound_arg(retvals(0), 1, max_onetime, "onetime use tag") THEN
-   scriptret = ABS(istag(onetime(), retvals(0), 0))
+   scriptret = ABS(istag(onetime(), retvals(0), 0, YES))
   END IF
  CASE 541'--set onetime
   IF bound_arg(retvals(0), 1, max_onetime, "onetime use tag") THEN

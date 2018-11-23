@@ -772,7 +772,6 @@ SUB hero_swap_menu_init(st as OrderTeamState)
  st.party.need_update = YES
 END SUB
 
-/' Not used yet
 FUNCTION check_condition(cond as Condition) as bool
  IF cond.comp = compTag THEN
   RETURN istag(tag(), cond.tag, , NO)
@@ -790,7 +789,6 @@ FUNCTION check_condition(cond as Condition) as bool
   END SELECT
  END IF
 END FUNCTION
-'/
 
 'Either pass a tag number and specify YES/NO, or pass just a tag number; +ve/-ve indicates value
 SUB settag (byval tagnum as integer, byval value as integer = 4444)
@@ -803,9 +801,9 @@ END SUB
 
 FUNCTION istag (num as integer, zero as bool=NO) as bool
  IF ABS(num) <= max_tag() THEN
-  RETURN istag(tag(), num, zero)
+  RETURN istag(tag(), num, zero, NO)
  ELSE
-  RETURN istag(onetime(), num - (max_tag()+1) * SGN(num), zero)
+  RETURN istag(onetime(), num - (max_tag()+1) * SGN(num), zero, YES)
  END IF
 END FUNCTION
 
@@ -820,13 +818,51 @@ SUB settag (tagbits() as integer, byval tagnum as integer, byval value as intege
  END IF
 END SUB
 
-FUNCTION istag (tagbits() as integer, num as integer, zero as bool=NO) as bool
+'Compute current value of a chained tag
+PRIVATE FUNCTION check_chained_tag(num as integer) as bool
+ STATIC reentered as integer = 0
+ IF reentered >= 10 THEN
+  'We assume the tag editor disallows creating loops, so this shouldn't happen
+  showerror "Infinite loop of chained tags (while evaluating tag " & num & ")"
+  RETURN NO
+ END IF
+ reentered += 1
+
+ DIM ret as bool
+ WITH chainedtags(num)
+  IF .typ = chainedtagUnused THEN
+   ret = readbit(tag(), 0, num) <> 0
+  ELSE
+   ret = (.typ = chainedtagAND)
+   FOR i as integer = 0 TO UBOUND(.conds)
+    IF .conds(i).comp <> compNone THEN
+     DIM temp as bool
+     temp = check_condition(.conds(i))
+     IF .typ = chainedtagAND THEN ret AND= temp ELSE ret OR= temp
+    END IF
+   NEXT
+  END IF
+ END WITH
+
+ reentered -= 1
+ RETURN ret
+END FUNCTION
+
+'tagbits: either tag() or onetime()
+'onetime: shall be true if tagbits() is onetime()
+FUNCTION istag (tagbits() as integer, num as integer, zero as bool=NO, onetime as bool) as bool
  IF num = 0 THEN RETURN zero 'why go through all that just to return defaults?
  IF num = 1 THEN RETURN NO
  IF num = -1 THEN RETURN YES
  IF ABS(num) >= UBOUND(tagbits) * 16 + 16 THEN RETURN zero ' use default in case of an invalid tag
 
- DIM ret as integer = readbit(tagbits(), 0, ABS(num)) 'raw bit: 0 or 1
+ DIM ret as integer
+ IF onetime = NO ANDALSO chainedtags(ABS(num)).typ <> chainedtagUnused THEN
+  ret = check_chained_tag(num)  '0 or -1
+  setbit tagbits(), 0, ABS(num), ret
+ ELSE
+  ret = readbit(tagbits(), 0, ABS(num)) 'raw bit: 0 or 1
+ END IF
 
  IF num > 0 AND ret <> 0 THEN RETURN YES
  IF num < 0 AND ret = 0 THEN RETURN YES
