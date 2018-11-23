@@ -1132,7 +1132,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
  IF id = binITM        THEN RETURN 478 '.itm
- IF id = binTMN        THEN RETURN 62  '.tmn
+ IF id = binTMN        THEN RETURN 75  '.tmn
  RETURN 0
 END FUNCTION
 
@@ -5321,6 +5321,7 @@ SUB load_special_tag_caches()
    NEXT j
   END WITH
  NEXT i
+
  REDIM item_data(dimbinsize(binITM)) as integer
  REDIM itemtags(gen(genMaxItem))
  FOR i as integer = 0 TO gen(genMaxItem)
@@ -5332,6 +5333,8 @@ SUB load_special_tag_caches()
    .is_actively_equipped_tag = item_data(77)
   END WITH
  NEXT i
+
+ LoadChainedTags chainedtags()
 END SUB
 
 'Return whether a tag is automatically set by consulting the
@@ -5362,6 +5365,10 @@ FUNCTION tag_is_autoset(byval tag_id as integer) as bool
    IF tag_id = .is_actively_equipped_tag THEN count += 1
   END WITH
  NEXT i
+
+ IF tag_id <= UBOUND(chainedtags) THEN
+  IF chainedtags(tag_id).typ <> chainedtagUnused THEN count += 1
+ END IF
 
  RETURN count > 0
 END FUNCTION
@@ -5548,24 +5555,7 @@ FUNCTION percent_grabber(byref float as single, byref repr as string, min as dou
  RETURN ret
 END FUNCTION
 
-FUNCTION load_tag_name (byval index as integer) as string
- IF index = 0 THEN RETURN ""
- IF index = 1 THEN RETURN "Never"
- IF index = -1 THEN RETURN "Always"
- IF index > gen(genMaxTagName) THEN RETURN ""
- DIM binsize as integer = getbinsize(binTMN)
- DIM maxlen as integer = IIF(binsize = 42, 20, 30)
- RETURN readbadgenericname(ABS(index), game + ".tmn", binsize, 0, maxlen, , NO)
-END FUNCTION
-
-SUB save_tag_name (tagname as string, byval index as integer)
- DIM buf(dimbinsize(binTMN)) as integer
- DIM binsize as integer = getbinsize(binTMN)
- loadrecord buf(), game + ".tmn", binsize \ 2, index
- writebadbinstring tagname, buf(), 0, IIF(binsize = 42, 20, 30)
- storerecord buf(), game + ".tmn", binsize \ 2, index
-END SUB
-
+/'
 SUB dump_integer_array_as_hex (arraydim as string, byval start as uinteger ptr, byval _ubound as integer, byval nibbles as integer = 8)
  DIM hexstring as string = " DIM " & arraydim & " = {"
  FOR i as integer = 0 TO _ubound
@@ -5584,6 +5574,7 @@ END SUB
 SUB dump_master_palette_as_hex (master_palette() as RGBColor)
  dump_integer_array_as_hex("colorcodes(255) as integer", CAST(uinteger ptr, @master_palette(0).col), 255, 6)
 END SUB
+'/
 
 'dump_integer_array_as_hex "default_font(1023) as ushort", @current_font(0), 1023, 4
 

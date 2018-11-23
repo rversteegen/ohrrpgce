@@ -83,6 +83,8 @@ REDIM boxlook(uiBoxLast) as BoxStyle
 DIM statnames() as string
 REDIM herotags() as HeroTagsCache
 REDIM itemtags() as ItemTagsCache
+REDIM chainedtags() as ChainedTagCond
+
 DIM vpage as integer = 0
 DIM dpage as integer = 1
 DIM activepalette as integer = -1

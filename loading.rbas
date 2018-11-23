@@ -60,7 +60,11 @@ SUB SerSingle (buf() as integer, byval index as integer, byval sing as single)
   buf(index + 1) = CAST(short ptr, @sing)[1]
 END SUB
 
-/' Not used yet
+
+'==========================================================================================
+'                                    Tags and Conditions
+'==========================================================================================
+
 SUB LoadCondition (byref cond as Condition, buf() as integer, offset as integer)
   cond.comp = buf(offset)
   cond.varnum = buf(offset + 1)
@@ -82,7 +86,56 @@ SUB SaveCondition (cond as Condition, buf() as integer, offset as integer)
   buf(offset + 1) = cond.varnum
   buf(offset + 2) = cond.value
 END SUB
-'/
+
+
+SUB LoadTag(buf() as integer, byref name as string, chainedcond as ChainedTagCond)
+  name = readbadbinstring(buf(), 0, 30)
+  chainedcond.typ = buf(31)
+  FOR idx as integer = 0 TO 3
+    LoadCondition chainedcond.conds(idx), buf(), 32 + idx * 3
+  NEXT
+END SUB
+
+'Unlike LoadTag, this accepts negative indices
+FUNCTION load_tag_name(index as integer) as string
+  IF index = 0 THEN RETURN ""
+  IF index = 1 THEN RETURN "Never"
+  IF index = -1 THEN RETURN "Always"
+  IF index > gen(genMaxTagName) THEN RETURN ""
+  DIM binsize as integer = getbinsize(binTMN)
+  DIM maxlen as integer = IIF(binsize = 42, 20, 30)
+  RETURN readbadgenericname(ABS(index), game + ".tmn", binsize, 0, maxlen, , NO)
+END FUNCTION
+
+SUB SaveTag(index as integer, byref name as string, chainedcond as ChainedTagCond)
+  DIM buf(dimbinsize(binTMN)) as integer
+  writebadbinstring name, buf(), 0, 30
+  buf(31) = chainedcond.typ
+  FOR idx as integer = 0 TO 3
+    SaveCondition chainedcond.conds(idx), buf(), 32 + idx * 3
+  NEXT
+  storerecord buf(), game + ".tmn", getbinsize(binTMN) \ 2, index
+END SUB
+
+SUB LoadChainedTags(chainedtags() as ChainedTagCond)
+  DIM fh as integer
+  IF OPENFILE(game & ".tmn", FOR_BINARY + ACCESS_READ, fh) THEN
+    ERASE chainedtags
+    EXIT SUB
+  END IF
+
+  DIM buf(dimbinsize(binTMN)) as integer
+  'Don't use genMaxTagname, in case we're live-previewing and reloading .tmn before .gen
+  DIM records as integer = LOF(fh) \ getbinsize(binTMN)
+  REDIM chainedtags(large(0, records - 1))
+
+  FOR idx as integer = 0 TO records - 1
+    loadrecord buf(), fh, getbinsize(binTMN), idx
+    LoadTag buf(), "", chainedtags(idx)  'Ignore name
+  NEXT
+
+  CLOSE #fh
+END SUB
 
 '==========================================================================================
 '                                      NPC Definitions

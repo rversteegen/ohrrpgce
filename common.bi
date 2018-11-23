@@ -226,9 +226,6 @@ DECLARE SUB create_volume_menu(menu as MenuDef)
 DECLARE FUNCTION bound_arg(n as integer, min as integer, max as integer, argname as zstring ptr, context as zstring ptr = NULL, errlvl as scriptErrEnum = serrBound) as integer
 DECLARE SUB reporterr(msg as zstring ptr, errlvl as scriptErrEnum = serrBadOp, context as zstring ptr = NULL)
 
-DECLARE FUNCTION load_tag_name (byval index as integer) as string
-DECLARE SUB save_tag_name (tagname as string, byval index as integer)
-
 DECLARE SUB load_special_tag_caches()
 DECLARE FUNCTION tag_is_autoset(byval tag_id as integer) as bool
 DECLARE FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
@@ -388,6 +385,7 @@ EXTERN negative_zero as bool
 EXTERN global_reload_doc as DocPtr
 EXTERN herotags() as HeroTagsCache
 EXTERN itemtags() as ItemTagsCache
+EXTERN chainedtags() as ChainedTagCond
 EXTERN lookup1_bin_cache() as TriggerData
 EXTERN script_names() as IntStrPair
 EXTERN debug_to_console as bool

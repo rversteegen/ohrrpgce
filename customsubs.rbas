@@ -298,11 +298,12 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    thisname = safe_tag_name(tagid[state.pt])
    IF int_browsing = NO ANDALSO strgrabber(thisname, 30) THEN
     uninterrupted_alt_press = NO
-    save_tag_name thisname, tagid[state.pt]
+    SaveTag tagid[state.pt], thisname, chainedtags(tagid[state.pt])
     menu[state.pt].text = "Tag " & tagid[state.pt] & ":" & thisname
     IF tagid[state.pt] = gen(genMaxTagName) + 1 THEN
      IF gen(genMaxTagName) < max_tag() THEN
       gen(genMaxTagName) += 1
+      REDIM PRESERVE chainedtags(gen(genMaxTagName))
       v_resize menu, v_len(menu) + 1
       v_resize tagid, v_len(tagid) + 1
       tagid[state.pt + 1] = tagid[state.pt] + 1

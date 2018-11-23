@@ -27,15 +27,26 @@ TYPE CompType as integer
 'and .tag = 0 is equivalent to type == compNone.
 'The meaning of compNone is context specific: it might be either Always or Never.
 TYPE Condition
+  comp as CompType
   UNION
     varnum as integer  ' global
     tag as integer
   END UNION
-  comp as CompType
   value as integer  'Not used when type == compTag
   'The following only used only in Custom and never saved
   editstate as ubyte
   lastinput as ubyte
+END TYPE
+
+ENUM ChainedTagEnum
+  chainedtagUnused = 0
+  chainedtagAND = 1
+  chainedtagOR = 2
+END ENUM
+
+TYPE ChainedTagCond
+  typ as ChainedTagEnum
+  conds(3) as Condition
 END TYPE
 
 TYPE MenuSet

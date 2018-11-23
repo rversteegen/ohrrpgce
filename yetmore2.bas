@@ -1587,7 +1587,7 @@ SUB try_reload_lumps_anywhere ()
  entered = YES
 
  'pal handled with special message
- STATIC ignorable_extns_(...) as string*3 => {"mn", "tmn", "d", "dor", "pal", "sng", "efs"}
+ STATIC ignorable_extns_(...) as string*3 => {"mn", "d", "dor", "pal", "sng", "efs"}
  STATIC ignorable_extns as string vector
  IF ignorable_extns = NULL THEN
   v_new ignorable_extns
@@ -1665,6 +1665,10 @@ SUB try_reload_lumps_anywhere ()
    NEXT
    load_special_tag_caches  'includes item tags
    'Does anything else need to be done?
+   handled = YES
+
+  ELSEIF extn = "tmn" THEN                                                '.TMN
+   load_special_tag_caches  'includes chained tags
    handled = YES
 
   ELSEIF extn = "stt" THEN                                                '.STT

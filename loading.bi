@@ -19,6 +19,11 @@ USING RELOAD
 declare sub SerSingle (buf() as integer, byval index as integer, byval sing as single)
 declare function DeSerSingle (buf() as integer, byval index as integer) as single
 
+declare function load_tag_name(index as integer) as string
+declare sub LoadTag(buf() as integer, byref name as string, chainedcond as ChainedTagCond)
+declare sub SaveTag(index as integer, byref name as string, chainedcond as ChainedTagCond)
+declare sub LoadChainedTags(chainedtags() as ChainedTagCond)
+
 declare Sub SaveInventory16bit(invent() as InventSlot, byref z as integer, buf() as integer, byval first as integer=0, byval last as integer=-1)
 declare Sub LoadInventory16Bit(invent() as InventSlot, byref z as integer, buf() as integer, byval first as integer=0, byval last as integer=-1)
 declare sub serinventory8bit(invent() as inventslot, byref z as integer, buf() as integer)

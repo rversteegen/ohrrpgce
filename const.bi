@@ -34,7 +34,7 @@ CONST CURRENT_RPG_VERSION = 22
 ' 19 - beelzebufo replaced .DT0 with heroes.reld
 ' 20 - callipygous release. Added general.reld (including new version system) and maxScriptCmdID checking.
 ' 21 - fufluns replaced all .PT# and .MXS with .rgfx
-' 22 - fufluns made .TMN binsized
+' 22 - fufluns made .TMN binsized and added chained tags
 
 CONST CURRENT_RGFX_VERSION = 1
 ' Version number embedded in each .rgfx file.

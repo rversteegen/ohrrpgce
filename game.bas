@@ -92,6 +92,7 @@ REDIM onetime(1000) as integer '16000 bitsets
 
 REDIM herotags() as HeroTagsCache
 REDIM itemtags() as ItemTagsCache
+REDIM chainedtags() as ChainedTagCond
 REDIM statnames() as string
 
 'Party stuff
