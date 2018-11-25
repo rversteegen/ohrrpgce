@@ -56,7 +56,6 @@ DECLARE FUNCTION check_ok_to_open (filename as string) as bool
 DECLARE FUNCTION get_previous_session_info (workdir as string) as SessionInfo
 
 DECLARE SUB secret_menu ()
-DECLARE SUB condition_test_menu ()
 DECLARE SUB quad_transforms_menu ()
 DECLARE SUB text_test_menu ()
 DECLARE SUB new_graphics_tests ()
@@ -1457,61 +1456,6 @@ SUB resolution_menu ()
  xbsave game + ".gen", gen(), 1000
  write_general_reld()
 END SUB
-
-'This menu is for testing experimental Condition UI stuff
-SUB condition_test_menu ()
- DIM as Condition cond1, cond2, cond3, cond4
- DIM as AttackElementCondition atkcond
- DIM float as double
- DIM float_repr as string = "0%"
- DIM atkcond_repr as string = ": Never"
- DIM menu(8) as string
- DIM st as MenuState
- st.last = UBOUND(menu)
- st.size = 22
- DIM tmp as integer
-
- DO
-  setwait 55
-  setkeys YES
-  IF keyval(ccCancel) > 1 THEN EXIT DO
-  IF keyval(scF1) > 1 THEN show_help "condition_test"
-  tmp = 0
-  IF st.pt = 0 THEN
-   IF enter_space_click(st) THEN EXIT DO
-  ELSEIF st.pt = 2 THEN
-   tmp = cond_grabber(cond1, YES , NO, st)
-  ELSEIF st.pt = 3 THEN
-   tmp = cond_grabber(cond2, NO, NO, st)
-  ELSEIF st.pt = 5 THEN
-   tmp = cond_grabber(cond3, YES, YES, st)
-  ELSEIF st.pt = 6 THEN
-   tmp = cond_grabber(cond4, NO, YES, st)
-  ELSEIF st.pt = 7 THEN
-   tmp = percent_cond_grabber(atkcond, atkcond_repr, ": Never", -9.99, 9.99, 5)
-  ELSEIF st.pt = 8 THEN
-   tmp = percent_grabber(float, float_repr, -9.99, 9.99, 5)
-  END IF
-  usemenu st
-
-  clearpage vpage
-  menu(0) = "Previous menu"
-  menu(1) = "Enter goes to tag browser for tag conds:"
-  menu(2) = " If " & condition_string(cond1, (st.pt = 2), "Always", 45)
-  menu(3) = " If " & condition_string(cond2, (st.pt = 3), "Never", 45)
-  menu(4) = "Enter always goes to cond editor:"
-  menu(5) = " If " & condition_string(cond3, (st.pt = 5), "Always", 45)
-  menu(6) = " If " & condition_string(cond4, (st.pt = 6), "Never", 45)
-  menu(7) = "Fail vs damage from <fire>" & atkcond_repr
-  menu(8) = "percent_grabber : " & float_repr
-  standardmenu menu(), st, 0, 0, vpage
-  printstr STR(tmp), 0, 190, vpage
-  setvispage vpage
-  dowait
- LOOP
- setkeys
-END SUB
-
 
 SUB quad_transforms_menu ()
  DIM menu(...) as string = {"Arrows: scale X and Y", "<, >: change angle", "[, ]: change sprite"}

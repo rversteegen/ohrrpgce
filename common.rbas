@@ -5373,47 +5373,6 @@ FUNCTION tag_is_autoset(byval tag_id as integer) as bool
  RETURN count > 0
 END FUNCTION
 
-'Returns one line per place where this tag is autoset. Empty if none.
-FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
- DIM ret as string
- tag_id = ABS(tag_id)
-
- IF tag_id <= 1 THEN RETURN ""
- 
- DIM kind_name as string
-
- FOR i as integer = 0 TO small(gen(genMaxHero), UBOUND(herotags)) '--for each available hero
-  WITH herotags(i)
-   IF tag_id = .have_tag THEN ret += "Hero " & i & !" in party tag\n"
-   IF tag_id = .alive_tag THEN ret += "Hero " & i & !" is alive tag\n"
-   IF tag_id = .leader_tag THEN ret += "Hero " & i & !" is leader tag\n"
-   IF tag_id = .active_tag THEN ret += "Hero " & i & !" in active party tag\n"
-   FOR j as integer = 0 TO v_len(.checks) - 1
-    WITH .checks[j]
-     SELECT CASE .kind
-      CASE TagRangeCheckKind.level
-       kind_name = "level"
-      CASE ELSE
-       kind_name = "???(" & .kind & ")"
-     END SELECT
-     IF tag_id = .tag THEN ret += "Hero " & i & " " & kind_name & " check " & j & !"\n"
-    END WITH
-   NEXT j
-  END WITH
- NEXT i
-
- FOR i as integer = 0 TO maxMaxItems
-  WITH itemtags(i)
-   IF tag_id = .have_tag THEN ret += "Item " & i & !" have tag\n"
-   IF tag_id = .in_inventory_tag THEN ret += "Item " & i & !" in inventory tag\n"
-   IF tag_id = .is_equipped_tag THEN ret += "Item " & i & !" is equipped tag\n"
-   IF tag_id = .is_actively_equipped_tag THEN ret += "Item " & i & !" equipped by active hero tag\n"
-  END WITH
- NEXT i
-
- RETURN ret
-END FUNCTION
-
 'This is for *tag conditions*! It makes no sense for bools! Use yesorno or IIF instead.
 FUNCTION onoroff (byval n as integer) as string
  IF n >= 0 THEN RETURN "ON"
