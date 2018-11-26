@@ -1195,6 +1195,10 @@ sub split(in as string, ret() as string, sep as string = chr(10))
  loop
 end sub
 
+'FUNCTION join_string(withstr as string, pieces() as string)
+
+
+
 FUNCTION days_since_datestr (datestr as string) as integer
  'Returns the number of days since a date given as a string in the format YYYY-MM-DD
  IF LEN(datestr) <> 10 THEN

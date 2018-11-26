@@ -16,6 +16,7 @@
 
 'Subs and functions only used here
 DECLARE SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuState)
+DECLARE FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
 
 
 'Module-local variables
@@ -145,6 +146,7 @@ END FUNCTION
 '                                       Tag Editor
 '==========================================================================================
 
+/'
 FUNCTION safe_tag_name(byval tagnum as integer) as string 
  IF tagnum >= 1 AND tagnum <= gen(genMaxTagName) THEN
   RETURN load_tag_name(tagnum)
@@ -152,6 +154,7 @@ FUNCTION safe_tag_name(byval tagnum as integer) as string
   RETURN ""
  END IF
 END FUNCTION
+'/
 
 'Returns one line per place where this tag is autoset. Empty if none.
 FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
@@ -191,11 +194,85 @@ FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
   END WITH
  NEXT i
 
+ IF tag_id <= UBOUND(chainedtags) THEN
+  WITH chainedtags(tag_id)
+   IF .typ <> chainedtagUnused THEN
+    DIM temp as string
+    'Set default in case all Conditions are unused
+    IF .typ = chainedtagAND THEN temp = "ON" ELSE temp = "OFF"
+    DIM firstcond as bool = YES
+    FOR idx as integer = 0 TO UBOUND(.conds)
+     'WITH .conds(idx)
+      IF .conds(idx).comp <> compNone THEN
+       IF firstcond = NO THEN
+        IF .typ = chainedtagAND THEN temp += " AND " ELSE temp += " OR "
+       END IF
+       firstcond = NO
+       temp += condition_string(.conds(idx), NO)
+      END IF
+     'END WITH
+    NEXT
+    ret += "When " & temp & !"\n"
+   END IF
+  END WITH
+ END IF
+
  RETURN ret
 END FUNCTION
 
 PRIVATE SUB tag_autoset_warning(byval tag_id as integer)
  notification !"This tag is automatically set or unset on the following conditions:\n" + describe_tag_autoset_places(tag_id) + !"\nThis means that you should not attempt to set or unset the tag in any other way, because your changes will be erased -- unpredictably!"
+END SUB
+
+
+TYPE ChainedTagMenu EXTENDS ModularMenu
+ DIM id as integer
+
+ DECLARE SUB update ()
+ DECLARE FUNCTION each_tick () as bool
+END TYPE
+
+SUB ChainedTagMenu.update()
+ STATIC as zstring ptr chaintypes = {@"None", @"AND", @"OR"}
+ WITH chainedtags(id)
+  REDIM menu(1)
+  menu(0) = "Previous Menu"
+  IF .typ = chainedtagNone THEN
+   menu(1) = 
+  REDIM PRESERVE menu(5)
+  state.last = UBOUND(menu)
+  IF 
+  menu(1) = ""
+  FOR mi as integer = 2 TO 2 + 3
+   menu(mi) = " If " & condition_string(cond1, (state.pt = mi), "Always", 60)
+  NEXT
+ END WITH
+END SUB
+
+FUNCTION ChainedTagMenu.each_tick () as bool
+ WITH chainedtags(id)
+
+ DIM changed as bool
+ SELECT CASE state.pt
+  CASE 0
+   IF enter_space_click(state) THEN RETURN YES
+  CASE 1
+   
+  CASE 2 TO 5
+   tmp = cond_grabber(.conds(state.pt - 2), YES, YES, state)
+  END SELECT
+ state.need_update OR= changed
+
+ END WITH
+END FUNCTION
+
+SUB chained_tag_editor(tag_id as integer)
+ DIM menu as ChainedTagMenu
+ menu.floating = YES
+ menu.tag = tag_id
+ menu.title = "Editing a chained tag"
+ menu.helpkey = "chained_tag_edit"
+ menu.run()
 END SUB
 
 'If picktag is true, then can be used to pick a tag. In that case, allowspecial indicates whether to allow
@@ -385,8 +462,12 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    EXIT DO
   END IF
   IF tagid[state.pt] >= 2 THEN
-   IF keyval(scTab) > 1 ANDALSO tag_is_autoset(tagid[state.pt]) THEN
-    tag_autoset_warning tagid[state.pt]
+   IF keyval(scTab) > 1 THEN
+    IF tag_is_autoset(tagid[state.pt], NO) THEN  'inc_chained=NO
+     tag_autoset_warning tagid[state.pt]
+    ELSE
+     chained_tag_editor(tagid[state.pt])
+    END IF
    END IF
    IF keyval(scAnyEnter) > 1 ORELSE menu_click(state) THEN ' Can't call enter_space_click() because we can type spaces when editing tag names
     IF menu[state.pt].disabled THEN
@@ -396,7 +477,7 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
      EXIT DO
     END IF
    END IF
-   thisname = safe_tag_name(tagid[state.pt])
+   thisname = load_tag_name(tagid[state.pt])  'safe_tag
    IF int_browsing = NO ANDALSO strgrabber(thisname, 30) THEN
     uninterrupted_alt_press = NO
     SaveTag tagid[state.pt], thisname, chainedtags(tagid[state.pt])
@@ -455,11 +536,14 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    printstr signstr, pRight, pBottom - 8, dpage
   END IF
 
-  IF tag_is_autoset(tagid[state.pt]) THEN
+  IF tag_is_autoset(tagid[state.pt], NO) THEN  'inc_chained=NO
    'Showing tag autoset status is not important when using picktag for a tag check
    'so we only show it when in set-tag more or non-tag-picking mode
    textcolor uilook(uiDisabledItem), 0
    printstr "An auto-set tag. Press TAB for details", 0, pBottom, dpage
+  ELSE 'IF picktag = NO THEN
+   textcolor uilook(uiDisabledItem), 0
+   printstr "Press TAB to edit tag chains", 0, pBottom, dpage
   END IF
 
   SWAP vpage, dpage

@@ -227,8 +227,7 @@ DECLARE FUNCTION bound_arg(n as integer, min as integer, max as integer, argname
 DECLARE SUB reporterr(msg as zstring ptr, errlvl as scriptErrEnum = serrBadOp, context as zstring ptr = NULL)
 
 DECLARE SUB load_special_tag_caches()
-DECLARE FUNCTION tag_is_autoset(byval tag_id as integer) as bool
-DECLARE FUNCTION describe_tag_autoset_places(byval tag_id as integer) as string
+DECLARE FUNCTION tag_is_autoset(byval tag_id as integer, inc_chained as bool = YES) as bool
 DECLARE FUNCTION onoroff (byval n as integer) as string
 DECLARE FUNCTION describe_tag_condition(tag as integer, zerocap as string, maxwidth as integer = 320) as string
 DECLARE FUNCTION yesorno (byval n as integer, yes_cap as zstring ptr=@"YES", no_cap as zstring ptr=@"NO") as string

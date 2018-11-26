@@ -1132,7 +1132,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
  IF id = binITM        THEN RETURN 478 '.itm
- IF id = binTMN        THEN RETURN 75  '.tmn
+ IF id = binTMN        THEN RETURN 88  '.tmn
  RETURN 0
 END FUNCTION
 
@@ -5339,7 +5339,7 @@ END SUB
 
 'Return whether a tag is automatically set by consulting the
 'herotags() and itemtags() arrays and the hero level checks
-FUNCTION tag_is_autoset(byval tag_id as integer) as bool
+FUNCTION tag_is_autoset(byval tag_id as integer, inc_chained as bool = YES) as bool
  DIM count as integer = 0
  tag_id = ABS(tag_id)
 
@@ -5366,7 +5366,7 @@ FUNCTION tag_is_autoset(byval tag_id as integer) as bool
   END WITH
  NEXT i
 
- IF tag_id <= UBOUND(chainedtags) THEN
+ IF inc_chained ANDALSO tag_id <= UBOUND(chainedtags) THEN
   IF chainedtags(tag_id).typ <> chainedtagUnused THEN count += 1
  END IF
 
