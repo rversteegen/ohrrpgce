@@ -36,6 +36,11 @@ DIM force_use_mouse as integer = 0
 '                                 Generic MenuState Stuff
 '==========================================================================================
 
+'Index of last visible element
+FUNCTION MenuState.bottom() as integer
+ RETURN small(last, top + size)
+END FUNCTION
+
 FUNCTION MenuState.empty() as bool
  RETURN last < first
 END FUNCTION

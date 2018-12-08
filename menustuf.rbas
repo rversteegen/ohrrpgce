@@ -1569,8 +1569,8 @@ FOR slot as integer = 0 TO storebuf(16)
  initialize_stock id, stockidx, thingtype, thingid, initial_stock
 NEXT slot
 
+DIM rowsize as integer = 3  'Number of items per row, not customisable yet
 DIM ic as integer = 0
-DIM top as integer = 0
 DIM tog as integer
 DIM alert as integer = 0
 DIM alert_str as string = ""
@@ -1581,10 +1581,11 @@ DIM box as RectType = (8, 4, 304, 180)
 menusound gen(genAcceptSFX)
 sellstuff_refresh storebuf(16), recordsize, permask(), price(), b()
 
-DIM scroll_state as MenuState 'Only used for the scrollbar
-WITH scroll_state
+DIM scrollst as MenuState
+WITH scrollst
  .first = 0
- .last = last_inv_slot() / 3
+ .top = 0
+ .last = last_inv_slot() \ rowsize
  .size = 11
 END WITH
 
@@ -1604,43 +1605,43 @@ DO
 
  DIM old_ic as integer = ic
  'Keyboard controls
- IF carray(ccUp) > 1 AND ic >= 3 THEN
-  ic = ic - 3
-  IF ic < top THEN top = top - 3
+ IF carray(ccUp) > 1 AND ic >= rowsize THEN
+  ic -= rowsize
+  'IF ic < scrollst.top * rowsize THEN scrollst.top * rowsize -= rowsize
  END IF
- IF carray(ccDown) > 1 AND ic <= last_inv_slot() - 3 THEN
-  ic = ic + 3
-  IF ic > top + 62 THEN top = top + 3
+ IF carray(ccDown) > 1 AND ic <= last_inv_slot() - rowsize THEN
+  ic += rowsize
+  'IF ic > scrollst.top * rowsize + 62 THEN scrollst.top * rowsize += rowsize
  END IF
  IF carray(ccLeft) > 1 THEN
-  IF ic MOD 3 > 0 THEN
-   ic = ic - 1
+  IF ic MOD rowsize > 0 THEN
+   ic -= 1
   ELSE
-   ic = ic + 2
+   ic += rowsize - 1
   END IF
  END IF
  IF carray(ccRight) > 1 THEN
-  IF ic MOD 3 < 2 THEN
-   ic = ic + 1
+  IF ic MOD rowsize < rowsize - 1 THEN
+   ic += 1
   ELSE
-   ic = ic - 2
+   ic -= rowsize - 1
   END IF
  END IF
  IF keyval(scPageUp) > 1 THEN
   ic -= 60
-  top -= 60
+  'scrollst.top * rowsize -= 60
  END IF
  IF keyval(scPageDown) > 1 THEN
   ic += 60
-  top += 60
+  'scrollst.top * rowsize += 60
  END IF
  IF keyval(scHome) > 1 THEN
   ic = 0
-  top = 0
+  'scrollst.top * rowsize = 0
  END IF
  IF keyval(scEnd) > 1 THEN
   ic = last_inv_slot()
-  top = ic - 62
+  'scrollst.top * rowsize = ic - 62
  END IF
  IF carray(ccMenu) > 1 THEN do_quit = YES
  IF carray(ccUse) > 1  THEN do_pick = YES
@@ -1649,8 +1650,8 @@ DO
   IF rect_collide_point(box, readmouse.pos) THEN
    'Inside the inventory box
    DIM hover as integer = -1
-   FOR i as integer = top TO top + 62
-    IF rect_collide_point(Type(20 + 96 * (i MOD 3), 12 + 8 * ((i - top) \ 3), 96, 8), readmouse.pos) THEN hover = i
+   FOR i as integer = scrollst.top * rowsize TO (scrollst.bottom + 1) * rowsize - 1
+    IF rect_collide_point(Type(20 + 96 * (i MOD rowsize), 12 + 8 * (i \ rowsize - scrollst.top), 96, 8), readmouse.pos) THEN hover = i
    NEXT i
    IF hover >= 0 THEN
     IF (readmouse.release AND mouseLeft) THEN
@@ -1661,14 +1662,15 @@ DO
      END IF
     END IF
    END IF
+   'TODO: can't we just call mouse_drag_menu() instead?
    IF (readmouse.dragging AND mouseRight) THEN
-    IF drag_top = -1 THEN drag_top = top
+    IF drag_top = -1 THEN drag_top = scrollst.top
     IF readmouse.drag_dist > 10 THEN
      DIM dist as integer = (readmouse.clickstart.y - readmouse.pos.y) / 8
-     top = drag_top + dist * 9
+     scrollst.top = drag_top + dist * 3
     END IF
    END IF
-   top += readmouse.wheel_clicks * 9
+   scrollst.top += readmouse.wheel_clicks * 3
   ELSE
    'Outside the box
    IF (readmouse.release AND mouseLeft) ANDALSO readmouse.drag_dist < 10 THEN do_quit = YES
@@ -1678,12 +1680,10 @@ DO
  END IF
 
  'Clamp the top of the scrollable area into the safe range
- top = bound(top, 0, last_inv_slot() - 62)
+ correct_menu_state_top scrollst
  'Make sure the cursor stays onscreen
- DO WHILE ic < top : ic += 3: LOOP
- DO WHILE ic > top + 62 : ic -= 3: LOOP
- 'Update scrollbar
- scroll_state.top = top \ 3
+ DO WHILE ic < scrollst.top * rowsize : ic += rowsize: LOOP
+ DO WHILE ic >= (scrollst.bottom + 1) * rowsize : ic -= rowsize: LOOP
 
  IF old_ic <> ic THEN
   menusound gen(genCursorSFX)
@@ -1731,8 +1731,8 @@ DO
  '--Draw the sell screen
  copypage holdscreen, page
  edgeboxstyle box, 0, page
- draw_scrollbar scroll_state, box, , page
- FOR i as integer = top TO top + 62
+ draw_scrollbar scrollst, box, , page
+ FOR i as integer = scrollst.top * rowsize TO (scrollst.bottom + 1) * rowsize - 1
   textcolor uilook(uiMenuItem), 0
   IF readbit(permask(), 0, i) THEN textcolor uilook(uiDisabledItem), 0
   IF ic = i THEN
@@ -1745,14 +1745,15 @@ DO
   ELSE
    item_name = inventory(i).text
   END IF
-  printstr item_name, 20 + 96 * (i MOD 3), 12 + 8 * ((i - top) \ 3), page
+  printstr item_name, 20 + 96 * (i MOD rowsize), 12 + 8 * (i \ rowsize - scrollst.top), page
  NEXT i
  centerbox 160, 192, 312, 14, 4, page
  edgeprint info, pCenteredLeft, 187, uilook(uiText), page
  edgeprint gold & " " & readglobalstring(32, "$"), 310 - LEN(gold & " " & readglobalstring(32, "$")) * 8, 1, uilook(uiGold), page
  IF alert THEN
-  alert = alert - 1
-  centerbox 160, 178, LEN(alert_str) * 8 + 8, 14, 4, page
+  alert -= 1
+  DIM alertsize as XYPair = textsize(alert_str)
+  centerbox 160, 178, alertsize.w + 8, alertsize.h + 6, 4, page
   edgeprint alert_str, pCentered, 173, uilook(uiSelectedItem + tog), page
  END IF
  setvispage vpage

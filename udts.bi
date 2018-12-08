@@ -154,8 +154,9 @@ TYPE MenuState
                                   ' focus an item and pick an item with separate clicks
   drag_start_top as integer 'used internally bu mouse_drag_menu()
 
-  DECLARE FUNCTION empty() as bool
-  DECLARE FUNCTION pt_valid() as bool
+  DECLARE FUNCTION bottom() as integer  'Index of last visible element (cmoputed from .top, .size), is <= .last
+  DECLARE FUNCTION empty() as bool      'Has no items
+  DECLARE FUNCTION pt_valid() as bool   '.pt is in range (always false if empty)
   DECLARE FUNCTION would_have_scrollbar() as bool
 END TYPE
 
