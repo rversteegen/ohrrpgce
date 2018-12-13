@@ -177,8 +177,4 @@ mustexist bam2mid.exe
 zip distrib/bam2mid.zip bam2mid.exe bam2mid.txt LICENSE.txt svninfo.txt
 scp distrib/bam2mid.zip "${SCPHOST}":"${SCPDEST}"
 
-rm -f distrib/madplay+oggenc.zip
-zip distrib/madplay+oggenc.zip support/madplay.exe support/oggenc.exe support/LICENSE-{madplay,oggenc}.txt
-scp distrib/madplay+oggenc.zip "${SCPHOST}":"${SCPDEST}"
-
 scp svninfo.txt "${SCPHOST}":"${SCPDEST}"

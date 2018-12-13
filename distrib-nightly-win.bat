@@ -92,8 +92,4 @@ support\zip distrib\bam2mid.zip bam2mid.exe bam2mid.txt LICENSE.txt svninfo.txt
 pscp -q distrib\bam2mid.zip %SCPHOST%:%SCPDEST%
 :NOBAM2MID
 
-support\rm -f distrib\madplay+oggenc.zip
-support\zip distrib\madplay+oggenc.zip support\madplay.exe support\oggenc.exe support\LICENSE-madplay.txt support\LICENSE-oggenc.txt
-pscp -q distrib\madplay+oggenc.zip %SCPHOST%:%SCPDEST%
-
 pscp -q svninfo.txt %SCPHOST%:%SCPDEST%
