@@ -1310,7 +1310,8 @@ SUB show_enemy_meters(bat as BattleState, bslot() as BattleSprite, formdata as F
    c = uilook(uiSelectedDisabled)
    IF is_hero(i) THEN c = uilook(uiSelectedItem)
    rectangle 0, 80 + (i * 10), .ready_meter / 10, 4, c, page
-   info = "hp" & .stat.cur.hp & " tm" & bat.targ.mask(i) & " sr" & (.stat.cur.stun < .stat.max.stun) & " dz" & .dissolve & " a" & .attack & " r" & .ready 
+   'Update the game_battle_debug_menu.txt help page if you change this!
+   info = "hp" & .stat.cur.hp & " tm" & bat.targ.mask(i) & " st" & (.stat.max.stun - .stat.cur.stun) & " m" & (.stat.max.mute - .stat.cur.mute) & " dz" & .dissolve & " atk" & (.attack - 1) & " r" & .ready 
    IF is_enemy(i) THEN info &= " fm" & formdata.slots(i-4).id
    edgeprint info, 10, 80 + i * 10, c, page
   END WITH
@@ -4926,7 +4927,7 @@ SUB battle_debug_menu_functions(dbg as DebugMenuDef, bat as BattleState, bslot()
 
  'F12 for bat.test_view_mode handled in main loop
 
- IF dbg.def(      , , "Dump battle slots info") THEN dump_bslot bat, bslot(), formdata
+ IF dbg.def(      , , "Dump hero and enemy info") THEN dump_bslot bat, bslot(), formdata
 END SUB
 
 ' Check for debug key combos.
@@ -4971,10 +4972,10 @@ SUB dump_bslot(bat as BattleState, bslot() as BattleSprite, formdata as Formatio
            !"\n dissolve = " & .dissolve & _
            !"\n flee = " & .flee & _
            !"\n bequesting = " & yesorno(.bequesting) & _
-           !"\n attack = " & .attack - 1
+           !"\n attack = " & .attack - 1 & readattackname(.attack - 1)
    IF bat.turn.mode = turnACTIVE THEN
     info &= !"\n ready_meter = " & .ready_meter & _
-            !"\n ready = " & .ready
+            !"\n ready = " & yesorno(.ready)
    END IF
    info &= !"\n Stats:  "
    FOR stat as integer = 0 TO UBOUND(.stat.cur.sta)
