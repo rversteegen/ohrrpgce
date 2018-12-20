@@ -108,7 +108,7 @@ END FUNCTION
 '                                       tag_grabber
 '==========================================================================================
 
-'Return YES if the tag has changed
+'Return YES if the calling menu needs to refresh (tag may not have changed)
 'allowspecial:  Whether to allow picking autoset tags (eg hero is alive)
 '               If you want to change this, use tag_set_grabber instead if possible.
 'always_choice: 'Always' is an option
@@ -119,12 +119,8 @@ FUNCTION tag_grabber (byref n as integer, state as MenuState, allowspecial as bo
  IF allowneg THEN min = -max_tag()
  IF intgrabber(n, min, max_tag()) THEN RETURN YES
  IF enter_space_click(state) THEN
-  DIM browse_tag as integer
-  browse_tag = tags_menu(n, YES, allowspecial, allowneg, always_choice)
-  IF browse_tag <> n THEN
-   n = browse_tag
-   RETURN YES
-  END IF
+  n = tags_menu(n, YES, allowspecial, allowneg, always_choice)
+  RETURN YES  'Always return YES because this or other tags may have been renamed
  END IF
  RETURN NO
 END FUNCTION
@@ -587,13 +583,8 @@ FUNCTION cond_grabber (cond as Condition, default as bool = NO, alwaysedit as bo
    IF enter_or_space() THEN
     DIM browse_tag as integer
     browse_tag = tags_menu(.tag, YES, YES)
-    IF browse_tag >= 2 OR browse_tag <= -2 THEN
-     .tag = browse_tag
-     RETURN YES
-    ELSE
-     'Return once enter/space processed
-     RETURN NO
-    END IF
+    IF browse_tag >= 2 OR browse_tag <= -2 THEN .tag = browse_tag
+    RETURN YES  'Return once enter/space processed
    END IF
   ELSE
    IF keyval(scAnyEnter) > 1 THEN cond_editor(cond, default, st)
