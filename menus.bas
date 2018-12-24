@@ -1861,7 +1861,7 @@ SUB ModularMenu.run()
   holdscreen = allocatepage
   copypage vpage, holdscreen
 
-  menuopts.wide = 80
+  IF menuopts.wide = 0 THEN menuopts.wide = 80  'If it hasn't been overridden, set min width
   menuopts.calc_size = YES
  END IF
  state.autosize_ignore_lines = 1  'For the tooltip

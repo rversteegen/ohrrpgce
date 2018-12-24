@@ -102,7 +102,7 @@ TYPE ModularMenu EXTENDS Object
  tooltip as string       'Shown at the bottom of the screen
  title as string         'Shown at the top, like the multichoice() prompt
  state as MenuState
- menuopts as MenuOptions
+ menuopts as MenuOptions 'Note: menuopts.wide is the min width of a floating menu
  floating as bool        'Appears in the center of the screen, like notification, instead of fullscreen
  helpkey as string
  holdscreen as integer   '0 if none

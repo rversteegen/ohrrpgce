@@ -42,6 +42,7 @@ ENUM ChainedTagEnum
   chainedtagUnused = 0
   chainedtagAND = 1
   chainedtagOR = 2
+  chainedtagLAST = 2
 END ENUM
 
 TYPE ChainedTagCond

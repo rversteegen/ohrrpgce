@@ -222,42 +222,45 @@ END SUB
 
 
 TYPE ChainedTagMenu EXTENDS ModularMenu
- DIM id as integer
+ DIM tag_id as integer
 
  DECLARE SUB update ()
  DECLARE FUNCTION each_tick () as bool
 END TYPE
 
 SUB ChainedTagMenu.update()
- STATIC as zstring ptr chaintypes = {@"None", @"AND", @"OR"}
- WITH chainedtags(id)
+ STATIC as zstring ptr chaintypes(chainedtagLAST) = {@": Disabled", @" when ALL of:", @" when ANY of:"}
+ WITH chainedtags(tag_id)
   REDIM menu(1)
   menu(0) = "Previous Menu"
-  IF .typ = chainedtagNone THEN
-   menu(1) = 
-  REDIM PRESERVE menu(5)
+  'IF .typ = chainedtagNone THEN
+  menu(1) = "Auto-set tag" & *chaintypes(.typ)
+  IF .typ <> chainedtagUnused THEN
+   DIM joiner as string = IIF(.typ = chainedtagOR, "or ", "and ")
+   REDIM PRESERVE menu(5)
+   FOR idx as integer = 0 TO UBOUND(.conds)
+    'menu(2 + idx) = joiner & condition_string(.conds(idx), (state.pt = 2 + idx), "Always", 60)
+    menu(2 + idx) = " " & condition_string(.conds(idx), (state.pt = 2 + idx), "(No condition)", 60)
+   NEXT
+  END IF
   state.last = UBOUND(menu)
-  IF 
-  menu(1) = ""
-  FOR mi as integer = 2 TO 2 + 3
-   menu(mi) = " If " & condition_string(cond1, (state.pt = mi), "Always", 60)
-  NEXT
+  state.size = UBOUND(menu) '- 1
  END WITH
 END SUB
 
 FUNCTION ChainedTagMenu.each_tick () as bool
- WITH chainedtags(id)
+ WITH chainedtags(tag_id)
 
- DIM changed as bool
- SELECT CASE state.pt
-  CASE 0
-   IF enter_space_click(state) THEN RETURN YES
-  CASE 1
-   
-  CASE 2 TO 5
-   tmp = cond_grabber(.conds(state.pt - 2), YES, YES, state)
-  END SELECT
- state.need_update OR= changed
+  DIM changed as bool
+  SELECT CASE state.pt
+   CASE 0
+    IF enter_space_click(state) THEN RETURN YES  'Quit
+   CASE 1
+    changed = intgrabber(.typ, 0, chainedtagLAST)
+   CASE 2 TO 5
+    changed = cond_grabber(.conds(state.pt - 2), YES, YES, state)
+   END SELECT
+  state.need_update OR= changed
 
  END WITH
 END FUNCTION
@@ -265,8 +268,9 @@ END FUNCTION
 SUB chained_tag_editor(tag_id as integer)
  DIM menu as ChainedTagMenu
  menu.floating = YES
- menu.tag = tag_id
- menu.title = "Editing a chained tag"
+ menu.menuopts.wide = 280
+ menu.tag_id = tag_id
+ menu.title = "Tag " & tag_id & " chain conditions"
  menu.helpkey = "chained_tag_edit"
  menu.run()
 END SUB
@@ -275,7 +279,7 @@ END SUB
 'picking 'special' tags: those automatically set, eg. based on inventory conditions
 'If showsign is true, picking a tag condition (tag=ON/OFF), and the ON/OFF condition can be selected.
 'Returns a signed tag number (+ve, tag ON, -ve tag OFF).
-FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval allowspecial as bool=YES, byval showsign as bool=NO, byval always_choice as bool=NO) as integer
+FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval allowspecial as bool=YES, byval showsign as bool=NO, byval always_choice as bool=NO, title as string="") as integer
  STATIC searchstring as string
  
  'If this method for guessing checktag mode ever fails, we can change it to be an argument
@@ -291,6 +295,9 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
  DIM menu_size as integer = gen(genMaxTagname) + 1
  IF picktag THEN menu_size += 1
  IF always_choice THEN menu_size += 1
+
+ DIM menupos as XYPair
+ IF LEN(title) THEN menupos.y = 14
 
  v_new menu, menu_size
  v_new tagid, menu_size
@@ -346,6 +353,7 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
  IF showsign THEN
   state.autosize_ignore_lines = 2
  END IF
+ state.autosize_ignore_pixels = menupos.y
  state.last = v_len(menu) - 1
  init_menu_state state, menu
 
@@ -458,10 +466,13 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    EXIT DO
   END IF
   IF tagid[state.pt] >= 2 THEN
-   IF keyval(scTab) > 1 THEN
+   IF keyval(scTab) > 1 ORELSE readmouse.release AND mouseRight THEN
     IF tag_is_autoset(tagid[state.pt], NO) THEN  'inc_chained=NO
      tag_autoset_warning tagid[state.pt]
     ELSE
+     IF tagid[state.pt] > UBOUND(chainedtags) THEN
+      REDIM PRESERVE chainedtags(tagid[state.pt])
+     END IF
      chained_tag_editor(tagid[state.pt])
     END IF
    END IF
@@ -476,7 +487,6 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    thisname = load_tag_name(tagid[state.pt])  'safe_tag
    IF int_browsing = NO ANDALSO strgrabber(thisname, 30) THEN
     uninterrupted_alt_press = NO
-    SaveTag tagid[state.pt], thisname, chainedtags(tagid[state.pt])
     menu[state.pt].text = "Tag " & tagid[state.pt] & ":" & thisname
     IF tagid[state.pt] = gen(genMaxTagName) + 1 THEN
      IF gen(genMaxTagName) < max_tag() THEN
@@ -489,11 +499,13 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
       state.last += 1
      END IF
     END IF
+    SaveTag tagid[state.pt], thisname, chainedtags(tagid[state.pt])
    END IF
   END IF
 
   clearpage dpage
-  standardmenu menu, state, 0, 0, dpage, menuopts
+  IF LEN(title) THEN edgeprint title, pCentered, menupos.y - 12, uilook(uiMenuItem), dpage
+  standardmenu menu, state, menupos.x, menupos.y, dpage, menuopts
   DIM tmpstr as string
   IF int_browsing THEN
    textcolor uilook(uiText), uilook(uiHighlight)
@@ -536,10 +548,10 @@ FUNCTION tags_menu (byval starttag as integer=0, byval picktag as bool=NO, byval
    'Showing tag autoset status is not important when using picktag for a tag check
    'so we only show it when in set-tag more or non-tag-picking mode
    textcolor uilook(uiDisabledItem), 0
-   printstr "An auto-set tag. Press TAB for details", 0, pBottom, dpage
+   printstr "An auto-set tag. Press TAB/RCLICK for details", 0, pBottom, dpage
   ELSE 'IF picktag = NO THEN
    textcolor uilook(uiDisabledItem), 0
-   printstr "Press TAB to edit tag chains", 0, pBottom, dpage
+   printstr "Press TAB/RCLICK to edit tag chains", 0, pBottom, dpage
   END IF
 
   SWAP vpage, dpage
@@ -578,16 +590,15 @@ FUNCTION cond_grabber (cond as Condition, default as bool = NO, alwaysedit as bo
   'Simplify
   IF .comp = compTag AND .tag = 0 THEN .comp = 0
 
-  'enter_or_space
-  IF .comp = compTag AND alwaysedit = NO THEN
-   IF enter_or_space() THEN
+  IF enter_space_click(st) THEN
+   IF .comp = compTag AND alwaysedit = NO THEN
     DIM browse_tag as integer
-    browse_tag = tags_menu(.tag, YES, YES)
+    browse_tag = tags_menu(.tag, YES, YES, , , "Pick tag condition")
     IF browse_tag >= 2 OR browse_tag <= -2 THEN .tag = browse_tag
     RETURN YES  'Return once enter/space processed
+   ELSE
+    cond_editor(cond, default, st)
    END IF
-  ELSE
-   IF keyval(scAnyEnter) > 1 THEN cond_editor(cond, default, st)
   END IF
 
   CONST compare_chars as string = "=<>!"
@@ -751,6 +762,7 @@ FUNCTION cond_grabber (cond as Condition, default as bool = NO, alwaysedit as bo
  END WITH
 
  'FIXME: check if anything changed, and return YES if so
+ RETURN YES
 END FUNCTION
 
 'default: meaning of the null condition (true: ALWAYS, false: NEVER)
@@ -807,9 +819,12 @@ SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuSta
  ' Calculate screen position of the outer menu
  ' (Note: MenuState doesn't tell where the menu will be drawn; we have to assume 0,0!)
  WITH outer_state
+  mpos.x = .rect.x + 60
+  mpos.x = bound(mpos.x, 0, vpages(vpage)->w - 120)
+
   ' Position the new menu so that the initially selected menu item
   ' is at the same y position as the current item in the previous menu
-  mpos.y = (.pt - .top) * .spacing - (st.pt - st.top) * st.spacing
+  mpos.y = .rect.y + (.pt - .top) * .spacing - (st.pt - st.top) * st.spacing
   ' Make sure the new position is fully onscreen (and leave extra space at the bottom of the screen)
   mpos.y = bound(mpos.y, 0, vpages(vpage)->h - .spacing)
   IF mpos.y + st.rect.high > vpages(vpage)->h - 15 THEN mpos.y -= st.rect.high - st.spacing
@@ -841,9 +856,10 @@ SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuSta
   END IF
 
   ' Exit on TAB so that you simultaneously change to the selected comparison
-  ' and cond_grabber processes the TAB.
-  ' Also, press TAB to select a tag option but skip the tag browser.
-  IF enter_space_click(st) OR keyval(scTab) > 1 THEN
+  ' and cond_grabber processes the TAB. (But any other key/click needs to be cleared.)
+  ' Also, press TAB or right-click to select a tag option but skip the tag browser.
+  DIM confirm as bool = (keyval(scTab) > 1 ORELSE readmouse.release AND mouseRight)
+  IF enter_space_click(st) ORELSE confirm THEN
    IF compty(st.pt) THEN cond.comp = compty(st.pt)
    SELECT CASE st.pt
     CASE 0:
@@ -864,7 +880,7 @@ SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuSta
      END IF
     CASE 3, 4:
      IF st.pt = 4 THEN starttag *= -1  'tag=OFF
-     IF keyval(scTab) > 1 THEN
+     IF confirm THEN
       cond.tag = starttag
      ELSE
       cond.tag = tags_menu(starttag, YES, YES)
@@ -883,16 +899,18 @@ SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuSta
   DIM msg as string
   IF compty(st.pt) = compNone THEN
   ELSEIF compty(st.pt) = compTag THEN
-   msg = "ENTER to pick tag/TAB confirm"
+   msg = "ENTER/CLICK: pick tag, TAB/RCLICK: confirm"
   ELSE
    msg = "Type expression, TAB to switch"
   END IF
-  edgeprint "F1 Help  " + msg, pLeft, pBottom, uilook(uiText), vpage
+  edgeprint msg, pRight, pBottom - 8, uilook(uiText), vpage
+  edgeprint "F1 Help", pLeft, pBottom, uilook(uiText), vpage
   standardmenu menu(), st, mpos.x, mpos.y, vpage, menuopts
   setvispage vpage
   dowait
  LOOP
  freepage holdpage
+ IF NOT (keyval(scTab) > 1) THEN setkeys  'Clear keys/clicks other than tab (See above)
 END SUB
 
 'Returns a printable representation of a Condition with lots of ${K} colours
