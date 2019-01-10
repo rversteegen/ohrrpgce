@@ -91,9 +91,14 @@ END SUB
 SUB font_editor (fnt() as integer)
  DIM f(255) as integer  'Contains the character indices which should be shown (always 32-255)
  DIM copybuf(4) as integer
- DIM menu(6) as string
- DIM selectable(6) as bool
+ CONST MENULAST = 9
+ DIM menu(MENULAST) as string
+ DIM selectable(MENULAST) as bool
  flusharray selectable(), , YES
+ STATIC preview_textbox as integer = -1  '-1 if custom
+ STATIC preview_text as string
+
+ IF LEN(preview_text) = 0 THEN preview_text = "0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ The quick onyx goblin jumps over the lazy dwarf."
 
  menu(0) = "Previous Menu"
  menu(1) = "Edit Font..."
@@ -102,6 +107,8 @@ SUB font_editor (fnt() as integer)
  selectable(4) = NO
  menu(5) = ""  'Set below
  selectable(6) = NO
+ selectable(7) = NO
+ menu(8) = ""  'Set below
 
  DIM i as integer
 
@@ -121,7 +128,7 @@ SUB font_editor (fnt() as integer)
  WITH state
   .pt = 0
   .top = 0
-  .last = UBOUND(menu)
+  .last = UBOUND(menu) + 1
   .size = 22
  END WITH
 
@@ -171,6 +178,8 @@ SUB font_editor (fnt() as integer)
       xbsave game + ".fnt", fnt(), 2048
      END IF
     END IF
+    IF state.pt = 8 THEN
+
    CASE 0 'Picking a character to edit
     IF keyval(ccCancel) > 1 THEN mode = -1
     IF keyval(ccUp) > 1 THEN pt = large(pt - linesize, -1 * linesize)
@@ -253,11 +262,13 @@ SUB font_editor (fnt() as integer)
     menu(6) = " (Characters 127-160 are icons)"
    END IF
 
+   menu(8) = "Preview text:"
+
    standardmenu menu(), state, 0, 0, dpage
   END IF
 
   IF mode >= 0 THEN
-   state.tog XOR= 1'keep state.tog going even though we don't call standardmenu
+   state.tog XOR= 1  'Toggle because we don't call standardmenu
    xoff = 8
    yoff = 8
    FOR i = 0 TO last
