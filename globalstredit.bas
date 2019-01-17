@@ -404,6 +404,65 @@ SUB write_translation_file_txt(fname as string, translations as StrHashTable)
   v_free items
 END SUB
 
+'key is either abc## or abc##xyz##
+FUNCTION translation_describe_key(key as string) as string
+  DIM as string type1, type2
+  DIM as integer arg1, arg2
+
+  DIM as integer idx, idx2
+  FOR idx = 0 TO LEN(key) - 1
+    IF isalpha(key[idx]) = 0 THEN EXIT FOR
+  NEXT
+  'IF idx = 0 THEN RETURN "!Should start with a letter"
+  FOR idx2 = idx TO LEN(key) - 1
+    IF isdigit(key[idx2]) = 0 THEN EXIT FOR
+  NEXT
+  'IF idx2 = idx THEN RETURN "!Expected a digit at position " & idx2
+  IF split_str_int(LEFT(key, idx2), type1, arg1) = NO THEN RETURN "!Malformed number"
+  IF idx2 < LEN(key) THEN
+    IF split_str_int(MID(key, idx2), type2, arg2) = NO THEN RETURN "!Malformed subtype/sargument"
+  END IF
+
+  /'
+  DIM idx as integer = 0
+  DIM state as integer = 0
+  WHILE idx < LEN(key) - 1
+    DIM ch as integer = key[idx]
+    SELECT CASE state
+      CASE 0
+        IF isdigit(ch) THEN
+          type1 = LEFT(key, idx)
+          state = 1
+        END IF
+      CASE 1
+        IF isalpha(ch) THEN
+          arg1 = str2int(MID(key, lastbreak, idx - lastbreak))
+          state = 2
+        END IF
+      CASE 2
+        
+    END SELECT
+    idx += 1
+  WEND
+'/
+  'Those with subtypes
+
+
+  IF LEN(type2) THEN RETURN "!Type " & type1 & " shouldn't have a subtype"
+
+  'Those without subtypes
+  SELECT CASE LCASE(type1)
+    CASE "TB"
+      RETURN "Textbox %d"
+    CASE "SL"
+      RETURN "Slice collection %d, text slice %d "
+    CASE "STR"
+      RETURN "Global text string %d"
+    CASE ELSE
+      RETURN "!Unknown type " & type1
+  END SELECT
+END FUNCTION
+
 'This is a variant on textbox_lines_to_string()
 FUNCTION unwrap_textbox(box as TextBox) as string
   DIM ret as string
