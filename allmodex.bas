@@ -2342,7 +2342,7 @@ sub InputState.update_carray (whichcarray() as KeyBits, repeat_wait as integer =
 			for idx as integer = 0 to ubound(.controls)
 				with .controls(idx)
 					if .ckey then
-						whichcarray(.ckey) or= joykeyval(.scancode, joynum, repeat_wait, repeat_rate, real_keys)
+					'	whichcarray(.ckey) or= joykeyval(.scancode, joynum, repeat_wait, repeat_rate, real_keys)
 					end if
 				end with
 			next

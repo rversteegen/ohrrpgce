@@ -463,21 +463,90 @@ FUNCTION translation_describe_key(key as string) as string
   END SELECT
 END FUNCTION
 
+PRIVATE SUB start_new_block(byref ret as string, byref curblock as string)
+  IF LEN(ret) THEN ret &= !"\n"
+  ret &= curblock
+  curblock = ""
+END SUB
+
 'This is a variant on textbox_lines_to_string()
 FUNCTION unwrap_textbox(box as TextBox) as string
   DIM ret as string
 
   CONST leeway as integer = 4  'In characters
   DIM rightmargin as integer = 0  'In characters: space at right of the textbox
+  DIM leftmargin as integer
+
+  CONST maxlinelen = 38
+
+  IF box.portrait_type <> portraitNONE THEN
+    'In the following, many of the offsets are approximate, not the exact
+    'positions of the slices.
+
+    CONST box_w = maxlinelen * 8  '304. Actually, width of the text slice
+    CONST portrait_w = 50
+    CONST portrait_h = 50
+    DIM border_w as integer = IIF(box.portrait_box, 4, 0)
+
+    'Check the portrait isn't entirely above/below the box (overlaps at most ~4px)
+    IF box.portrait_pos.y - 2 + portrait_h + border_w > 4 _
+       ANDALSO box.portrait_pos.y - 2 < text_box_last_line(box) * 8 - 4 THEN
+
+      IF box.portrait_pos.x < box_w \ 2 - portrait_w THEN
+        'Towards the left
+        leftmargin = large(0, (box.portrait_pos.x - 2 + portrait_w + border_w) \ 8)
+      ELSEIF box.portrait_pos.x > box_w \ 2 + portrait_w THEN
+        'Towards the right
+        rightmargin = large(0, (box_w - (box.portrait_pos.x - 2 - border_w)) \ 8)
+      ELSE
+        'Right in the center... don't know what to do with that!
+      END IF
+
+    END IF
+  END IF
 
   debug "box_to_string"
 
-  FOR idx as integer = 0 TO text_box_last_line(box)
+  DIM lastline as integer = text_box_last_line(box)
+
+/'
+  'Check whether the box is consistently indented.
+  'The first one or two lines might have unique indentation; for example Vikings of Midgard does:
+  ' [Odin]
+  ' "Blah...
+  '  blah...
+  IF lastline >= 2 THEN
+    DIM finalindent = skip_over(box.text(lastline), 1, " ")
+    DIM consistent as bool = 
+    DIM indentstr as string = 
+    FOR idx as integer = small(2, lastline - 1) TO lastline
+  END IF
+'/
+  DIM curblock as string
+
+  DIM prev_line_appendable as bool = NO
+  FOR idx as integer = 0 TO lastline
     DIM lin as string = box.text(idx)
+    'The actual number of spaces on left and right ends
     DIM indentation as integer = skip_over(lin, 1, " ")
+    DIM rindentation as integer = maxlinelen - LEN(RTRIM(lin))
     DIM unwrap as bool = NO
 
-    IF idx > 0 THEN
+    IF indentation > leftmargin ANDALSO rindentation > rightmargin ANDALSO ABS(indentation - rindentation) <= 3 ANDALSO prev_line_appendable = NO THEN
+      'A centered line
+      start_new_block ret, curblock
+      'IF idx > 0 THEN ret &= !"\n"
+      curblock = "#{JC} "  'Center justified
+      prev_line_appendable = NO
+
+    ELSEIF LEN(TRIM(lin)) = 0 THEN
+      'Blank
+      start_new_block ret, curblock
+      'IF idx > 0 THEN ret &= !"\n"
+      prev_line_appendable = NO
+
+    ELSEIF prev_line_appendable THEN
+      '(This can't be the first line)
       'Heuristic test for whether this line is a continuation of the previous one,
       'in which case they should be joined without a newline.
       'Do this because it greatly confuses automated translators to have spurious newlines,
@@ -491,19 +560,40 @@ FUNCTION unwrap_textbox(box as TextBox) as string
       'split it with hyphens if you were wrapping text, 2) it's likely not a word
       firstwordlen = small(firstwordlen, 12)
 
-      debug "firstword " & MID(lin, 1 + indentation, firstwordlen)
+      debug "firstword " & firstwordlen & " " & MID(lin, 1 + indentation, firstwordlen)
 
-      IF LEN(RTRIM(box.text(idx - 1))) + 1 + firstwordlen > 38 - rightmargin - leeway THEN
+      DIM prevline as string = RTRIM(box.text(idx - 1))
+      IF LEN(prevline) + 1 + firstwordlen > maxlinelen - rightmargin - leeway THEN
+         'ANDALSO indentation <= leftmargin + 2 THEN
+
         'If leeway is 0, this word couldn't have fit on the previous line.
-        'But all a little leeway because people often wrap their lines early.
-        ret &= " "
+        'But give a little leeway because people often wrap their lines early.
+
+        'Remove hypenation
+        DIM prevlineend as string = RIGHT(prevline, 2)
+        IF LEN(prevline)> 4 THEN debug "ends with " & RIGHT(prevline, 10)
+        debug CHR(CINT(lin[indentation])) & " " & CINT(prevlineend[-1]) & " "& CINT(prevlineend[-2])
+        IF islower(CINT(lin[indentation])) ANDALSO _
+           prevlineend[1] = ASC("-") ANDALSO islower(CINT(prevlineend[0])) THEN
+          curblock = RTRIM(curblock, "-")
+        ELSE
+          curblock &= " "
+        END IF
+
       ELSE
-        ret &= !"\n"
+        start_new_block ret, curblock
       END IF
+      prev_line_appendable = YES
+    ELSE
+      'Start of a block of text
+      start_new_block ret, curblock
+      'IF idx > 0 THEN ret &= !"\n"
+      prev_line_appendable = YES
     END IF
-    ret &= TRIM(lin)
+    curblock &= TRIM(lin)
   NEXT
-  RETURN ret
+  start_new_block ret, curblock
+  RETURN ret & !"\n   LM" & leftmargin & " RM" & rightmargin & !"\n" & textbox_lines_to_string(box)
 END FUNCTION
 
 SUB create_translations()

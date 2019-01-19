@@ -682,6 +682,7 @@ END SUB
 
 SUB prompt_for_password()
  '--Is a password set?
+exit sub
  IF checkpassword("") THEN EXIT SUB
  
  '--Input password
