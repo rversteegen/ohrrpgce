@@ -566,19 +566,24 @@ SUB gfx_editor_menu()
 
 END SUB
 
+extern "C"
+extern as integer s_xstep, s_ystep, s_pdist, pydist
+end extern
+extern as double zoom_time
+
 SUB choose_rpg_to_open (rpg_browse_default as string)
  'This sub sets the globals: game and sourcerpg
 
  DIM state as MenuState
  state.pt = 1
- state.last = 2
+ state.last = 6
  state.size = 20
 
  DIM root as Slice ptr
  root = NewSliceOfType(slContainer)
  SliceLoadFromFile root, finddatafile("choose_rpg.slice")
  
- DIM chooserpg_menu(2) as string
+ DIM chooserpg_menu(6) as string
  chooserpg_menu(0) = "CREATE NEW GAME"
  chooserpg_menu(1) = "LOAD EXISTING GAME"
  chooserpg_menu(2) = "EXIT PROGRAM"
@@ -594,6 +599,18 @@ SUB choose_rpg_to_open (rpg_browse_default as string)
   IF keyval(scF6) > 1 THEN slice_editor root, SL_COLLECT_EDITOR, "choose_rpg.slice"
 
   DIM menusl as Slice ptr = LookupSliceSafe(SL_EDITOR_SPLASH_MENU, root)
+
+  SELECT CASE state.pt
+   CASE 3 : intgrabber s_xstep, 1, 5
+   CASE 4 : intgrabber s_ystep, 1, 5
+   CASE 5 : intgrabber s_pdist, 1, 5
+   CASE 6 : intgrabber pydist, 1, 5
+  END SELECT
+
+ chooserpg_menu(3) = "xstep " & s_xstep
+ chooserpg_menu(4) = "ystep " & s_ystep
+ chooserpg_menu(5) = "pdist " & s_pdist
+ chooserpg_menu(6) = "pydist " & pydist
 
   usemenu state
   IF enter_space_click(state) THEN
@@ -619,7 +636,7 @@ SUB choose_rpg_to_open (rpg_browse_default as string)
   DrawSlice root, dpage
   standardmenu chooserpg_menu(), state, menusl->ScreenX, menusl->ScreenY, dpage, opts
   wrapprint short_version & " " & gfxbackend & "/" & musicbackend, 8, pBottom - 14, uilook(uiMenuItem), dpage
-  edgeprint "Press F1 for help on any menu!", 8, pBottom - 4, uilook(uiText), dpage
+  edgeprint "" & CINT(zoom_time * 1e6), 8, pBottom - 4, uilook(uiText), dpage
 
   SWAP vpage, dpage
   setvispage vpage
@@ -842,6 +859,11 @@ SUB Custom_global_menu
  menu.append 5, "Zoom 2x"
  menu.append 6, "Zoom 3x"
  menu.append 7, "Zoom 4x"
+ menu.append 13, "Zoom 5x"
+ menu.append 14, "Zoom 6x"
+ menu.append 15, "Zoom 7x"
+ menu.append 16, "Zoom 8x"
+
  menu.append 8, "Switch graphics backend (Ctrl-F8)"
  'menu.append 9, "Music backend settings"
  IF slave_channel <> NULL_CHANNEL THEN
@@ -872,6 +894,14 @@ SUB Custom_global_menu
   set_scale_factor 3, NO
  ELSEIF choice = 7 THEN
   set_scale_factor 4, NO
+ ELSEIF choice = 13 THEN
+  set_scale_factor 5, NO
+ ELSEIF choice = 14 THEN
+  set_scale_factor 6, NO
+ ELSEIF choice = 15 THEN
+  set_scale_factor 7, NO
+ ELSEIF choice = 16 THEN
+  set_scale_factor 8, NO
  ELSEIF choice = 8 THEN
   gfx_backend_menu
  ELSEIF choice = 9 THEN

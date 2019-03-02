@@ -63,6 +63,8 @@ type SDL_VideoInfo
 end type
 #endif
 
+EXTERN zoom_time as double
+DIM zoom_time as double
 
 EXTERN "C"
 
@@ -573,7 +575,16 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval w as integer, byva
       debugc errDie, "gfx_sdl_present_internal: Failed to allocate page wrapping surface, " & *SDL_GetError
     END IF
 
+    STATIC zcount as integer, zsum as double
+    DIM starttime as double = TIMER
     smoothzoomblit_8_to_8bit(raw, screenbuffer->pixels, w, h, screenbuffer->pitch, zoom, smooth)
+    zsum += TIMER - starttime
+    zcount += 1
+    IF zcount = 40 THEN
+      zoom_time = zsum / 40
+      zsum = 0
+      zcount = 0
+    END IF
     gfx_sdl_8bit_update_screen()
 
   ELSE

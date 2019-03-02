@@ -216,7 +216,7 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 	else if (zoom == 8) { zoom0 = 2, zoom1 = 2; zoom2 = 2; }
 	else if (zoom == 9) { zoom1 = 3; zoom2 = 3; }
 	else if (zoom == 12) { zoom0 = 2; zoom1 = 3; zoom2 = 2; }
-	else if (zoom == 16) { zoom0 = 2; zoom1 = 2; zoom2 = 4; finalsmooth = 0; }
+	else if (zoom == 16) { zoom0 = 2; zoom1 = 2; zoom2 = 4; finalsmooth = 1; }
 	else {
 		// Still attempt to smooth zooms like 5x, 7x, but the effect is very slight
 		return false;
@@ -238,6 +238,9 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 	free(intermediate_buffer);
 	return true;
 }
+
+extern int s_xstep, s_ystep, s_pdist, pydist, blittime;
+int s_xstep = 1, s_ystep = 1, s_pdist = 1, pydist = 1, blittime;
 
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, int w, int h, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
@@ -293,21 +296,26 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, int w, in
 		}
 	}
 
+//zoom4:ystep 2
+
+	int pdist = s_pdist;
 	if (smooth == 1 && zoom >= 2) {
-		int fy = 1;
-		int pstep;
+		int fy = pydist;
+		int xstep = s_xstep, ystep = s_ystep;
+/*
 		if (zoom == 3) {
-			pstep = 1;
+			ystep = 1;
 		} else {
-			pstep = zoom;
+			ystep = zoom;
 			fy = zoom - 1;
 		}
+*/
 		uint8_t *sptr1, *sptr2, *sptr3;
-		for (; fy <= high - 2; fy += pstep) {
-			sptr1 = destbuffer + pitch * (fy - 1) + 1;  //(1,0)
-			sptr2 = sptr1 + pitch; //(1,1)
-			sptr3 = sptr2 + pitch; //(1,2)
-			for (int fx = wide - 2; fx >= 1; fx--) {
+		for (; fy <= high - 1 - pydist; fy += ystep) {
+			sptr1 = destbuffer + pitch * (fy - pydist) + pdist;  //(1,0)
+			sptr2 = sptr1 + pydist*pitch; //(1,1)
+			sptr3 = sptr2 + pydist*pitch; //(1,2)
+			for (int fx = wide - 1 - pdist; fx >= pdist; fx -= xstep) {
 				//p0=point(fx,fy)
 				//p1=point(fx-1,fy-1)//nw
 				//p2=point(fx+1,fy-1)//ne
@@ -315,15 +323,15 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, int w, in
 				//p4=point(fx-1,fy+1)//sw
 				//if p1 = p3 then p0 = p1
 				//if p2 = p4 then p0 = p2
-				if (sptr1[1] == sptr3[-1])
-					sptr2[0] = sptr1[1];
+				if (sptr1[pdist] == sptr3[-pdist])
+					sptr2[0] = sptr1[pdist];
 				else
-					if (sptr1[-1] == sptr3[1])
-						sptr2[0] = sptr1[-1];
+					if (sptr1[-pdist] == sptr3[pdist])
+						sptr2[0] = sptr1[-pdist];
 				
-				sptr1 += 1;
-				sptr2 += 1;
-				sptr3 += 1;
+				sptr1 += xstep;
+				sptr2 += xstep;
+				sptr3 += xstep;
 			}
 		}
 	}
