@@ -119,7 +119,7 @@ extern "C"
 	void surface_assign( Surface** ptr_to_replace, Surface* new_value );
 	Surface* surface_scale( Surface *surf, int destWidth, int destHeight );
 	Surface* surface_duplicate( Surface* surf );
-	Surface* surface32_from_pixels( char *input, int w, int h, enum PixelFormat format );
+	Surface* surface32_from_pixels( char *input, int w, int h, int pitch, enum PixelFormat format );
 	char *surface32_to_pixels( Surface *surf, enum PixelFormat format );
 
 	// Roto-zooming functions (implemented in rotozoom.c)

@@ -375,7 +375,7 @@ dim shared gif_show_keys as bool         'While recording a gif, whether to disp
 dim shared gif_show_mouse as bool        'While recording a gif, whether to display mouse location
 
 dim shared loaded_screenshot_settings as bool = NO
-dim shared screenshot_format as string
+dim screenshot_format as string          '(Global) File extension to use for screenshots
 dim shared use_gfx_screenshot as bool
 
 dim shared closerequest as bool = NO     'It has been requested to close the program.
@@ -6800,7 +6800,7 @@ function surface_import_png(filename as string, always_32bit as bool) as Surface
 		end if
 
 		'Convert RGB to BGRA
-		ret = surface32_from_pixels(buf, size.w, size.h, PIXFMT_RGB)
+		ret = surface32_from_pixels(buf, size.w, size.h, size.w, PIXFMT_RGB)
 		deallocate buf
 	else
 		'The palette is ignored
@@ -7018,7 +7018,7 @@ function surface_import_jpeg(filename as string) as Surface ptr
 		debug "ujGetImage error " & ujGetError() & " importing " & filename
 	else
 		'Need to convert RGB to our BGRA
-		ret = surface32_from_pixels(buf, size.w, size.h, pixformat)
+		ret = surface32_from_pixels(buf, size.w, size.h, size.w, pixformat)
 	end if
 
 	ujFree(jpeg)

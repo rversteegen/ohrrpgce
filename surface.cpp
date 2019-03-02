@@ -207,7 +207,7 @@ int gfx_surfaceStretch_SW( SurfaceRect* pRectSrc, Surface* pSurfaceSrc, RGBPalet
 }
 
 // input is a buffer of pixels, formatted according to format. Convert to a SF_32bit surface (BGRA).
-Surface *surface32_from_pixels( char *restrict input, int w, int h, PixelFormat format ) {
+Surface *surface32_from_pixels( char *restrict input, int w, int h, int pitch, PixelFormat format ) {
 	Surface *ret;
 	if (gfx_surfaceCreate(w, h, SF_32bit, SU_Staging, &ret))
 		return NULL;
@@ -225,6 +225,11 @@ Surface *surface32_from_pixels( char *restrict input, int w, int h, PixelFormat 
 				col.b = input[2];
 				input += 3;
 			}
+		}
+		if (format == PIXFMT_GREY) {
+			input += pitch - w;
+		} else {
+			input += 3 * (pitch - w);
 		}
 	}
 	return ret;

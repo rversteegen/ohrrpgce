@@ -637,8 +637,19 @@ SUB gfx_sdl_setpal(byval pal as RGBcolor ptr)
   gfx_sdl_8bit_update_screen()
 END SUB
 
-FUNCTION gfx_sdl_screenshot(byval fname as zstring ptr) as integer
-  gfx_sdl_screenshot = 0
+FUNCTION gfx_sdl_screenshot(byval fname as zstring ptr) as boolint
+  IF screensurface = NULL THEN RETURN NO
+
+  DIM surf as Surface ptr
+  WITH *screensurface
+    DIM format as SurfaceFormat = IIF(.format->BitsPerPixel = 8, SF_8bit, SF_32bit)
+    IF gfx_surfaceCreatePixelsView(.pixels, .w, .h, .pitch, format, @surf) THEN RETURN NO
+  END WITH
+
+  'Use .png because that's the only format for which surface_export_image supports both 8 and 32 bit
+  surface_export_image(surf, *fname & ".png")
+  gfx_surfaceDestroy(@surf)
+  RETURN YES
 END FUNCTION
 
 SUB gfx_sdl_setwindowed(byval towindowed as bool)
