@@ -831,7 +831,7 @@ DO
  DIM tool_buttonpressed as bool = keyval(scSpace) > 0
 
  '--Check how to handle mouse input
- DIM mouse_over_tool as ToolIDs = no_tool
+ DIM mouse_over_tool as ToolID = no_tool
  DIM mouse_over as MapMouseAttention
  mouse_over = mapedit_mouse_over_what(st)
  IF mouse.buttons = 0 AND mouse.release = 0 THEN st.mouse_attention = mouse_over

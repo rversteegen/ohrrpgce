@@ -69,12 +69,13 @@ DECLARE SUB sprite_editor_initialise(byref ss as SpriteEditState, sprite as Fram
 DECLARE SUB sprite_editor_update_for_sprite_size(byref ss as SpriteEditState, sprite as Frame ptr)
 DECLARE SUB sprite_editor_cleanup(byref ss as SpriteEditState)
 DECLARE SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
-DECLARE SUB textcolor_icon(selected as bool, hover as bool)
-DECLARE SUB spriteedit_draw_icon(ss as SpriteEditState, icon as string, byval areanum as integer, byval highlight as bool = NO)
+DECLARE SUB textcolor_icon(selected as bool, hover as bool, disabled as bool = NO)
+DECLARE SUB spriteedit_draw_icon(ss as SpriteEditState, icon as string, byval areanum as integer, byval highlight as bool = NO, byval disabled as bool = NO)
 DECLARE SUB spriteedit_draw_palette(pal16 as Palette16 ptr, x as integer, y as integer, page as integer)
 DECLARE SUB spriteedit_draw_sprite_area(ss as SpriteEditState, sprite as Frame ptr, pal as Palette16 ptr, page as integer)
 DECLARE SUB spriteedit_display(ss as SpriteEditState)
 DECLARE SUB spriteedit_scroll (ss as SpriteEditState, byval shiftx as integer, byval shifty as integer)
+DECLARE SUB spriteedit_transform (ss as SpriteEditState)
 DECLARE SUB spriteedit_reset_tool(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_strait_line(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_draw_square(byref ss as SpriteEditState)
@@ -1489,7 +1490,7 @@ DIM tog as integer = 0
 DIM tick as integer = 0
 ts.lastcpos = TYPE(ts.x, ts.y)
 ts.justpainted = 0
-ts.didscroll = NO
+ts.undo_already_saved = NO
 ts.undo = 0
 ts.allowundo = 0
 ts.delay = 10
@@ -1604,7 +1605,7 @@ DO
  IF keyval(scCtrl) > 0 AND keyval(scZ) > 1 AND ts.allowundo THEN
   loopvar ts.undo, 0, 5, -1
   readundoblock ts
-  ts.didscroll = NO  'save a new undo block upon scrolling
+  ts.undo_already_saved = NO  'save a new undo block upon scrolling
  END IF
  IF keyval(scSpace) > 0 THEN clicktile ts, keyval(scSpace) AND 4, clone
  IF keyval(scAnyEnter) > 1 ORELSE keyval(scG) > 1 THEN ts.curcolor = readpixel(ts.tilex * 20 + ts.x, ts.tiley * 20 + ts.y, 3)
@@ -1891,7 +1892,7 @@ SUB spriteedit_show_neighbouring_tiles(byref ts as TileEditState, byval bgcolor 
 END SUB
 
 SUB tileedit_set_tool (ts as TileEditState, toolinfo() as ToolInfoType, byval toolnum as integer)
- IF ts.tool <> toolnum AND toolnum = scroll_tool THEN ts.didscroll = NO
+ IF ts.tool <> toolnum AND toolnum = scroll_tool THEN ts.undo_already_saved = NO
  ts.tool = toolnum
  ts.hold = NO
  ts.drawcursor = toolinfo(ts.tool).cursor + 1
@@ -2059,8 +2060,8 @@ END SUB
 SUB scrolltile (ts as TileEditState, byval shiftx as integer, byval shifty as integer)
  'Save an undo before the first of a consecutive scrolls
  IF shiftx = 0 AND shifty = 0 THEN EXIT SUB
- IF ts.didscroll = NO THEN writeundoblock ts
- ts.didscroll = YES
+ IF ts.undo_already_saved = NO THEN writeundoblock ts
+ ts.undo_already_saved = YES
 
  rectangle 0, 0, 20, 20, uilook(uiBackground), dpage
  DIM tempx as integer
@@ -2372,8 +2373,9 @@ SUB readundospr (ss as SpriteEditState)
   ss.undodepth -= 1
   frame_unload @ss.sprite
   ss.sprite = frame_duplicate(ss.undo_history[ss.undodepth])
-  ss.didscroll = NO  'save a new undo block upon scrolling
+'  ss.undo_already_saved = NO  'Save a new undo block upon starting to scroll/transform
  END IF
+ spriteedit_reset_tool ss
 END SUB
 
 ' Perform redo
@@ -2382,8 +2384,9 @@ SUB readredospr (ss as SpriteEditState)
   ss.undodepth += 1
   frame_unload @ss.sprite
   ss.sprite = frame_duplicate(ss.undo_history[ss.undodepth])
-  ss.didscroll = NO  'save a new undo block upon scrolling
+  'ss.undo_already_saved = NO  'Save a new undo block upon starting to scroll/transform
  END IF
+ spriteedit_reset_tool ss
 END SUB
 
 ' Draw a 16-colour palette onscreen, with surrounding box
@@ -2417,9 +2420,9 @@ SUB spriteedit_display(ss as SpriteEditState)
  NEXT i
 
  ' Draw the <-Pal###-> or <-Col###-> display
- textcolor_icon NO, ss.zonenum = 5
+ textcolor_icon NO, ss.zonenum = 4+1
  printstr CHR(27), 243, 100, dpage
- textcolor_icon NO, ss.zonenum = 6
+ textcolor_icon NO, ss.zonenum = 5+1
  printstr CHR(26), 307, 100, dpage
  textcolor uilook(uiText), 0
  DIM paldisplay as string
@@ -2482,6 +2485,7 @@ SUB spriteedit_display(ss as SpriteEditState)
   drawbox 4 + select_rect.x * ss.zoom, 1 + select_rect.y * ss.zoom, select_rect.wide * ss.zoom, select_rect.high * ss.zoom, ss.curcolor, ss.zoom, dpage
   drawbox ss.previewpos.x + select_rect.x, ss.previewpos.y + select_rect.y, select_rect.wide, select_rect.high, ss.curcolor, 1, dpage
  END IF
+
  DIM temppos as XYPair
  IF ss.tool = clone_tool AND ss_save.clone_brush <> NULL AND ss.tog = 0 THEN
   temppos.x = ss.x - ss_save.clonepos.x
@@ -2493,6 +2497,7 @@ SUB spriteedit_display(ss as SpriteEditState)
   frame_draw ss_save.clone_brush, ss.palette, 4 + temppos.x * ss.zoom, 1 + temppos.y * ss.zoom, ss.zoom, , dpage
   frame_draw ss_save.clone_brush, ss.palette, ss.previewpos.x + temppos.x, ss.previewpos.y + temppos.y, , , dpage
  END IF
+
  textcolor uilook(uiMenuItem), 0
  printstr "x=" & ss.x & " y=" & ss.y, 0, 190, dpage
  printstr "Tool:" & ss.toolinfo(ss.tool).name, 0, 182, dpage
@@ -2504,33 +2509,38 @@ SUB spriteedit_display(ss as SpriteEditState)
  spriteedit_draw_icon ss, "I", 12
  spriteedit_draw_icon ss, "E", 25
 
- IF ss.undodepth = 0 THEN
-  textcolor uilook(uiBackground), uilook(uiDisabledItem)
- ELSE
-  textcolor_icon ss.zonenum = 20, NO
- END IF
- printstr "UNDO", 130, 182, dpage
+ DIM as bool highlight, disabled
+ highlight = (ss.zonenum = 19+1)
+ disabled = (ss.undodepth = 0)
+ spriteedit_draw_icon ss, "UNDO", 19, highlight, disabled
+
  ' Both undodepth = len and undodepth = len-1 are valid and indicate
  ' no more redo history (the later means no unsaved changes)
- IF ss.undodepth >= v_len(ss.undo_history) - 1 THEN
-  textcolor uilook(uiBackground), uilook(uiDisabledItem)
- ELSE
-  textcolor_icon ss.zonenum = 21, NO
- END IF
- printstr "REDO", 170, 182, dpage
+ highlight = (ss.zonenum = 20+1)
+ disabled = (ss.undodepth >= v_len(ss.undo_history) - 1)
+ spriteedit_draw_icon ss, "REDO", 20, highlight, disabled
 
+ textcolor uilook(uiMenuItem), 0
  IF ss.tool = airbrush_tool THEN
-  textcolor uilook(uiMenuItem), 0
-  printstr "SIZE" & ss.airsize, 228, 182, dpage
-  printstr "MIST" & ss.mist, 228, 190, dpage
+  printstr "SIZE" & lpad(STR(ss.airsize), , 2), 236, 182, dpage
+  printstr "MIST" & lpad(STR(ss.mist), , 2), 236, 190, dpage
   spriteedit_draw_icon ss, CHR(27), 14
   spriteedit_draw_icon ss, CHR(27), 15
   spriteedit_draw_icon ss, CHR(26), 16
   spriteedit_draw_icon ss, CHR(26), 17
- END IF
- IF ss.tool <> airbrush_tool THEN
-  textcolor uilook(uiMenuItem), 0
-  printstr "ROTATE", 228, 190, dpage
+ ELSEIF ss.tool = transform_tool THEN
+  printstr "WIDE" & lpad(STR(ss.rz_size.x), , 3), 236, 174, dpage
+  printstr "HIGH" & lpad(STR(ss.rz_size.y), , 3), 236, 182, dpage
+  'Halves of a degree are stored, but don't show the half
+  printstr "ANGLE" & lpad(STR(CINT(ss.rz_angle)), , 3), 236, 190, dpage
+  spriteedit_draw_icon ss, CHR(27), 26
+  spriteedit_draw_icon ss, CHR(26), 27
+  spriteedit_draw_icon ss, CHR(27), 14 '28
+  spriteedit_draw_icon ss, CHR(26), 29
+  spriteedit_draw_icon ss, CHR(27), 15 '30
+  spriteedit_draw_icon ss, CHR(26), 31
+ ELSE
+  printstr "ROTATE", 236, 190, dpage
   spriteedit_draw_icon ss, CHR(27), 15
   spriteedit_draw_icon ss, CHR(26), 17
  END IF
@@ -2543,7 +2553,7 @@ SUB spriteedit_display(ss as SpriteEditState)
  END IF
 END SUB
 
-SUB textcolor_icon(selected as bool, hover as bool)
+SUB textcolor_icon(selected as bool, hover as bool, disabled as bool = NO)
  DIM as integer fg = uiMenuItem, bg = uiDisabledItem
  IF selected THEN
   fg = uiText
@@ -2553,16 +2563,21 @@ SUB textcolor_icon(selected as bool, hover as bool)
   IF selected THEN fg = uiSelectedItem ELSE fg = uiText
   bg = uiSelectedDisabled
  END IF
+ IF disabled THEN
+  fg = uiBackground
+  bg = uiDisabledItem
+ END IF
  textcolor uilook(fg), uilook(bg)
 END SUB
 
 'Draw one of the clickable areas (obviously this will all be replaced with slices eventually)
-SUB spriteedit_draw_icon(ss as SpriteEditState, icon as string, byval areanum as integer, byval highlight as bool = NO)
- textcolor_icon highlight, (ss.zonenum = areanum + 1)
+SUB spriteedit_draw_icon(ss as SpriteEditState, icon as string, byval areanum as integer, byval highlight as bool = NO, byval disabled as bool = NO)
+ textcolor_icon highlight, (ss.zonenum = areanum + 1), disabled
  printstr icon, ss.area(areanum).x, ss.area(areanum).y, dpage
 END SUB
 
 SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
+ 'NOTE: areas can't overlap even if the button is sometimes hidden!
  DIM i as integer
  'DRAWING ZONE
  area(0).w = ss.wide * ss.zoom
@@ -2582,8 +2597,8 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(2).w = 64
  area(2).h = 96
  area(2).hidecursor = NO
- 'FLIP BUTTON
- area(3).x = 184
+ 'HORIZ FLIP BUTTON
+ area(3).x = 196
  area(3).y = 190
  area(3).w = 8
  area(3).h = 10
@@ -2609,8 +2624,8 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
   area(6 + i).hidecursor = NO
  NEXT i
  'IMPORT BUTTON
- area(12).x = 196
- area(12).y = 190
+ area(12).x = 200
+ area(12).y = 182
  area(12).w = 8
  area(12).h = 10
  area(12).hidecursor = NO
@@ -2620,26 +2635,26 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(13).x = ss.previewpos.x
  area(13).y = ss.previewpos.y
  area(13).hidecursor = YES
- 'LESS AIRBRUSH AREA
- area(14).x = 220
+ 'LESS AIRBRUSH AREA and also LESS ZOOM Y
+ area(14).x = 228
  area(14).y = 182
  area(14).w = 8
  area(14).h = 8
  area(14).hidecursor = NO
- 'LESS AIRBRUSH MIST
- area(15).x = 220
+ 'LESS AIRBRUSH MIST and also LESS ROTATE and also LESS ANGLE
+ area(15).x = 228
  area(15).y = 190
  area(15).w = 8
  area(15).h = 8
  area(15).hidecursor = NO
  'MORE AIRBRUSH AREA
- area(16).x = 276
+ area(16).x = 284
  area(16).y = 182
  area(16).w = 8
  area(16).h = 8
  area(16).hidecursor = NO
- 'MORE AIRBRUSH MIST
- area(17).x = 276
+ 'MORE AIRBRUSH MIST and also MORE ROTATE
+ area(17).x = 284
  area(17).y = 190
  area(17).w = 8
  area(17).h = 8
@@ -2651,13 +2666,13 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(18).h = 8
  area(18).hidecursor = NO
  'UNDO BUTTON
- area(19).x = 130
+ area(19).x = 120
  area(19).y = 182
  area(19).w = 32
  area(19).h = 8
  area(19).hidecursor = NO
  'REDO BUTTON
- area(20).x = 170
+ area(20).x = 160
  area(20).y = 182
  area(20).w = 32
  area(20).h = 8
@@ -2670,12 +2685,76 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
   area(21 + i).h = 10
   area(21 + i).hidecursor = NO
  NEXT i
+ 'MARK AND CLONE
+ FOR i = 1 TO 2
+  area(21 + i).x = 140 + i * 10 + 3
+ NEXT
+ 'SCROLL
+ area(21 + 3).x = 140 + 3 * 10 + 6
  'EXPORT BUTTON
- area(25).x = 206
- area(25).y = 190
+ area(25).x = 210
+ area(25).y = 182
  area(25).w = 8
  area(25).h = 10
  area(25).hidecursor = NO
+
+ 'Transform
+ 'LESS ZOOM X
+ area(26).x = 228
+ area(26).y = 174
+ area(26).w = 8
+ area(26).h = 8
+ area(26).hidecursor = NO
+ 'MORE ZOOM X
+ area(27).x = 292
+ area(27).y = 174
+ area(27).w = 8
+ area(27).h = 8
+ area(27).hidecursor = NO
+/'
+ 'LESS ZOOM Y
+ area(28).x = 228
+ area(28).y = 182
+ area(28).w = 8
+ area(28).h = 8
+ area(28).hidecursor = NO
+'/
+ 'MORE ZOOM Y
+ area(29).x = 292
+ area(29).y = 182
+ area(29).w = 8
+ area(29).h = 8
+ area(29).hidecursor = NO
+/'
+ 'LESS ANGLE
+ area(30).x = 228
+ area(30).y = 190
+ area(30).w = 8
+ area(30).h = 8
+ area(30).hidecursor = NO
+'/
+ 'MORE ANGLE
+ area(31).x = 300
+ area(31).y = 190
+ area(31).w = 8
+ area(31).h = 8
+ area(31).hidecursor = NO
+
+ 'TRANSFORM (T) BUTTON
+ area(32).x = 186
+ area(32).y = 190
+ area(32).w = 8
+ area(32).h = 10
+ area(32).hidecursor = NO
+
+/'
+ 'VERT FLIP BUTTON
+ area(33).x = 200
+ area(33).y = 190
+ area(33).w = 8
+ area(33).h = 10
+ area(33).hidecursor = NO
+'/
 END SUB
 
 FUNCTION default_export_name (sprtype as SpriteType, setnum as integer, framenum as integer = 0, fullset as bool) as string
@@ -3294,7 +3373,7 @@ SUB sprite_editor_update_for_sprite_size(byref ss as SpriteEditState, sprite as 
   .fastmovestep = large(4, .wide \ 10)
   .previewpos.x = 319 - .wide
   .previewpos.y = 119
-  .undomax = maxSpriteHistoryMem \ (sizeof(Frame) + .wide * .high)  'Could shorten .undo_history too
+  .undomax = large(1, maxSpriteHistoryMem \ (sizeof(Frame) + .wide * .high))  'Could shorten .undo_history too
  END WITH
 
  'DRAWING ZONE
@@ -3323,7 +3402,7 @@ SUB sprite_editor_initialise(byref ss as SpriteEditState, sprite as Frame ptr)
   .zone.y = 0
   .hold = NO
   .gotmouse = havemouse()
-  .didscroll = NO
+  .undo_already_saved = NO
   .drawcursor = 1
   .tool = ss_save.tool
   .airsize = ss_save.airsize
@@ -3376,7 +3455,7 @@ SUB sprite_editor_initialise(byref ss as SpriteEditState, sprite as Frame ptr)
   .areanum = 11
  END WITH
  WITH ss.toolinfo(airbrush_tool)
-  .name = "Air"
+  .name = "Airbrush"
   .icon = "A"
   .shortcut = scA
   .cursor = 3
@@ -3387,14 +3466,14 @@ SUB sprite_editor_initialise(byref ss as SpriteEditState, sprite as Frame ptr)
   .icon = "M"
   .shortcut = scM
   .cursor = 2
-  .areanum = 23
+  .areanum = 22
  END WITH
  WITH ss.toolinfo(clone_tool)
   .name = "Clone"
   .icon = "C"
   .shortcut = scC
   .cursor = 3
-  .areanum = 24
+  .areanum = 23
  END WITH
  WITH ss.toolinfo(replace_tool)
   .name = "Replace"
@@ -3408,8 +3487,19 @@ SUB sprite_editor_initialise(byref ss as SpriteEditState, sprite as Frame ptr)
   .icon = "S"
   .shortcut = scS
   .cursor = 2
-  .areanum = 22
+  .areanum = 24
  END WITH
+ WITH ss.toolinfo(transform_tool)
+  .name = "Transform"
+  .icon = "T"
+  .shortcut = scT
+  .cursor = 2
+  .areanum = 32
+ END WITH
+ 'Import, Export and Horiz Flip aren't tools, but their buttons also appear
+ 'in the toolbar
+
+ spriteedit_reset_tool ss
 END SUB
 
 ' Part of ss should be filled in with the necessary arguments.
@@ -3553,7 +3643,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   END IF
  END IF
 
- ' Change master palette index for the selected palette color
+ ' Change master palette index for the selected palette color (keyboard and mouse)
  ss.curcolor = ss.palette->col(ss.palindex)
  IF keyval(scAlt) > 0 THEN
   IF keyval(ccUp) > 1    AND ss.curcolor > 15  THEN ss.curcolor -= 16 : ss.showcolnum = COLORNUM_SHOW_TICKS
@@ -3573,8 +3663,9 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   IF keyval(scS) > 1 THEN ss.fastmovestep = large(ss.fastmovestep - 1, 2)
  END IF
 
- ' Change brush position
- IF keyval(scAlt) = 0 THEN
+ ' Change brush position with arrow keys ... unless alt is held (arrows change
+ ' master palette color instead) or transform tool in use.
+ IF keyval(scAlt) = 0 ANDALSO ss.tool <> transform_tool THEN
   DIM fixmouse as bool = NO
   WITH ss
    fixmouse = NO
@@ -3588,7 +3679,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   END WITH
   IF fixmouse THEN
    IF ss.zonenum = 1 THEN
-    ss.zone.x = ss.x * ss.zoom + (ss.zoom \ 2)
+    ss.zone.x = ss.x * ss.zoom + (ss.zoom \ 2)  'Move mouse to center of the enlarged pixel
     ss.zone.y = ss.y * ss.zoom + (ss.zoom \ 2)
     ss.mouse.x = ss.area(0).x + ss.zone.x 
     ss.mouse.y = ss.area(0).y + ss.zone.y
@@ -3603,7 +3694,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
    END IF
   END IF
  END IF
- ' Mouse over main sprite view
+ ' Mouse over main sprite view? Change cursor pos
  IF ss.zonenum = 1 THEN
   ss.x = ss.zone.x \ ss.zoom
   ss.y = ss.zone.y \ ss.zoom
@@ -3626,7 +3717,8 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   NEXT idx
  END IF
 
- IF ss.tool = airbrush_tool THEN '--adjust airbrush
+ ' Airbrush MIST/SIZE buttons and +/-/CTRL+/CTRL- controls
+ IF ss.tool = airbrush_tool THEN
   IF ss.mouse.buttons AND mouseLeft THEN
    IF ss.zonenum = 15 THEN ss.airsize = large(ss.airsize - ss.tick, 1)
    IF ss.zonenum = 17 THEN ss.airsize = small(ss.airsize + ss.tick, 80)
@@ -3648,8 +3740,53 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
    END IF
   END IF
  END IF
+
+ ' Transform ZOOM X/ZOOM Y/ANGLE buttons and ARROW KEYS/+/- controls
+ IF ss.tool = transform_tool THEN
+  DIM update as bool = NO
+  DIM stepsize as integer = IIF(keyval(scShift) > 0, 3, ss.tick)  'Should use ss.fastmovestep?
+
+  IF ss.mouse.buttons AND mouseLeft THEN
+   IF ss.zonenum = 26+1 THEN ss.rz_size.w -= stepsize : update = YES
+   IF ss.zonenum = 27+1 THEN ss.rz_size.w += stepsize : update = YES
+   IF ss.zonenum = 14+1 THEN ss.rz_size.h -= stepsize : update = YES  '<s>zone 28</s>
+   IF ss.zonenum = 29+1 THEN ss.rz_size.h += stepsize : update = YES
+   IF ss.zonenum = 15+1 THEN ss.rz_angle -= stepsize : update = YES  '<s>zone 30</s>
+   IF ss.zonenum = 31+1 THEN ss.rz_angle += stepsize : update = YES
+  END IF
+
+  IF keyval(scCtrl) = 0 THEN
+   IF slowkey(ccUp, 100)    THEN ss.rz_size.h -= stepsize : update = YES
+   IF slowkey(ccDown, 100)  THEN ss.rz_size.h += stepsize : update = YES
+   IF slowkey(ccLeft, 100)  THEN ss.rz_size.w -= stepsize : update = YES
+   IF slowkey(ccRight, 100) THEN ss.rz_size.w += stepsize : update = YES
+  ELSE
+   'Shift offset
+   IF slowkey(ccUp, 100)    THEN ss.rz_shift.h -= stepsize : update = YES
+   IF slowkey(ccDown, 100)  THEN ss.rz_shift.h += stepsize : update = YES
+   IF slowkey(ccLeft, 100)  THEN ss.rz_shift.w -= stepsize : update = YES
+   IF slowkey(ccRight, 100) THEN ss.rz_shift.w += stepsize : update = YES
+  END IF
+  IF keyval(scMinus) > 1 OR keyval(scNumpadMinus) > 1 THEN
+   ss.rz_angle -= stepsize : update = YES
+  END IF
+  IF keyval(scPlus) > 1 OR keyval(scNumpadPlus) > 1 THEN
+   ss.rz_angle += stepsize : update = YES
+  END IF
+
+  ss.rz_size.w = bound(ss.rz_size.w, 1, 999)
+  ss.rz_size.h = bound(ss.rz_size.h, 1, 999)
+  ss.rz_angle = fmod(ss.rz_angle + 360., 360.)
+  IF update THEN 
+
+
+ ? keyval(scctrl) & " " & ss.rz_size &" "  & ss.rz_shift
+   spriteedit_transform ss
+  end if
+ END IF
+
  IF ss.tool = clone_tool THEN
-  '--When clone tool is active, rotate the clone buffer
+  '--When clone tool is active, rotate the clone buffer when ROTATE buttons clicked
   IF ss.mouse.buttons AND mouseLeft THEN
    IF ss_save.clone_brush THEN
     IF ss.zonenum = 16 THEN
@@ -3662,9 +3799,9 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
     END IF
    END IF
   END IF
- ELSEIF ss.tool <> airbrush_tool THEN
-  '--when other tools are active, rotate the whole buffer
-  '--except for the airbrush tool because it's buttons collide.
+ ELSEIF ss.tool <> airbrush_tool ANDALSO ss.tool <> transform_tool THEN
+  '--when other tools are active, rotate the whole buffer when ROTATE buttons clicked
+  '--except for the airbrush and transform tools because they have buttons that replace the rotate buttons.
   IF ss.mouse.buttons AND mouseLeft THEN
    IF ss.zonenum = 16 THEN
     spriteedit_edit ss, frame_rotated_90(ss.sprite)  'anticlockwise
@@ -3684,6 +3821,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
  END IF
 
  IF ((ss.zonenum = 1 OR ss.zonenum = 14) ANDALSO (ss.mouse.buttons AND mouseLeft)) OR keyval(scSpace) > 0 THEN
+  'Clicked in draw area, thumbnail view, or hit Space
   SELECT CASE ss.tool
    CASE draw_tool
     spriteedit_put_dot(ss)
@@ -3779,7 +3917,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   IF (ss.mouse.clicks > 0 AND ss.zonenum = ss.toolinfo(i).areanum + 1) OR _
      (keyval(scAlt) = 0 AND keyval(scCtrl) = 0 AND keyval(scShift) = 0 AND _
       keyval(ss.toolinfo(i).shortcut) > 1) THEN
-   IF ss.tool <> i THEN ss.didscroll = NO
+   IF ss.tool <> i THEN ss.undo_already_saved = NO  'Save a new undo block upon starting to scroll/transform
    ss.tool = i
    spriteedit_reset_tool(ss)
    ss.drawcursor = ss.toolinfo(i).cursor + 1
@@ -3838,6 +3976,8 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   END IF
  END IF
  IF ss.tool = scroll_tool AND keyval(scAlt) = 0 THEN
+  'Scroll tool: Arrow keys to scroll the sprite.
+  'Note: above, we already also made arrow keys move the cursor
   DIM scrolloff as XYPair
   DIM stepsize as integer = IIF(keyval(scShift) > 0, ss.fastmovestep, 1)
   IF slowkey(ccUp, 100)    THEN scrolloff.y -= stepsize
@@ -3907,20 +4047,50 @@ SUB spriteedit_strait_line(byref ss as SpriteEditState)
  drawline ss.sprite, ss.x, .ss.y, ss.holdpos.x, ss.holdpos.y, ss.palindex
 END SUB
 
+'Called after setting ss.tool
 SUB spriteedit_reset_tool(byref ss as SpriteEditState)
  ss.hold = NO
  ss.readjust = NO
  ss.adjustpos.x = 0
  ss.adjustpos.y = 0
+ ss.undo_already_saved = NO  'Save a new undo block upon starting to scroll/transform
+
+ IF ss.tool = transform_tool THEN
+  ss.rz_size = ss.sprite->size
+  ss.rz_angle = 0.
+  ss.rz_shift = XY(0, 0)
+ END IF
 END SUB
 
 SUB spriteedit_scroll (ss as SpriteEditState, byval shiftx as integer, byval shifty as integer)
- 'Save an undo before the first of a consecutive scrolls
+ 'Save an undo before the first of consecutive scrolls
  IF shiftx = 0 AND shifty = 0 THEN EXIT SUB
- IF ss.didscroll = NO THEN writeundospr ss
- ss.didscroll = YES
+ IF ss.undo_already_saved = NO THEN writeundospr ss
+ ss.undo_already_saved = YES
 
  frame_assign @ss.sprite, frame_resized(ss.sprite, ss.wide, ss.high, shiftx, shifty)
+END SUB
+
+SUB spriteedit_transform (ss as SpriteEditState)
+ 'Save an undo before the first of consecutive transforms
+ IF ss.undo_already_saved = NO THEN writeundospr ss
+ ss.undo_already_saved = YES
+ DIM as Frame ptr initial_spr = v_end(ss.undo_history)[-1]  'Last undo step
+
+ DIM as Surface ptr in_surf, out_surf
+ gfx_surfaceCreateFrameView(initial_spr, @in_surf)
+ DIM as double zoomx = ss.rz_size.w / ss.wide
+ DIM as double zoomy = ss.rz_size.h / ss.high
+ out_surf = rotozoomSurface(in_surf, ss.rz_angle, zoomx, zoomy, YES)
+ IF out_surf = NULL THEN EXIT SUB
+ DIM as Frame ptr transformed = frame_with_surface(out_surf)
+ IF transformed = NULL THEN EXIT SUB
+ gfx_surfaceDestroy(@in_surf)
+ gfx_surfaceDestroy(@out_surf)
+ 'Now resize it to the correct size and shift so we get the center
+ DIM as XYPair shift = TYPE(ss.sprite->size - transformed->size) \ 2 + ss.rz_shift
+ frame_assign @ss.sprite, frame_resized(transformed, ss.wide, ss.high, shift.x, shift.y)
+ frame_unload @transformed
 END SUB
 
 

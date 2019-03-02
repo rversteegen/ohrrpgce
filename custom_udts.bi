@@ -6,7 +6,7 @@
 
 #include "slices.bi"
 
-ENUM ToolIDs
+ENUM ToolID
   no_tool = -1
   'These are the tools available in the sprite, tile and map editors
   draw_tool
@@ -18,6 +18,7 @@ ENUM ToolIDs
   mark_tool
   clone_tool
   replace_tool
+  transform_tool   'Sprite editor only
   scroll_tool
   SPRITEEDITOR_LAST_TOOL = scroll_tool
 
@@ -98,7 +99,7 @@ TYPE SpriteEditState
   hidemouse as bool
   number_typing_deadline as double  'Deadline for typing more digits of a color idx
   drawcursor as integer 'Icon to use for the cursor, (character in the font)
-  tool as integer
+  tool as ToolID
   pal_num as integer    'Palette used by current sprite
   curcolor as integer   'Index in master palette (equal to .palette->col(.palindex))
   palindex as integer   'Index in 16 color palette
@@ -109,16 +110,22 @@ TYPE SpriteEditState
   tick as integer
   tog as integer        '0/1
   holdpos as XYPair
+  'Ellipse
   radius as double
   ellip_minoraxis as double '--For non-circular elipses. Not implemented yet
   ellip_angle as double
+  'Transform (Rotozoom) tool
+  rz_size as XYPair 'Initialised to the size of the sprite
+  rz_angle as double
+  rz_shift as XYPair
+
   undodepth as integer  'A value in [0, len(undo_history)] (i.e. inclusive). Indicates
                         'the index in the history equal to the current edit state (with
                         'indices before being undo steps and after being redo steps); if
                         'equal to len, indicates the current edits aren't saved in history.
   undomax as integer    'Max allowable length of undo_history
   undo_history as Frame ptr vector  'A stack of previous states. The most recent is at the end
-  didscroll as bool     'have scrolled since selecting the scroll tool
+  undo_already_saved as bool  'Whether we've saved an undo step since switching to scroll
   delay as integer
   movespeed as integer
   readjust as bool
@@ -128,7 +135,7 @@ TYPE SpriteEditState
   'Fixed members
   previewpos as XYPair
   toolinfo(SPRITEEDITOR_LAST_TOOL) as ToolInfoType
-  area(25) as MouseArea
+  area(32) as MouseArea
 END TYPE
 
 TYPE TileCloneBuffer
@@ -168,7 +175,8 @@ TYPE TileEditState
   delay as integer
   readjust as integer
   adjustpos as XYPair
-  didscroll as integer  'have scrolled since selecting the scroll tool
+  undo_already_saved as bool  'Whether we've saved an undo step since switching to scroll or rotozoom
+
   defaultwalls as integer vector  'always length 160
 END TYPE
 
