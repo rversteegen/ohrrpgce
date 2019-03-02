@@ -204,6 +204,16 @@ DIM VertCaptions(2) as string
 VertCaptions(0) = "Top"
 VertCaptions(1) = "Center"
 VertCaptions(2) = "Bottom"
+DIM SHARED ClampHorizCaptions(3) as string
+ClampHorizCaptions(0) = "No"
+ClampHorizCaptions(1) = "Left"
+ClampHorizCaptions(2) = "Right"
+ClampHorizCaptions(3) = "Left and right"
+DIM SHARED ClampVertCaptions(3) as string
+ClampVertCaptions(0) = "No"
+ClampVertCaptions(1) = "Top"
+ClampVertCaptions(2) = "Bottom"
+ClampVertCaptions(3) = "Top and bottom"
 REDIM SHARED BorderCaptions(-2 TO -1) as string
 BorderCaptions(-2) = "None"
 BorderCaptions(-1) = "Line"
@@ -257,10 +267,10 @@ FUNCTION anchor_and_align_grabber(byref anchor as AlignType, byref align as Alig
  RETURN ret
 END FUNCTION
 
-FUNCTION clamp_caption(align as AlignType, vertical as bool) as string
- IF align = alignNone THEN RETURN "No"
- RETURN "to " & IIF(vertical, VertCaptions(align), HorizCaptions(align))
-END FUNCTION
+' FUNCTION clamp_caption(align as AlignType, vertical as bool) as string
+'  IF align = alignNone THEN RETURN "No"
+'  RETURN "to " & IIF(vertical, VertCaptions(align), HorizCaptions(align))
+' END FUNCTION
 
 '==============================================================================
 
@@ -1755,11 +1765,11 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
   END IF
   IF ses.privileged THEN
    IF .Fill = NO ORELSE .FillMode = sliceFillVert THEN
-    a_append menu(), " Clamp horiz.: " & clamp_caption(.ClampHoriz, NO)
+    a_append menu(), " Clamp horiz.: " & ClampHorizCaptions(.ClampHoriz)
     sliceed_rule_enum rules(), "clamp", @.ClampHoriz, 0, 2
    END IF
    IF .Fill = NO ORELSE .FillMode = sliceFillHoriz THEN
-    a_append menu(), " Clamp vert.: " & clamp_caption(.ClampVert, YES)
+    a_append menu(), " Clamp vert.: " & ClampVertCaptions(.ClampVert)
     sliceed_rule_enum rules(), "clamp", @.ClampVert, 0, 2
    END IF
   END IF

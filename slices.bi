@@ -167,6 +167,16 @@ Enum CoverModes
  coverFull = 3
 End Enum
 
+Enum ClampModes
+ clampNone = 0
+ clampLeft = 1
+ clampRight = 2
+ clampLeftRight = 3
+ clampTop = 1
+ clampBottom = 2
+ clampTopBottom = 3
+End Enum
+
 ' Stores information about what this slice is used for, if that isn't explained
 ' by the lookup code.
 Type SliceContext Extends Object
@@ -280,8 +290,8 @@ Type Slice
   AlignVert as AlignType   'Relative to parent. Only used when not filling
   AnchorHoriz as AlignType 'Relative to self. Only used when not filling
   AnchorVert as AlignType  'Relative to self. Only used when not filling
-  ClampHoriz as AlignType  'alignNone for no clamping. Only used when not filling
-  ClampVert as AlignType  'alignNone for no clamping. Only used when not filling
+  ClampHoriz as ClampModes 'alignNone for no clamping. Only used when not filling
+  ClampVert as ClampModes  'alignNone for no clamping. Only used when not filling
 
   as integer PaddingTop, PaddingLeft, PaddingRight, PaddingBottom
 
