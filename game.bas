@@ -4561,11 +4561,10 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  'Ctrl+F11 is handled in allmodex
  IF dbg.def( , , "Macro record/replay menu (Ctrl-F11)") THEN macro_controls
 
- 'Screenshotting with F12 is handled in allmodex
+ 'Screenshots and gif recording also handled in allmodex
  IF dbg.def( , , "Screenshot (F12)") THEN screenshot
-
- 'This is also handled in allmodex
- IF dbg.def( , , "Record .gif video (Ctrl-F12)") THEN toggle_recording_gif
+ IF dbg.def( , , "Record .gif video (Ctrl-F12)") THEN toggle_recording_gif NO
+ IF dbg.def( , , "Record .gif frame-at-a-time (Shift-Ctrl-F12)") THEN toggle_recording_gif YES
 
  IF dbg.def( , scPause, "Pause game (Pause)") THEN
   gam.paused XOR= YES

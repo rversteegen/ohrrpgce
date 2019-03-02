@@ -813,7 +813,7 @@ SUB start_recording_combined_gif()
  IF slave_channel = NULL_CHANNEL THEN EXIT SUB
  DIM screenfile as string = tmpdir & "screenshare" & randint(100000) & ".bmp"
  channel_write_line(slave_channel, "SCREEN " & screenfile)
- start_recording_gif screenfile
+ start_recording_gif NO, screenfile
  debuginfo "...recording with secondscreen " & screenfile
 END SUB
 

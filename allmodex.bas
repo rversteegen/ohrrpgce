@@ -77,7 +77,8 @@ declare sub loadbmprle8(bf as integer, fr as Frame ptr)
 declare sub loadbmprle4(bf as integer, fr as Frame ptr)
 
 declare function next_unused_screenshot_filename() as string
-declare sub snapshot_check()
+declare sub screenshot_check()
+declare function recording_manual_gif() as bool
 
 declare function calcblock(tmap as TileMap, x as integer, y as integer, overheadmode as integer, pmapptr as TileMap ptr) as integer
 
@@ -340,20 +341,22 @@ dim shared macrofile as string
 type VideoRecorder extends Object
 	declare virtual property active() as bool
 	declare abstract sub stop()
-	declare abstract sub record_frame(fr as Frame ptr, pal() as RGBcolor)
+	declare abstract sub record_frame(fr as Frame ptr, pal() as RGBcolor, special_frame as bool = NO)
 end type
 
 type GIFRecorder extends VideoRecorder
 	'active as bool
 	writer as GifWriter
 	fname as string
+	manual_trigger as bool           'Add a frame only when F12 pressed
 	secondscreen as string           'When recording combined editor+player .gif: path to player screen file
 	last_frame_end_time as double    'Nominal time when the delay for the last frame we wrote ends
+	fixed_delay as integer           'If non-zero, hundredths of a second per frame
 
-	declare constructor(outfile as string, secondscreen as string = "")
+	declare constructor(outfile as string, secondscreen as string = "", fixed_delay as integer = 0)
 	declare property active() as bool
 	declare sub stop()
-	declare sub record_frame(fr as Frame ptr, pal() as RGBcolor)
+	declare sub record_frame(fr as Frame ptr, pal() as RGBcolor, special_frame as bool = NO)
 	declare function calc_delay() as integer
 end type
 
@@ -364,7 +367,7 @@ type ScreenForwarder extends VideoRecorder
 	declare constructor(outfile as string)
 	declare property active() as bool
 	declare sub stop()
-	declare sub record_frame(fr as Frame ptr, pal() as RGBcolor)
+	declare sub record_frame(fr as Frame ptr, pal() as RGBcolor, special_frame as bool = NO)
 end type
 
 dim shared recordvid as VideoRecorder ptr
@@ -1103,7 +1106,7 @@ sub setvispage (page as integer, skippable as bool = YES)
 	end if
 
 	'F12 for screenshots handled here (uses real_keyval)
-	snapshot_check
+	screenshot_check
 	if recordvid then
 		recordvid->record_frame vpages(drawpage), intpal()
 	end if
@@ -1965,7 +1968,7 @@ function waitforanykey (wait_for_resize as bool = NO) as KBScancode
 		setkeys
 		key = anykeypressed(sleepjoymouse = 0, sleepjoymouse = 0, 3)  'New keypresses only
 		if key then
-			snapshot_check  'In case F12 pressed, otherwise it wouldn't work
+			screenshot_check  'In case F12 pressed, otherwise it wouldn't work
 			setkeys  'Clear the keypress
 			use_speed_control = remem_speed_control
 			return key
@@ -2857,11 +2860,15 @@ private sub allmodex_controls()
 		gfx_backend_menu
 	end if
 
-	' F12 screenshots are handled in setvispage, not here.
+	' F12 screenshots are handled in screenshot_check, called from setvispage, not here.
 
-	' Ctrl+F12 to start/stop recording a .gif
 	if real_keyval(scCtrl) > 0 andalso (real_keyval(scF12) and 4) then
-		toggle_recording_gif
+		if real_keyval(scShift) = 0 then
+			' Ctrl+F12 to start/stop recording a .gif
+			toggle_recording_gif NO
+		else
+			toggle_recording_gif YES
+		end if
 	end if
 
 	if real_keyval(scCtrl) > 0 and real_keyval(scTilde) and 4 then
@@ -7474,6 +7481,8 @@ end property
 '(We have to say how long the frame will be displayed when we write it, rather than
 'just telling how long the last frame was on-screen for.)
 function GIFRecorder.calc_delay() as integer
+	if this.fixed_delay then return this.fixed_delay
+
 	' Predict the time that this frame will be shown via the setwait timer.
 	' But the actual next setvispage might happen after or before that
 	' (if there are multiple setvispage calls before dowait).
@@ -7498,18 +7507,29 @@ function GIFRecorder.calc_delay() as integer
 	return ret
 end function
 
-sub start_recording_gif(secondscreen as string = "")
+sub start_recording_gif(manual_trigger as bool = NO, secondscreen as string = "")
 	stop_recording_video()
-	recordvid = new GIFRecorder(absolute_path(next_unused_screenshot_filename() + ".gif"), secondscreen)
+
+	dim delay as integer = 0
+	if manual_trigger then
+		dim delaystr as string = "1000"
+		prompt_for_string delaystr, "Recording a .gif a frame at a time. " _
+		    "Press F12 to add a frame, and Ctrl-F12 to finish. Milliseconds per displayed frame?"
+		if parse_int(delaystr, @delay) = NO then exit sub
+	end if
+
+	recordvid = new GIFRecorder(absolute_path(next_unused_screenshot_filename() + ".gif"), secondscreen, delay)
 end sub
 
-constructor GIFRecorder(outfile as string, secondscreen as string = "")
+constructor GIFRecorder(outfile as string, secondscreen as string = "", fixed_delay as integer = 0)
 	dim gifpal as GifPalette
 	' Use master() rather than actual palette (intpal()), because
 	' intpal() is affected by fades. We want the master palette,
 	' because that's likely to be the palette for most frames.
 	GifPalette_from_pal gifpal, master()
 	this.fname = outfile
+	this.manual_trigger = (fixed_delay > 0)
+	this.fixed_delay = fixed_delay
 	this.secondscreen = secondscreen
 	dim file as FILE ptr = fopen(this.fname, "wb")
 	if GifBegin(@this.writer, file, vpages(vpage)->w, vpages(vpage)->h, 6, NO, @gifpal) then
@@ -7561,12 +7581,16 @@ function recording_gif() as bool
 	return recordvid andalso recordvid->active andalso *recordvid is GIFRecorder
 end function
 
+function recording_manual_gif() as bool
+	return recording_gif() andalso cast(GIFRecorder ptr, recordvid)->manual_trigger
+end function
+
 'Perform the effect of pressing Ctrl-F12: start or stop recording a gif
-sub toggle_recording_gif()
+sub toggle_recording_gif(manual_trigger as bool = NO)
 	if recordvid andalso recordvid->active then
 		stop_recording_video
 	else
-		start_recording_gif
+		start_recording_gif manual_trigger
 	end if
 end sub
 
@@ -7604,8 +7628,11 @@ private function combined_screen(our as Frame ptr, our_pal() as RGBcolor, other_
 end function
 
 ' Called with every frame that should be included in any ongoing gif recording
-sub GIFRecorder.record_frame(fr as Frame ptr, pal() as RGBcolor)
+sub GIFRecorder.record_frame(fr as Frame ptr, pal() as RGBcolor, special_frame as bool = NO)
 	if this.active = NO then exit sub
+
+	' Not recording ever frame? Skip unless triggered by F12
+	if this.manual_trigger andalso special_frame = NO then exit sub
 
 	dim delay as integer = this.calc_delay()
 	if delay <= 0 then exit sub
@@ -7736,12 +7763,13 @@ private function next_unused_screenshot_filename() as string
 end function
 
 'Take a single screenshot if F12 is pressed.
-'Holding down F12 takes a screenshot each frame, however besides
+'Or add a frame to the current gif, if recording in frame-at-a-time mode.
+'Otherwise, holding down F12 takes a screenshot each frame, however besides
 'the first, they're saved to the temporary directory until key repeat kicks in, and then
 'moved, in order to 'debounce' F12 if you only press it for a short while.
 '(Hmm, now that we can record gifs directly, it probably makes sense to remove the ability to hold F12)
 'NOTE: global variables like tmpdir can change between calls, have to be lenient
-private sub snapshot_check()
+private sub screenshot_check()
 	static as string backlog()
 	initialize_static_dynamic_array(backlog)
 	' The following are just for the overlay message
@@ -7753,7 +7781,12 @@ private sub snapshot_check()
 
 	F12bits = real_keyval(scF12)
 
-	if F12bits = 0 then
+	if recording_manual_gif() then
+		if F12bits > 0 andalso real_keyval(scCtrl) = 0 then
+			' Manually adding a frame to the .gif
+			recordvid->record_frame vpages(getvispage), intpal(), YES
+		end if
+	elseif F12bits = 0 then
 		' If key repeat never occurred then delete the backlog.
 		for n = 1 to ubound(backlog)
 			'debug "killing " & backlog(n)
@@ -7823,7 +7856,7 @@ sub ScreenForwarder.stop()
 	end if
 end sub
 
-sub ScreenForwarder.record_frame(fr as Frame ptr, pal() as RGBcolor)
+sub ScreenForwarder.record_frame(fr as Frame ptr, pal() as RGBcolor, special_frame as bool = NO)
 	frame_export_image(vpages(getvispage), this.fname, pal())
 end sub
 
