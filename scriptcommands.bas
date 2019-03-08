@@ -4839,7 +4839,7 @@ FUNCTION valid_spriteslice_dat(byval sl as Slice Ptr) as bool
 END FUNCTION
 
 FUNCTION valid_plotslice(byval handle as integer, byval errlev as scriptErrEnum = serrBadOp) as bool
- IF handle < LBOUND(plotslices) OR handle > UBOUND(plotslices) THEN
+ IF handle < LBOUND(plotslices) ORELSE handle > UBOUND(plotslices) THEN
   scripterr current_command_name() & ": invalid slice handle " & handle, errlev
   RETURN NO
  END IF
