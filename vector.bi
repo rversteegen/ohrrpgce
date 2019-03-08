@@ -449,5 +449,21 @@ DECLARE SUB array_to_vector OVERLOAD (byref vec as string vector, array() as str
 DECLARE SUB vector_to_array OVERLOAD (array() as integer, byval vec as integer vector)
 DECLARE SUB vector_to_array OVERLOAD (array() as string, byval vec as string vector)
 
+type vector_header
+  table as TypeTable ptr
+  temp as integer
+  alloc as integer
+end type
+
+#macro   INPLACE_VECTOR(vec, ty, length)
+  _header_##vec as vector_header
+  _inplace_##vec as Ty(length - 1)
+  vec as Ty vector
+#endmacro
+  
+#define v_new_inplace(vec)  array_new_inplace(vec, _inplace_##vec)
+
+'  INPLACE_VECTOR(Extra, integer, 3)
+
 
 #ENDIF

@@ -151,6 +151,18 @@ static array_t mem_alloc(typetable *typetbl, int len, int alloc) {
 	return array;
 }
 
+static array_t mem_init_inplace(typetable *typetbl, int len, int alloc, void *mem) {
+	if (alloc < len || len < 0)
+		debug(errFatalError, "mem_alloc: alloc == %d < len == %d", alloc, len);
+	array_t array = get_array_ptr(mem);
+	array_header *header = get_header(array);
+	header->typetbl = typetbl;
+	header->temp = 0;
+	header->len = len;
+	header->allocated = alloc;
+	return array;
+}
+
 // Lowest-level free routine. Does not destruct/construct elements
 static inline void mem_free(array_t array) {
 	if (!array)
@@ -192,8 +204,14 @@ static array_t mem_resize(array_t array, unsigned int len) {
 	    sadd_overflow(arraysize, ARRAY_OVERHEAD, &arraysize))
 		debug(errFatalError, "mem_resize: overflow; vector len=%d", len);
 #if !FORCE_REALLOC
-	//printf("realloc to arraysize %d len %d alloc %d\n", arraysize, len, alloclen);
-	void *newmem = realloc(mem, arraysize);
+	if (inplace) {
+		void *newmem = malloc(arraysize);
+		memcpy(newmem, mem, oldsize);
+		// Do not free mem
+	} else {
+		//printf("realloc to arraysize %d len %d alloc %d\n", arraysize, len, alloclen);
+		void *newmem = realloc(mem, arraysize);
+	}
 #else
 	// For debugging: Allocate new memory
 	int oldsize = ARRAY_OVERHEAD + header->len * header->typetbl->element_len;
@@ -203,7 +221,8 @@ static array_t mem_resize(array_t array, unsigned int len) {
 	memset(newmem, 255, arraysize);
 	memcpy(newmem, mem, oldsize);
 	memset(mem, 255, oldsize);
-	free(mem);
+	if (!inplace)
+		free(mem);
 #endif
 	if (!newmem)
 		debug(errFatalError, "out of memory");
