@@ -709,6 +709,8 @@ define function, begin
 680,joystickaxiscount,1,0     # Number of axes a joystick has (joynum)
 681,joystickhatcount,1,0      # Number of hats (eg dpads) a joystick has (joynum)
 682,findcolor,4,0,0,0,0       # Index of nearest match in palette (r, g, b, searchstart)
+683,setsliceextracount,2,0,3   # (slice, number of extra)
+684,getsliceextracount,1,0     # (slice, number of extra)
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end

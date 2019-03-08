@@ -2666,15 +2666,19 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 410 '--get slice extra (handle, extra)
   IF valid_plotslice(retvals(0)) THEN
-   IF retvals(1) >= 0 AND retvals(1) <= 2 THEN
-    scriptret = plotslices(retvals(0))->Extra(retvals(1))
-   END IF
+   WITH *plotslices(retvals(0))
+    IF bound_arg(retvals(1), 0, UBOUND(.Extra), "extra index", , serrBadOp) THEN
+     scriptret = .Extra(retvals(1))
+    END IF
+   END WITH
   END IF
  CASE 411 '--set slice extra (handle, extra, val)
   IF valid_plotslice(retvals(0)) THEN
-   IF retvals(1) >= 0 AND retvals(1) <= 2 THEN
-    plotslices(retvals(0))->Extra(retvals(1)) = retvals(2)
-   END IF
+   WITH *plotslices(retvals(0))
+    IF bound_arg(retvals(1), 0, UBOUND(.Extra), "extra index", , serrBadOp) THEN
+     .Extra(retvals(1)) = retvals(2)
+    END IF
+   END WITH
   END IF
  CASE 412 '--get sprite type
   IF valid_plotslice(retvals(0)) THEN
@@ -4697,6 +4701,22 @@ SUB script_functions(byval cmdid as integer)
  CASE 682 '--find color(r, g, b, searchstart)
   'r, g, b don't have to be in the range 0-255.
   scriptret = nearcolor(master(), retvals(0), retvals(1), retvals(2), retvals(3))
+
+ CASE 683 '--set slice extra count (slice, number of extra)
+  IF valid_plotslice(retvals(0)) ANDALSO bound_arg(retvals(1), 0, 100000, "length") THEN
+   WITH *plotslices(retvals(0))
+    IF retvals(1) = 0 THEN
+     ERASE .Extra
+    ELSE
+     REDIM PRESERVE .Extra(retvals(1) - 1)
+    END IF
+   END WITH
+  END IF
+ CASE 684 '--get slice extra count (slice)
+  IF valid_plotslice(retvals(0)) THEN
+   scriptret = UBOUND(plotslices(retvals(0))->Extra) + 1
+  END IF
+
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands

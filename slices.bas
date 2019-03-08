@@ -389,9 +389,9 @@ Function NewSlice(byval parent as Slice ptr = 0) as Slice ptr
  ret->Visible = YES
  ret->Attached = 0
  ret->Attach = slSlice
-
  ret->ClampHoriz = alignNone
  ret->ClampVert = alignNone
+ redim ret->Extra(2)
 
  ret->Draw = NULL
  ret->Dispose = @DisposeNullSlice

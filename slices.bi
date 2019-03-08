@@ -274,7 +274,7 @@ Type Slice
   AutoSort as AutoSortModes
   Sorter as integer        'Sort order, used by CustomSortChildSlices. Lower to the bottom.
 
-  Extra(2) as integer
+  Extra(any) as integer
 
   AlignHoriz as AlignType  'Relative to parent. Only used when not filling
   AlignVert as AlignType   'Relative to parent. Only used when not filling
