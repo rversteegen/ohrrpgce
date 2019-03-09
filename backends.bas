@@ -116,6 +116,8 @@ dim gfx_paletteFromRGB as function ( byval pColorsIn as RGBcolor ptr, byval ppPa
 dim gfx_paletteDestroy as function ( byval ppPaletteIn as RGBPalette ptr ptr ) as integer
 dim gfx_paletteUpdate as function ( byval pPaletteIn as RGBPalette ptr ) as integer
 
+#ifdef RASTERIZER
+
 dim gfx_renderQuadColor as function ( byval pQuad as VertexPC ptr, byval argbModifier as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
 dim gfx_renderQuadTexture as function ( byval pQuad as VertexPT ptr, byval pTexture as Surface ptr, byval pPalette as RGBPalette ptr, byval bUseColorKey0 as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
 dim gfx_renderQuadTextureColor as function ( byval pQuad as VertexPTC ptr, byval pTexture as Surface ptr, byval pPalette as RGBPalette ptr, byval bUseColorKey0 as integer, byval argbModifier as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
@@ -123,6 +125,8 @@ dim gfx_renderQuadTextureColor as function ( byval pQuad as VertexPTC ptr, byval
 dim gfx_renderTriangleColor as function ( byval pTriangle as VertexPC ptr, byval argbModifier as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
 dim gfx_renderTriangleTexture as function ( byval pTriangle as VertexPT ptr, byval pTexture as Surface ptr, byval pPalette as RGBPalette ptr, byval bUseColorKey0 as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
 dim gfx_renderTriangleTextureColor as function ( byval pTriangle as VertexPTC ptr, byval pTexture as Surface ptr, byval pPalette as RGBPalette ptr, byval bUseColorKey0 as integer, byval argbModifier as integer, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr ) as integer
+
+#endif  'RASTERIZER
 
 dim gfx_present as function ( byval pSurfaceIn as Surface ptr, byval pPalette as RGBPalette ptr ) as integer
 
@@ -461,12 +465,14 @@ private sub default_gfx_render_procs()
 	gfx_paletteFromRGB = @gfx_paletteFromRGB_SW
 	gfx_paletteDestroy = @gfx_paletteDestroy_SW
 	gfx_paletteUpdate = @gfx_paletteUpdate_SW
+#ifdef RASTERIZER
 	gfx_renderQuadColor = @gfx_renderQuadColor_SW
 	gfx_renderQuadTexture = @gfx_renderQuadTexture_SW
 	gfx_renderQuadTextureColor = @gfx_renderQuadTextureColor_SW
 	gfx_renderTriangleColor = @gfx_renderTriangleColor_SW
 	gfx_renderTriangleTexture = @gfx_renderTriangleTexture_SW
 	gfx_renderTriangleTextureColor = @gfx_renderTriangleTextureColor_SW
+#endif
 end sub
 
 private sub prefer_gfx_backend(b as GfxBackendStuff ptr)

@@ -16,8 +16,10 @@
 
 #define bound(x, low, high)  std::max(std::min(x, high), low)
 
+#ifdef RASTERIZER
 // g_rasterizer has no state, so is threadsafe
 QuadRasterizer g_rasterizer;
+#endif
 
 // Access to g_surfaces and g_palettes is gated by surfaceMutex
 std::list< Surface* > g_surfaces;
@@ -545,6 +547,8 @@ int gfx_paletteUpdate_SW( RGBPalette* pPaletteIn )
 	return 0;
 }
 
+#ifdef RASTERIZER
+
 int gfx_renderQuadColor_SW( VertexPC* pQuad, uint32_t argbModifier, SurfaceRect* pRectDest, Surface* pSurfaceDest )
 {//done
 	if( pSurfaceDest->format == SF_8bit )
@@ -616,3 +620,5 @@ int gfx_renderTriangleTextureColor_SW( VertexPTC* pTriangle, Surface* pTexture, 
 	g_rasterizer.drawTriangleTextureColor(pTriangle, pTexture, pPalette, bUseColorKey0, argbModifier, pRectDest, pSurfaceDest);
 	return 0;
 }
+
+#endif  //RASTERIZER

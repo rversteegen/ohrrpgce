@@ -7,7 +7,6 @@
 #include "filelayer.hpp"
 #include <cstdio>
 #include <cassert>
-#include <map>
 #include <cstring>
 #include "misc.h"
 #include "errno.h"

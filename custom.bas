@@ -1552,6 +1552,7 @@ SUB condition_test_menu ()
  setkeys
 END SUB
 
+#ifdef RASTERIZER
 
 SUB quad_transforms_menu ()
  DIM menu(...) as string = {"Arrows: scale X and Y", "<, >: change angle", "[, ]: change sprite"}
@@ -1671,6 +1672,7 @@ SUB quad_transforms_menu ()
   gfx_renderQuadTexture( @pt_vertices(0), spriteSurface, masterPalette, YES, NULL, vpages(vpage)->surf )
   drawtime = TIMER - starttime
 
+
   setvispage vpage
   dowait
  LOOP
@@ -1681,6 +1683,8 @@ SUB quad_transforms_menu ()
  gfx_surfaceDestroy(@spriteSurface)
  gfx_paletteDestroy(@masterPalette)
 END SUB
+
+#endif  'RASTERIZER
 
 'smooth is 0, 1 or 2
 SUB rotozoom_test_with (img as GraphicPair, rotate as double, zoomx as double, zoomy as double, smooth as integer)

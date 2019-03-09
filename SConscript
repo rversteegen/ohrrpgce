@@ -232,6 +232,9 @@ if optimisations:
     FBFLAGS += ["-O", "2"]
 else:
     CFLAGS.append ('-O0')
+# if rasterizer:
+#     CFLAGS += ['-DRASTERIZER']
+#     FBFLAGS += ['-d','RASTERIZER']
 
 # Backend selection.
 # Defaults:
@@ -998,8 +1001,8 @@ game_modules = ['game',
                 'pathfinding.bas']
 
 # The following are built only once and linked into Game and Custom
-common_modules += ['rasterizer.cpp',
-                   'matrixMath.cpp',
+common_modules += [ #'rasterizer.cpp',
+                    #'matrixMath.cpp',
                    'rotozoom.c',
                    'surface.cpp',
                    'lib/gif.cpp',

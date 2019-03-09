@@ -6,6 +6,8 @@
 #ifndef RASTERIZER_H
 #define RASTERIZER_H
 
+#ifdef RASTERIZER
+
 #include "fpInt.hpp"
 #include "surface.h"
 #include "gfxRender.hpp"
@@ -96,5 +98,7 @@ public:
 	void drawQuadTexture(const VertexPT* pQuad, const Surface* pTexture, const RGBPalette* pPalette, int bUseColorKey0, SurfaceRect* pRectDest, Surface* pSurfaceDest);
 	void drawQuadTextureColor(const VertexPTC* pQuad, const Surface* pTexture, const RGBPalette* pPalette, int bUseColorKey0, Color argbModifier, SurfaceRect* pRectDest, Surface* pSurfaceDest);
 };
+
+#endif  //RASTERIZER
 
 #endif
