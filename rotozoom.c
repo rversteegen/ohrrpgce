@@ -506,6 +506,10 @@ void _transformSurfaceY(Surface *src, Surface *dst, int cx, int cy, int isin, in
 		dy = cy - y;
 		sdx = (ax + (isin * dy)) + xd;
 		sdy = (ay - (icos * dy)) + yd;
+
+		/* Calculate number of pixels */
+
+
 		for (x = 0; x < dst->width; x++) {
 			dx = (short) (sdx >> 16);
 			dy = (short) (sdy >> 16);
@@ -568,6 +572,12 @@ Surface* rotateSurface90Degrees(Surface* src, int numClockwiseTurns)
 		return NULL;
 
 	int bpp = src->format == SF_32bit ? 4 : 1;  /* bytes per pixel */
+
+	#define COPYPIXEL \
+		if (is32bit) \
+			*(RGBcolor*)dstBuf = *(RGBcolor*)srcBuf; \
+		else \
+			*(uint8_t*)dstBuf = *(uint8_t*)srcBuf;
 
 	switch(normalizedClockwiseTurns) {
 	case 0: /* Make a copy of the surface */
@@ -688,21 +698,27 @@ void _rotozoomSurfaceSizeTrig(int width, int height, double angle, double zoomx,
 	radangle = angle * (M_PI / 180.0);
 	*sanglezoom = sin(radangle);
 	*canglezoom = cos(radangle);
-	*sanglezoom *= zoomx;
-	*canglezoom *= zoomy;
-	x = (double)(width / 2);
-	y = (double)(height / 2);
+	/* *sanglezoom *= zoomx; */
+	/* *canglezoom *= zoomy; */
+	x = (double)(width / 2) * zoomx;
+	y = (double)(height / 2) * zoomy;
 	cx = *canglezoom * x;
 	cy = *canglezoom * y;
 	sx = *sanglezoom * x;
 	sy = *sanglezoom * y;
 
+/*
 	dstwidthhalf = MAX((int)
 		ceil(MAX(MAX(MAX(fabs(cx + sy), fabs(cx - sy)), fabs(-cx + sy)), fabs(-cx - sy))), 1);
 	dstheighthalf = MAX((int)
 		ceil(MAX(MAX(MAX(fabs(sx + cy), fabs(sx - cy)), fabs(-sx + cy)), fabs(-sx - cy))), 1);
 	*dstwidth = 2 * dstwidthhalf;
 	*dstheight = 2 * dstheighthalf;
+*/
+	dstwidthhalf = ceil(MAX(fabs(cx + sy), fabs(cx - sy)));
+	dstheighthalf = ceil(MAX(fabs(sx + cy), fabs(sx - cy)));
+	*dstwidth = 2 * MAX(1, dstwidthhalf);
+	*dstheight = 2 * MAX(1, dstheighthalf);
 }
 
 
@@ -720,9 +736,9 @@ The minimum size of the target surface is 1. The input factors can be positive o
 */
 void rotozoomSurfaceSize(int width, int height, double angle, double zoomx, double zoomy, int *dstwidth, int *dstheight)
 {
-	double dummy_sanglezoom, dummy_canglezoom;
+	double dummy_canglezoom, dummy_sanglezoom;
 
-	_rotozoomSurfaceSizeTrig(width, height, angle, zoomx, zoomy, dstwidth, dstheight, &dummy_sanglezoom, &dummy_canglezoom);
+	_rotozoomSurfaceSizeTrig(width, height, angle, zoomx, zoomy, dstwidth, dstheight, &dummy_canglezoom, &dummy_sanglezoom);
 }
 
 /*
@@ -756,6 +772,8 @@ Surface *rotozoomSurface(Surface *src, double angle, double zoomx, double zoomy,
 	/* Determine target size */
 	_rotozoomSurfaceSizeTrig(src->width, src->height, angle, zoomx, zoomy, &dstwidth, &dstheight, &canglezoom, &sanglezoom);
 
+	printf("zoomx %.4f y %.4f angle %.4f dest %d*%d\n", zoomx, zoomy, angle, dstwidth, dstheight);
+
 	/* Alloc space to completely contain the zoomed/rotated surface */
 	if (gfx_surfaceCreate(dstwidth, dstheight + GUARD_ROWS, src->format, SU_Staging, &rz_dst))
 		return NULL;
@@ -768,9 +786,9 @@ Surface *rotozoomSurface(Surface *src, double angle, double zoomx, double zoomy,
 		/* angle != 0: Full rotozoom */
 
 		/* Calculate target factors from sin/cos and zoom */
-		zoominv = 65536.0 / (zoomx * zoomx);
-		sanglezoominv = sanglezoom;
-		canglezoominv = canglezoom;
+		zoominv = 65536.0 / (zoomx * zoomy);
+		sanglezoominv = sanglezoom * zoomx;
+		canglezoominv = canglezoom * zoomy;
 		sanglezoominv *= zoominv;
 		canglezoominv *= zoominv;
 
