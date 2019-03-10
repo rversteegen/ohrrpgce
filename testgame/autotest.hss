@@ -867,6 +867,8 @@ script, hero caterpillar tests, begin
   variable(i)
   $0="hero caterpillar tests"
 
+  # The party contains heroes 0, 1, 2, 3 in that order
+
   $err arg string="leader, cater=ON"
   do hero cater tests(me)
   
@@ -877,9 +879,42 @@ script, hero caterpillar tests, begin
     $err arg string=", cater=OFF"
     do hero cater tests(i)
   )
-  resume caterpillar
   $err arg string=""
 
+  test resume caterpillar
+
+resume player
+  wait(1000000)
+
+end
+
+
+script, test resume caterpillar, begin
+  variable(who)
+  for (who, 0, 3) do (
+    walk hero (who, east, 3 -- who)
+    wait for hero(who)
+  )
+  # The heroes are now line up and facing to the right
+_cancelrunfast
+
+  # Trigger bug where leader direction
+  set hero direction(0, north)
+  set hero direction(2, north)
+  resume caterpillar
+  walk hero(me, east, 4)
+  w
+  # for (who, 0, 3) do (
+  #   # Bug: heroes 1 and 3 will be wrong
+  #   assert(hero direction(who) == east)
+  # )
+  while (hero is walking(me)) do (
+    for (who, 0, 3) do (
+      # Bug: heroes 3 will be wrong
+      assert(hero direction(who) == east)
+    )
+    wait
+  )
 end
 
 script, do hero cater tests, who, begin
