@@ -7892,6 +7892,72 @@ The third argument is the total number of ticks that the animation should run. Y
 				<ref>getrectfuzziness</ref>
 			</seealso>
 		</command>
+
+		<command id="getrectfuzzyzoom">
+			<canon>get rect fuzzy zoom (handle)</canon>
+			<shortname>get rect fuzzy zoom</shortname>
+			<description>
+				Given a rect slice <p>handle</p>, returns the size of each of the pixels in the fuzzy pattern
+				when the rect is set to "Translucency: Fuzzy" (e.g. using <ref>setrecttrans</ref><tt>(handle, trans:fuzzy)</tt>).
+				The default, and minimum, zoom is 1, and there's no upper limit.
+			</description>
+			<seealso>
+				<ref>setrecttrans</ref>
+				<ref>getrecttrans</ref>
+				<ref>setrectfuzzyzoom</ref>
+			</seealso>
+		</command>
+		<command id="setrectfuzzyzoom">
+			<canon>set rect fuzzy zoom (handle, zoom)</canon>
+			<shortname>set rect fuzzy zoom</shortname>
+			<description>
+				Sets the size of each of the pixels in the fuzzy pattern of a fuzzy rect slice <p>handle</p> to <p>zoom</p>.
+				This setting is only used if the rect is set to "Translucency: Fuzzy" (e.g. using <ref>setrecttrans</ref><tt>(handle, trans:fuzzy)</tt>).
+				The default, and minimum, zoom is 1, and there's no upper limit,
+				though anything beyond the size of the screen is not useful.
+				<lb/>
+				(Unlike <ref>setrectfuzziness</ref>, this command doesn't automatically set
+				a rect as fuzzy-translucent.)
+			</description>
+			<seealso>
+				<ref>setrecttrans</ref>
+				<ref>getrecttrans</ref>
+				<ref>getrectfuzzyzoom</ref>
+			</seealso>
+		</command>
+
+		<command id="getrectpatternisstationary">
+			<canon>get rect pattern is stationary (handle)</canon>
+			<shortname>get rect pattern is stationary</shortname>
+			<description>
+				Given a rect slice <p>handle</p>, returns <ref>true</ref>/<ref>false</ref> telling
+				whether the fuzzy pattern is "stationary",
+				when the rect is set to "Translucency: Fuzzy" (e.g. using <ref>setrecttrans</ref><tt>(handle, trans:fuzzy)</tt>).
+			</description>
+			<seealso>
+				<ref>setrecttrans</ref>
+				<ref>getrecttrans</ref>
+				<ref>setrectpatternisstationary</ref>
+			</seealso>
+		</command>
+		<command id="setrectpatternisstationary">
+			<canon>set rect pattern is stationary (handle, on/off)</canon>
+			<shortname>set rect pattern is stationary</shortname>
+			<description>
+				Sets whether the fuzzy pattern of a fuzzy rect slice <p>handle</p> is stationary.
+				This setting is only used if the rect is set to "Translucency: Fuzzy" (e.g. using <ref>setrecttrans</ref><tt>(handle, trans:fuzzy)</tt>).
+				The default for new rects is false.
+				<lb/>
+				(Unlike <ref>setrectfuzziness</ref>, this command doesn't automatically set
+				a rect as fuzzy-translucent.)
+			</description>
+			<seealso>
+				<ref>setrecttrans</ref>
+				<ref>getrecttrans</ref>
+				<ref>getrectpatternisstationary</ref>
+			</seealso>
+		</command>
+
 		</section>		<!--Rect Slices-->
 
 		<section title="Line Slices">
