@@ -92,6 +92,9 @@ glibc = False  # Computed below; can also be overridden by glibc=1 cmdline argum
 target = ARGUMENTS.get ('target', None)
 arch = ARGUMENTS.get ('arch', None)  # default decided below
 
+if ARGUMENTS.get('tts', False):
+    FBFLAGS += ["-d", "WITH_TTS"]
+
 if 'android-source' in ARGUMENTS:
     # Produce .c files, and also an executable, which is an unwanted side product
     # (We could do with build targets for compiling to .asm/.c but not assembling+linking)
@@ -1628,6 +1631,7 @@ Optional features:
                       of SDL 2.0.5+ (2016-10)
   raster=1            Include software triangle rasterizer (rasterizer.cpp).
                       Not used for anything!
+  tts=1               Compile with text-to-speech support.
 
 The following environmental variables are also important:
   FBFLAGS             Pass more flags to fbc

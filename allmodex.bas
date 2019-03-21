@@ -1691,6 +1691,16 @@ sub playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1
 	IF_PTR(sound_slotdata(slot))->original_volume = volume_mult
 end sub
 
+'Returns a slot number
+'Pass slot number to sound_unload, NOT freesfx or stopsfx or anything else!
+function sound_play_file (path as string, loopcount as integer = 0, volume_mult as single = 1.) as integer
+	dim slot as integer
+	slot = sound_load(path)
+	sound_play(slot, loopcount, volume_mult * global_sfx_volume)
+	IF_PTR(sound_slotdata(slot))->original_volume = volume_mult
+	return slot
+end function
+
 sub stopsfx (num as integer)
 	dim slot as integer
 	slot = sound_slot_with_id(num)

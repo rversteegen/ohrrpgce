@@ -853,6 +853,12 @@ SUB textbox_position_portrait (byref box as TextBox, byref st as TextboxEditStat
 END SUB
 
 SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditState, parent_menu() as string)
+ ' DIM voiceids() as string
+ ' get_voiceid_list voiceids()
+
+ ' DIM voicenum as integer = -1
+ ' DIM voice as string ' = voiceids(voicenum)
+
  DIM menu as SimpleMenuItem vector
  update_textbox_appearance_editor_menu menu, box, st
 
@@ -918,6 +924,15 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
      IF box.line_sound = 0 ANDALSO gen(genTextboxLine) > 0 THEN
       playsfx gen(genTextboxLine) - 1
      END IF
+#IFDEF WITH_TTS
+    CASE 19
+     DIM text as string = textbox_lines_to_string(box, " ")
+     speak_text text
+    CASE 20
+     stop_speaking
+     voice_menu textbox_lines_to_string(box, " ")
+     state.need_update = YES
+#ENDIF
    END SELECT
    state.need_update = YES
   END IF
@@ -975,6 +990,11 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
       state.need_update = YES
       resetsfx
      END IF
+     /'
+    CASE 19
+     state.need_update OR= intgrabber(voicenum, -1, UBOUND(voices))
+     IF voicenum = -1 THEN voice = "" ELSE voice = voiceids(voicenum)
+     '/
    END SELECT
   ELSE '-- holding ALT
    DIM remptr as integer = st.id
@@ -1010,6 +1030,7 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
  frame_unload @backdrop
  resetsfx
  music_stop
+ stop_speaking
 END SUB
 
 ' Append a menu item; first argument is menu item type
@@ -1106,6 +1127,12 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
   menutemp = (box.line_sound - 1) & " " & getsfxname(box.line_sound - 1)
  END IF
  menuitem 17, menu, "Line Sound: " & menutemp
+
+ #IFDEF WITH_TTS
+  DIM text as string = textbox_lines_to_string(box, " ")
+  menuitem 19, menu, "Voice: by speaker, " & describe_voice(voice_for_text(text))
+  menuitem 20, menu, "Speaker Voices..."
+ #ENDIF
 
  load_text_box_portrait box, st.portrait
 END SUB

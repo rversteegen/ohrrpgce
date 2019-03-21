@@ -1023,3 +1023,262 @@ SUB generalmusicsfxmenu ()
   music_stop
   resetsfx
 END SUB
+
+
+'==========================================================================================
+'                                       Voice editor
+'==========================================================================================
+
+#IFDEF WITH_TTS
+
+SUB get_voiceid_list(voiceids() as string)
+ 'split("kal kal16 awb rms slt", voiceids(), " ")
+ 'Include a blank name as the first option
+ split(" m-ahw m-aew m-aup m-awb f-axb m-bdl f-clb f-eey m-fem m-gka m-jmk m-!kal m-!kal16 m-ksp f-ljm u-lnh m-rms m-rxr f-slp f-slt", voiceids(), " ")
+END SUB
+
+'Allow renaming a voice Node using strgrabber
+FUNCTION voice_name_grabber(voice as Node ptr) as bool
+ IF NodeName(voice) <> "default" THEN
+  DIM newname as string = GetChildNodeStr(voice, "name", NodeName(voice))
+  IF newname = "Who" THEN newname = ""
+  IF strgrabber(newname) THEN
+   RenameNode(voice, LCASE(newname))  'FIXME: lots of garbage in node name table
+   SetChildNode(voice, "name", newname)
+   RETURN YES
+  END IF
+ END IF
+END FUNCTION
+
+FUNCTION voice_voiceid_grabber(voice as Node ptr) as bool
+ DIM voiceids() as string
+ get_voiceid_list voiceids()
+
+ DIM voicenum as integer = a_find(voiceids(), GetChildNodeStr(voice, "voiceid"))
+ IF intgrabber(voicenum, 0, UBOUND(voiceids)) THEN
+  SetChildNode(voice, "voiceid", voiceids(voicenum))
+  RETURN YES
+ END IF
+END FUNCTION
+
+'Editor for a single voice
+TYPE VoiceEditor EXTENDS ModularMenu
+ voice as Node ptr
+ text as string
+
+ DECLARE SUB update ()
+ DECLARE FUNCTION each_tick () as bool
+END TYPE
+
+SUB VoiceEditor.update ()
+ REDIM this.menu(-1 TO -1)
+ this.menu(-1) = "Previous Menu"
+
+ DIM arg as Node ptr = FirstChild(this.voice)
+ WHILE arg
+  SELECT CASE NodeName(arg)
+   CASE "name"
+    a_append this.menu(), "Name: " & GetString(arg)
+   CASE "voiceid"
+    DIM voiceid as string = GetString(arg)
+    a_append this.menu(), "Voice: " & IIF(LEN(voiceid), voiceid, "None")
+   CASE "arg:duration_stretch"
+    'DIM speed as double = 100 / GetFloat(arg)
+    a_append this.menu(), "Speed: " & CINT(100 / GetFloat(arg)) & "%" 'format_percent(speed)
+   CASE "arg:f0_shift"
+    a_append this.menu(), "Pitch: " & CINT(100 * GetFloat(arg)) & "%" 'format_percent(GetFloat(arg))
+   CASE "arg:int_f0_target_stddev"
+    a_append this.menu(), "Variance: " & GetInteger(arg)
+   CASE "arg:mlsa_speed_param"
+    a_append this.menu(), "Compression: " & GetInteger(arg)
+  END SELECT
+  arg = NextSibling(arg)
+ WEND
+
+ state.last = UBOUND(this.menu)
+END SUB
+
+'This is needed because we had to give intgrabber a min of 0 for this, below, or it's
+'almost unusable
+SUB fix_voice_args(voice as Node ptr)
+ IF GetChildNodeFloat(voice, "arg:duration_stretch") > 5. THEN
+   SetChildNode(voice, "arg:duration_stretch", 5.)
+  END IF
+END SUB
+
+FUNCTION VoiceEditor.each_tick () as bool
+ DIM changed as bool
+
+ IF this.state.pt >= 0 THEN
+  DIM arg as Node ptr = ChildByIndex(this.voice, this.state.pt)
+
+  SELECT CASE NodeName(arg)
+   CASE "name"
+    changed = voice_name_grabber(this.voice)
+   CASE "voiceid"
+    changed = voice_voiceid_grabber(this.voice)
+   CASE "arg:duration_stretch"
+    DIM percent as integer = 100. / GetFloat(arg)
+    changed = intgrabber(percent, 0, 500)
+    IF changed THEN SetContent arg, 100. / percent
+   CASE "arg:f0_shift"
+    DIM percent as integer = GetFloat(arg) * 100.
+    changed = intgrabber(percent, 0, 500)
+    IF changed THEN SetContent arg, percent / 100.
+   CASE "arg:int_f0_target_stddev"
+    DIM stddev as integer = GetInteger(arg)
+    changed = intgrabber(stddev, 0, 500)
+    SetContent arg, stddev
+   CASE "arg:mlsa_speed_param"
+    DIM compression as integer = GetInteger(arg)
+    changed = intgrabber(compression, 0, 20)
+    SetContent arg, compression
+  END SELECT
+
+  IF enter_space_click(this.state) ORELSE keyval(scCtrl) > 1 THEN
+   fix_voice_args this.voice
+   speak_text this.text, this.voice
+  END IF
+ END IF
+
+ state.need_update OR= changed
+
+ IF keyval(ccCancel) > 1 THEN RETURN YES
+ IF this.state.pt = -1 ANDALSO enter_space_click(this.state) THEN RETURN YES
+END FUNCTION
+
+SUB edit_voice(voice as Node ptr, text as string)
+ DIM ed as VoiceEditor
+ ed.floating = YES
+ ed.menuopts.edged = YES
+ ed.title = "Editing voice " & NodeName(voice)
+ ed.helpkey = "voice_edit"
+ ed.voice = voice
+ ed.text = text
+ ed.run()
+ fix_voice_args voice
+END SUB
+
+'Creates a normal (non-alias) voice
+SUB create_voice(parent as Node ptr, name as string, voiceid as string)
+ DIM nod as Node ptr
+ nod = AppendChildNode(parent, LCASE(name))
+ AppendChildNode(nod, "name", name)
+ AppendChildNode(nod, "voiceid", voiceid)
+ AppendChildNode(nod, "arg:duration_stretch", 1.0)   'speed
+ AppendChildNode(nod, "arg:f0_shift", 1.0)  'pitch roughly 0.2 -5
+ AppendChildNode(nod, "arg:int_f0_target_stddev", 80) 'variance
+ AppendChildNode(nod, "arg:mlsa_speed_param", 0)  'compression: makes more robotic   0-20
+END SUB
+
+SUB create_alias_voice(parent as Node ptr, name as string, alias_to as string)
+ DIM nod as Node ptr
+ nod = AppendChildNode(parent, LCASE(name))   'Has no contents
+ AppendChildNode(nod, "name", name)
+ AppendChildNode(nod, "alias", alias_to)
+END SUB
+
+'Edit the list of all voices. text is the example text to speak. The speaker of the text is ignored.
+SUB voice_menu(text as string)
+ WHILE INSTR(text, "  ")
+  replacestr(text, "  ", " ")
+ WEND
+
+ DIM gen_root as NodePtr = get_general_reld()
+ DIM voices as Node ptr = GetOrCreateChild(gen_root, "voices")
+
+ IF NumChildren(voices) = 0 THEN
+  create_voice(voices, "default", "")
+ END IF
+
+ DIM state as MenuState
+ state.autosize = YES
+ state.autosize_ignore_pixels = 70
+ state.last = NumChildren(voices) - 1 + 1  '+1 for "Add speaker"
+
+ setkeys
+ DO
+  setwait 55
+  setkeys
+
+  IF keyval(scShift) = 0 THEN usemenu state
+
+  IF keyval(ccCancel) > 1 THEN EXIT DO
+
+  'IF keyval(scPlus) > 1 ORELSE keyval(scInsert) > 1 THEN
+
+  IF state.pt = state.last THEN
+   '"Add new" option
+
+   IF enter_space_click(state) THEN
+    DIM choice as integer = twochoice("Create as alias of existing voice?", "No", "Yes")
+    IF choice = 0 THEN
+     create_voice(voices, "", "")
+    ELSE
+     DIM choices() as string
+     DIM voice as Node ptr = FirstChild(voices)
+     WHILE voice
+      a_append choices(), describe_voice(voice)
+      voice = NextSibling(voice)
+     WEND
+     choice = multichoice("Alias to which voice?", choices())
+     IF choice > -1 THEN create_alias_voice voices, "", choices(choice)
+    END IF
+    state.last = NumChildren(voices) - 1 + 1  '+1 for "Add new speaker"
+   END IF
+
+  ELSE
+   DIM voice as Node ptr = ChildByIndex(voices, state.pt)
+
+   IF keyval(scShift) > 0 THEN
+    IF keyval(ccUp) > 1 THEN SwapNodePrev(voice) : state.pt -= 1
+    IF keyval(ccDown) > 1 THEN SwapNodeNext(voice) : state.pt += 1
+    correct_menu_state state
+   END IF
+
+   'This is a wrapped call to strgrabber
+   IF voice_name_grabber(voice) = NO THEN
+
+    'This is a wrapped call to intgrabber
+    voice_voiceid_grabber(voice)
+   END IF
+
+   IF enter_space_click(state) THEN
+    edit_voice voice, text
+   END IF
+
+   IF keyval(scCtrl) > 1 THEN
+    speak_text(text, voice)
+   END IF
+  END IF
+
+  'Build the menu items vector
+  DIM menu as SimpleMenuItem vector
+  v_new menu
+  DIM voice as Node ptr = FirstChild(voices)
+  WHILE voice
+   append_simplemenu_item menu, describe_voice(voice)
+   IF GetChildByName(voices, NodeName(voice)) <> voice THEN
+    'Shadowed by a previous speaker definition
+    v_last(menu).text &= " (duplicate: not used)"
+   END IF
+   voice = NextSibling(voice)
+  WEND
+  append_simplemenu_item menu, "Add new speaker"
+  v_last(menu).disabled = YES
+
+  clearpage vpage
+  wrapprint text, 0, pBottom - 10, uilook(uiText), vpage
+  edgeprint "Speaker voices:", 50, 5, uilook(uiText), vpage
+  draw_fullscreen_scrollbar state, , vpage
+  standardmenu cast(BasicMenuItem vector, menu), state, 50, 15, vpage
+  v_free menu
+  setvispage vpage
+ LOOP
+
+ write_general_reld()
+
+ stop_speaking
+END SUB
+
+#ENDIF

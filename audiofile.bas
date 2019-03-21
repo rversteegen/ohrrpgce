@@ -1,4 +1,4 @@
-'OHRRPGCE - common routines for inspecting (but not playing) or finding audio files
+'OHRRPGCE - common routines for inspecting or finding (but not playing) audio files, and text-to-speech
 '(C) Copyright 2017 James Paige/OHRRPGCE developers
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 
@@ -6,7 +6,12 @@
 #include "util.bi"
 #include "common.bi"
 #include "string.bi"
+#include "loading.bi"
+#include "reload.bi"
+#include "reloadext.bi"
 #include "audiofile.bi"
+
+using Reload.Ext
 
 #ifndef IS_GAME
 
@@ -397,13 +402,13 @@ function getmusictype (file as string) as MusicFormatEnum
 		return 0
 	end if
 
-	dim ext as string, chk as integer
-	ext = lcase(justextension(file))
+	dim extn as string, chk as integer
+	extn = lcase(justextension(file))
 
 	'special case
-	if str(cint(ext)) = ext then return FORMAT_BAM
+	if str(cint(extn)) = extn then return FORMAT_BAM
 
-	select case ext
+	select case extn
 	case "bam"
 		chk = FORMAT_BAM
 	case "mid", "bmd"
@@ -423,12 +428,13 @@ function getmusictype (file as string) as MusicFormatEnum
 	case "mod"
 		chk = FORMAT_MOD
 	case else
-		debug "unknown format: " & file & " - " & ext
+		debug "unknown format: " & file & " - " & extn
 		chk = 0
 	end select
 
 	return chk
 end function
+
 
 '==========================================================================================
 '                                     Music/SFX Lumps
@@ -512,3 +518,132 @@ sub list_of_imported_songs_or_sfx(imported_files() as bool, sfx as bool)
 	flusharray imported_files(), , YES
 #endif
 end Sub
+
+
+'==========================================================================================
+'                                     Text-to-speech
+'==========================================================================================
+
+#IFDEF WITH_TTS
+
+DIM SHARED voice_sound_slot as integer = -1
+
+
+FUNCTION speaker_for_text(text as string) as string
+ DIM where as integer = INSTR(text, ":")
+ IF where THEN
+  RETURN LCASE(TRIM(LEFT(text, where - 1)))
+ END IF
+ RETURN "default"
+END FUNCTION
+
+'A speaker is the name of a speaker, and identifies a voice.
+'A voice is a Node ptr (under /voices/), which is either an alias for
+'another voice, or a flite voice and set of flite arguments.
+'A voiceid is a string used to identify a flite voice.
+FUNCTION get_voice(byval speaker as string) as Node ptr
+ DIM gen_root as NodePtr = get_general_reld()
+ DIM voice as NodePtr
+ FOR safety as integer = 1 TO 4
+  voice = NodeByPath(gen_root, "/voices/" & speaker)
+  'Alias to another voice?
+  speaker = GetChildNodeStr(voice, "alias")
+  IF LEN(speaker) THEN CONTINUE FOR
+
+  IF voice THEN RETURN voice
+
+  'Missing? Fallback to default, which may not exist
+  RETURN NodeByPath(gen_root, "/voices/default")
+ NEXT
+END FUNCTION
+
+FUNCTION voice_for_text(text as string) as Node ptr
+ RETURN get_voice(speaker_for_text(text))
+END FUNCTION
+
+FUNCTION describe_voice(voice as Node ptr) as string
+ IF voice = NULL THEN RETURN "(None, no default)"
+ DIM ret as string = GetChildNodeStr(voice, "name")
+ IF LEN(ret) = 0 THEN ret = "<name>"
+ DIM al as string = GetChildNodeStr(voice, "alias")
+ IF LEN(al) THEN ret &= ": Alias to " & al
+ DIM nod as Node ptr  = GetChildByName(voice, "voiceid")
+ IF nod THEN
+  DIM voiceid as string = GetString(nod)
+  ret &= ": " & IIF(LEN(voiceid), voiceid, "None")
+ END IF
+ RETURN ret
+ 'Ignore the arguments
+END FUNCTION
+
+'voice: override the default voice for the text, which is determined by the speaker
+'Only one piece of text can be spoken at once (make voice_sound_slot an argument to change that)
+SUB speak_text(text as string, byval voice as Node ptr = NULL)
+ IF voice_sound_slot > -1 THEN sound_unload voice_sound_slot
+
+ IF voice = NULL THEN
+  voice = voice_for_text(text)
+  IF voice = NULL THEN EXIT SUB
+ END IF
+
+ DIM voiceid as string = GetChildNodeStr(voice, "voiceid", "!kal")
+ IF LEN(voiceid) = 0 THEN EXIT SUB  'Silence
+
+ IF starts_with(voiceid, "m-") ORELSE starts_with(voiceid, "f-") THEN voiceid = MID(voiceid, 3)
+
+ DIM voicefile as string
+ IF voiceid[0] = ASC("!") THEN
+  'Voices compiled into flite
+  voicefile = MID(voiceid, 2)
+ ELSE
+  'Downloaded voices (flite's bin/get_voices script can download these)
+  voicefile = get_support_dir() & SLASH "flite_voices" SLASH "cmu_us_" & voiceid & ".flitevox"
+ END IF
+
+ DIM spoken_text as string = text
+ replacestr(spoken_text, """", "")   'TODO: escape properly
+ DIM temp as integer = INSTR(spoken_text, ":")
+ IF temp THEN spoken_text = MID(spoken_text, temp + 1)
+
+ 'Build list of arguments to flite
+ DIM outfile as string = tmpdir & "voice.wav"
+ DIM args as string = " -voice " & voicefile & " -t """ & spoken_text & """"
+ ' Omit the -o arg to have flite play the audio file itself. That's better with music_sdl,
+ ' which doesn't play low-samplerate files correctly.
+ args &= " -o " & escape_filename(outfile)
+
+ DIM arg as Node ptr = FirstChild(voice)
+ WHILE arg
+  DIM argname as string = NodeName(arg)
+  IF starts_with(argname, "arg:") THEN
+   args &= " -s " & MID(argname, 5) & "=" & GetString(arg)
+  END IF
+  arg = NextSibling(arg)
+ WEND
+
+ DIM flite as string = find_helper_app("flite")
+ IF LEN(flite) = 0 THEN visible_debug "Can't find flite program. http://festvox.org/flite/" : EXIT SUB
+
+ 'open_process(flite, args, NO, NO)
+ ? flite & args
+ IF checked_system(flite & args) = 0 THEN
+  voice_sound_slot = sound_play_file(outfile)
+ END IF
+END SUB
+
+'Stops speak_text()
+SUB stop_speaking()
+ IF voice_sound_slot > -1 THEN
+  sound_unload voice_sound_slot
+  voice_sound_slot = -1
+  safekill tmpdir & "voice.wav"
+ END IF
+END SUB
+
+#ELSE
+
+'Avoid some #ifdefs by providing this stub always
+SUB stop_speaking()
+END SUB
+
+#ENDIF

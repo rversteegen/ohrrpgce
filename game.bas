@@ -128,6 +128,7 @@ DIM SliceTable as SliceTableType
 DIM presentsong as integer
 DIM backcompat_sound_slot_mode as bool
 REDIM backcompat_sound_slots(7) as integer
+DIM SHARED voice_sound_slot as integer = -1
 
 DIM fatal as bool
 DIM checkfatal as bool
@@ -3408,6 +3409,10 @@ SUB loadsay (byval box_id as integer)
   embedtext txt.box.text(j), 38
  NEXT j
 
+ #IFDEF WITH_TTS
+  speak_text textbox_lines_to_string(txt.box)
+ #ENDIF
+
  '-- set tags indicating the text box has been seen.
  IF istag(txt.box.settag_tag, 0) THEN
   settag txt.box.settag1
@@ -3462,6 +3467,9 @@ END SUB
 
 SUB advance_text_box ()
  context_string = "Textbox " & txt.id
+
+ stop_speaking
+
  '--Remove backdrop if any
  gen(genTextboxBackdrop) = 0
  '---IF MADE A CHOICE---

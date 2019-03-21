@@ -481,7 +481,7 @@ SUB calc_menustate_size(state as MenuState, menuopts as MenuOptions, x as RelPos
   DIM wide as integer = menuopts.wide
   IF menuopts.calc_size ANDALSO menu THEN
    ' Widen the menu according to widest menu item
-   FOR i as integer = 0 TO small(v_len(menu) - 1, .last)
+   FOR i as integer = 0 TO v_len(menu) - 1
     wide = large(wide, textwidth(v_at(menu, i)->text))
    NEXT
    IF menuopts.scrollbar THEN wide += 6

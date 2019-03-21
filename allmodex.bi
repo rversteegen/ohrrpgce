@@ -584,6 +584,7 @@ DECLARE SUB set_music_volume (vol as single)
 
 DECLARE SUB resetsfx ()
 DECLARE SUB playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1.0)
+DECLARE FUNCTION sound_play_file (path as string, loopcount as integer = 0, volume_mult as single = 1.) as integer
 DECLARE SUB stopsfx (num as integer)
 DECLARE SUB pausesfx (num as integer)
 DECLARE SUB freesfx (num as integer)

@@ -56,6 +56,9 @@ DECLARE FUNCTION importsong (byval songnum as integer) as integer
 DECLARE SUB sfx_editor_main()
 DECLARE FUNCTION importsfx (byval sfxnum as integer) as integer
 DECLARE SUB generalmusicsfxmenu ()
+#IFDEF WITH_TTS
+DECLARE SUB voice_menu (text as string)
+#ENDIF
 DECLARE SUB general_data_editor ()
 DECLARE SUB global_text_strings_editor ()
 DECLARE SUB item_editor ()

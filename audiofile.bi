@@ -5,6 +5,8 @@
 #IFNDEF AUDIOFILE_BI
 #DEFINE AUDIOFILE_BI
 
+#include "reload.bi"
+
 'Used for soundeffects too
 ENUM MusicFormatEnum
 	FORMAT_UNSPECIFIED = 0
@@ -35,6 +37,15 @@ DECLARE FUNCTION getmusictype (file as string) as MusicFormatEnum
 DECLARE FUNCTION find_music_lump (songnum as integer) as string
 DECLARE FUNCTION find_sfx_lump (sfxnum as integer) as string
 DECLARE SUB list_of_imported_songs_or_sfx(imported_files() as bool, sfx as bool)
+
+#IFDEF WITH_TTS
+DECLARE FUNCTION speaker_for_text(text as string) as string
+DECLARE FUNCTION get_voice(byval voiceid as string) as Reload.Node ptr
+DECLARE FUNCTION voice_for_text(text as string) as Reload.Node ptr
+DECLARE FUNCTION describe_voice(voice as Reload.Node ptr) as string
+DECLARE SUB speak_text(text as string, voice as Reload.Node ptr = NULL)
+#ENDIF
+DECLARE SUB stop_speaking()
 
 EXTERN oggenc_quality_levels(1 to 2, -1 to 10) as integer
 
