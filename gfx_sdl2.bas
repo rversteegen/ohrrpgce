@@ -96,6 +96,7 @@ DIM SHARED resize_requested as bool = NO
 DIM SHARED resize_request as XYPair
 DIM SHARED recenter_window_hint as bool = NO
 DIM SHARED remember_windowtitle as string
+DIM SHARED vsync as bool = YES       'Can only be changed before creating window
 DIM SHARED mouse_visibility as CursorVisibility = cursorDefault
 DIM SHARED debugging_io as bool = NO
 DIM SHARED sdlpalette as SDL_Palette ptr
@@ -368,14 +369,18 @@ PRIVATE FUNCTION recreate_window(byval bitdepth as integer = 0) as bool
     EXIT DO
   LOOP
 
-  mainrenderer = SDL_CreateRenderer(mainwindow, -1, SDL_RENDERER_PRESENTVSYNC)
+  'Note that you can't change vsync setting after creating the renderer; would either have
+  'to recreate the window, or use low-level functions like SDL_GL_SetSwapInterval
+  DIM rflags as integer = IIF(vsync, SDL_RENDERER_PRESENTVSYNC, 0)
+
+  mainrenderer = SDL_CreateRenderer(mainwindow, -1, rflags)
   ' Don't kill the program yet; we might be able to switch to a different backend
   IF mainrenderer = NULL THEN
     log_error("SDL_CreateRenderer failed; falling back to software renderer", "")
     'Doing SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "software") or "0" instead didn't help to
     'recover from a broken X11 OpenGL implementation
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software")
-    mainrenderer = SDL_CreateRenderer(mainwindow, -1, SDL_RENDERER_PRESENTVSYNC)
+    mainrenderer = SDL_CreateRenderer(mainwindow, -1, rflags)
     CheckOK(mainrenderer = NULL, RETURN 0)
   END IF
 
@@ -758,6 +763,9 @@ FUNCTION gfx_sdl2_setoption(byval opt as zstring ptr, byval arg as zstring ptr) 
   ELSEIF *opt = "input-debug" THEN
     debugging_io = YES
     ret = 1
+  ELSEIF *opt = "no-vsync" THEN
+    vsync = NO
+    ret = 1
   END IF
   'all these take an optional numeric argument, so gobble the arg if it is
   'a number, whether or not it was valid
@@ -768,6 +776,7 @@ END FUNCTION
 FUNCTION gfx_sdl2_describe_options() as zstring ptr
   return @"-z -zoom [1...16]   Scale screen to 1,2, ... up to 16x normal size (2x default)" LINE_END _
           "-s -smooth          Enable smoothing filter for zoom modes (default off)" LINE_END _
+          "-no-vsync           Don't try to synchronise draws to the display" LINE_END _
           "-input-debug        Print extra debug info to c/g_debug.txt related to keyboard, mouse, etc. input"
 END FUNCTION
 

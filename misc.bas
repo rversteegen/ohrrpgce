@@ -150,6 +150,9 @@ function gamecustom_setoption(opt as string, arg as string) as integer
 	end if
 
 	' Delegate
+	' backends_setoption always loads a gfx backend immediately, because we need
+	' to have gfx_setoption. So --gfx to specify a backend must be first.
+	if argsused = 0 then argsused = backends_setoption(opt, arg)
 	if argsused = 0 then argsused = allmodex_setoption(opt, arg)
 	if argsused = 0 then argsused = global_setoption(opt, arg)
 	if argsused = 0 then argsused = common_setoption(opt, arg)  'common.rbas
@@ -159,7 +162,6 @@ function gamecustom_setoption(opt as string, arg as string) as integer
 	#ifdef IS_CUSTOM
 		if argsused = 0 then argsused = custom_setoption(opt, arg)
 	#endif
-	if argsused = 0 then argsused = backends_setoption(opt, arg)  'this always loads a backend
 	if argsused = 0 andalso gfx_setoption then
 		argsused = gfx_setoption(cstring(opt), cstring(arg))
 	end if

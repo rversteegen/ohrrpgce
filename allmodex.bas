@@ -602,6 +602,11 @@ function allmodex_setoption(opt as string, arg as string) as integer
 	elseif opt = "runfast" then
 		debuginfo "Running without speed control"
 		use_speed_control = NO
+		if gfx_setoption then
+			' gfx_sdl2 must be told to disable vsync. Must do this before creating the window.
+			' (SDL 1.2 on Macs also is vsync'd, not sure how to disable that)
+			gfx_setoption("no-vsync", "")
+		end if
 		return 1
 	elseif opt = "maxfps" then
 		dim fps as integer = str2int(arg, -1)

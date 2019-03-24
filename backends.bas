@@ -527,11 +527,10 @@ function backends_setoption(opt as string, arg as string) as integer
 					    "unknown commandline options, so put --gfx first)"
 		end if
 
-		'First check if its a backend which isn't compiled in
+		'First check if its a backend which isn't valid or isn't compiled in
 		if not valid_gfx_backend(arg) then
 			display_help_string """" + arg + """ is not a valid graphics backend"
 		end if
-
 		dim backendinfo as GfxBackendStuff ptr = lookup_gfx_backend(arg)
 		if backendinfo = NULL then
 			display_help_string "gfx_" + arg + " support is not enabled in this build"
