@@ -4518,6 +4518,8 @@ SUB script_functions(byval cmdid as integer)
   use_speed_control = YES
  CASE 648'--_runfast
   use_speed_control = NO
+  'FIXME: doesn't work with gfx_sdl2, unless, because vsync will cap the framerate to 60.
+  'It should be possible to get around this by dropping frames, but currently we only drop frames
  CASE 649'--multdiv
   'Return int(float(a)*b/c), clamped to a 32-bit int, and rounded
   '(Break ties towards +inf, since that's what JS does; FB/x86 breaks ties towards even)

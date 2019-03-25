@@ -688,13 +688,11 @@ FUNCTION gfx_sdl2_supports_variable_resolution() as bool
 END FUNCTION
 
 FUNCTION gfx_sdl2_vsync_supported() as bool
-  #IFDEF __FB_DARWIN__
-    ' OSX always has vsync, and drawing the screen will block until vsync, so this needs
-    ' special treatment (as opposed to most other WMs which also do vsync compositing)
-    RETURN YES
-  #ELSE
-    RETURN NO
-  #ENDIF
+  'Might not be supported on some platforms/drivers, I don't know.
+  'Apparent vsync is broken in OpenGL on Mac OS 10.14; SDL 2.0.10 (commit 73f3ca85ac0e)
+  'works around this bug.
+  'Maybe we should already return 
+  RETURN vsync
 END FUNCTION
 
 FUNCTION gfx_sdl2_set_resizable(byval enable as bool, min_width as integer, min_height as integer) as bool

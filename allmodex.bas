@@ -212,13 +212,6 @@ dim shared last_setvispage as integer = -1  'Records the last setvispage. -1 if 
 
 dim shared log_slow as bool = NO            'Enable spammy debug_if_slow logging
 
-#IFDEF __FB_DARWIN__
-	' On OSX vsync will cause screen draws to block, so we shouldn't try to draw more than the refresh rate.
-	' (Still doesn't work perfectly)
-	max_display_fps = 60
-	blocking_draws = YES
-#ENDIF
-
 type InputStateFwd as InputState
 
 'Mapping from a scancode to a carray() index (action)
@@ -492,6 +485,19 @@ private sub after_backend_init()
 	fps_draw_frames = 0
 	fps_real_frames = 0
 
+	if gfx_vsync_supported() then
+		' If we don't reduce this from its default, frame skipping won't work framerate will be capped to the refresh
+		' Maybe it should just always be 60.
+		max_display_fps = 90
+	'	#ifdef __FB_DARWIN__
+			' On OSX vsync will cause screen draws to block, so we shouldn't try to draw more than the refresh rate.
+			' (Still doesn't work perfectly)
+			' Setting this on KDE+nVidia driver forced vsync results in the framerate dropping from 60 to 58, and
+			' the --runfast draw rate taking a hit too.
+		'	blocking_draws = YES
+	'	#endif
+	end if
+
 	if gfx_supports_variable_resolution() = NO then
 		debuginfo "Resolution changing not supported"
 		windowsize = XY(320, 200)
@@ -602,11 +608,11 @@ function allmodex_setoption(opt as string, arg as string) as integer
 	elseif opt = "runfast" then
 		debuginfo "Running without speed control"
 		use_speed_control = NO
-		if gfx_setoption then
-			' gfx_sdl2 must be told to disable vsync. Must do this before creating the window.
-			' (SDL 1.2 on Macs also is vsync'd, not sure how to disable that)
-			gfx_setoption("no-vsync", "")
-		end if
+		' if gfx_setoption andalso then
+		' 	' gfx_sdl2 must be told to disable vsync. Must do this before creating the window.
+		' 	' (SDL 1.2 on Macs also is vsync'd, not sure how to disable that)
+		' 	gfx_setoption("no-vsync", "")
+		' end if
 		return 1
 	elseif opt = "maxfps" then
 		dim fps as integer = str2int(arg, -1)

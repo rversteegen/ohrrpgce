@@ -1149,8 +1149,10 @@ SUB set_speedcontrol ()
  speedcontrol = bound(gen(genMillisecPerFrame), 16, 200)
  IF gfx_vsync_supported() = NO THEN
   ' 16ms and 33ms are special-cased to be exactly 60/30fps rather than 62.5/30.3
-  ' Disabled under gfx_directx, where have to try to run slightly faster than 60/30
+  ' Disabled if we're using vsync, in which case try to run slightly faster than 60/30
   ' so that vsync can add a wait.
+  ' TODO: what if the backend doesn't attempt to set vsync, but the WM does vsync anyway?
+  ' Also, some OSs/WMs (Mac) block for vsync, others don't.
   IF speedcontrol = 16 THEN  '60 FPS
    speedcontrol = 16.666
   ELSEIF speedcontrol = 33 THEN  '30 FPS
