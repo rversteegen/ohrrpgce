@@ -127,7 +127,7 @@ TYPE ScriptWantSignals
   resetgame as bool   'Called "reset game"
   dont_quit_to_loadmenu as bool 'If no title screen, don't quit to the load menu.
 
-  script_args(any) as integer  'Arguments to newgame/loadgame
+  script_args(any) as integer  'Arguments to newgame/loadgame. At most maxScriptArgs
 END TYPE
 
 'Used when automatically updating the visibility of the virtual gamepad

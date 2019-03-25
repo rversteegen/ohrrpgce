@@ -1157,22 +1157,31 @@ SUB tileedit_add_undo_step(ts as TileEditState, tilenum as integer)
 
  'Limit size of undo history
  DIM trim_amount as integer
- trim_amount = large(0, maxTilesetHistorySteps - v_len(ts.undo_history))
+ trim_amount = large(0, maxTilesetHistorySteps - v_len(ts.history))
  IF trim_amount THEN
-  v_delete_slice ts.undo_history, 0, trim_amount
+  v_delete_slice ts.history, 0, trim_amount
   ts.history_step -= trim_amount
   'debug "add_undo_step: reduced history size to " & st.history_size & " by discarding " & trim_amount
   'debug "...now history_step=" & st.history_step & " out of " & v_len(st.history) 
  END IF
 
  'Add the step
- WITH *v_expand(ts.undo_history)
+ WITH *v_expand(ts.history)
   .tilenum = tilenum
   DIM tilepos as XYPair = XY(tilenum MOD 16, tilenum \ 16) * 20
   DIM tile as Frame ptr = frame_new_view(vpages(3), tilepos.x, tilepos.y, 20, 20)
   .img = frame_duplicate(tile)
   frame_unload @tile
  END WITH
+END SUB
+
+SUB tileedit_check_undo_keys(ts as TileEditState)
+ IF keyval(scCtrl) > 0 AND keyval(scZ) > 1 THEN
+  tileedit_undo ts
+ END IF
+ IF keyval(scCtrl) > 0 AND keyval(scY) > 1 THEN
+  tileedit_redo ts
+ END IF
 END SUB
 
 'This is four different sub-editors of the tileset editor!
@@ -1332,6 +1341,7 @@ DO
    END IF
   END IF
  END IF
+ tileedit_check_undo_keys ts
  IF copy_keychord() THEN tilecopy cutnpaste(), ts
  IF paste_keychord() THEN tilepaste cutnpaste(), ts
  IF (keyval(scCtrl) > 0 AND keyval(scT) > 1) THEN tiletranspaste cutnpaste(), ts
@@ -1390,6 +1400,12 @@ DO
   NEXT o
  END IF
  rectangle ts.tilex * 20 + 7, ts.tiley * 20 + 7, 6, 6, IIF(tog, uilook(uiBackground), uilook(uiText)), dpage
+
+ '--Message
+ IF ts.message_ticks > 0 THEN
+  basic_textbox ts.message, , dpage, 11, , YES
+ END IF
+
  IF ts.gotmouse THEN
   textcolor uilook(IIF(tog, uiText, uiDescription)), 0
   printstr CHR(2), mouse.x - 2, mouse.y - 2, dpage

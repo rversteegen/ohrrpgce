@@ -46,6 +46,20 @@ TYPE MouseArea
   hidecursor as bool
 END TYPE
 
+TYPE UndoStep as any
+
+TYPE CommonEditState EXTENDS Object
+  message as string          'Message shown at the top of the screen
+  message_ticks as integer   'Remaining ticks to display message
+
+  'Undo
+  history as UndoStep ptr 'TileEditUndoStep vector
+  history_step as integer    'In undo_history, [0, history_step) are undos, and the rest are redos
+
+  DECLARE VIRTUAL SUB undo_stroke_internal(byref changelist as UndoStep ptr, byval redo as bool = NO)
+
+END TYPE
+
 TYPE SpriteEditStatic
   'The clone/mark tool buffer
   clone_brush as Frame ptr
@@ -145,7 +159,7 @@ TYPE TileCloneBuffer
   offset as XYPair
 END TYPE
 
-TYPE TileEditState
+TYPE TileEditState EXTENDS CommonEditState
   tilesetnum as integer
   drawframe as Frame Ptr  '--Don't write to this! It's for display only
   x as integer      'x/y are used both in tilecut and for the tool pos in the individual tile editor!
@@ -178,10 +192,6 @@ TYPE TileEditState
   adjustpos as XYPair
   didscroll as integer  'have scrolled since selecting the scroll tool
   defaultwalls as integer vector  'always length 160
-
-  'Undo
-  undo_history as TileEditUndoStep vector
-  history_step as integer    'In undo_history, [0, history_step) are undos, and the rest are redos
 END TYPE
 
 TYPE HeroEditState
@@ -280,7 +290,7 @@ TYPE MapEditStateFwd as MapEditState
 TYPE FnBrush as SUB (st as MapEditStateFwd, byval x as integer, byval y as integer, byval value as integer = -1, byval extraarg as integer = -1)
 TYPE FnReader as FUNCTION (st as MapEditStateFwd, byval x as integer, byval y as integer, byval extraarg as integer = -1) as integer
 
-TYPE MapEditState
+TYPE MapEditState EXTENDS CommonEditState
   map as MapData
 
   editmode as integer        'ENUM MapEditMode
@@ -351,9 +361,6 @@ TYPE MapEditState
   screen_outline_focus as XYPair      'Center of the screen outline, in map-coord pixels
   wallmap_mask as integer    'used by wallbitsbrush
 
-  message as string          'Message shown at the top of the screen
-  message_ticks as integer   'Remaining ticks to display message
-
   'Editor customisation options
   shift_speed as XYPair      'Cursor move speen when holding Shift
   cursor_follows_mouse as bool 'st.pos follows the mouse
@@ -377,12 +384,15 @@ TYPE MapEditState
   tool_hold_pos as XYPair    'Held coordinate
   last_pos as XYPair         'Position of the cursor last tick
   new_stroke as bool         'True before beginning a new editing operation (group of brush() calls)
-  history as MapEditUndoTile vector vector   'Vector of groups of tile edits
+  'history is in CommonEditState
+  'history as MapEditUndoTile vector vector   'Vector of groups of tile edits
   history_size as integer    'Size of history, in number of MapEditUndoTiles (each is 8 bytes)
-  history_step as integer    'In history, [0, history_step) are undos, and the rest are redos
+  'history_step as integer    'In history, [0, history_step) are undos, and the rest are redos
   secondary_undo_buffer as MapEditUndoTile vector
                              'Usually NULL. If not, undo steps are added to this vector instead
                              'of the history. Used for previewing undoable changes.
+
+  DECLARE SUB undo_stroke_internal(byref changelist as MapEditUndoTile vector, byval redo as bool = NO)
 
   'Mark+clone
   cloned as MapEditUndoTile vector  'Cloned brush. NULL if none. Offsets are 0,0 at topleft of brush

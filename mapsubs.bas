@@ -5592,7 +5592,7 @@ END SUB
 
 'A stroke is a group of tile brush applications
 'Returns the stroke which was redone
-FUNCTION redo_stroke(st as MapEditState) as MapEditUndoTile vector
+FUNCTION redo_stroke(st as CommonEditState) as UndoStep ptr 'MapEditUndoTile vector
  st.message_ticks = 20
  IF st.history_step = v_len(st.history) THEN
   st.message = "No more Redo history"
@@ -5604,7 +5604,7 @@ END FUNCTION
 
 'A stroke is a group of brush applications/steps
 'Returns the stroke which was undone
-FUNCTION undo_stroke(st as MapEditState, byval redo as bool = NO) as MapEditUndoTile vector
+FUNCTION undo_stroke(st as CommonEditState, byval redo as bool = NO) as UndoStep ptr 'MapEditUndoTile vector
  st.message_ticks = 20
  IF redo = NO THEN
   IF st.history_step = 0 THEN
@@ -5616,9 +5616,8 @@ FUNCTION undo_stroke(st as MapEditState, byval redo as bool = NO) as MapEditUndo
 
  'debug "undo_stroke(" & redo & ")  history_step=" & st.history_step & " out of " & v_len(st.history)
 
- DIM undostroke as MapEditUndoTile vector = st.history[st.history_step]
- IF v_len(undostroke) = 0 THEN showbug "Strange... empty undo step. Probably harmless"
- undo_stroke_internal st, undostroke, redo
+ DIM undostroke as UndoStep ptr /'MapEditUndoTile vector'/ = st.history[st.history_step]
+ st.undo_stroke_internal undostroke, redo
 
  IF redo THEN st.history_step += 1
  st.message = CHR(27) + " " & st.history_step & " Undo steps | " & (v_len(st.history) - st.history_step) & " Redo steps " + CHR(26)
@@ -5629,13 +5628,16 @@ END FUNCTION
 'Undoes the changes in st.secondary_undo_buffer
 SUB undo_preview(st as MapEditState)
  IF st.secondary_undo_buffer THEN
-  undo_stroke_internal st, st.secondary_undo_buffer, NO
+  IF v_len(st.secondary_undo_buffer) THEN
+   st.undo_stroke_internal st.secondary_undo_buffer, NO
+  END IF
   v_free st.secondary_undo_buffer
  END IF
 END SUB
 
 'Either redo or undo an undo history changelist
-SUB undo_stroke_internal(st as MapEditState, byref changelist as MapEditUndoTile vector, byval redo as bool = NO)
+SUB MapEditState.undo_stroke_internal(byref changelist as MapEditUndoTile vector, byval redo as bool = NO)
+ IF v_len(changelist) = 0 THEN showbug "Strange... empty undo step. Probably harmless"
  DIM undotile as MapEditUndoTile ptr
  'When undoing, start from the end, when redoing, start from the beginning.
  'Order is only important so that the number of zones per tile does not go over 15 at any point;
@@ -5649,24 +5651,24 @@ SUB undo_stroke_internal(st as MapEditState, byref changelist as MapEditUndoTile
   WITH *undotile
    DIM overwrite_value as integer
    IF .mapid >= mapIDLayer THEN
-    overwrite_value = readblock(st.map.tiles(.mapid - mapIDLayer), .x, .y)
-    writeblock st.map.tiles(.mapid - mapIDLayer), .x, .y, .value
+    overwrite_value = readblock(this.map.tiles(.mapid - mapIDLayer), .x, .y)
+    writeblock this.map.tiles(.mapid - mapIDLayer), .x, .y, .value
    ELSEIF .mapid = mapIDPass THEN
-    overwrite_value = readblock(st.map.pass, .x, .y)
-    writeblock st.map.pass, .x, .y, .value
+    overwrite_value = readblock(this.map.pass, .x, .y)
+    writeblock this.map.pass, .x, .y, .value
    ELSEIF .mapid = mapIDFoe THEN
-    overwrite_value = readblock(st.map.foemap, .x, .y)
-    writeblock st.map.foemap, .x, .y, .value
+    overwrite_value = readblock(this.map.foemap, .x, .y)
+    writeblock this.map.foemap, .x, .y, .value
    ELSEIF .mapid >= mapIDZone THEN
-    overwrite_value = CheckZoneAtTile(st.map.zmap, .mapid - mapIDZone, .x, .y)
+    overwrite_value = CheckZoneAtTile(this.map.zmap, .mapid - mapIDZone, .x, .y)
     IF .value THEN
-     IF SetZoneTile(st.map.zmap, .mapid - mapIDZone, .x, .y) = NO THEN
+     IF SetZoneTile(this.map.zmap, .mapid - mapIDZone, .x, .y) = NO THEN
       showbug "SetZoneTile failed during undo: impossible!"
      END IF
     ELSE
-     UnsetZoneTile st.map.zmap, .mapid - mapIDZone, .x, .y
+     UnsetZoneTile this.map.zmap, .mapid - mapIDZone, .x, .y
     END IF
-    st.zones_needupdate = YES
+    this.zones_needupdate = YES
    ELSEIF .mapid >= mapIDMetaBEGIN THEN
     'Ignore meta data
     overwrite_value = .value
