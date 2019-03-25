@@ -108,6 +108,8 @@ WITH ss_save
  .hidemouse = NO
 END WITH
 
+DEFINE_VECTOR_OF_TYPE(TileEditUndoStep, TileEditUndoStep)
+
 
 SUB airbrush (spr as Frame ptr, byval x as integer, byval y as integer, byval d as integer, byval m as integer, byval c as integer)
  'airbrush thanks to Ironhoof (Russel Hamrick)
@@ -1144,6 +1146,35 @@ SUB testanimpattern (tastuf() as integer, byref taset as integer)
  unloadtilemap tilesetview
 END SUB
 
+
+FUNCTION TileEditState.tilenum() as integer
+ RETURN this.tilex + this.tiley * 16
+END FUNCTION
+
+
+SUB tileedit_add_undo_step(ts as TileEditState, tilenum as integer)
+ 'TODO: would be nice to combine this with the map editor's add_undo_step
+
+ 'Limit size of undo history
+ DIM trim_amount as integer
+ trim_amount = large(0, maxTilesetHistorySteps - v_len(ts.undo_history))
+ IF trim_amount THEN
+  v_delete_slice ts.undo_history, 0, trim_amount
+  ts.history_step -= trim_amount
+  'debug "add_undo_step: reduced history size to " & st.history_size & " by discarding " & trim_amount
+  'debug "...now history_step=" & st.history_step & " out of " & v_len(st.history) 
+ END IF
+
+ 'Add the step
+ WITH *v_expand(ts.undo_history)
+  .tilenum = tilenum
+  DIM tilepos as XYPair = XY(tilenum MOD 16, tilenum \ 16) * 20
+  DIM tile as Frame ptr = frame_new_view(vpages(3), tilepos.x, tilepos.y, 20, 20)
+  .img = frame_duplicate(tile)
+  frame_unload @tile
+ END WITH
+END SUB
+
 'This is four different sub-editors of the tileset editor!
 'tmode = 0: pick tile to edit (draw)
 'tmode = 1: cut tile from tileset
@@ -1157,6 +1188,7 @@ DIM area(24) as MouseArea
 DIM mouse as MouseInfo
 ts.tilesetnum = tilesetnum
 ts.drawframe = frame_new(20, 20, , YES)
+v_new ts.undo_history
 DIM chequer_scroll as integer
 DIM tog as integer
 ts.gotmouse = havemouse()
@@ -1374,6 +1406,7 @@ IF tmode = 3 THEN
  savepasdefaults ts.defaultwalls, tilesetnum
 END IF
 v_free ts.defaultwalls
+v_free ts.undo_history
 oldpaste = ts.canpaste
 frame_unload @ts.drawframe
 showmousecursor
@@ -2302,6 +2335,8 @@ END SUB
 
 SUB tilepaste (cutnpaste() as integer, ts as TileEditState)
  IF ts.canpaste THEN
+  tileedit_add_undo_step ts, ts.tilenum
+
   FOR i as integer = 0 TO 19
    FOR j as integer = 0 TO 19
     putpixel ts.tilex * 20 + i, ts.tiley * 20 + j, cutnpaste(i, j), 3
@@ -2313,6 +2348,8 @@ END SUB
 
 SUB tiletranspaste (cutnpaste() as integer, ts as TileEditState)
  IF ts.canpaste THEN
+  tileedit_add_undo_step ts, ts.tilenum
+
   FOR i as integer = 0 TO 19
    FOR j as integer = 0 TO 19
     IF cutnpaste(i, j) THEN putpixel ts.tilex * 20 + i, ts.tiley * 20 + j, cutnpaste(i, j), 3

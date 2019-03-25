@@ -314,6 +314,7 @@ CONST tempZone = 10000 'ID (and up) to use for temporary zones
 CONST maxDoorsPerMap = 99 '0 thru 99
 CONST maxMapHistoryMem = 2000000 'In number of MapEditUndoTiles (8 bytes)
 CONST maxSpriteHistoryMem = 16000000  'Max size of sprite undo history, in bytes
+CONST maxTilesetHistorySteps = 500  'Max length of undo history (about 500 bytes each)
 CONST maxScriptGlobals = 50000 'Actually the index of the last global  (also "maximum global id" in plotscr.hsd)
                                'If you update this, also update the default argument to exportglobals in plotscr.hsd
 CONST maxScriptStrings = 99 'ID of last plotstring  (also "maximum string id" in plotscr.hsd)

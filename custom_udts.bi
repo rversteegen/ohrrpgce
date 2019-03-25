@@ -131,6 +131,13 @@ TYPE SpriteEditState
   area(25) as MouseArea
 END TYPE
 
+TYPE TileEditUndoStep
+  tilenum as integer
+  img as Frame ptr      'A 20x20 image
+END TYPE
+
+DECLARE_VECTOR_OF_TYPE(TileEditUndoStep, TileEditUndoStep)
+
 TYPE TileCloneBuffer
   exists as integer
   buf(19,19) as UBYTE
@@ -141,12 +148,13 @@ END TYPE
 TYPE TileEditState
   tilesetnum as integer
   drawframe as Frame Ptr  '--Don't write to this! It's for display only
-  x as integer
+  x as integer      'x/y are used both in tilecut and for the tool pos in the individual tile editor!
   y as integer
   lastcpos as XYPair  '.x/.y (cursor position) last tick
   fastmovestep as integer   'How fast to move when holding Shift
-  tilex as integer  'on the tileset (measured in tiles)
-  tiley as integer
+  tilex as integer  'Selected tile in the tileset: 0-15
+  tiley as integer  '0-9
+  DECLARE FUNCTION tilenum() as integer  'Selected tile, 0-159
   gotmouse as bool
   drawcursor as integer
   preview_content as integer   'tile preview mode (0=neighbours/1=tiled)
@@ -170,6 +178,10 @@ TYPE TileEditState
   adjustpos as XYPair
   didscroll as integer  'have scrolled since selecting the scroll tool
   defaultwalls as integer vector  'always length 160
+
+  'Undo
+  undo_history as TileEditUndoStep vector
+  history_step as integer    'In undo_history, [0, history_step) are undos, and the rest are redos
 END TYPE
 
 TYPE HeroEditState
