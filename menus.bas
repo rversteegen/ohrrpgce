@@ -1809,6 +1809,7 @@ SUB ModularMenu.add_item(itemtype as integer = 0, id as integer = -1, text as st
  a_append menu(), text
  a_append selectable(), canselect
  a_append shaded(), heading
+ 'a_append iteminfo(), NULL
 END SUB
 
 SUB ModularMenu.header(text as string)

@@ -105,6 +105,7 @@ TYPE ModularMenu EXTENDS Object
  shaded(any) as bool     'Optional: whether a header (actually whether greyed-out, but eduiHeading by default
  itemtypes(any) as integer  'Optional: menu item data (meaning defined by subclass)
  itemids(any) as integer  'Optional: menu item data (meaning defined by subclass)
+ 'iteminfo(any) as EditorMenuItem ptr
 
  tooltip as string       'Shown at the bottom of the screen
  title as string         'Shown at the top, like the multichoice() prompt

@@ -1142,6 +1142,43 @@ SUB startingdatamenu
  LOOP
 END SUB
 
+/'
+TYPE EditorMenuItem EXTENDS Object
+ 'Called each tick while the menu item is selected. Returns true if edited - menu needs_update
+ DECLARE VIRTUAL FUNCTION edit_handler(state as MenuState) as bool
+END TYPE
+
+FUNCTION EditableRecord.edit_handler(state as MenuState) as bool
+ RETURN NO
+END FUNCTION
+
+'Optionally called after add_item to set the EditorMenuItem data for that item.
+SUB ModularMenuu.set_info(rec as EditorMenuItem ptr)
+ DELETE 
+END SUB
+
+TYPE genInt EXTENDS EditorMenuItem
+ index as integer
+ min as integer
+ max as integer
+
+ 'DECLARE CONSTRUCTOR(genidx as integer, minvalue as integer, maxvalue as integer)
+ DECLARE FUNCTION edit() as bool OVERRIDE
+END TYPE
+
+FUNCTION genInt.edit_handler(state as MenuState) as bool
+ IF index = genMaxInventory THEN
+  DIM as integer temp = (gen(index) + 1) \ 3
+  IF intgrabber(temp, min, max) THEN
+   gen(genMaxInventory) = temp * 3 - 1
+   IF temp = 0 THEN gen(genMaxInventory) = 0
+   RETURN YES
+  END IF
+ ELSE
+  RETURN intgrabber(gen(index), min, max)
+ END IF
+END FUNCTION
+'/
 
 TYPE GeneralSettingsMenu EXTENDS ModularMenu
  index(any) as integer    'gen() index, or -1
@@ -1172,6 +1209,18 @@ SUB GeneralSettingsMenu.gen_int(genidx as integer, minvalue as integer, maxvalue
  max(i) = maxvalue
 END SUB
 
+/'
+'Applies to last add_item()
+SUB GeneralSettingsMenu.gen_int(genidx as integer, minvalue as integer, maxvalue as integer)
+ DIM handler as genInt ptr = NEW genInt
+ WITH *handler
+  .index = genidx
+  .min = minvalue
+  .max = maxvalue
+ END WITH
+ addhandler
+END SUB
+'/
 
 SUB GeneralSettingsMenu.update()
  DIM tmp as string
@@ -1220,7 +1269,7 @@ SUB GeneralSettingsMenu.update()
  ELSE
   fps = FORMAT(small(60., 1000 / gen(genMillisecPerFrame)), ".#")
  END IF
- add_item , , "Framerate: " & fps & " frames/sec (" & gen(genMillisecPerFrame) & "ms/frame)"
+ add_item 20, , "Framerate: " & fps & " frames/sec (" & gen(genMillisecPerFrame) & "ms/frame)"
  gen_int genMillisecPerFrame, 16, 200
 
  tmp = "Minimap style: "
@@ -1231,6 +1280,7 @@ SUB GeneralSettingsMenu.update()
  END SELECT
  add_item , , tmp
  gen_int genMinimapAlgorithm, 0, minimapLAST
+ 'item_rec NEW gen_int(genMinimapAlgorithm, 0, minimapLAST)
 
  tmp = "Camera following a hero/NPC centers on: "
  SELECT CASE gen(genCameraOnWalkaboutFocus)
@@ -1295,7 +1345,7 @@ SUB GeneralSettingsMenu.update()
   add_item , , "Game created " & FORMAT(created, "yyyy mmm dd hh:mm"), NO
  END IF
 
- 'Next free ID number: 20
+ 'Next free item subtype: 21
 
 END SUB
 
@@ -1379,23 +1429,15 @@ SUB general_data_editor ()
      enable_strgrabber = YES
      state.need_update OR= strgrabber(genmenu.aboutline, 38)
     END IF
-   CASE genMaxInventory
-    DIM as integer temp = (gen(genMaxInventory) + 1) \ 3
-    IF intgrabber(temp, genmenu.min(state.pt), genmenu.max(state.pt)) THEN
-     gen(genMaxInventory) = temp * 3 - 1
-     IF temp = 0 THEN gen(genMaxInventory) = 0
-     state.need_update = YES
-    END IF
    CASE ELSE
-    WITH genmenu
-     IF .index(state.pt) ANDALSO intgrabber(gen(.index(state.pt)), .min(state.pt), .max(state.pt)) THEN
-      state.need_update = YES
-      IF .index(state.pt) = genMillisecPerFrame ANDALSO shown_framerate_warning = NO THEN
-       show_help "framerate_warning"
-       shown_framerate_warning = YES
-      END IF
+    IF genmenu.editrecs(state.pt)->edit_handler(state) THEN
+     state.need_update = YES
+     IF genmenu.itemids(state.pt) = 20 ANDALSO shown_framerate_warning = NO THEN
+      'genMillisecPerFrame
+      show_help "framerate_warning"
+      shown_framerate_warning = YES
      END IF
-    END WITH
+    END IF
   END SELECT
 
   IF state.need_update THEN
