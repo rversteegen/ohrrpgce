@@ -41,7 +41,7 @@ DECLARE SUB reloadmap_npcd()
 DECLARE SUB reloadmap_npcl(merge as bool)
 DECLARE SUB reloadmap_tilemap_and_tilesets(merge as bool)
 DECLARE SUB reloadmap_passmap(merge as bool)
-DECLARE SUB reloadmap_foemap()
+DECLARE SUB reloadmap_foemap(merge as bool)
 DECLARE SUB reloadmap_zonemap()
 DECLARE SUB deletetemps
 DECLARE SUB debug_npcs ()

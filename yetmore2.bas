@@ -41,35 +41,34 @@ SUB global_setkeys_hook
 END SUB
 
 SUB initgamedefaults
-'Exists to initialise game state which needs to start at a value
-'other than the default initialisation (zero/empty string/etc)
-'(Generally you can and should use constructors (or default UDT member values)
-'to initialise data to something other than zero)
+ 'Exists to initialise game state which needs to start at a value
+ 'other than the default initialisation (zero/empty string/etc)
+ '(Generally you can and should use constructors (or default UDT member values)
+ 'to initialise data to something other than zero)
 
-lastsaveslot = 0
+ lastsaveslot = 0
 
-'--items
-CleanInventory inventory()
+ '--items
+ CleanInventory inventory()
 
-'--money
-gold = gen(genStartMoney)
+ '--money
+ gold = gen(genStartMoney)
 
-'--hero's speed
-FOR i as integer = 0 TO 3
- herow(i).speed = 4
-NEXT i
+ '--hero's speed
+ FOR i as integer = 0 TO 3
+  herow(i).speed = 4
+ NEXT i
 
-'--hero's position
-(herox(0)) = gen(genStartX) * 20
-(heroy(0)) = gen(genStartY) * 20
-(herodir(0)) = dirDown
-resetcaterpillar ()
+ '--hero's position
+ (herox(0)) = gen(genStartX) * 20
+ (heroy(0)) = gen(genStartY) * 20
+ (herodir(0)) = dirDown
+ resetcaterpillar ()
 
-'plotstring colours
-FOR i as integer = 0 TO UBOUND(plotstr)
- plotstr(i).col = -1  'default to uilook(uiText)
-NEXT i
-
+ 'plotstring colours
+ FOR i as integer = 0 TO UBOUND(plotstr)
+  plotstr(i).col = -1  'default to uilook(uiText)
+ NEXT i
 END SUB
 
 SUB innRestore ()
@@ -249,35 +248,34 @@ END FUNCTION
 'Note that this is called both from reset_game_final_cleanup(), in which case lots of stuff
 'has already been deallocated, or from exit_gracefully(), in which case no cleanup has been done!
 SUB exitprogram(byval need_fade_out as bool = NO, byval errorout as integer = 0)
-debuginfo "Cleaning up and terminating " & errorout
+ debuginfo "Cleaning up and terminating " & errorout
 
-gam.ingame = NO
+ gam.ingame = NO
 
-'uncomment for slice debugging
-'DestroyGameSlices YES
+ 'uncomment for slice debugging
+ 'DestroyGameSlices YES
 
-IF need_fade_out THEN fadeout uilook(uiFadeoutQuit)
+ IF need_fade_out THEN fadeout uilook(uiFadeoutQuit)
 
-releasestack
+ releasestack
 
-'--scripts
-'Also prints script profiling info
-resetinterpreter
-destroystack(scrst)
+ '--scripts
+ 'Also prints script profiling info
+ resetinterpreter
+ destroystack(scrst)
 
-'--reset audio
-closemusic
+ '--reset audio
+ closemusic
 
-debuginfo "Deleting tmpdir " & tmpdir
-killdir tmpdir, YES  'recursively deletes playing.tmp if it exists
+ debuginfo "Deleting tmpdir " & tmpdir
+ killdir tmpdir, YES  'recursively deletes playing.tmp if it exists
 
-v_free modified_lumps
+ v_free modified_lumps
 
-restoremode
-debuginfo "End."
-IF errorout = 0 THEN end_debug
-SYSTEM errorout
-
+ restoremode
+ debuginfo "End."
+ IF errorout = 0 THEN end_debug
+ SYSTEM errorout
 END SUB
 
 SUB verify_quit
@@ -430,30 +428,34 @@ SUB savemapstate_passmap(mapnum as integer, prefix as string)
  savetilemap pass, mapstatetemp(mapnum, prefix) & "_p.tmp"
 END SUB
 
+SUB savemapstate_foemap(mapnum as integer, prefix as string)
+ savetilemap foemap, mapstatetemp(mapnum, prefix) & "_e.tmp"
+END SUB
+
 SUB savemapstate_zonemap(mapnum as integer, prefix as string)
  SaveZoneMap zmap, mapstatetemp(mapnum, prefix) & "_z.tmp"
 END SUB
 
 'Used only by the "save map state" command
 SUB savemapstate_bitmask (mapnum as integer, savemask as integer = 255, prefix as string)
-IF savemask AND 1 THEN
- savemapstate_gmap mapnum, prefix
-END IF
-IF savemask AND 2 THEN
- savemapstate_npcl mapnum, prefix
-END IF
-IF savemask AND 4 THEN
- savemapstate_npcd mapnum, prefix
-END IF
-IF savemask AND 8 THEN
- savemapstate_tilemap mapnum, prefix
-END IF
-IF savemask AND 16 THEN
- savemapstate_passmap mapnum, prefix
-END IF
-IF savemask AND 32 THEN
- savemapstate_zonemap mapnum, prefix
-END IF
+ IF savemask AND 1 THEN
+  savemapstate_gmap mapnum, prefix
+ END IF
+ IF savemask AND 2 THEN
+  savemapstate_npcl mapnum, prefix
+ END IF
+ IF savemask AND 4 THEN
+  savemapstate_npcd mapnum, prefix
+ END IF
+ IF savemask AND 8 THEN
+  savemapstate_tilemap mapnum, prefix
+ END IF
+ IF savemask AND 16 THEN
+  savemapstate_passmap mapnum, prefix
+ END IF
+ IF savemask AND 32 THEN
+  savemapstate_zonemap mapnum, prefix
+ END IF
 END SUB
 
 SUB loadmapstate_gmap (mapnum as integer, prefix as string, dontfallback as bool = NO)
@@ -511,7 +513,7 @@ SUB loadmapstate_tilemap (mapnum as integer, prefix as string, dontfallback as b
   GetTilemapInfo maplumpname(mapnum, "t"), propersize
   GetTilemapInfo filebase + "_t.tmp", statesize
 
-  IF statesize.wide = propersize.wide AND statesize.high = propersize.high THEN
+  IF statesize.size = propersize.size THEN
    'Changing number of map layers is OK, however
    lump_reloading.maptiles.dirty = NO  'Not correct, but too much trouble to do correctly
    lump_reloading.maptiles.changed = NO
@@ -524,11 +526,11 @@ SUB loadmapstate_tilemap (mapnum as integer, prefix as string, dontfallback as b
    cropposition herox(0), heroy(0), 20
 
   ELSE
-   DIM errmsg as string = " Tried to load saved tilemap state which is size " & statesize.wide & "*" & statesize.high & ", while the map is size " & propersize.wide & "*" & propersize.high
+   DIM errmsg as string = " Tried to load saved tilemap state which is size " & statesize.size & ", while the map is size " & propersize.size
    IF insideinterpreter THEN
-    scripterr current_command_name() + errmsg, 4
+    scripterr current_command_name() + errmsg, serrBadOp
    ELSE
-    debug "loadmapstate_tilemap(" + filebase + "_t.tmp): " + errmsg
+    showerror "loadmapstate_tilemap(" + filebase + "_t.tmp): " + errmsg
    END IF
    IF dontfallback = NO THEN loadmap_tilemap mapnum
   END IF
@@ -544,18 +546,43 @@ SUB loadmapstate_passmap (mapnum as integer, prefix as string, dontfallback as b
   GetTilemapInfo maplumpname(mapnum, "p"), propersize
   GetTilemapInfo filebase + "_p.tmp", statesize
 
-  IF statesize.wide = propersize.wide AND statesize.high = propersize.high THEN
+  IF statesize.size = propersize.size THEN
    lump_reloading.passmap.dirty = NO  'Not correct, but too much trouble to do correctly
    lump_reloading.passmap.changed = NO
    loadtilemap pass, filebase + "_p.tmp"
   ELSE
-   DIM errmsg as string = "tried to load saved passmap state which is size " & statesize.wide & "*" & statesize.high & ", while the map is size " & propersize.wide & "*" & propersize.high
+   DIM errmsg as string = "tried to load saved passmap state which is size " & statesize.size & ", while the map is size " & propersize.size
    IF insideinterpreter THEN
-    scripterr current_command_name() + errmsg, 4
+    scripterr current_command_name() + errmsg, serrBadOp
    ELSE
-    debug "loadmapstate_passmap(" + filebase + "_p.tmp): " + errmsg
+    showerror "loadmapstate_passmap(" + filebase + "_p.tmp): " + errmsg
    END IF
    IF dontfallback = NO THEN loadmap_passmap mapnum
+  END IF
+ END IF
+END SUB
+
+SUB loadmapstate_foemap (mapnum as integer, prefix as string, dontfallback as bool = NO)
+ DIM filebase as string = mapstatetemp(mapnum, prefix)
+ IF NOT isfile(filebase + "_e.tmp") THEN
+  IF dontfallback = NO THEN loadmap_foemap mapnum
+ ELSE
+  DIM as TilemapInfo statesize, propersize
+  GetTilemapInfo maplumpname(mapnum, "e"), propersize
+  GetTilemapInfo filebase + "_e.tmp", statesize
+
+  IF statesize.size = propersize.size THEN
+   lump_reloading.foemap.dirty = NO  'Not correct, but too much trouble to do correctly
+   lump_reloading.foemap.changed = NO
+   loadtilemap pass, filebase + "_e.tmp"
+  ELSE
+   DIM errmsg as string = "tried to load saved foemap state which is size " & statesize.size & ", while the map is size " & propersize.size
+   IF insideinterpreter THEN
+    scripterr current_command_name() + errmsg, serrBadOp
+   ELSE
+    showerror "loadmapstate_foemap(" + filebase + "_e.tmp): " + errmsg
+   END IF
+   IF dontfallback = NO THEN loadmap_foemap mapnum
   END IF
  END IF
 END SUB
@@ -571,12 +598,12 @@ SUB loadmapstate_zonemap (mapnum as integer, prefix as string, dontfallback as b
   lump_reloading.zonemap.dirty = NO  'Not correct, but too much trouble to do correctly
   lump_reloading.zonemap.changed = NO
   LoadZoneMap zmap, filebase + "_z.tmp"
-  IF zmap.wide <> mapsizetiles.x OR zmap.high <> mapsizetiles.y THEN
-   DIM errmsg as string = "tried to load saved zonemap state which is size " & zmap.wide & "*" & zmap.high & ", while the map is size " & mapsizetiles.x & "*" & mapsizetiles.y
+  IF zmap.size <> mapsizetiles THEN
+   DIM errmsg as string = "tried to load saved zonemap state which is size " & zmap.size & ", while the map is size " & mapsizetiles
    IF insideinterpreter THEN
-    scripterr current_command_name() + errmsg, 4
+    scripterr current_command_name() + errmsg, serrBadOp
    ELSE
-    debug "loadmapstate_zonemap(" + filebase + "_z.tmp): " + errmsg
+    showerror "loadmapstate_zonemap(" + filebase + "_z.tmp): " + errmsg
    END IF
    IF dontfallback THEN
     'Get rid of badly sized zonemap
@@ -590,24 +617,24 @@ END SUB
 
 'This function is used only by the "load map state" command
 SUB loadmapstate_bitmask (mapnum as integer, loadmask as integer, prefix as string, dontfallback as bool = NO)
-IF loadmask AND 1 THEN
- loadmapstate_gmap mapnum, prefix, dontfallback
-END IF
-IF loadmask AND 2 THEN
- loadmapstate_npcl mapnum, prefix, dontfallback
-END IF
-IF loadmask AND 4 THEN
- loadmapstate_npcd mapnum, prefix, dontfallback
-END IF
-IF loadmask AND 8 THEN
- loadmapstate_tilemap mapnum, prefix, dontfallback
-END IF
-IF loadmask AND 16 THEN
- loadmapstate_passmap mapnum, prefix, dontfallback
-END IF
-IF loadmask AND 32 THEN
- loadmapstate_zonemap mapnum, prefix, dontfallback
-END IF
+ IF loadmask AND 1 THEN
+  loadmapstate_gmap mapnum, prefix, dontfallback
+ END IF
+ IF loadmask AND 2 THEN
+  loadmapstate_npcl mapnum, prefix, dontfallback
+ END IF
+ IF loadmask AND 4 THEN
+  loadmapstate_npcd mapnum, prefix, dontfallback
+ END IF
+ IF loadmask AND 8 THEN
+  loadmapstate_tilemap mapnum, prefix, dontfallback
+ END IF
+ IF loadmask AND 16 THEN
+  loadmapstate_passmap mapnum, prefix, dontfallback
+ END IF
+ IF loadmask AND 32 THEN
+  loadmapstate_zonemap mapnum, prefix, dontfallback
+ END IF
 END SUB
 
 SUB deletemapstate (mapnum as integer, killmask as integer, prefix as string)
@@ -622,10 +649,10 @@ END SUB
 
 'Note a differing number of layers is allowed!
 FUNCTION tilemap_is_same_size (lumptype as string, what as string) as bool
- DIM as TilemapInfo newsize
- GetTilemapInfo maplumpname(gam.map.id, lumptype), newsize
+ DIM as TilemapInfo newinfo
+ GetTilemapInfo maplumpname(gam.map.id, lumptype), newinfo
 
- IF newsize.wide <> mapsizetiles.w OR newsize.high <> mapsizetiles.h THEN
+ IF newinfo.size <> mapsizetiles THEN
   notification "Could not reload " + what + " because the map size has changed. The map must be reloaded. You can do so by pressing F5 to access the Live Preview Debug Menu and selecting 'Reload map'."
   RETURN NO
  END IF
@@ -778,7 +805,7 @@ SUB reloadmap_passmap(merge as bool)
  END IF
 END SUB
 
-SUB reloadmap_foemap()
+SUB reloadmap_foemap(merge as bool)
  debug_reloadmap(foemap)
 
  'Delete saved state to prevent regressions
@@ -786,10 +813,16 @@ SUB reloadmap_foemap()
 
  IF tilemap_is_same_size("e", "foemap") THEN
   lump_reloading.foemap.changed = NO
-  lump_reloading.foemap.dirty = NO
+
   DIM filename as string = maplumpname(gam.map.id, "e")
-  LoadTileMap foemap, filename
   lump_reloading.foemap.hash = file_hash64(filename)
+  IF merge THEN
+   MergeTileMap foemap, filename, tmpdir + "mapbackup.e"
+  ELSE
+   lump_reloading.foemap.dirty = NO
+   LoadTileMap foemap, filename
+   writeablecopyfile filename, tmpdir + "mapbackup.e"
+  END IF
  END IF
 END SUB
 
@@ -1568,7 +1601,12 @@ FUNCTION try_reload_map_lump(basename as string, extn as string) as bool
    CASE "e"  '--never/always only
     IF .foemap.hash = newhash THEN RETURN YES
     .foemap.changed = YES
-    IF .foemap.mode = loadmodeAlways THEN reloadmap_foemap
+    IF .foemap.dirty THEN
+     IF .foemap.mode = loadmodeAlways THEN reloadmap_foemap NO
+     IF .foemap.mode = loadmodeMerge THEN reloadmap_foemap YES
+    ELSE
+     IF .foemap.mode <> loadmodeNever THEN reloadmap_foemap NO
+    END IF
 
    CASE "z"  '--never/always/if unchanged only
     IF .zonemap.hash = newhash THEN RETURN YES
@@ -1941,7 +1979,7 @@ SUB live_preview_menu ()
     END IF
    CASE 103  '--force foemap reload
     IF enter_space_click(st1) THEN
-     reloadmap_foemap
+     reloadmap_foemap NO
     END IF
    CASE 104  '--force zonemap reload
     IF enter_space_click(st1) THEN
