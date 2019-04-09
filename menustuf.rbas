@@ -4103,10 +4103,16 @@ SUB old_spells_menu (byval who as integer)
 END SUB
 
 SUB spells_menu_paint (byref sp as SpellsMenuState)
- centerfuz 160, 100, 312, 184, 1, sp.page 'outer box
- centerbox 206, 36, 200, 17, 2, sp.page   'name box
- centerbox 56, 50, 84, 60, 2, sp.page     'spell lists menu box
- centerbox 160, 134, 308, 96, 2, sp.page  'spell list
+ 'centerfuz 160, 100, 312, 184, 1, sp.page 'outer box
+ edgeboxstyle pCentered, pCentered, 312, 184, 0, sp.page, YES, , 50 'outer box
+ 'trans_rectangle vpages(sp.page), Type(pCentered, pCentered, 312, 184), master(boxlook(1).bgcol),  'outer box
+ ' centerbox 206, 36, 200, 17, 2, sp.page   'name box
+ ' centerbox 56, 50, 84, 60, 2, sp.page     'spell lists menu box
+ ' centerbox 160, 134, 308, 96, 2, sp.page  'spell list
+ edgeboxstyle ancCenter + 206, ancCenter + 36, 200, 17, 1, sp.page, YES, , 85   'name box
+ edgeboxstyle ancCenter + 56, ancCenter + 50, 84, 60, 1, sp.page, YES, , 85     'spell lists menu box
+ edgeboxstyle ancCenter + 160, ancCenter + 134, 308, 96, 1, sp.page, YES, , 85  'spell list
+
  rectangle 6, 168, 308, 1, boxlook(1).edgecol, sp.page 'divider 2
  'top menu (spell lists)
  FOR i as integer = 0 TO sp.last

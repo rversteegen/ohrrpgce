@@ -69,11 +69,11 @@ DECLARE FUNCTION lookup_box_border(border as RectBorderTypes) as RectBorderTypes
 DECLARE SUB centerfuz (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle_plus1 as integer, page as integer)
 DECLARE SUB centerbox (x as RelPos=rCenter, y as RelPos=rCenter, w as RelPos, h as RelPos, boxstyle_plus1 as integer, page as integer)
 DECLARE SUB center_edgeboxstyle (x as RelPos=rCenter, y as RelPos=rCenter, w as RelPos, h as RelPos, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
-DECLARE SUB edgeboxstyle OVERLOAD (rect as RectType, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
-DECLARE SUB edgeboxstyle OVERLOAD (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
+DECLARE SUB edgeboxstyle OVERLOAD (rect as RectType, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO, fuzzfact as integer=50)
+DECLARE SUB edgeboxstyle OVERLOAD (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO, fuzzfact as integer=50)
 
 '----- Unstyled boxes
-DECLARE SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer, bordercol as integer, page as integer, trans as RectTransTypes=transOpaque, border as RectBorderTypes=borderLine)
+DECLARE SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer, bordercol as integer, page as integer, trans as RectTransTypes=transOpaque, border as RectBorderTypes=borderLine, fuzzfact as integer=50)
 
 DECLARE SUB draw_box_back (fr as Frame ptr, pos as XYPair, size as XYPair, col as integer, trans as RectTransTypes, fuzzfactor as integer=50, fuzz_stationary as bool=NO, fuzz_zoom as integer=1)
 DECLARE SUB draw_box_border (fr as Frame ptr, pos as XYPair, size as XYPair, bordercol as integer, borderindex as RectBorderTypes, trans as RectTransTypes = transHollow)

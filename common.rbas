@@ -760,11 +760,11 @@ SUB center_edgeboxstyle (x as RelPos=rCenter, y as RelPos=rCenter, w as RelPos, 
  edgeboxstyle x - w \ 2, y - h \ 2, w, h, boxstyle, page, fuzzy, suppress_borders
 END SUB
 
-SUB edgeboxstyle (rect as RectType, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
- edgeboxstyle rect.x, rect.y, rect.wide, rect.high, boxstyle, page, fuzzy, suppress_borders
+SUB edgeboxstyle (rect as RectType, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO, fuzzfact as integer=50)
+ edgeboxstyle rect.x, rect.y, rect.wide, rect.high, boxstyle, page, fuzzy, suppress_borders, fuzzfact
 END SUB
 
-SUB edgeboxstyle (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO)
+SUB edgeboxstyle (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle as integer, page as integer, fuzzy as bool=NO, suppress_borders as bool=NO, fuzzfact as integer=50)
  IF boxstyle < 0 OR boxstyle > UBOUND(boxlook) THEN
   showerror "edgeboxstyle: invalid boxstyle " & boxstyle
   EXIT SUB
@@ -774,8 +774,8 @@ SUB edgeboxstyle (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle a
  DIM border as RectBorderTypes = boxstyle
  DIM trans as RectTransTypes = transOpaque
  IF suppress_borders THEN border = borderLine
- IF fuzzy THEN trans = transFuzzy
- edgebox x, y, w, h, col, bordercol, page, trans, border
+ IF fuzzy THEN trans = transTrans'Fuzzy
+ edgebox x, y, w, h, col, bordercol, page, trans, border, fuzzfact
 END SUB
 
 'Convert from box style to box border spriteset, or -1 or -2
@@ -789,7 +789,7 @@ END FUNCTION
 '----- Unstyled boxes
 'The following take col/bgcol/border instead of a box style number
 
-SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer, bordercol as integer, page as integer, trans as RectTransTypes=transOpaque, border as RectBorderTypes=borderLine)
+SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer, bordercol as integer, page as integer, trans as RectTransTypes=transOpaque, border as RectBorderTypes=borderLine, fuzzfact as integer=50)
 '--border: -2 is none, -1 is simple line, 0+ is styled box edge
  DIM borderindex as RectBorderTypes = lookup_box_border(border)
  DIM fr as Frame ptr = vpages(page)
@@ -797,7 +797,7 @@ SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer,
  h = relative_pos(h, fr->h)
  x = relative_pos(x, fr->w, w)
  y = relative_pos(y, fr->h, h)
- draw_box_back fr, XY(x, y), XY(w, h), col, trans
+ draw_box_back fr, XY(x, y), XY(w, h), col, trans, fuzzfact
  draw_box_border fr, XY(x, y), XY(w, h), bordercol, borderindex, trans
 END SUB
 
