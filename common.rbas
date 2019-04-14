@@ -5991,6 +5991,7 @@ FUNCTION menu_click_outside(m as MenuDef) as bool
  IF use_mouse THEN
   IF (readmouse.release AND mouseLeft) ANDALSO readmouse.drag_dist < 10 THEN
    IF readmouse.left_click_age > m.age THEN RETURN NO
+   'Note: item_hittest is not used (clicks in the rect but not an an item aren't outside)
    IF NOT rect_collide_point(m.rect, readmouse().pos) THEN RETURN YES
   END IF
  END IF
@@ -6004,6 +6005,7 @@ FUNCTION menu_right_click_close(m as MenuDef) as bool
 #ENDIF
  IF use_mouse THEN
   IF (readmouse.release AND mouseRight) ANDALSO readmouse.drag_dist < 10 THEN
+   'Note: item_hittest is not used (clicks in the rect but not an an item aren't outside)
    IF NOT rect_collide_point(m.rect, readmouse().pos) THEN RETURN YES
   END IF
  END IF

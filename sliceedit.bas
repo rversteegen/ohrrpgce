@@ -456,6 +456,14 @@ SUB slice_editor (byref edslice as Slice Ptr, byval group as integer = SL_COLLEC
  END IF
 END SUB
 
+FUNCTION slice_editor_menuitem_hittest(item as integer, item_offset as XYPair, sesptr as SliceEditState ptr) as bool
+ 'Mouse can't be over the menu
+ IF sesptr->hide_mode = hideMenu THEN RETURN NO
+ 'We only need to check x coord, can assume point.y is over the menu item.
+ IF item_offset.x > textwidth(sesptr->slicemenu(item).s) THEN RETURN NO
+ RETURN YES
+END FUNCTION
+
 ' The main function of the slice editor is not called directly, call a slice_editor() overload instead.
 SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
  init_slice_editor_for_collection_group(ses, ses.collection_group_number)
@@ -478,6 +486,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
   .need_update = YES
   .autosize = YES
   .autosize_ignore_pixels = 14
+  .item_hittest = CAST(MenuItemHitTest, @slice_editor_menuitem_hittest)
+  .callback_data = @ses
  END WITH
  DIM menuopts as MenuOptions
  WITH menuopts

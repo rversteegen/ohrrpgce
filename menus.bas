@@ -145,13 +145,19 @@ FUNCTION find_menu_item_at_point (state as MenuState, x as integer, y as integer
  'Return a value < state.first if it's not on any menu item.
  WITH state
   IF .has_been_drawn THEN
-   DIM mpt as integer = rect_collide_point_vertical_chunk(.rect, XY(x, y), .spacing)
-   IF mpt > -1 THEN
-    mpt += .top
+   DIM as integer chunk, mpt
+   chunk = rect_collide_point_vertical_chunk(.rect, XY(x, y), .spacing)
+   IF chunk > -1 THEN
+    mpt = chunk + .top
     ' Need to check against size, as there might be a few pixels inside .rect after
     ' the last visible menu item, where the next item isn't drawn
     IF mpt >= .first ANDALSO mpt <= .last ANDALSO mpt <= .top + .size THEN
-     RETURN mpt
+     ' If we can, check whether the mouse is actually over the
+     ' menu item and not off to the side.
+     DIM item_offset as XYPair = XY(x - .rect.x, y - .rect.y - chunk * .spacing)
+     IF state.item_hittest = NULL ORELSE state.item_hittest(mpt, item_offset, state.callback_data) THEN
+      RETURN mpt
+     END IF
     END IF
    END IF
   END IF

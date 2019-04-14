@@ -130,6 +130,9 @@ TYPE MenuDef
   Declare Destructor()
 END TYPE
 
+'item_offset is offset from top-left of the menu item
+TYPE MenuItemHitTest as FUNCTION(item as integer, item_offset as XYPair, data as any ptr) as bool
+
 TYPE MenuState
   active    as bool = YES
   pt        as integer 'currently selected item (.first - 1 if none, eg. menu is empty)
@@ -154,6 +157,10 @@ TYPE MenuState
   select_by_mouse_release as bool ' This is important for menus where you need to be able to
                                   ' focus an item and pick an item with separate clicks
   drag_start_top as integer 'used internally bu mouse_drag_menu()
+
+  item_hittest as MenuItemHitTest 'Optional: Used to check whether the mouse is horizontally over a menu item.
+                            'This is checked only if the mouse is over the item's 'vertical chunk'.
+  callback_data as any ptr  'Passed to .item_hittest()
 
   DECLARE FUNCTION empty() as bool
   DECLARE FUNCTION pt_valid() as bool
