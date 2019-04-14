@@ -1313,6 +1313,9 @@ SUB make_ui_boxstyle_editor_menu(m() as string, boxes() as BoxStyle)
    m(off) = "Box style " & i & " color:  " & .bgcol
    m(off + 1) = "Box style " & i & " edge: " & .edgecol
    m(off + 2) = "Box style " & i & " border image: " & defaultint(.border - 1, "none", -1)
+   m(off + 3) = "Box style " & i & " transparent by default: " & yesorno(.default_trans)
+   m(off + 4) = "Box style " & i & " transparency: " & TransCaptions(.trans_type)
+   m(off + 5) = "Box style " & i & " opacity: " & .opacity & "%"
   END WITH
  NEXT i
 END SUB

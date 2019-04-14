@@ -1,6 +1,6 @@
 Welcome to the OHRRPGCE!
 
-You can press F1 on any menu to see a help screen like this one.
+${K4}You can press F1 on any menu to see a help screen like this one.
 The F1 help pages explain the options on each menu, but to read OHRRPGCE tutorials and articles go to the website, at
 http://HamsterRepublic.com/ohrrpgce/
 in particular the HOWTO tutorials. Ask questions on the Forums if you need help - discussing with others is fun!

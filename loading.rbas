@@ -2833,7 +2833,7 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
   '--Save bitsets
   setbit boxbuf(), 174, 0, .choice_enabled
   setbit boxbuf(), 174, 1, .no_box
-  setbit boxbuf(), 174, 2, .opaque
+  setbit boxbuf(), 174, 2, (.opacity = 100)  'Obsolete
   setbit boxbuf(), 174, 3, .restore_music
   setbit boxbuf(), 174, 4, .portrait_box
   setbit boxbuf(), 174, 5, .stop_sound_after
@@ -2851,6 +2851,8 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
   boxbuf(195) = .textcolor ' 0=default
   boxbuf(196) = .boxstyle
   boxbuf(197) = .backdrop  ' +1
+  boxbuf(211) = .opacity ' 0=default
+  '--Save audio
   boxbuf(198) = .music     ' +1
   boxbuf(205) = .sound_effect ' +1
   boxbuf(206) = .line_sound ' +1, 0=default, -1=none

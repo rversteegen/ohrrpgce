@@ -485,6 +485,23 @@ CONST npcUse = 0
 CONST npcTouch = 1
 CONST npcStepOn = 2
 
+ENUM RectTransTypes
+ transUndef = -1
+ transOpaque = 0
+ transFuzzy = 1
+ transHollow = 2
+ transTrans = 3
+ transLAST = 3
+END ENUM
+
+ENUM RectBorderTypes
+ borderUndef = -3
+ borderNone = -2
+ borderLine = -1
+ 'N=0-14: usually means use box N style's border
+ '(but also used by edgebox_rawborder to mean use raw box border sprite N)
+END ENUM
+
 ' These constants are for the .t type of a MenuDefItem for user-created menus
 ' (MenuDefs used elsewhere including battles are NOT free to assign other meanings
 ' to these values, because draw_menu or other functions may treat some of these specially!

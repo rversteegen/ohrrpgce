@@ -627,18 +627,17 @@ SUB textbox_edit_preview (byref box as TextBox, byref st as TextboxEditState, pa
 END SUB
 
 ' Preview the textbox as it will appear in-game, portraying it with in-game window size
+' at the bottom-right corner of the screen
 SUB textbox_draw_with_background(byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr, page as integer)
- clearpage page
- draw_background vpages(page), uilook(uiBackground)
-
- ' Draw the textbox
- DIM fr as Frame ptr = vpages(page)
- DIM viewport as Frame ptr
- viewport = frame_new_view(fr, large(0, fr->w - gen(genResolutionX)), large(0, fr->h - gen(genResolutionY)), gen(genResolutionX), gen(genResolutionY))
+ ' Draw a chequered backgound behind the textbox
+ DIM as Frame ptr fr = vpages(page), viewport
+ DIM res as XYPair = get_resolution
+ viewport = frame_new_view(fr, large(0, fr->w - res.w), large(0, fr->h - res.h), res.w, res.h)
  draw_background viewport, bgChequer
  fuzzyrect viewport, 0, 0, , , uilook(uiBackground), 50  'Make the chequer less glaring underneath text
  IF backdrop THEN frame_draw backdrop, , 0, 0, , box.backdrop_trans, viewport
  DIM viewport_page as integer = registerpage(viewport)
+ ' Draw the textbox
  textbox_edit_preview box, st, viewport_page
  freepage viewport_page
  frame_unload @viewport
@@ -840,6 +839,7 @@ SUB textbox_position_portrait (byref box as TextBox, byref st as TextboxEditStat
   IF slowkey(ccUp, delay)    THEN box.portrait_pos.y -= speed
   IF slowkey(ccDown, delay)  THEN box.portrait_pos.y += speed
 
+  clearpage dpage
   textbox_draw_with_background box, st, backdrop, dpage
   edgeprint "Arrow keys to move, space to confirm", 0, 0, uilook(uiSelectedItem + tog), dpage
   edgeprint "Offset " & box.portrait_pos, pLeft, pBottom, uilook(uiText), dpage
@@ -923,7 +923,7 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
    IF keyval(ccLeft) > 1 OR keyval(ccRight) > 1 THEN
     SELECT CASE menu[state.pt].dat
      CASE 7: box.no_box = (NOT box.no_box)
-     CASE 8: box.opaque = (NOT box.opaque)
+     'CASE 8: box.opaque = (NOT box.opaque)
      CASE 9: box.restore_music = (NOT box.restore_music)
      CASE 13: box.portrait_box = (NOT box.portrait_box)
      CASE 16: box.stop_sound_after = (NOT box.stop_sound_after)
@@ -949,6 +949,8 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
       state.need_update = YES
       music_stop
      END IF
+    CASE 8:
+     state.need_update OR= intgrabber(box.trans, 0, transLAST)
     CASE 10:
      state.need_update OR= intgrabber(box.portrait_type, 0, portraitLAST)
     CASE 11:
@@ -972,6 +974,8 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
       state.need_update = YES
       resetsfx
      END IF
+    CASE 19:
+     state.need_update OR= intgrabber(box.opacity, 0, 99)
    END SELECT
   ELSE '-- holding ALT
    DIM remptr as integer = st.id
@@ -992,6 +996,7 @@ SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditStat
    init_menu_state state, cast(BasicMenuItem vector, menu)
   END IF
 
+  clearpage dpage
   textbox_draw_with_background box, st, backdrop, dpage
   standardmenu cast(BasicMenuItem vector, menu), state, 0, 0, dpage, menuopts
 
@@ -1023,6 +1028,14 @@ STATIC SHARED portrait_type_names(portraitLAST) as zstring ptr = {_
     @"Hero (by ID)" _
 }
 
+STATIC SHARED trans_names(transLAST) as zstring ptr = {_
+    @"NO", _  'Opaque
+    @"Fuzzy", _
+    @"Hollow", _
+    @"Transpareny" _
+}
+
+
 SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, byref box as TextBox, byref st as TextboxEditState)
  DIM menutemp as string
  v_new menu
@@ -1034,7 +1047,11 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
  menuitem -1, menu, " Box"
  menuitem 7, menu, "Show Box: " & yesorno(NOT box.no_box)
  IF box.no_box = NO THEN
-  menuitem 8, menu, "Translucent: " & yesorno(NOT box.opaque)
+  'menuitem 8, menu, "Translucent: " & yesorno(NOT box.opaque)
+  menuitem 8, menu, "Translucent: " & safe_captionz(trans_names(), box.trans, "type")
+  IF box.trans = transFuzzy ORELSE box.trans = transTrans THEN
+   menuitem 19, menu, "Opacity: " & IIF(box.opacity = 0, "default (50%)", box.opacity & "%")
+  END IF
   menuitem 4, menu, "Box Style: " & box.boxstyle
   menuitem 2, menu, "Shrink: " & IIF(box.shrink = -1, "Auto", STR(box.shrink))
  END IF
@@ -1103,6 +1120,8 @@ SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, 
   menutemp = (box.line_sound - 1) & " " & getsfxname(box.line_sound - 1)
  END IF
  menuitem 17, menu, "Line Sound: " & menutemp
+
+ 'Next free item ID: 20
 
  load_text_box_portrait box, st.portrait
 END SUB

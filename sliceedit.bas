@@ -210,7 +210,7 @@ VertCaptions(2) = "Bottom"
 REDIM SHARED BorderCaptions(-2 TO -1) as string
 BorderCaptions(-2) = "None"
 BorderCaptions(-1) = "Line"
-REDIM SHARED TransCaptions(0 TO 3) as string
+DIM TransCaptions(0 TO 3) as string
 TransCaptions(0) = "Solid"       'transOpaque
 TransCaptions(1) = "Fuzzy"       'transFuzzy
 TransCaptions(2) = "Hollow"      'transHollow

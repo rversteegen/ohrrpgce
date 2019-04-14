@@ -48,5 +48,6 @@ DECLARE FUNCTION slice_color_caption(byval n as integer, ifzero as string="0") a
 'Globals
 EXTERN HorizCaptions(2) as string
 EXTERN VertCaptions(2) as string
+EXTERN TransCaptions(3) as string
 
 #ENDIF

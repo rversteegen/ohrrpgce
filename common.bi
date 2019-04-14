@@ -46,23 +46,6 @@ DECLARE FUNCTION readbadbinstring (array() as integer, byval offset as integer, 
 DECLARE FUNCTION read32bitstring (strptr as integer ptr) as string
 DECLARE FUNCTION readbadgenericname (byval index as integer, filename as string, byval recsize as integer, byval offset as integer, byval size as integer, byval skip as integer = 0, byval expectexists as bool=YES) as string
 
-ENUM RectTransTypes
- transUndef = -1
- transOpaque = 0
- transFuzzy = 1
- transHollow = 2
- transTrans = 3
- transLAST = 3
-END ENUM
-
-ENUM RectBorderTypes
- borderUndef = -3
- borderNone = -2
- borderLine = -1
- 'N=0-14: usually means use box N style's border
- '(but also used by edgebox_rawborder to mean use raw box border sprite N)
-END ENUM
-
 DECLARE FUNCTION lookup_box_border(border as RectBorderTypes) as RectBorderTypes
 
 '----- Styled boxes

@@ -774,7 +774,7 @@ SUB edgeboxstyle (x as RelPos, y as RelPos, w as RelPos, h as RelPos, boxstyle a
  DIM border as RectBorderTypes = boxstyle
  DIM trans as RectTransTypes = transOpaque
  IF suppress_borders THEN border = borderLine
- IF fuzzy THEN trans = transFuzzy
+ IF fuzzy THEN trans = transTrans 'Fuzzy
  edgebox x, y, w, h, col, bordercol, page, trans, border
 END SUB
 
@@ -797,7 +797,7 @@ SUB edgebox (x as RelPos, y as RelPos, w as RelPos, h as RelPos, col as integer,
  h = relative_pos(h, fr->h)
  x = relative_pos(x, fr->w, w)
  y = relative_pos(y, fr->h, h)
- draw_box_back fr, XY(x, y), XY(w, h), col, trans
+ draw_box_back fr, XY(x, y), XY(w, h), col, trans, 85
  draw_box_border fr, XY(x, y), XY(w, h), bordercol, borderindex, trans
 END SUB
 
@@ -1162,7 +1162,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binMENUS      THEN RETURN 56  'menus.bin
  IF id = binMENUITEM   THEN RETURN 68  'menuitem.bin
  IF id = binUICOLORS   THEN RETURN 126 'uicolors.bin
- IF id = binSAY        THEN RETURN 422 '.say
+ IF id = binSAY        THEN RETURN 424 '.say
  IF id = binN          THEN RETURN 38  '.n##
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1

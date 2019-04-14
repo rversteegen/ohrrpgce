@@ -1016,7 +1016,10 @@ TYPE TextBox
 
   'Appearance
   no_box      as bool
-  opaque      as bool
+  opaque      as bool'obsolete
+  true_trans  as bool
+  trans       as RectTransTypes
+  opacity     as integer   ' 1-99. 0 means default (50%)
   vertical_offset as integer ' in 4-pixel increments
   shrink      as integer = -1 ' in 4-pixel increments, -1 is "Auto"
   textcolor   as integer     ' 0=default
@@ -1133,6 +1136,9 @@ TYPE BoxStyle
  edgecol as integer
  bgcol as integer
  border as integer '0 for none, >= 1 is border sprite id -1
+ opacity as integer
+ default_trans as bool
+ trans_type as RectTransTypes
 END TYPE
 
 TYPE TranslationString

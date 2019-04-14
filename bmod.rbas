@@ -1104,7 +1104,7 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
      .last = INT(last_inv_slot() / 3)
     END WITH
     bat.inv_scroll_rect.high = inv_height - 2
-    edgeboxstyle 8, 4, 304, inv_height, 0, page
+    edgeboxstyle 8, 4, 304, inv_height, 0, page, YES
     draw_scrollbar bat.inv_scroll, bat.inv_scroll_rect, , page
     FOR i = bat.item.top TO small(bat.item.top + 26, last_inv_slot())
      if i < lbound(inventory) or i > ubound(inventory) then continue for
