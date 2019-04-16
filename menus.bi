@@ -16,12 +16,12 @@ DECLARE SUB init_menu_state OVERLOAD (byref state as MenuState, menu() as string
 DECLARE SUB append_simplemenu_item (byref menu as SimpleMenuItem vector, caption as zstring ptr, byval unselectable as bool = NO, byval col as integer = 0, byval dat as integer = 0, byval where as integer = -1)
 DECLARE SUB correct_menu_state (state as MenuState)
 DECLARE SUB correct_menu_state_top (state as MenuState)
-DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
+DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
 DECLARE FUNCTION usemenu OVERLOAD (byref pt as integer, byref top as integer, byval first as integer, byval last as integer, byval size as integer, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
 DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, byval menudata as BasicMenuItem vector, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
 DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, menu as MenuDef, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
-DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, selectable() as bool, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
-DECLARE FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
+DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, selectable() as bool, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
+DECLARE FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
 DECLARE SUB standard_to_basic_menu (menu() as string, byref state as MenuState, byref basicmenu as BasicMenuItem vector, byval shaded as bool ptr = NULL)
 DECLARE SUB standardmenu OVERLOAD (menu() as string, state as MenuState, x as RelPos, y as RelPos, page as integer, menuopts as MenuOptions = MenuOptions())
 DECLARE SUB standardmenu OVERLOAD (menu() as string, state as MenuState, shaded() as bool, x as RelPos, y as RelPos, page as integer, menuopts as MenuOptions = MenuOptions())
@@ -32,8 +32,8 @@ DECLARE FUNCTION menu_item_color(state as MenuState, itemno as integer, disabled
 
 
 '' Mouse support
-DECLARE FUNCTION find_menu_item_at_point (state as MenuState, x as integer, y as integer) as integer
-DECLARE FUNCTION mouse_update_hover (state as MenuState) as bool
+DECLARE FUNCTION find_menu_item_at_point (state as MenuState, byval pos as XYPair, menu as string ptr = NULL) as integer
+DECLARE FUNCTION mouse_update_hover (state as MenuState, menu as string ptr = NULL) as bool
 DECLARE SUB mouse_update_selection (state as MenuState)
 DECLARE SUB mouse_scroll_menu(byref state as MenuState)
 DECLARE SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseLeft, byval threshold as integer=10, byval magnify as double=1.0)

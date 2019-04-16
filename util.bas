@@ -613,7 +613,7 @@ END FUNCTION
 FUNCTION rect_collide_point_vertical_chunk (r as RectType, p as XYPair, chunk_spacing as integer) as integer
  'Divide a rect into vertical chunks (like a menu) and return the
  'index of the one the point collides with. Returns -1 if none collide
- IF chunk_spacing = 0 THEN debug "divide by 0: chunk_spacing=0" : RETURN -1
+ IF chunk_spacing = 0 THEN showbug "divide by 0: chunk_spacing=0" : RETURN -1
  IF rect_collide_point(r, p) THEN
   RETURN (p.y - r.y) \ chunk_spacing
  END IF

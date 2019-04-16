@@ -140,13 +140,15 @@ SUB append_simplemenu_item (byref menu as SimpleMenuItem vector, caption as zstr
  END WITH
 END SUB
 
-FUNCTION find_menu_item_at_point (state as MenuState, x as integer, y as integer) as integer
+FUNCTION find_menu_item_at_point (state as MenuState, byval pos as XYPair, menu as string ptr = NULL) as integer
  'If the on-screen position overlaps a MenuState, return the index of the menu item it is touching.
  'Return a value < state.first if it's not on any menu item.
+ 'menu: optional array of menu text strings. If provided, actual width of menu items will be checked.
+ '  (Not used if have explicit state.item_hittest())
  WITH state
   IF .has_been_drawn THEN
    DIM as integer chunk, mpt
-   chunk = rect_collide_point_vertical_chunk(.rect, XY(x, y), .spacing)
+   chunk = rect_collide_point_vertical_chunk(.rect, pos, .spacing)
    IF chunk > -1 THEN
     mpt = chunk + .top
     ' Need to check against size, as there might be a few pixels inside .rect after
@@ -154,8 +156,12 @@ FUNCTION find_menu_item_at_point (state as MenuState, x as integer, y as integer
     IF mpt >= .first ANDALSO mpt <= .last ANDALSO mpt <= .top + .size THEN
      ' If we can, check whether the mouse is actually over the
      ' menu item and not off to the side.
-     DIM item_offset as XYPair = XY(x - .rect.x, y - .rect.y - chunk * .spacing)
-     IF state.item_hittest = NULL ORELSE state.item_hittest(mpt, item_offset, state.callback_data) THEN
+     DIM item_offset as XYPair = XY(pos.x - .rect.x, pos.y - .rect.y - chunk * .spacing)
+     IF state.item_hittest ANDALSO state.item_hittest(mpt, item_offset, state.callback_data) = NO THEN
+      'Fail
+     ELSEIF menu ANDALSO pos.x >= textwidth(menu[mpt]) THEN
+      'Fail
+     ELSE
       RETURN mpt
      END IF
     END IF
@@ -167,13 +173,15 @@ END FUNCTION
 
 ' Updates state.hover, and returns YES if the mouse is over the menu.
 ' (You only need this if not calling usemenu or scrollmenu)
-FUNCTION mouse_update_hover (state as MenuState) as bool
+' menu: optional array of menu text strings. If provided, actual width of menu items will be checked.
+'   (Not used if have explicit state.item_hittest())
+FUNCTION mouse_update_hover (state as MenuState, menu as string ptr = NULL) as bool
  DIM use_mouse as bool = YES
 #IFDEF IS_GAME
  use_mouse = get_gen_bool("/mouse/mouse_menus") OR (force_use_mouse > 0)
 #ENDIF
  IF use_mouse ANDALSO readmouse.active THEN
-  state.hover = find_menu_item_at_point(state, readmouse.x, readmouse.y)
+  state.hover = find_menu_item_at_point(state, readmouse.pos, menu)
   RETURN state.hover >= state.first
  ELSE
   state.hover = state.first - 1
@@ -258,7 +266,7 @@ SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseL
  END WITH
 END SUB
 
-FUNCTION usemenu (byref state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
+FUNCTION usemenu (byref state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
  WITH state
   IF .autosize THEN
    recalc_menu_size state
@@ -277,7 +285,7 @@ FUNCTION usemenu (byref state as MenuState, byval deckey as KBScancode = ccUp, b
   END IF
   correct_menu_state state  'Update .top and .pt
 
-  IF mouse_update_hover(state) THEN mouse_update_selection(state)
+  IF mouse_update_hover(state, menu) THEN mouse_update_selection(state)
   mouse_scroll_menu state
 
   IF oldptr = .pt AND oldtop = .top THEN
@@ -325,6 +333,8 @@ FUNCTION usemenu (state as MenuState, byval menudata as BasicMenuItem vector, by
   selectable(idx) = NOT v_at(menudata, idx)->unselectable
  NEXT
 
+ 'TODO: set a temp state.item_hittest()
+
  RETURN usemenu(state, selectable(), deckey, inckey)
 END FUNCTION
 
@@ -340,11 +350,13 @@ FUNCTION usemenu (state as MenuState, menu as MenuDef, byval deckey as KBScancod
   selectable(idx) = NOT menu.items[idx]->unselectable
  NEXT
 
+ 'TODO: set a temp state.item_hittest()
+
  RETURN usemenu(state, selectable(), deckey, inckey)
 END FUNCTION
 
 'a version for menus with unselectable items, skip items for which selectable(i) = NO
-FUNCTION usemenu (state as MenuState, selectable() as bool, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
+FUNCTION usemenu (state as MenuState, selectable() as bool, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
  IF state.empty() THEN
   correct_menu_state state
   RETURN NO
@@ -407,7 +419,7 @@ FUNCTION usemenu (state as MenuState, selectable() as bool, byval deckey as KBSc
   END IF
   correct_menu_state state  'Update .top
 
-  IF mouse_update_hover(state) ANDALSO selectable(.hover) THEN
+  IF mouse_update_hover(state, menu) ANDALSO selectable(.hover) THEN
    mouse_update_selection(state)
   END IF
   mouse_scroll_menu state
@@ -424,7 +436,7 @@ END FUNCTION
 'scrollmenu is like usemenu for menus where no menu item is selected:
 'you just want to scroll a menu up and down (modifies .top; .pt is ignored).
 'Returns true when view changed.
-FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
+FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown, menu as string ptr = NULL) as bool
  WITH state
   IF .autosize THEN
    recalc_menu_size state
@@ -437,7 +449,7 @@ FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byva
   IF keyval(scPagedown) > 1 THEN .top = small(lasttop, .top + .size)
   IF keyval(scHome) > 1 THEN .top = .first
   IF keyval(scEnd) > 1 THEN .top = lasttop
-  mouse_update_hover(state)
+  mouse_update_hover(state, menu)
   mouse_scroll_menu(state)
   RETURN (.top <> oldtop)
  END WITH
