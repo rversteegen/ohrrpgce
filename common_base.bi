@@ -13,7 +13,6 @@
 declare function get_app_name() as zstring ptr
 
 declare sub debug (msg as const zstring ptr)
-declare sub early_debuginfo (msg as const zstring ptr)
 declare sub debuginfo (msg as const zstring ptr)
 declare sub debugerror (msg as const zstring ptr)
 declare sub fatalerror (msg as const zstring ptr)
@@ -21,6 +20,7 @@ declare sub fatalbug (msg as const zstring ptr)
 declare sub visible_debug (msg as const zstring ptr)
 
 extern "C"
+declare sub early_debuginfo (msg as const zstring ptr)
 declare sub showerror_internal (callsite as any ptr, msg as const zstring ptr, isfatal as bool = NO, isbug as bool = NO)
 declare sub debugc_internal (callsite as any ptr, errorlevel as errorLevelEnum, msg as const zstring ptr)
 

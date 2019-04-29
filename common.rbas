@@ -331,38 +331,47 @@ SUB start_new_debug(title as string)
  debuginfo " ----" & title & "----"
 END SUB
 
+SUB seek_past_next_newline(fh as integer)
+ DIM ch as byte
+ DO
+  GET #fh, , ch
+ LOOP UNTIL ch = 10
+END SUB
+
 ' Append logfile to archivefile and delete it.
 PRIVATE SUB archive_log_file(logfile as string, archivefile as string)
  DIM dlog as integer = FREEFILE
  OPEN logfile FOR BINARY as dlog
+
+ ' First read the end of the archive file, which we will preserve
  DIM archive as integer = FREEFILE
  OPEN archivefile FOR BINARY as archive
 
- CONST buflen = 128 * 1024
+ CONST buflen = 1024 * 1024  'The max size of the archive file
+ CONST max_per_session = 128 * 1024  'Maximum amount to preserve from logfile, must be <= buflen
  DIM as ubyte ptr buf = ALLOCATE(buflen)
 
  DIM copyamount as size_t = bound(buflen - LOF(dlog), 0, LOF(archive))
 
  IF copyamount THEN
   SEEK #archive, LOF(archive) - copyamount + 1
-  'don't cut the file in the middle of a line
-  DO
-   GET #archive, , buf[0]
-  LOOP UNTIL buf[0] = 10
+  seek_past_next_newline archive 'don't cut the file in the middle of a line
 
+  'Read up to 'buflen' bytes, actual length stored in copyamount
   GET #archive, , buf[0], buflen, copyamount
  END IF
 
  CLOSE #archive
+
+ ' Write that part out again, overwriting the old archive
  archive = FREEFILE
  OPEN archivefile FOR BINARY ACCESS WRITE as archive
  PUT #archive, , *buf, copyamount
 
- IF LOF(dlog) > buflen THEN
+ ' Then read from logfile
+ IF LOF(dlog) > max_per_session THEN
   SEEK #dlog, LOF(dlog) - buflen + 1
-  DO
-   GET #dlog, , buf[0]
-  LOOP UNTIL buf[0] = 10
+  seek_past_next_newline dlog
  END IF
  
  GET #dlog, , buf[0], buflen, copyamount
@@ -444,10 +453,11 @@ END EXTERN
 'This is a kludge (the whole debug logging system is a mess)...  debuginfo
 'replacement before start_new_debug has been called, to avoid junk ending up in
 '?_debug_archive.txt when start_new_debug is called.
-SUB early_debuginfo (msg as const zstring ptr)
- external_log msg
- IF debug_to_console THEN PRINT *msg
- log_buffer &= *msg & LINE_END
+SUB early_debuginfo CDECL (msg as const zstring ptr)
+ ' external_log msg
+ ' IF debug_to_console THEN PRINT *msg
+ ' log_buffer &= *msg & LINE_END
+debuginfo msg
 END SUB
 
 PRIVATE FUNCTION get_timestamp() as string
