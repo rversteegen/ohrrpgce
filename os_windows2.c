@@ -47,6 +47,28 @@ void os_get_screen_size(int *wide, int *high) {
 	*high = rect.bottom - rect.top;
 }
 
+int minidump(EXCEPTION_POINTERS* pExceptionPointers) {
+	MINIDUMP_EXCEPTION_INFORMATION ExpParam;
+
+	ExpParam.ThreadId = GetCurrentThreadId();
+	ExpParam.ExceptionPointers = pExceptionPointers;
+	ExpParam.ClientPointers = TRUE;
+
+	HANDLE hFile;
+	hFile = CreateFile("mini.dmp", GENERIC_READ|GENERIC_WRITE, 
+			   FILE_SHARE_WRITE|FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
+
+	int result;
+        //  For global variables, add | MiniDumpWithDataSegs
+        result = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(),
+                                   hFile, MiniDumpWithHandleData, &ExpParam, NULL, NULL);
+        if (!result) {
+
+        }
+
+        CloseHandle(hFile);
+        return result;
+}
 
 #define lookup_sym(lib, strct, sym) \
 	if (!(strct.sym = (void*)GetProcAddress((HINSTANCE)lib, #sym))) { \

@@ -68,6 +68,10 @@ dim shared main_thread_id as integer
 
 '''''' Extra winapi defines
 
+' extern "C"
+' declare function minidump(ptrs as PEXCEPTION_POINTERS) as integer
+' end extern
+
 'We #undef'd copyfile
 #ifdef UNICODE
 	declare function CopyFile_ alias "CopyFileW" (byval as LPCWSTR, byval as LPCWSTR, byval as BOOL) as BOOL
@@ -228,6 +232,7 @@ extern "windows"
 'exception handling library.
 function exceptFilterMessageBox(pExceptionInfo as PEXCEPTION_POINTERS) as clong
 	'TODO: if we don't have CrashRpt, create a minidump ourselves and ask the user to send it.
+	dim ret as integer ' = minidump(pExceptionInfo)
 
 	if want_exception_messagebox then
 		'Avoid calling FB string routines
@@ -243,11 +248,11 @@ function exceptFilterMessageBox(pExceptionInfo as PEXCEPTION_POINTERS) as clong
 				 strptr(crash_reportfile))
 		else
 			snprintf(strptr(msgbuf), 300, _
-				 !"The engine has crashed! Sorry :(\n\n" _
+				 !"%d The engine has crashed! Sorry :(\n\n" _
 				 !"Can't generate a stacktrace, as exchndl.dll isn't present.\n\n" _
 				 !"Please email g_debug.txt or c_debug.txt to\n" _
 				 !"ohrrpgce-crash@HamsterRepublic.com\n" _
-				 "with a description of what you were doing.")
+				 "with a description of what you were doing.", ret)
 		end if
 		MessageBoxA(NULL, strptr(msgbuf), "OHRRPGCE Error", MB_OK or MB_ICONERROR)
 	end if
