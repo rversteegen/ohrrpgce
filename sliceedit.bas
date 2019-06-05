@@ -27,6 +27,12 @@ ENUM HideMode
  hideLAST = 3
 END ENUM
 
+ENUM FocusMode
+ focusNothing = 0
+ focusSlices = 1
+ focusMenu = 2
+END ENUM
+
 TYPE SliceEditMenuItem
  s as string
  handle as Slice Ptr
@@ -61,6 +67,7 @@ TYPE SliceEditState
  clipboard as Slice Ptr
  draw_root as Slice Ptr    'The slice to actually draw; either edslice or its parent.
  hide_mode as HideMode
+' focus_mode as FocusMode   'Whether the menu or the collection has focus
  show_root as bool         'Whether to show edslice
  show_ants as bool = YES   'Whether to draw a box around the selected slice
  privileged as bool        'Whether can edit properties that are normally off-limits. Non-user collections only.
@@ -75,8 +82,10 @@ TYPE SliceEditState
 
  slicelookup(any) as string
  specialcodes(any) as SpecialLookupCode
- slicemenu(any) as SliceEditMenuItem 'The top-level menu (which lists all slices)
- slicemenust as MenuState            'State of slicemenu() menu
+
+ ' The top-level menu (which lists all slices)
+ slicemenu(any) as SliceEditMenuItem
+ slicemenust as MenuState
 
  DECLARE FUNCTION curslice() as Slice ptr
 END TYPE
@@ -500,6 +509,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
 
  DIM jump_to_collection as integer
 
+ DIM mouse_active as bool = NO  'True when the mouse was last used rather than the keyboard
+
  '--Ensure all the slices are updated before the loop starts
  RefreshSliceTreeScreenPos ses.draw_root
 
@@ -527,6 +538,12 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
    state.need_update = YES
   END IF
 
+  ' IF ses.hide_mode = hideSlices THEN ses.focus_mode = focusMenu
+  ' IF ses.hide_mode = hideMenu THEN ses.focus_mode = focusSlices
+
+  ' IF ses.hide_mode = hideSlices THEN state.active = YES
+  ' IF ses.hide_mode = hideMenu THEN state.active = NO
+
   IF state.need_update = NO ANDALSO ses.curslice <> NULL THEN
 
    IF keyval(scCtrl) = 0 AND keyval(scV) > 1 THEN
@@ -553,6 +570,7 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
      .AlignVert = alignTop
      .AnchorHoriz = alignLeft
      .AnchorVert = alignTop
+     'Leaving clamping alone
      slice_edit_updates ses.curslice, @.Fill
      slice_edit_updates ses.curslice, @.CoverChildren
     END WITH
@@ -568,16 +586,49 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
   END IF
 
   ' Highlighting and selecting slices with the mouse
-  IF state.need_update = NO THEN
-   DIM topmost as Slice ptr
-   topmost = slice_editor_mouse_over(edslice, ses.slicemenu(), state)
-   IF topmost ANDALSO (readmouse().release AND mouseLeft) THEN
-    cursor_seek = topmost
+
+  '  'If the menu overlaps the slice collection, prefer the menu
+  '  'IF topmost ANDALSO state.hover < state.first
+
+  '  IF topmost ANDALSO ses.focus = focusSlices (readmouse().release AND mouseLeft) THEN
+  '  END IF
+  ' END IF
+
+
+  IF readmouse().release AND (mouseLeft OR mouseRight) THEN
+   ' IF state.hover < state.first THEN
+   '  'If the menu and the slice collection overlap, prefer the menu
+   '  state.active = NO
+   ' END IF
+
+   DIM topmost as Slice ptr = 0
+   IF state.need_update = NO ANDALSO ses.hide_mode <> hideSlices THEN
+    topmost = slice_editor_mouse_over(edslice, ses.slicemenu(), state)
+   END IF
+
+   IF topmost ANDALSO (state.hover < state.first ORELSE keyval(scCtrl)) THEN
+    IF topmost <> ses.curslice THEN
+     'First click on a slice: select it
+     cursor_seek = topmost
+    ELSE
+     'Second click on a slice: edit it
+     cursor_seek = topmost
+     slice_edit_detail ses, edslice, ses.curslice
+    END IF
     state.need_update = YES
+   ' ELSE
+   '  state.active = YES
    END IF
   END IF
 
   IF state.need_update = NO ANDALSO enter_space_click(state) THEN
+/'
+   IF state.active = NO ANDALSO topmost = NULL THEN
+    state.active = YES
+    state.need_update = YES
+'    state.pt = 
+   ELSE
+    '/
    IF state.pt = 0 THEN
     IF slice_editor_save_when_leaving(ses, edslice) THEN EXIT DO
    ELSEIF state.pt = ses.collection_name_pt THEN
@@ -738,26 +789,38 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
    state.need_update = NO
    cursor_seek = NULL
   ELSE
-   ' If there's slice under the mouse, clicking should focus on that, not any menu item there.
-   ' (Right-clicking still works to select a menu item)
-   IF topmost = NULL ORELSE (readmouse.buttons AND mouseLeft) = 0 THEN
-    usemenu state
+   IF topmost ANDALSO (readmouse.buttons AND mouseLeft) THEN
+    ' If there's slice under the mouse, clicking should focus on that, not any menu item there.
+    ' (Right-clicking still works to select a menu item)
+   ELSE
+    IF usemenu(state) THEN mouse_active = NO
    END IF
   END IF
+
+  IF readmouse.moved ORELSE keyval(scCtrl) THEN mouse_active = YES
 
   draw_background vpages(dpage), bgChequer
 
   IF ses.hide_mode <> hideSlices THEN
    DrawSlice ses.draw_root, dpage
   END IF
+
+  'Outline certain slices with ants
   IF ses.show_ants THEN
-   IF ses.curslice THEN
-    DrawSliceAnts ses.curslice, dpage
-   END IF
-   IF topmost THEN
-    DrawSliceAnts topmost, dpage
+   IF mouse_active = YES THEN
+    IF ses.hide_mode <> hideMenu ANDALSO state.hover >= 0 THEN
+     DIM sl as Slice ptr = ses.slicemenu(state.hover).handle
+     IF sl THEN DrawSliceAnts sl, dpage
+    ELSEIF topmost THEN
+     DrawSliceAnts topmost, dpage
+    END IF
+   ELSE
+    IF ses.curslice THEN
+     DrawSliceAnts ses.curslice, dpage
+    END IF
    END IF
   END IF
+
   IF ses.hide_mode <> hideMenu THEN
 
    'Determine the colour for each menu item: copy the visible part of the menu into plainmenu()
@@ -765,24 +828,29 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
    FOR i as integer = state.top TO small(UBOUND(plainmenu), state.top + state.size)
     plainmenu(i) = ses.slicemenu(i).s
     DIM sl as Slice ptr = ses.slicemenu(i).handle
-    DIM col as integer = -1
     IF sl THEN
-     IF sl->Visible = NO THEN
-      col = uilook(uiSelectedDisabled + IIF(state.pt = i, global_tog, 0))
-     ELSEIF sl->EditorColor ANDALSO state.pt <> i THEN
-      'Don't override normal highlight
-      col = sl->EditorColor
-     END IF
-     IF col > -1 THEN
-      plainmenu(i) = fgcol_text(plainmenu(i), col)
-     END IF
+     'Override color to sl->EditorColor as appropriate
+     DIM col as integer = menu_item_color(state, i, (sl->Visible = NO), NO, sl->EditorColor)
+     plainmenu(i) = fgcol_text(plainmenu(i), col)
     END IF
    NEXT i
 
    menuopts.drawbg = (ses.hide_mode <> hideMenuBG)
    standardmenu plainmenu(), state, 8, 0, dpage, menuopts
    draw_fullscreen_scrollbar state, 0, dpage, alignLeft
-   wrapprintbg "+ to add a slice. SHIFT+arrows to sort", 8, pBottom, uilook(uiText), dpage, menuopts.drawbg
+   DIM tooltip as string
+   'If using the mouse, show a different tooltip if clicking will select a slice
+   IF mouse_active ANDALSO (keyval(scCtrl) ORELSE state.hover < state.first) THEN
+    IF topmost = ses.curslice THEN  'Clicking twice edits
+     tooltip = "Click to edit this slice"
+    ELSE
+     tooltip = "Click to select a slice"
+    END IF
+   ELSE
+    tooltip = "+ to add a slice. SHIFT+arrows to sort"
+   END IF
+   wrapprintbg tooltip, 8, pBottom, uilook(uiText), dpage, menuopts.drawbg
+
   END IF
 
   SWAP vpage, dpage
@@ -1149,8 +1217,11 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
    state.need_update = NO
   END IF
 
-  usemenu_flag = usemenu(state)
+  usemenu_flag = usemenu(state, , , @menu(0))
   IF state.pt = 0 AND enter_space_click(state) THEN EXIT DO
+  'Exit when clicking outside menu
+  IF state.hover < state.first ANDALSO readmouse.release THEN EXIT DO
+
   slice_edit_detail_keys ses, state, sl, rules(), usemenu_flag
 
   draw_background vpages(dpage), bgChequer
@@ -1915,7 +1986,7 @@ FUNCTION slice_caption (sl as Slice Ptr, slicelookup() as string, rootsl as Slic
    s &= SliceLookupCodeName(.Lookup)  'returns STR(.Lookup) if not recognied
   END IF
  END WITH
- RETURN s
+ RETURN RTRIM(s)
 END FUNCTION
 
 'Update slice states and the menu listing the slices
