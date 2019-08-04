@@ -1521,23 +1521,23 @@ FUNCTION attack_can_hit_dead(attacker as integer, attack as AttackData, stored_t
  RETURN NO
 END FUNCTION
 
-FUNCTION autotarget (who as integer, atk_id as integer, bslot() as BattleSprite, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO) as bool
+FUNCTION autotarget (who as integer, atk_id as integer, bslot() as BattleSprite, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO, initial_attack as bool = NO) as bool
  DIM t(11) as integer
- RETURN autotarget(who, atk_id, bslot(), t(), queue, override_blocking, dont_retarget)
+ RETURN autotarget(who, atk_id, bslot(), t(), queue, override_blocking, dont_retarget, initial_attack)
 END FUNCTION
 
-FUNCTION autotarget (who as integer, atk_id as integer, bslot() as BattleSprite, t() as integer, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO) as bool
+FUNCTION autotarget (who as integer, atk_id as integer, bslot() as BattleSprite, t() as integer, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO, initial_attack as bool = NO) as bool
  DIM attack as AttackData
  loadattackdata attack, atk_id
- RETURN autotarget(who, attack, bslot(), t(), queue, override_blocking, dont_retarget)
+ RETURN autotarget(who, attack, bslot(), t(), queue, override_blocking, dont_retarget, initial_attack)
 END FUNCTION
 
-FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleSprite, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO) as bool
+FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleSprite, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO, initial_attack as bool = NO) as bool
  DIM t(11) as integer
- RETURN autotarget(who, atk, bslot(), t(), queue, override_blocking, dont_retarget)
+ RETURN autotarget(who, atk, bslot(), t(), queue, override_blocking, dont_retarget, initial_attack)
 END FUNCTION
 
-FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleSprite, t() as integer, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO) as bool
+FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleSprite, t() as integer, queue as bool=YES, override_blocking as integer=-2, dont_retarget as bool=NO, initial_attack as bool = NO) as bool
  '--Returns true if the targetting was successful, or false if it failed for some reason
  ' such as no valid targets being available.
 
@@ -1577,7 +1577,7 @@ FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleS
  '(Note! this is done even if the attack has no targets, which will result in it being
  'cancelled when it gets dequeued, wasting the attacker's turn)
  IF queue THEN
-  queue_attack atk.id, who, t(), override_blocking, dont_retarget
+  queue_attack atk.id, who, t(), override_blocking, dont_retarget, initial_attack
  END IF
 
  RETURN result

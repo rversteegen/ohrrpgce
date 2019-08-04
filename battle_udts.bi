@@ -293,7 +293,7 @@ TYPE TurnManager
  '--stuff used only by turnTURN
  choosing_attacks as bool
  number as integer ' number of the current turn (merely debugging information)
- reverse as bool   ' bat.next_hero loops backwards, used to cancel and return to previous hero
+ reverse_last_choosen_attack as bool  ' Player cancelled, return to previous hero
 END TYPE
 
 'This type stores the state of the battle engine, for example,
@@ -364,6 +364,9 @@ TYPE AttackQueue
  attacker as integer 'slot number of attacker
  t(11)    as integer 'Targeted slots, -1 for empty, or slot number.
  blocking as bool    'Whether blocks attacker from acting
+ initial_attack as bool 'Marks an attack that has been put on the attack queue due to a hero
+                        'or enemy picking an attack normally. False for counter-attacks,
+                        'on-death attacks and chained attacks. Used for player cancelling attacks.
  delay    as integer 'turnACTIVE: Number of ticks that should pass before this attack happens
                      'turnTURN: sort key for ordering queued attacks
  turn_delay as integer 'Number of turns to wait before the .delay begins.

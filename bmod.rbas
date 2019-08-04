@@ -94,7 +94,7 @@ DECLARE SUB calc_initiative_order (bslot() as BattleSprite, formdata as Formatio
 DECLARE SUB apply_initiative_order (bslot() as BattleSprite)
 DECLARE SUB turn_mode_time_passage (bat as BattleState, bslot() as battleSprite)
 DECLARE FUNCTION hero_or_enemy_can_take_a_turn (byval who as integer, bat as BattleState, bslot() as BattleSprite) as bool
-DECLARE SUB cancel_blocking_attacks_for_hero_or_enemy(byval who as integer)
+DECLARE SUB cancel_selected_attack_for_hero_or_enemy(byval who as integer)
 DECLARE SUB update_turn_delays_in_attack_queue (byval who as integer)
 DECLARE FUNCTION has_blocking_turn_delayed_attacks(byval who as integer) as bool
 DECLARE SUB populate_battle_menu_menudef (byval hero_id as integer, menu as MenuDef, hero as HeroDef)
@@ -745,7 +745,7 @@ SUB battle_targetting(byref bat as BattleState, bslot() as BattleSprite)
   IF bat.turn.mode = turnACTIVE THEN
    update_turn_delays_in_attack_queue bat.hero_turn
   END IF
-  autotarget bat.hero_turn, bslot(bat.hero_turn).attack - 1, bslot()
+  autotarget bat.hero_turn, bslot(bat.hero_turn).attack - 1, bslot(), , , YES  'initial_attack=YES
   hero_attack_targetting_done bat, bslot()
   EXIT SUB
  END IF
@@ -928,7 +928,7 @@ SUB battle_confirm_target(byref bat as BattleState, bslot() as BattleSprite)
    targnum += 1
   END IF
  NEXT slot
- queue_attack bslot(bat.hero_turn).attack - 1, bat.hero_turn, targs()
+ queue_attack bslot(bat.hero_turn).attack - 1, bat.hero_turn, targs(), , , YES  'initial_attack=YES
 
  hero_attack_targetting_done bat, bslot()
 END SUB
@@ -2652,7 +2652,7 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
  END IF
 
  'Note: if autotargetting fails the targetless attack gets queued anyway, wasting the enemy's turn
- autotarget bat.enemy_turn, atk, bslot()
+ autotarget bat.enemy_turn, atk, bslot(), , , YES  'initial_attack=YES
 
  IF bat.turn.mode = turnACTIVE THEN
   bslot(bat.enemy_turn).active_turn_num += 1
@@ -2718,7 +2718,7 @@ SUB heromenu (byref bat as BattleState, bslot() as BattleSprite, st() as HeroDef
    IF bat.turn.mode = turnTURN THEN
     IF prefbit(48) = NO THEN  '"!Press ESC to cancel/change a hero's attack"
      '--Switch into "reverse", meaning go back to the previous hero
-     bat.turn.reverse = YES
+     bat.turn.reverse_last_choosen_attack = YES
     END IF
    END IF
    'Don't loop the sound effect while holding down Menu to allow time to pass
@@ -3128,6 +3128,11 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
  '--load attack
  loadattackdata attack, bat.atk.id
 
+ 'Check instead-chains.
+ '(Note that in turn-based mode we require that this is done only once all hero
+ 'attacks are selected by the player, because the selected attacks are marked
+ '.initial_attack=YES, while instead-chained attacks are not. So checking
+ 'instead chains earlier would break ability to cancel attacks.)
  DIM safety as integer = 0
  DO WHILE spawn_chained_attack(attack.instead, YES, attack, bat, bslot())
   'If the spawned attack is delayed, then stop and wait
@@ -4128,15 +4133,15 @@ FUNCTION knows_attack(who as integer, atk as integer, bslot() as BattleSprite) a
  RETURN NO
 END FUNCTION
 
-SUB queue_attack(attack as integer, who as integer, targs() as integer, override_blocking as integer=-2, dont_retarget as bool = NO)
+SUB queue_attack(attack as integer, who as integer, targs() as integer, override_blocking as integer=-2, dont_retarget as bool = NO, initial_attack as bool = NO)
  DIM atk as AttackData
  loadattackdata atk, attack
  DIM blocking as bool = (atk.nonblocking = NO)
  IF override_blocking > -2 THEN blocking = override_blocking
- queue_attack attack, who, atk.attack_delay, atk.turn_delay, targs(), blocking, dont_retarget
+ queue_attack attack, who, atk.attack_delay, atk.turn_delay, targs(), blocking, dont_retarget, initial_attack
 END SUB
 
-SUB queue_attack(attack as integer, who as integer, delay as integer, turn_delay as integer, targs() as integer, blocking as bool=YES, dont_retarget as bool = NO)
+SUB queue_attack(attack as integer, who as integer, delay as integer, turn_delay as integer, targs() as integer, blocking as bool=YES, dont_retarget as bool = NO, initial_attack as bool = NO)
  'DIM targstr as string = ""
  'FOR i as integer = 0 TO UBOUND(targs)
  ' IF targs(i) > -1 THEN targstr &= " " & i & "=" & targs(i)
@@ -4148,23 +4153,29 @@ SUB queue_attack(attack as integer, who as integer, delay as integer, turn_delay
   delay = delay * (ATK_DELAY_MULT + 1)
  END IF
 
+ DIM slot as integer = -1
  FOR i as integer = 0 TO UBOUND(atkq)
   IF atkq(i).used = NO THEN
    'Recycle a queue slot
-   set_attack_queue_slot i, attack, who, delay, turn_delay, targs(), blocking, dont_retarget
-   EXIT SUB
+   slot = i
+   EXIT FOR
   END IF
  NEXT i
- 'No spaces to recycle, grow the queue
- DIM oldbound as integer = UBOUND(atkq)
- REDIM PRESERVE atkq(oldbound + 16) as AttackQueue
- FOR i as integer = oldbound + 2 TO UBOUND(atkq)
-  clear_attack_queue_slot i
- NEXT i
- set_attack_queue_slot oldbound + 1, attack, who, delay, turn_delay, targs(), blocking, dont_retarget
+
+ IF slot = -1 THEN
+  'No spaces to recycle, grow the queue
+  DIM oldbound as integer = UBOUND(atkq)
+  REDIM PRESERVE atkq(oldbound + 16) as AttackQueue
+  FOR i as integer = oldbound + 2 TO UBOUND(atkq)
+   clear_attack_queue_slot i
+  NEXT i
+  slot = oldbound + 1
+ END IF
+
+ set_attack_queue_slot slot, attack, who, delay, turn_delay, targs(), blocking, dont_retarget, initial_attack
 END SUB
 
-SUB set_attack_queue_slot(slot as integer, attack as integer, who as integer, delay as integer, turn_delay as integer, targs() as integer, blocking as bool=YES, dont_retarget as bool = NO)
+SUB set_attack_queue_slot(slot as integer, attack as integer, who as integer, delay as integer, turn_delay as integer, targs() as integer, blocking as bool=YES, dont_retarget as bool = NO, initial_attack as bool = NO)
  WITH atkq(slot)
   .used = YES
   .attack = attack
@@ -4175,6 +4186,7 @@ SUB set_attack_queue_slot(slot as integer, attack as integer, who as integer, de
    .t(i) = targs(i)
   NEXT i
   .blocking = blocking
+  .initial_attack = initial_attack
   .dont_retarget = dont_retarget
  END WITH
 END SUB
@@ -4196,6 +4208,7 @@ SUB clear_attack_queue_slot(byval slot as integer)
    .t(i) = -1
   NEXT i
   .blocking = YES
+  .initial_attack = NO
   .dont_retarget = NO
  END WITH
 END SUB
@@ -4718,13 +4731,14 @@ SUB turn_mode_state_machine (bat as BattleState, bslot() as BattleSprite, formda
 
  IF bat.turn.choosing_attacks THEN
   
-  IF bat.turn.reverse THEN
+  IF bat.turn.reverse_last_choosen_attack THEN
+   'Indicates that the player wants to cancel the last hero's move.
    'debug "Reverse! bat.next_hero=" & bat.next_hero
    DO
     bat.next_hero = large(0, bat.next_hero - 1)
     WITH bslot(bat.next_hero)
      IF .stat.cur.hp > 0 ANDALSO .no_attack_this_turn = NO THEN
-      cancel_blocking_attacks_for_hero_or_enemy bat.next_hero
+      cancel_selected_attack_for_hero_or_enemy bat.next_hero
       bslot(bat.next_hero).ready = YES
       bslot(bat.next_hero).ready_meter = 1000
       EXIT DO
@@ -4733,7 +4747,7 @@ SUB turn_mode_state_machine (bat as BattleState, bslot() as BattleSprite, formda
     IF bat.next_hero = 0 THEN EXIT DO
    LOOP
    'debug "  END LOOP bat.next_hero=" & bat.next_hero
-   bat.turn.reverse = NO
+   bat.turn.reverse_last_choosen_attack = NO
   END IF
   
   DO WHILE bat.next_hero <= 3
@@ -4942,10 +4956,13 @@ SUB apply_initiative_order (bslot() as BattleSprite)
  NEXT j
 END SUB
 
-SUB cancel_blocking_attacks_for_hero_or_enemy(byval who as integer)
+'Cancel any attack this hero or enemy has selected in the ordinary way, as
+'opposed to counter-attacks and chained attacks.
+'Used when the player cancels a hero's attack.
+SUB cancel_selected_attack_for_hero_or_enemy(byval who as integer)
  FOR i as integer = 0 TO UBOUND(atkq)
   WITH atkq(i)
-   IF .used ANDALSO .attacker = who ANDALSO .blocking THEN
+   IF .used ANDALSO .attacker = who ANDALSO .initial_attack THEN
     clear_attack_queue_slot i
    END IF
   END WITH
