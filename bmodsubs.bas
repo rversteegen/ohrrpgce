@@ -415,7 +415,7 @@ FUNCTION inflict (byref h as integer = 0, byref targstat as integer = 0, attacke
      acc = attacker.stat.cur.sta(attack.base_acc_stat - 512)
      accmult = accmult / tcount
     CASE ELSE
-     debug "Invalid Base ACC stat"
+     debugerror "Invalid Base ACC stat " & attack.base_acc_stat
    END SELECT
    SELECT CASE attack.base_dog_stat
     CASE -1
@@ -425,7 +425,7 @@ FUNCTION inflict (byref h as integer = 0, byref targstat as integer = 0, attacke
     CASE 256 TO 267
      dog = target.stat.cur.sta(attack.base_acc_stat - 256)
     CASE ELSE
-     debug "Invalid Base DOG stat"
+     debugerror "Invalid Base DOG stat " & attack.base_acc_stat
    END SELECT
   END IF
  
@@ -503,8 +503,16 @@ FUNCTION inflict (byref h as integer = 0, byref targstat as integer = 0, attacke
     ap = target.stat.max.mp - target.stat.cur.mp
    CASE 62
     ap = target.stat.cur.hp - target.stat.max.hp
-   CASE IS >= 63
-    debug "Unknown base stat " & attack.base_atk_stat & " for attack " & attack.id
+   CASE 63
+    ap = attacker.stat.level
+   CASE 64
+    ap = attacker.stat.xp
+   CASE 65
+    ap = target.stat.level
+   CASE 66
+    ap = target.stat.xp
+   CASE IS >= 67
+    debugerror "Unknown base stat " & attack.base_atk_stat & " for attack " & attack.id
   END SELECT
  
   '--defense base

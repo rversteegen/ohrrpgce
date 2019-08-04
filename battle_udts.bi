@@ -32,6 +32,8 @@ End UNION
 TYPE BattleStats
   cur as BattleStatsSingle
   max as BattleStatsSingle
+  level as integer
+  xp as integer        'Total experience since level 0
 END TYPE
 
 TYPE HarmText 'FIXME: when battle display is converted to slices, this can go away entirely
