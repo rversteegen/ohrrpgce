@@ -2472,6 +2472,22 @@ end</example>
 		</command>
 		<reference ref="equipwhere" />
 
+		<command id="getequipstatbonus">
+			<canon>get equip stat bonus (item, stat)</canon>
+			<shortname>get equip stat bonus</shortname>
+			<description>
+			</description>
+		</command>
+
+
+		<command id="getequipelementalresistasint">
+			<canon>get equip elemental resist as int (item, element)</canon>
+			<shortname>get equip elemental resist as int</shortname>
+			<description>
+			</description>
+		</command>
+
+
 
 		<section title="Inventory">
 		<command id="getitem">
