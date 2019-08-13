@@ -175,6 +175,11 @@ REDIM buffer(16384) as integer
 '=========================== Module-local variables =========================='
 
 
+'Caches for the content of config files
+DIM SHARED local_config_cache() as string  'Used only by Game
+DIM SHARED global_config_cache() as string
+DIM SHARED config_cache as StrHashTable
+
 'Used by intgrabber, reset by reset_menu_edit_state (called by usemenu etc)
 DIM SHARED negative_zero as bool = NO
 
@@ -259,6 +264,7 @@ REDIM SHARED fixbits_cache() as ubyte
 DIM SHARED fixbits_cache_loaded as bool = NO
 
 '============================================================================='
+
 
 
 
@@ -8462,29 +8468,63 @@ SUB set_global_config_file()
  END IF
 END SUB
 
+SUB clear_config_cache()
+ ERASE local_config_cache
+ ERASE global_config_cache
+ config_cache.clear()  'Doesn't need to be constructed first
+END SUB
+
+#define nulstr @!"\0"
+
 'Try to read the value of a key first from game_config_file then from global_config_file,
 'checking whether there's an app-specific setting prefixed by exe_prefix.
 '(Do NOT manually prepend exe_prefix/"game."/"edit.".)
 'For example if key is "gfx.fullscreen" and exe_prefix is "edit.", then try
 '"edit.gfx.fullscreen" and "gfx.fullscreen" in order.
 FUNCTION read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
+ IF config_cache.constructed() = NO THEN
+  config_cache.construct(16, type_table(string), YES)
+ END IF
+
+ DIM ret as string
+?"get", *key
+ ret = config_cache.get_str(*key, CHR(0))
+?"= '" & ret & "'"
+ IF ret <> CHR(0) THEN RETURN ret
+
  IF game_config_file <> "" THEN
   'Settings in the game's .ini file override others
-  DIM ret as string = read_ini_prefixed_str(game_config_file, key, @!"\0")
-  IF ret <> CHR(0) THEN RETURN ret
+  ret = read_ini_prefixed_str(game_config_file, local_config_cache(), key, CHR(0))
  END IF
- RETURN read_ini_prefixed_str(global_config_file, key, default)
+
+ IF ret = " " THEN
+  ret = read_ini_prefixed_str(global_config_file, global_config_cache(), key, default)
+ END IF
+
+?"set", ret, @ret
+ config_cache.set(*key, @ret)
+?"now", config_cache.get_str(*key)
+ RETURN ret
+
 END FUNCTION
 
 'See read_config_str
 'Optionally returns the line number (0-indexed) on which the match was found in linenum, or else -1.
 FUNCTION read_ini_prefixed_str (filename as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
- REDIM ini(-1 TO -1) as string
- IF real_isfile(filename) = NO THEN RETURN *default
- lines_from_file ini(), filename
- RETURN read_ini_prefixed_str(ini(), key, default, linenum)
+ REDIM ini() as string
+ RETURN read_ini_prefixed_str(filename, ini(), key, default, linenum)
 END FUNCTION
 
+'Internal only?
+FUNCTION read_ini_prefixed_str (filename as string, cache() as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
+ IF UBOUND(cache) = -1 THEN
+  IF lines_from_file(cache(), filename, NO) = NO THEN RETURN *default
+ END IF
+
+ RETURN read_ini_prefixed_str(cache(), key, default, linenum)
+END FUNCTION
+
+'Internal only?
 FUNCTION read_ini_prefixed_str (ini() as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
  'First check for setting prefixed with game. or edit.
  '(Normally you wouldn't prepend exe_prefix, but it does happen when called
@@ -8584,6 +8624,7 @@ SUB write_config (key as zstring ptr, value as string)
  END IF
  'Overwrite any match in ohrrpgce_config.ini, otherwise append to it.
  write_ini_prefixed_str(global_config_file, *key, value, YES)
+ clear_config_cache
 END SUB
 
 SUB write_config (key as zstring ptr, value as integer)
@@ -8599,6 +8640,7 @@ END SUB
 SUB write_game_config (key as zstring ptr, value as string)
  BUG_IF(LEN(game_config_file) = 0, "No game loaded, can't write " & *key)
  write_ini_prefixed_str(game_config_file, *key, value, YES)
+ clear_config_cache
 END SUB
 
 SUB write_game_config (key as zstring ptr, value as integer)

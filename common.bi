@@ -422,6 +422,7 @@ DECLARE SUB set_global_config_file()
 DECLARE SUB set_game_config_globals(sourcerpg as string)
 
 DECLARE FUNCTION read_ini_prefixed_str OVERLOAD (filename as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
+DECLARE FUNCTION read_ini_prefixed_str OVERLOAD (filename as string, cache() as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
 DECLARE FUNCTION read_ini_prefixed_str OVERLOAD (ini() as string, key as zstring ptr, default as zstring ptr=@"", byref linenum as integer=0) as string
 DECLARE FUNCTION read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
 DECLARE FUNCTION read_config_int (key as zstring ptr, default as integer=0) as integer
