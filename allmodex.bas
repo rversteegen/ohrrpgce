@@ -2226,9 +2226,11 @@ sub JoystickState.update_keybits(joynum as integer)
 	state.structsize = IOJOYSTICKSTATE_SZ
 
 	dim as integer jx, jy
-
+var disable_joysticks=1
 	dim starttime as double = timer
-	if io_get_joystick_state then
+	if disable_joysticks then
+		'pass
+	elseif io_get_joystick_state then
 		dim ret as integer
 		ret = io_get_joystick_state(joynum, @state)
 		if ret > 0 then

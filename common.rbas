@@ -112,6 +112,11 @@ DIM global_config_file as string
 'Defines the current context. E.g. "edit.game_(gamename)."
 DIM config_prefix as string
 
+'Caches for the content of config files
+DIM SHARED local_config_cache() as string  'Used only by Game
+DIM SHARED global_config_cache() as string
+DIM SHARED config_cache as StrHashTable
+
 'Used by intgrabber, reset by reset_menu_edit_state (called by usemenu etc)
 DIM SHARED negative_zero as bool = NO
 
@@ -181,6 +186,7 @@ DIM SHARED master_remembered as bool = NO
 'binsize.bin cache
 DIM SHARED binsize_cache(binLASTENTRY) as integer
 DIM SHARED binsize_cache_loaded as bool = NO
+
 
 
 FUNCTION common_setoption(opt as string, arg as string) as integer
@@ -7609,6 +7615,12 @@ SUB set_global_config_file()
  END IF
 END SUB
 
+SUB clear_config_cache()
+ ERASE local_config_cache
+ ERASE global_config_cache
+ config_cache.clear()  'Doesn't need to be constructed first
+END SUB
+
 'Try to read the value of a key from global_config_file while respecting
 'config_prefix and finding the most specific setting that applies.
 '(Do NOT manually prepend config_prefix.)
@@ -7624,22 +7636,40 @@ END SUB
 ' etc
 'Also, in-game, check the game-specific .ini file first.
 FUNCTION read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
+ DIM ret as string
+ IF config_cache.constructed() = NO THEN
+  config_cache.construct(16, type_table(string))
+ END IF
+?"get", *key
+ ret = config_cache.get_str(*key, " ")  'Whitespace trimmed from ini values, so it's an impossible value
+?"= '" & ret & "'"
+ IF ret <> " " THEN RETURN ret
+
  #IFDEF IS_GAME
   IF config_file <> "" THEN
    'Settings in the game's .ini file override others
-   DIM ret as string = read_ini_prefixed_str(config_file, *key, CHR(0))
-   IF ret <> CHR(0) THEN RETURN ret
+   ret = read_ini_prefixed_str(config_file, local_config_cache(), *key, " ")
   END IF
  #ENDIF
 
- RETURN read_ini_prefixed_str(global_config_file, *key, *default)
+ IF ret = " " THEN
+  ret = read_ini_prefixed_str(global_config_file, global_config_cache(), *key, *default)
+ END IF
+
+?"set", ret, @ret
+ config_cache.set(*key, @ret)
+?"now", config_cache.get_str(*key)
+ RETURN ret
 END FUNCTION
 
 'See read_config_str
-FUNCTION read_ini_prefixed_str (filename as string, prefixed_key as string, default as string="") as string
- REDIM ini(-1 TO -1) as string
- IF isfile(filename) = NO THEN RETURN default
- lines_from_file ini(), filename
+'ini() is a cache of the lines of 'filename', loaded if empty
+FUNCTION read_ini_prefixed_str (filename as string, cache() as string, prefixed_key as string, default as string="") as string
+ REDIM cache(-1 TO -1) as string
+ IF UBOUND(cache) = -1 THEN
+  IF isfile(filename) = NO THEN RETURN default
+  lines_from_file cache(), filename
+ END IF
 
  'prefix and prefix2 either end in . or are blank
  DIM prefix as string = config_prefix
@@ -7649,7 +7679,7 @@ FUNCTION read_ini_prefixed_str (filename as string, prefixed_key as string, defa
  DO
   DIM as string ret, temp = prefix2
   DO
-   ret = read_ini_str(ini(), prefix & temp & key, CHR(0))
+   ret = read_ini_str(cache(), prefix & temp & key, CHR(0))
    IF ret <> CHR(0) THEN RETURN ret
    IF LEN(temp) = 0 THEN EXIT DO
    'Trim end off prefix2 (skipping final .)
@@ -7699,6 +7729,7 @@ SUB write_config (zkey as zstring ptr, value as string)
  #ENDIF
 
  write_ini_value global_config_file, key, value
+ clear_config_cache
 END SUB
 
 SUB write_config (key as zstring ptr, value as integer)

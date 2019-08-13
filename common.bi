@@ -358,7 +358,7 @@ DECLARE FUNCTION gen_intgrabber(nodepath as string) as bool
 DECLARE FUNCTION get_gen_str(nodepath as zstring ptr, default as zstring ptr = @"") as string
 
 DECLARE SUB set_global_config_file()
-DECLARE FUNCTION read_ini_prefixed_str (filename as string, prefixed_key as string, default as string="") as string
+DECLARE FUNCTION read_ini_prefixed_str (filename as string, cache() as string, prefixed_key as string, default as string="") as string
 DECLARE FUNCTION read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
 DECLARE FUNCTION read_config_int (key as zstring ptr, default as integer=0) as integer
 DECLARE FUNCTION read_config_bool (key as zstring ptr, default as bool=NO) as bool
