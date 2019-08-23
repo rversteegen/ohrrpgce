@@ -1890,8 +1890,8 @@ DO
     IF tilex < st.map.wide ANDALSO tiley < st.map.high THEN
      DIM wallbits as integer = readblock(st.map.pass, tilex, tiley)
      DIM tilepos as XYPair = map_to_screen(st, XY(tilex, tiley) * 20)
-     DIM pixelx as integer = tilex * 20 - st.mapx
-     DIM pixely as integer = tiley * 20 - st.mapy + 20  '20 for the top toolbar
+     DIM pixelx as integer = tilepos.x
+     DIM pixely as integer = tilepos.y
 
      IF CheckZoneAtTile(st.map.zmap, zoneOneWayExit, tilex, tiley) THEN
       ' Draw arrows leaving this tile
@@ -1937,11 +1937,27 @@ DO
       IF (wallbits AND passWestWall)  THEN drawants vpages(dpage), pixelx       , pixely       , 1, 20
      END IF
 
+
+     VAR bit1 = wallbits AND passBitH1
+     VAR bit2 = wallbits AND passBitH2
+     SELECT CASE wallbits AND passTypeMask
+      CASE passTypeX
+       IF bit1 THEN drawline tilepos.x, tilepos.y, tilepos.x + tilew-1, tilepos.y + tileh-1, col, dpage
+       IF bit2 THEN drawline tilepos.x, tilepos.y + tileh-1, tilepos.x + tilew-1, tilepos.y, col, dpage
+      CASE passTypeT
+       IF bit1 THEN drawline tilepos.x, tilepos.y + tileh\2, tilepos.x + tilew-1, tilepos.y + tileh\2, col, dpage
+       IF bit2 THEN drawline tilepos.x + tilew\2, tilepos.y, tilepos.x + tilew\2, tilepos.y + tileh-1, col, dpage
+      CASE passTypeV
+      CASE passTypeH
+     END SELECT
+
      ' Y positions
+/'
      IF (wallbits AND passVehA) THEN edgeprint "A", pixelx + 2, pixely + 1, textcol, dpage
      IF (wallbits AND passVehB) THEN edgeprint "B", pixelx + 11, pixely + 1, textcol, dpage
      IF (wallbits AND passHarm) THEN edgeprint "H", pixelx + 2, pixely + 11, textcol, dpage
      IF (wallbits AND passOverhead) THEN edgeprint "O", pixelx + 11, pixely + 11, textcol, dpage
+'/
     END IF
    NEXT xidx
   NEXT yidx

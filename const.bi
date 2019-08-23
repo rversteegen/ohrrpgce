@@ -464,6 +464,18 @@ CONST passRightWall = 2
 CONST passDownWall = 4
 CONST passLeftWall = 8
 CONST passAllWalls = 15
+
+CONST passTypeMask = 16+32
+CONST passTypeX = 0
+CONST passTypeT = 16
+CONST passTypeH = 32
+CONST passTypeV = 48
+
+CONST passBitH1 = 64
+CONST passBitH2 = 128
+
+
+
 CONST passVehA = 16
 CONST passVehB = 32
 CONST passHarm = 64
