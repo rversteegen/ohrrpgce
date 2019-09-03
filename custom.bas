@@ -200,6 +200,9 @@ DefaultUIColors uilook(), boxlook()
 REDIM current_font(1023) as integer
 getdefaultfont current_font()
 
+
+'sleep 10000
+
 setmodex
 setpal master()
 setfont current_font()
@@ -210,7 +213,6 @@ showmousecursor
 unlock_resolution 320, 200   'Minimum window size
 
 debuginfo musicbackendinfo  'Preliminary info before initialising backend
-setupmusic
 
 'Cleanups/recovers any working.tmp for any crashed copies of Custom; requires graphics up and running
 check_for_crashed_workingdirs
@@ -218,6 +220,8 @@ check_for_crashed_workingdirs
 'This also calls write_session_info
 setup_workingdir
 
+setupmusic
+loadsong "testfiles/GURGU.mid"
 
 '=============================== Select a game ================================
 
@@ -696,7 +700,7 @@ SUB prompt_for_password()
  passcomment = "If you've forgotten your password, don't panic! It can be easily removed. " _
                "Contact the OHRRPGCE developers, or learn to compile the source code yourself."
  'Uncomment to display the/a password
- 'passcomment = getpassword
+ passcomment = getpassword
  setkeys YES
  DO
   setwait 55

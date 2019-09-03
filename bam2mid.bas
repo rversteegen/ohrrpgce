@@ -17,8 +17,8 @@
 #include "crt/stddef.bi"
 #include "lumpfile.bi"
 
-#define LOG_BAM(msg)
-'#define LOG_BAM(msg) ? msg
+'#define LOG_BAM(msg)
+#define LOG_BAM(msg) ? msg
 
 #define VELOCITY 		96
 
@@ -118,7 +118,7 @@ sub bam2mid(infile as string, outfile as string)
 	dim bc as integer
 	dim mb as ubyte
 
-	'put the tempo in
+	'put the tempo in (Tempo change SysEx event)
 	bc = setvarval(0)
 	fput f2, , @bignum(0), bc	'variable length delta time
 	tracklen = tracklen + bc
@@ -127,9 +127,9 @@ sub bam2mid(infile as string, outfile as string)
 	mb = &h51
 	put #f2, , mb				'end track
 	mb = 3
-	put #f2, , mb				'no further params
+	put #f2, , mb				'3 data bytes follow
 	tracklen = tracklen + 3
-	bignum(0) = &h07
+	bignum(0) = &h07			'tempo 0x7a120 == 500000 == 120bpm
 	bignum(1) = &hA1
 	bignum(2) = &h20
 	fput f2, , @bignum(0), 3
@@ -268,7 +268,7 @@ sub bam2mid(infile as string, outfile as string)
 		get #f1, , ub
 	loop
 
-	'write end track event
+	'write 'end of track' SysEx event
 	bc = setvarval(delta)
 	fput f2, , @bignum(0), bc	'variable length delta time
 	tracklen = tracklen + bc
