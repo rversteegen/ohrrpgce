@@ -574,9 +574,9 @@ declare sub frame_flip_vert(spr as Frame ptr)
 declare function frame_rotated_90(spr as Frame ptr) as Frame ptr
 declare function frame_rotated_270(spr as Frame ptr) as Frame ptr
 declare function frame_duplicate(p as Frame ptr, clr as bool = NO, addmask as bool = NO) as Frame ptr
-declare function frame_resized(spr as Frame ptr, wide as integer, high as integer, shiftx as integer = 0, shifty as integer = 0, bgcol as integer = 0) as Frame ptr
+declare function frame_resized(spr as Frame ptr, wide as integer, high as integer, shiftx as integer = 0, shifty as integer = 0, bgcol as integer = 0, mask_value as integer = 0) as Frame ptr
 declare function frame_scaled32(src as Frame ptr, wide as integer, high as integer, masterpal() as RGBcolor, pal as Palette16 ptr = NULL) as Frame ptr
-declare sub frame_clear(spr as Frame ptr, colour as integer = 0)
+declare sub frame_clear(spr as Frame ptr, colour as integer = 0, mask_value as integer = 0)
 declare sub sprite_empty_cache(sprtype as SpriteType = sprTypeInvalid, setnum as integer = -1)
 declare sub sprite_update_cache(sprtype as SpriteType)
 declare sub cache_all_spritesets(sprtype as SpriteType)
