@@ -484,11 +484,8 @@ local sub modex_init()
 
 	palette16_reload_cache   'read data/defaultgfx/ohrrpgce.pal
 
-	redim vpages(3)
-	'redim fixedsize_vpages(3)  'Initially all NO
-	vpagesp = @vpages(0)
 	for i as integer = 0 to 3
-		vpages(i) = frame_new(320, 200, , YES)
+		allocatepage 320, 200, 8
 	next
 	'other vpages slots are for temporary pages
 	'They are currently still used in the tileset editor, importmxs,
@@ -837,7 +834,8 @@ function allocatepage(w as integer = -1, h as integer = -1, bitdepth as integer 
 	if bitdepth <> 8 and bitdepth <> 32 then
 		showbug "allocatepage: Bad bitdepth " & bitdepth
 	end if
-	dim fr as Frame ptr = frame_new(w, h, , YES, , bitdepth = 32)
+	dim fr as Frame ptr = frame_new(w, h, , NO, YES, bitdepth = 32)  'clr=NO, wantmask=YES
+	frame_clear fr, 0, 255  'Set mask to opaque
 
 	dim ret as integer = registerpage(fr)
 	frame_unload(@fr) 'we're not hanging onto it, vpages() is
@@ -866,7 +864,7 @@ end sub
 
 sub clearpage (page as integer, colour as integer = -1)
 	if colour = -1 then colour = uilook(uiBackground)
-	frame_clear vpages(page), colour
+	frame_clear vpages(page), colour, 255  'Set mask to opaque
 end sub
 
 'The contents are either trimmed or extended with colour uilook(uiBackground).
@@ -9181,7 +9179,7 @@ function frame_new(w as integer, h as integer, frames as integer = 1, clr as boo
 					if wantmask then .mask = allocate(.pitch * h)
 				end if
 
-				if .image = 0 or (.mask = 0 and wantmask <> NO) then
+				if .image = 0 orelse (.mask = 0 andalso wantmask) then
 					showerror "Could not allocate sprite frames/surfaces"
 					'well, I don't really see the point freeing memory, but who knows...
 					frame_freemem(ret)
@@ -10025,14 +10023,14 @@ end sub
 'Can also be used to scroll (does not wrap around)
 'Turns an 8-bit Surface-backed Frame into a regular Frame, and works on 32-bit Surface-backed ones too.
 'Like all functions that return new Frames, the new Frame doesn't have a SpriteSet ptr.
-function frame_resized(spr as Frame ptr, wide as integer, high as integer, shiftx as integer = 0, shifty as integer = 0, bgcol as integer = 0) as Frame ptr
+function frame_resized(spr as Frame ptr, wide as integer, high as integer, shiftx as integer = 0, shifty as integer = 0, bgcol as integer = 0, mask_value as integer = 0) as Frame ptr
 	dim as Frame ptr ret
 	dim with_surface32 as bool = (spr->surf <> NULL andalso spr->surf->format = SF_32bit)
 	ret = frame_new(wide, high, spr->arraylen, NO, (spr->mask <> NULL), with_surface32)
 	dim opts as DrawOptions
 	opts.write_mask = YES
 	for fridx as integer = 0 to spr->arraylen - 1
-		frame_clear @ret[fridx], bgcol
+		frame_clear @ret[fridx], bgcol, mask_value
 		frame_draw @spr[fridx], NULL, shiftx, shifty, NO, @ret[fridx], opts
 		ret[fridx].frameid = spr[fridx].frameid
 	next
@@ -10583,11 +10581,12 @@ function frame_rotated_270(spr as Frame ptr) as Frame ptr
 	return ret
 end function
 
-'Note that we clear masks to transparent! I'm not sure if this is best (not currently used anywhere), but notice that
-'frame_duplicate with clr=1 does the same
-sub frame_clear(spr as Frame ptr, colour as integer = 0)
+'Wipe the whole image to 'colour' and mask if any to 'mask_value'. Ignores cliprect.
+'colour and mask_value should be 8-bit values.
+sub frame_clear(spr as Frame ptr, colour as integer = 0, mask_value as integer = 0)
 	if spr->surf then
 		gfx_surfaceFill(curmasterpal(colour).col, NULL, spr->surf)
+		'TODO: surface-backed Frames can't have masks yet.
 		exit sub
 	end if
 	if spr->image then
@@ -10601,10 +10600,10 @@ sub frame_clear(spr as Frame ptr, colour as integer = 0)
 	end if
 	if spr->mask then
 		if spr->w = spr->pitch then
-			memset(spr->mask, 0, spr->w * spr->h)
+			memset(spr->mask, mask_value, spr->w * spr->h)
 		else
 			for i as integer = 0 to spr->h - 1
-				memset(spr->mask + i * spr->pitch, 0, spr->w)
+				memset(spr->mask + i * spr->pitch, mask_value, spr->w)
 			next
 		end if
 	end if
