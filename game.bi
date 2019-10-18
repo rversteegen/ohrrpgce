@@ -106,6 +106,8 @@ DECLARE FUNCTION guess_age_by_tmpdir_name(dirname as string) as integer
 DECLARE SUB email_save_to_developer(save_slot as integer = -1, prefix as string="", subject as string = "", body as string = "")
 DECLARE SUB debug_menu()
 
+DECLARE SUB add_timing(name as string, starttime as double = 0.0)
+
 DECLARE SUB update_virtual_gamepad_display()
 DECLARE FUNCTION calc_virtual_gamepad_state() as bool
 DECLARE SUB a_script_wants_keys()

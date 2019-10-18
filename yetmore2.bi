@@ -45,6 +45,7 @@ DECLARE SUB reloadmap_zonemap()
 DECLARE SUB deletetemps
 DECLARE SUB debug_npcs ()
 DECLARE SUB npc_debug_display (draw_walls as bool)
+DECLARE SUB display_timings(page as integer)
 DECLARE FUNCTION game_setoption(opt as string, arg as string) as integer
 DECLARE SUB handshake_with_master ()
 DECLARE SUB wrong_spawned_version_fatal_error ()

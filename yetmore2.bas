@@ -990,6 +990,24 @@ SUB npc_debug_display (draw_walls as bool)
  npc_debug_display_tooltip
 END SUB
 
+SUB display_timings(page as integer)
+ IF player_is_suspended THEN add_timing """suspend player"" by " & gam.player_suspended_by
+
+ DIM red as integer = findrgb(255,0,0)
+ FOR idx as integer = 0 TO UBOUND(gam.timings)
+  WITH gam.timings(idx)
+   DIM text as string = .name
+   IF .time > 0. THEN
+    '.time = 0 indicates a note
+    edgebox 0, idx * 13, vpages(page)->w * .time / (1e-3 * speedcontrol), 5, red, uilook(uiBackground), page
+    text &= " " & strprintf("%.1f", .time * 1e3) & "ms"
+   END IF
+   edgeprint text, 0, idx * 13 + 3, uilook(uiText), page
+  END WITH
+ NEXT
+ ERASE gam.timings
+END SUB
+
 SUB drawants_for_tile(tile as XYPair, byval direction as DirNum)
  DIM where as XYPair
  IF framewalkabout(tile * 20, where, mapsizetiles * 20, gmap(5), 0) THEN

@@ -1285,6 +1285,7 @@ SUB script_functions(byval cmdid as integer)
   setbit gen(), genSuspendBits, suspendnpcs, 1
  CASE 6'--suspend player
   setbit gen(), genSuspendBits, suspendplayer, 1
+  gam.player_suspended_by = scriptname(scrat(nowscript).id)
  CASE 7'--resume npcs
   setbit gen(), genSuspendBits, suspendnpcs, 0
  CASE 8'--resume player
