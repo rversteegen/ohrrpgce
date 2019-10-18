@@ -22,6 +22,8 @@
 '
 '    If sl->Context: push onto context_stack
 '
+'    If sl->Stencil: set up stencil, 
+
 '    sl->Draw(): (eg DrawSpriteSlice)  [if present]
 '     -Type-specific drawing of a single slice
 '     (If something has to be drawn over the children instead, done in sl->ChildDraw)
@@ -1960,7 +1962,14 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
    end if
   end if
 
-  frame_draw spr, .img.pal, sl->ScreenX, sl->ScreenY, .trans, page
+  ' Dim opts as DrawOptions
+  ' if sl->Stencil then
+  '  opts.write_mask = YES
+  '  global_stencil = YES
+  ' elseif global_stencil then
+  '  opts.stencil_test = YES
+  ' end if
+  frame_draw spr, .img.pal, sl->ScreenX, sl->ScreenY, .trans, page ', opts
 
   if have_copy then
    frame_unload(@spr)
@@ -3835,17 +3844,47 @@ Local Sub DrawSliceRecurse(byval s as Slice ptr, byval page as integer, childind
 
   if s->Context then v_append context_stack, s->Context
 
+  'Handle stencils
+  dim as integer drawpage = page, childpage = page
+  dim as Frame ptr stencil_mask = any, stencil_drawtarget = any
+  dim rememclip as ClipState = any
+  if s->Stencil then
+   'FIXME: saves cliprect, should it be set early?
+   if stencil_create_targets(vpages(page), stencil_mask, stencil_drawtarget) then
+    drawpage = registerpage(stencil_mask)
+    childpage = registerpage(stencil_drawtarget)
+    rememclip = get_cliprect()
+   else
+    'Stencil is invalid, probably because it's a nested stencil
+    s->Stencil = NO
+   end if
+  end if
+
   if s->Draw then
    NumDrawnSlices += 1
-   s->Draw(s, page)
+   s->Draw(s, drawpage)
   end if
 
   AutoSortChildren(s)
 
+  if s->Stencil then
+   'Drawing to drawpage and then switching to childpage causes the cliprect to be reset.
+   'Strictly we don't have to do this since the stencil will clip the rest anyway, but it's an optimisation.
+   'TODO: it would be more convenient if each Frame had its own persistent cliprect.
+   setclip rememclip.l, rememclip.t, rememclip.r, rememclip.b, vpages(childpage)
+  end if
+
   'ChildDraw normally calls ChildrenRefresh, if it exists, draws children by
   'calling DrawSliceRecurse, and may also draw anything that appears above all
   'children (eg scroll bars).
-  s->ChildDraw(s, page)
+  s->ChildDraw(s, childpage)
+
+  if s->Stencil then
+   freepage drawpage
+   freepage childpage
+   'This restores the cliprect to what it was originally
+   stencil_finish_draw vpages(page), stencil_mask, stencil_drawtarget
+  end if
 
   if s->Context then v_shrink context_stack
  end if
@@ -4308,6 +4347,7 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles 
  SaveProp node, "editorhidechildren", sl->EditorHideChildren
  SaveProp node, "paused", sl->Paused
  SaveProp node, "clip", sl->Clip
+ SaveProp node, "stencil", sl->Stencil
  SaveProp node, "vx", sl->Velocity.X
  SaveProp node, "vy", sl->Velocity.Y
  SaveProp node, "vtickx", sl->VelTicks.X
@@ -4423,6 +4463,7 @@ Sub SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_handle
  sl->EditorHideChildren = LoadPropBool(node, "editorhidechildren")
  sl->Paused = LoadPropBool(node, "paused")
  sl->Clip = LoadPropBool(node, "clip")
+ sl->Stencil = LoadPropBool(node, "stencil")
  sl->Velocity.X = LoadProp(node, "vx")
  sl->Velocity.Y = LoadProp(node, "vy")
  sl->VelTicks.X = LoadProp(node, "vtickx")

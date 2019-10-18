@@ -57,6 +57,8 @@ Type Frame
 	                   'Aside from that, this is NOT true for Surface-backed Frames which aren't views!
 	                   'If this is a view, then 'image' and 'mask' mustn't be freed, but 'surf' must be.
 	noresize:1 as int32  '(Video pages only.) Don't resize this page to the window size
+	is_stencil_drawtarget:1 as int32  'A drawtarget returned from create_stencil_targets
+	is_stencil_mask:1 as int32  'A mask returned from create_stencil_targets
 
 	surf as Surface ptr  'If not NULL, this is a Surface-backed Frame, and image/mask are NULL,
 	                     'but all other members are correct (including .pitch), and match the Surface.
@@ -590,6 +592,8 @@ declare sub frame_convert_to_32bit(fr as Frame ptr, masterpal() as RGBcolor, pal
 declare sub frame_drop_surface(fr as Frame ptr)
 declare function frame_with_surface(surf as Surface ptr) as Frame ptr
 
+declare function stencil_create_targets(dest as Frame ptr, byref mask as Frame ptr, byref drawtarget as Frame ptr) as bool
+declare sub stencil_finish_draw(dest as Frame ptr, mask as Frame ptr, drawtarget as Frame ptr)
 
 '==========================================================================================
 '                                       Palette16

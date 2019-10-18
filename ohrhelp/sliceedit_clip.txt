@@ -2,7 +2,11 @@ If a slice is configured to clip its children, child slices will be clipped at t
 
 That means that parts (or all) of child slices won't be drawn.
 
+The clipping area is always rectangular. If you want a non-rectanglar clip area, use a stencil instead.
+
 When a Panel or Grid slice is set to clip, each child is clipped to its own cell/panel of the Grid/Panel, instead of the whole parent slice.
+
+Clipping slices can be nested inside each other, the result is the intersection of all the clip areas (it can't get larger, only smaller).
 
 Also, marking a slice as clipping is a potential speed-up, by telling the engine that if it isn't visible then its children can't be either, so they can be skipped entirely when drawing or looking for slice collisions.
 (Note that if the slice isn't drawn then slice autosorting might not happen.)

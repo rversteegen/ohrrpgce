@@ -254,6 +254,8 @@ Type Slice
   Paused as bool  'Whether to not apply target and velocity movement to this slice tree
   Clip as bool
   
+  stencil as bool
+
   'moving at a constant pixels-per-tick speed (direct setting should cancel targ)
   Velocity as XYPair
   'limit the number of cycles to apply velocity before auto-clearing it (-1 means forever, 0 clears instantly)

@@ -1,0 +1,6 @@
+A stencil
+
+
+The clipping area is always rectangular. If you want a non-rectanglar clip area, use a stencil instead.
+
+Stencil slices can't be nested inside each other.

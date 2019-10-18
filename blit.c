@@ -33,11 +33,13 @@ static inline uint8_t *get_frame_buf(Frame *spr) {
 
 // 8 bit blitting routine. Supports 8-bit Surface-backed Frames too.
 // The arguments must already be clipped to the destination (done in draw_clipped())
+// startoffset is offset in spr->image of top-left corner of the sub-rectangle to draw.
+// startx/y, endx/y are coords in destspr.
 // opts should be a ptr to def_drawoptions if no extra options are needed.
 void blitohr(Frame *spr, Frame *destspr, Palette16 *pal, int startoffset, int startx, int starty, int endx, int endy, boolint trans, DrawOptions *opts) {
 	int i, j;
 	unsigned char *maskp, *srcp, *original_srcp, *restrict destp;
-	int srclineinc, destlineinc;
+	int srclineinc, masklineinc, destlineinc;
 
 	if (!opts) {
 		debug(errShowBug, "blitohr: opts not optional!");
@@ -45,21 +47,62 @@ void blitohr(Frame *spr, Frame *destspr, Palette16 *pal, int startoffset, int st
 	}
 
 	original_srcp = srcp = get_frame_buf(spr);
-
-	// Surfaces don't have masks
-	maskp = spr->mask;
-	if (maskp == NULL) {
-		//we could add an optimised version for this case, which is the 99% case
-		maskp = srcp;
-	}
-
 	srcp += startoffset;
-	maskp += startoffset;
-
 	srclineinc = spr->pitch - (endx - startx + 1);
 
 	destp = get_frame_buf(destspr) + startx + starty * destspr->pitch;
 	destlineinc = destspr->pitch - (endx - startx + 1);
+
+	// Surfaces don't have masks
+	if (spr->is_stencil_drawtarget) {
+		// mask is from destspr instead of src
+		if (destspr->mask) {
+			maskp = destspr->mask + startx + starty * destspr->pitch;
+			masklineinc = destlineinc;
+			trans = true;
+		} else {
+			// maskp not used
+			trans = false;
+		}
+	} else {
+		if (spr->mask == NULL) {
+			//we could add an optimised version for this case, which is the 99% case
+			maskp = srcp;
+		} else {
+			maskp = spr->mask + startoffset;
+		}
+		masklineinc = srclineinc;
+	}
+
+	/*
+	if (spr->is_stencil_drawtarget && trans) {
+		// Version to check two masks at once. We can
+		// No loop unrolling, to cut down on amount of code
+		for (i = starty; i <= endy; i++) {
+			if (pal != NULL) {
+				for (j = endx - startx; j >= 0; j--) {
+					if (*srcmaskp && *destmaskp) *destp = pal->col[*srcp];
+					srcmaskp++;
+					destmaskp++;
+					srcp++;
+					destp++;
+				}
+			} else { //pal == NULL && trans != 0
+				for (j = endx - startx; j >= 0; j--) {
+					if (*srcmaskp && *destmaskp) *destp = *srcp;
+					srcmaskp++;
+					destmaskp++;
+					srcp++;
+					destp++;
+				}
+			}
+			srcmaskp += srclineinc;
+			destmaskp += destlineinc;
+			srcp += srclineinc;
+			destp += destlineinc;
+		}
+	}
+	*/
 
 	if (pal != NULL && trans != 0) {
 		for (i = starty; i <= endy; i++) {
@@ -80,7 +123,7 @@ void blitohr(Frame *spr, Frame *destspr, Palette16 *pal, int startoffset, int st
 			}
 
 			destp += destlineinc;
-			maskp += srclineinc;
+			maskp += masklineinc;
 			srcp += srclineinc;
 		}
 	} else if (pal != NULL && trans == 0) {
@@ -127,7 +170,7 @@ void blitohr(Frame *spr, Frame *destspr, Palette16 *pal, int startoffset, int st
 			}
 
 			destp += destlineinc;
-			maskp += srclineinc;
+			maskp += masklineinc;
 			srcp += srclineinc;
 		}
 	}

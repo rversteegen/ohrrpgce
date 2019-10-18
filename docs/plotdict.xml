@@ -6447,7 +6447,7 @@ end
 		</command>
 		</section>		<!--Positioning Slices-->
 
-		<section title="Visibility and Clipping">
+		<section title="Visibility, Clipping and Stencil">
 		<command id="setslicevisible">
 			<canon>set slice visible (handle, vis)</canon>
 			<shortname>set slice visible</shortname>
@@ -6472,7 +6472,26 @@ end
 			<shortname>set slice clipping</shortname>
 			<description>Returns true if the slice <p>handle</p> is set to clip drawing its children, or false if child slices are allowed to be drawn overflowing its edges.</description>
 		</command>
-		</section>		<!-- Visibility and Clipping-->
+		<command id="setslicestencil">
+			<canon>set slice stencil (handle, stencil)</canon>
+			<shortname>set slice stencil</shortname>
+			<description>
+				Changes whether a slice is a stencil slice, acting as a mask will clip its children if they overflow its edges.
+				The first argument is a slice <p>handle</p>.
+				The second argument is true to make the slice a stencil, or false to disable.
+				<lb/>
+				Sprite, 
+			</description>
+		</command>
+		<command id="getslicestencil">
+			<canon>get slice stencil (handle)</canon>
+			<shortname>set slice stencil</shortname>
+			<description>
+				Returns true if the slice <p>handle</p> is a stencil slice.
+			</description>
+		</command>
+
+		</section>		<!-- Visibility, Clipping and Stencil-->
 
 		<section title="Alignment and Anchor Points">
 		<command id="sliceedgex">

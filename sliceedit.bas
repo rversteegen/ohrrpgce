@@ -130,6 +130,11 @@ editable_slice_types(8) = SlGrid
 editable_slice_types(9) = SlPanel
 'editable_slice_types(10) = SlLayout
 
+DIM allowed_stencil_slice_types(5) as SliceTypes = {slRectangle, slSprite, slText, slMap, slEllipse, slLine} 'slSpecial, slContainer
+'slGrid, slScroll, slSelect, slPanel, slLayout:
+' These can't be stencil slices because they aren't visible and don't position/draw their children normally
+
+
 '==============================================================================
 
 CONST slgrPICKTYPE = 1
@@ -1806,6 +1811,11 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
   sliceed_rule_tog rules(), "vis", @.Visible
   a_append menu(), "Clip Children: " & yesorno(.Clip)
   sliceed_rule_tog rules(), "clip", @.Clip
+
+  IF a_find(allowed_stencil_slice_types(), .SliceType) >= 0 THEN
+   a_append menu(), "Stencil: " & yesorno(.stencil)
+   sliceed_rule_tog rules(), "stencil", @.stencil
+  END IF
 
   IF .Fill = NO ORELSE .FillMode <> sliceFillFull THEN
    sliceed_header menu(), rules(), "[Alignment]"

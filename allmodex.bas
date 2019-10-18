@@ -8054,7 +8054,8 @@ sub setclip(l as integer = 0, t as integer = 0, r as integer = 999999, b as inte
 end sub
 
 'Shrinks clipping area, never grows it
-'Returns true if the next cliprect still has nonzero size
+'Returns true if the new cliprect still has positive size
+'(Note that it might have negative size, which counts as zero size!)
 function shrinkclip(l as integer = 0, t as integer = 0, r as integer = 999999, b as integer = 999999, fr as Frame ptr = 0) as bool
 	dim byref cliprect as ClipState = get_cliprect()
 	if fr andalso cliprect.frame <> fr then
@@ -8619,6 +8620,95 @@ function frame_new_view(spr as Frame ptr, x as integer, y as integer, w as integ
 	return ret
 end function
 
+dim shared stencil_cliprect as ClipState
+
+'This is used to implement stencils.
+'For now, stencil masks are either full opaque or transparent, but would like to allow
+'alpha stencil masks too once Frames can have alpha.
+'
+'Creates two new Frames to which you draw to.
+'Respects dest cliprect.
+'mask: draw
+'drawtarget: children of the stencil slice should be drawn to this
+'dest must have a mask/alpha channel.
+'When done drawing to these call stencil_finish_draw, don't free mask and drawtarget.
+'
+function stencil_create_targets(dest as Frame ptr, byref mask as Frame ptr, byref drawtarget as Frame ptr) as bool
+	'This function will eventually be moved into the gfx_* API and become part of the gfx backend.
+	'The reason for the form of the API is that there are multiple ways stencils could be
+	'implemented on a GPU. The problem is the need to multiply both the stencil mask (alpha) and
+	'src textures alpha into the src RGB, while GPU blend equations usually only allow one
+	'or the other.
+	'Possible implementations of stencils on a GPU include:
+	'1) Using frame buffers (FBOs)
+	'2) Use pre-multiplied alpha for all textures that get drawn using a stencil
+	'   (or use a shader to premultiply), so that both alphas can be multiplied in
+	'3) Use multiple draws to dest for *each* draw to drawtarget: first set the alpha to the
+	'   stencil, then multiply src alpha into dest alpha (leaving rgb alone), then
+	'   draw src while multiply with dest alpha.
+	'   But this doesn't allow more than one draw to stencil, unless the stencil is a FBO.
+	'4) Maybe using OpenGL advanced blend equations (GL_KHR_blend_equation_advanced, part of
+	'   OpenGL ES 3.2 and OpenGL... 4.6?). But that assumes premultiplied alpha.
+	'   Or use nVidia version of this extension, which allows non-premultiplied.
+	'5) If src texture alpha is just 0/1 transparency, can use a fragment shader to discard
+	'   fully transparent pixels.
+	'6) If stencil is just 0/1 transparent, could try to use OpenGL/etc stencil buffers,
+	'   but need to change attachments to draw into it (can you even do that?) or use
+	'   a depth discard hack using a shader...
+	'Many of these won't work for nested stencils.
+
+	mask = NULL
+	drawtarget = NULL
+	BUG_IF(dest->mask = NULL, "dest needs mask", NO)
+	BUG_IF(dest->surf, "Surface-backed Frames not supported", NO)
+'	FAIL_IF(dest->is_stencil_drawtarget, "Nested stencils aren't supported (yet)", NO)
+
+	'Cliprect will be clobbered because we're changing the target Frame, save it.
+	stencil_cliprect = get_cliprect()
+
+	drawtarget = frame_new(dest->w, dest->h, 1, YES, YES)  'clr=YES, mask=YES
+	drawtarget->is_stencil_drawtarget = YES
+	'Copy from dest to drawtarget so that any parts of the stencil that aren't
+	'drawn to end up as 
+	'First copy the cliprect from dest to drawtarget
+	get_cliprect().frame = *drawtarget
+	frame_draw dest, NULL, 0, 0, , drawtarget
+
+	'mask is a view of dest's mask.
+	mask = frame_new_view(dest, 0, 0, dest->w, dest->h)
+	mask->image = mask->mask
+	mask->mask = NULL
+	mask->is_stencil_mask = YES
+	'Copy the cliprect from dest to mask
+	get_cliprect().frame = mask
+	'Clear the mask within the cliprect to 0 (transparent)
+	rectangle mask, 0, 0, 9999, 9999, 0
+	/'
+	with stencil_cliprect
+		if .l <= .r andalso .t <= .b then
+			rectangle mask, .l, .t, .r - .l + 1, .b - .t + 1, 0
+		end if
+	end with
+	'/
+
+	return YES
+end function
+
+'Must be called with the same Frames that were passed to stencil_create_targets, after
+'drawing is done, to finalise the draw. Unloads mask and drawtarget, so you shouldn't.
+sub stencil_finish_draw(dest as Frame ptr, mask as Frame ptr, drawtarget as Frame ptr)
+
+	get_cliprect() = stencil_cliprect
+
+	' Blit the area within the cliprect
+	' blitohr will draw using dest's mask because drawtarget->is_stencil_drawtarget is true
+	frame_draw drawtarget, NULL, 0, 0, , dest
+
+	frame_unload @mask
+	frame_unload @drawtarget
+end sub
+
+
 ' Returns a Frame which is backed by a Surface.
 ' Unload/Destroy both the Frame and the Surface: increments refcount for the Surface!
 ' Note: normally it makes no sense to call this on a Surface that is itself
@@ -8674,8 +8764,10 @@ sub frame_convert_to_32bit(fr as Frame ptr, masterpal() as RGBcolor, pal as Pale
 
 	deallocate(fr->image)
 	fr->image = NULL
+	/' FIXME HACK
 	deallocate(fr->mask)
 	fr->mask = NULL
+	'/
 end sub
 
 ' Turn Surface-backed Frame back to a regular Frame. Content IS WIPED if it was a 32-bit Surface!
