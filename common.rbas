@@ -5285,7 +5285,7 @@ END SUB
 
 'Check a gen() entry for number of spritesets is correct
 SUB fix_sprite_record_count(sprtype as SpriteType)
- IF sprtype = sprTypeTilesetStrip THEN EXIT SUB  'Only process tilesets once
+ IF sprtype = sprTypeTilesetStrip ORELSE sprtype = sprTypeTile THEN EXIT SUB  'Only process tilesets once
 
  'If there's an .rgfx lump, prefer that
  IF isfile(workingdir + SLASH + rgfx_lumpnames(sprtype)) THEN
@@ -6409,7 +6409,17 @@ SUB setup_sprite_sizes ()
   .paletted = YES
   .genmax = genMaxEnemyPic
  END WITH
- WITH sprite_sizes(sprTypeTileset)  '11
+ WITH sprite_sizes(sprTypeTile)  '11
+  .name = "Tile"
+  .size.w = 20
+  .size.h = 20
+  .fixed_size = YES
+  .frames = 160
+  .directions = 1
+  .paletted = NO
+  .genmax = genMaxTile
+ END WITH
+ WITH sprite_sizes(sprTypeTileset)  '12
   .name = "Tileset"
   .size.w = 320
   .size.h = 200
@@ -6419,7 +6429,7 @@ SUB setup_sprite_sizes ()
   .paletted = NO
   .genmax = genMaxTile
  END WITH
- WITH sprite_sizes(sprTypeTilesetStrip)  '12
+ WITH sprite_sizes(sprTypeTilesetStrip)  '13
   .name = "Tileset (tilestrip)"
   .size.w = 20
   .size.h = 160 * 20
