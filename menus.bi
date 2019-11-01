@@ -35,7 +35,7 @@ DECLARE FUNCTION menu_item_color(state as MenuState, itemno as integer, disabled
 DECLARE FUNCTION find_menu_item_at_point (state as MenuState, x as integer, y as integer) as integer
 DECLARE FUNCTION mouse_update_hover (state as MenuState) as bool
 DECLARE SUB mouse_update_selection (state as MenuState)
-DECLARE SUB mouse_scroll_menu(byref state as MenuState)
+DECLARE SUB mouse_scroll_menu(byref state as MenuState, scroll_menu_only as bool = NO)
 DECLARE SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseRight, byval threshold as integer=10, byval magnify as double=1.0)
 
 '' Selection by typing

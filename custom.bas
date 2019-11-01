@@ -401,7 +401,7 @@ SUB main_editor_menu()
  
  setkeys YES
  DO
-  setwait 55
+  setwait 25
   setkeys YES
 
   usemenu state

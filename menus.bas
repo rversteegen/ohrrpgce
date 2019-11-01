@@ -212,20 +212,33 @@ SUB correct_menu_state_top (state as MenuState)
  END WITH
 END SUB
 
+dim shared mouse_wheel_moves_cursor as bool = yes
+
 ' Adjust .top and .pt according to mouse wheel input.
-SUB mouse_scroll_menu(byref state as MenuState)
+SUB mouse_scroll_menu(byref state as MenuState, scroll_menu_only as bool = NO)
  WITH state
   DIM lasttop as integer = large(.first, .last - .size)
   IF .hover >= .first THEN  'Mouse over the menu
    IF (readmouse().buttons AND mouseRight) = 0 THEN  'While right button down, scroll wheel affects intgrabber
-    .top = bound(.top + (4 * readmouse().wheel_delta) \ 120, .first, lasttop)
-    ' Make sure .pt is visible
-    .pt = bound(.pt, .top, .top + .size)
+
+    'Inside scroll_menu, disable this
+    IF mouse_wheel_moves_cursor ANDALSO scroll_menu_only = NO THEN
+     .pt += readmouse().wheel_delta \ 120
+     correct_menu_state state
+    ELSE
+
+     .top = bound(.top + (4 * readmouse().wheel_delta) \ 120, .first, lasttop)
+     ' Make sure .pt is visible
+     .pt = bound(.pt, .top, .top + .size)
+    END IF
    END IF
   END IF
  END WITH
 END SUB
 
+'Allow scrolling a menu by dragging a button.
+'TODO: shouldn't this be called from usemenu, the way mouse_scroll_menu is?
+'Currently you need to call this explicitly in each menu, probably missing in places.
 SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseRight, byval threshold as integer=10, byval magnify as double=1.0)
  WITH state
   IF .spacing = 0 THEN
@@ -252,6 +265,16 @@ SUB mouse_drag_menu(byref state as MenuState, byval button as MouseButton=mouseR
  END WITH
 END SUB
 
+'Similar to "keyval(key)>1" except that you can press Shift
+'to go fast, and it returns the number of key-repeat steps that happen
+'this frame, since 18fps generally isn't high enough :(
+FUNCTION shiftgear_key(key as KBScancode) as integer
+ IF keyval(scShift) = 0 THEN
+  RETURN IIF(keyval(key) > 1, 1, 0)
+ END IF
+ IF keyval_ex(key, 55, 25) > 1 THEN RETURN 1
+END FUNCTION
+
 FUNCTION usemenu (byref state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
  WITH state
   IF .autosize THEN
@@ -262,8 +285,12 @@ FUNCTION usemenu (byref state as MenuState, byval deckey as KBScancode = ccUp, b
   DIM oldtop as integer = .top
 
   IF .first < .last THEN
-   IF keyval(deckey) > 1 THEN loopvar .pt, .first, .last, -1
-   IF keyval(inckey) > 1 THEN loopvar .pt, .first, .last, 1
+/'
+   DIM inc as integer = IIF(keyval(scShift) > 0, 4, 1)
+   IF keyval(deckey) > 1 THEN loopvar .pt, .first, .last, -inc
+   IF keyval(inckey) > 1 THEN loopvar .pt, .first, .last, inc
+'/
+   loopvar .pt, .first, .last, shiftgear_key(inckey) - shiftgear_key(deckey)
    IF keyval(scPageup) > 1 THEN .pt -= .size
    IF keyval(scPagedown) > 1 THEN .pt += .size
    IF keyval(scHome) > 1 THEN .pt = .first
@@ -359,7 +386,7 @@ FUNCTION usemenu (state as MenuState, selectable() as bool, byval deckey as KBSc
    RETURN scrollmenu(state, deckey, inckey)
   END IF
 
-  DIM as integer oldptr, oldtop, d, moved_d
+  DIM as integer oldptr, oldtop, d, moved_d, jump
   oldptr = .pt
   oldtop = .top
   d = 0
@@ -367,19 +394,27 @@ FUNCTION usemenu (state as MenuState, selectable() as bool, byval deckey as KBSc
 
   IF keyval(deckey) > 1 THEN d = -1
   IF keyval(inckey) > 1 THEN d = 1
-  IF keyval(scPageup) > 1 THEN
-   .pt = large(.pt - .size, .first)
-   WHILE selectable(.pt) = 0 AND .pt > .first : loopvar(.pt, .first, .last, -1) : WEND
-   IF selectable(.pt) = 0 THEN d = 1
-   moved_d = -1
+  IF d ANDALSO keyval(scShift) > 0 THEN
+   'Move 4 places instead of 1, and don't wrap around (act like page up/down)
+   jump = d * 4
+   d = 0
   END IF
-  IF keyval(scPagedown) > 1 THEN
-   .pt = small(.pt + .size, .last)
-   WHILE selectable(.pt) = 0 AND .pt < .last : loopvar(.pt, .first, .last, 1) : WEND
-   IF selectable(.pt) = 0 THEN d = -1
-   moved_d = 1
+
+  IF keyval(scPageup) > 1 THEN jump = -.size
+  IF keyval(scPagedown) > 1 THEN jump = .size
+  IF jump THEN
+   IF jump < 0 THEN
+    .pt = large(.pt + jump, .first)
+    WHILE selectable(.pt) = 0 AND .pt > .first : loopvar(.pt, .first, .last, -1) : WEND
+   ELSE
+    .pt = small(.pt + jump, .last)
+    WHILE selectable(.pt) = 0 AND .pt < .last : loopvar(.pt, .first, .last, 1) : WEND
+   END IF
+   IF selectable(.pt) = 0 THEN d = -SGN(jump)   'Hack: exploit wrap-around
+   moved_d = SGN(jump)
   END IF
-  IF keyval(scHome) > 1 THEN .pt = .last : d = 1
+
+  IF keyval(scHome) > 1 THEN .pt = .last : d = 1  'Hack: exploit wrap-around
   IF keyval(scEnd) > 1 THEN .pt = .first : d = -1
 
   IF d THEN
@@ -432,7 +467,7 @@ FUNCTION scrollmenu (state as MenuState, byval deckey as KBScancode = ccUp, byva
   IF keyval(scHome) > 1 THEN .top = .first
   IF keyval(scEnd) > 1 THEN .top = lasttop
   mouse_update_hover(state)
-  mouse_scroll_menu(state)
+  mouse_scroll_menu(state, YES)
   RETURN (.top <> oldtop)
  END WITH
 END FUNCTION
