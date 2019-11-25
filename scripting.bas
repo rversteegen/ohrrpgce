@@ -33,7 +33,7 @@ DECLARE SUB scriptcache_add(id as integer, thisscr as ScriptData ptr)
 
 '------------ Global variables ------------
 
-DEFINE_VECTOR_OF_TYPE(ScriptFibre ptr, ScriptFibre_ptr)
+DEFINE_VECTOR_OF_TYPE_PTR(ScriptFibre)
 
 '--------- Module shared variables ---------
 

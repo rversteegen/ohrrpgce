@@ -314,17 +314,23 @@ declare function cdecl array_create(byval tbl as typeTable, ...)
 
 
 'For UDTs not having a [copy] constructor or destructor (which those containing strings have).
-'T is a type, and TID is T with spaces replaced with underscores.
-#MACRO DEFINE_VECTOR_OF_TYPE(T, TID)
+'T is a type not containing spaces (so TID would be equal to T).
+'If T is a ptr, use DEFINE_VECTOR_OF_TYPE_PTR instead.
+#MACRO DEFINE_VECTOR_OF_TYPE(T)
 
-  private sub TID##_copyconstr_func cdecl (byval p1 as T ptr, byval p2 as T ptr)
+  private sub T##_copyctor_func cdecl (byval p1 as T ptr, byval p2 as T ptr)
     '(Only works for simple types not containing strings, because p1 contains garbage)
     *p1 = *p2
   end sub
 
-  DEFINE_VECTOR_OF_TYPE_COMMON(T, TID, @TID##_copyconstr_func, NULL)
+  DEFINE_VECTOR_OF_TYPE_COMMON(T, T, @T##_copyctor_func, NULL)
 #ENDMACRO
 
+'Use this instead of DEFINE_VECTOR_OF_TYPE for types that are ptrs.
+'Defines "T ptr vector" given a type T.
+#MACRO DEFINE_VECTOR_OF_TYPE_PTR(T)
+  DEFINE_CUSTOM_VECTOR_TYPE(T ptr, T##_ptr, NULL, NULL, NULL, @ptr_compare, NULL, NULL, @ptr_str)
+#ENDMACRO
 
 'For UDTs having a destructor or copy constructor (eg containing strings), but no constructor.
 'If it has a constructor, you need DEFINE_CUSTOM_VECTOR_TYPE, or more likely, you should store ptrs instead!
@@ -436,6 +442,9 @@ DECLARE_VECTOR_OF_TYPE(integer vector, integer_vector)
 'without casting them to some vector type
 'DECLARE_VECTOR_OF_TYPE(any vector, any_vector)
 'DECLARE_VECTOR_OF_TYPE(any, any)
+
+'Vector methods defined in vector.bas. These are private
+DECLARE FUNCTION ptr_str CDECL (byval this as any ptr ptr) as string
 
 'Utility functions
 

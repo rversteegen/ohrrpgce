@@ -101,7 +101,8 @@ DEFINE_CUSTOM_VECTOR_TYPE(zstring ptr, zstring_ptr, NULL,      NULL,            
 'zstring should be used in HashTables, and can't be used in vectors.
 DEFINE_TYPE_TABLE        (zstring,     zstring,     NULL,      NULL,             NULL,         @zstring_compare, NULL,             @zstring_hash, @zstring_str, @zstring_copy, @DEALLOCATE)
 
-DEFINE_CUSTOM_VECTOR_TYPE(any ptr,     any_ptr,     NULL,      NULL,             NULL,         @ptr_compare,     NULL,            NULL,          @ptr_str)
+DEFINE_VECTOR_OF_TYPE_PTR(any)   'any ptr vector
+
 'Note: v_copy might change (free) the src if it is temp. An 'any vector' should never contain temps
 'DEFINE_CUSTOM_VECTOR_TYPE(any vector, any_vector,  NULL,      @v_copy,          @v_free,      NULL,              NULL,            NULL,          NULL)
 
