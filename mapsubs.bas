@@ -705,6 +705,9 @@ mstate.last = UBOUND(mapeditmenu)
 mstate.pt = remember_menu_pt  'preserved from any other maps for convenience
 mstate.need_update = YES
 
+DIM previewer as MapPreviewer
+DIM force_preview_reload as bool
+
 setkeys YES
 DO
  setwait 55
@@ -776,14 +779,21 @@ DO
   IF slave_channel <> NULL_CHANNEL THEN     'If live previewing, give quick feedback
    mapedit_savemap st
   END IF
+  mstate.need_update = YES
+  force_preview_reload = YES
  END IF
 
  IF mstate.need_update THEN
   mapeditmenu(17) = "Map name: " + st.map.name
+  previewer.update(st.map.id, force_preview_reload)
+  force_preview_reload = NO
   mstate.need_update = NO
  END IF
 
  clearpage vpage
+
+ previewer.draw(pRight, pBottom, vpage)
+
  highlight_menu_typing_selection mapeditmenu(), mapeditmenu_display(), selectst, mstate
  standardmenu mapeditmenu_display(), mstate, 0, 0, vpage
  setvispage vpage
