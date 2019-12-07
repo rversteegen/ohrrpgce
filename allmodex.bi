@@ -164,7 +164,9 @@ Type TileMap
 End Type
 
 DECLARE FUNCTION readblock (map as TileMap, x as integer, y as integer, default as integer = 112343211) as integer
+DECLARE FUNCTION readblock_wrap_or_crop (tmap as TileMap, x as integer, y as integer, wrap as bool) as integer
 DECLARE SUB writeblock (map as TileMap, x as integer, y as integer, v as integer)
+DECLARE SUB writeblock_wrap_or_crop (map as TileMap, x as integer, y as integer, v as integer, wrap as bool)
 
 DECLARE SUB drawmap OVERLOAD (tmap as TileMap, x as integer, y as integer, tileset as TilesetData ptr, p as integer, trans as bool = NO, overheadmode as integer = 0, pmapptr as TileMap ptr = NULL, ystart as integer = 0, yheight as integer = -1, pal as Palette16 ptr = NULL)
 DECLARE SUB drawmap OVERLOAD (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame ptr, p as integer, trans as bool = NO, overheadmode as integer = 0, pmapptr as TileMap ptr = NULL, ystart as integer = 0, yheight as integer = -1, largetileset as bool = NO, pal as Palette16 ptr = NULL)

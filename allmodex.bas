@@ -3594,18 +3594,57 @@ end sub
 function readblock (map as TileMap, x as integer, y as integer, default as integer = 112343211) as integer
 	if x < 0 orelse x >= map.wide orelse y < 0 orelse y >= map.high then
 		if default <> 112343211 then return default
-		showbug "illegal readblock call " & x & " " & y
-		exit function
+		onetime_debug errShowBug, "illegal readblock call " & x & " " & y
+		return 0
 	end if
 	return map.data[x + y * map.wide]
 end function
 
 sub writeblock (map as TileMap, x as integer, y as integer, v as integer)
 	if x < 0 orelse x >= map.wide orelse y < 0 orelse y >= map.high then
-		showbug "illegal writeblock call " & x & " " & y
+		onetime_debug errShowBug, "illegal writeblock call " & x & " " & y
 		exit sub
 	end if
 	map.data[x + y * map.wide] = v
+end sub
+
+private function wrap_or_crop(wrap as bool, map as TileMap, x as integer, y as integer) as integer
+	if wrap then
+		'These whiles might be faster than using POSMOD or mod+if x<0 ?
+		'A branch misprediction and a div/mod take similar time.
+		'Can assume virtually never go over map edge more than once.
+		while y < 0
+			y += map.high
+		wend
+		while y >= map.high
+			y -= map.high
+		wend
+		while x < 0
+			x += map.wide
+		wend
+		while x >= map.wide
+			x -= map.wide
+		wend
+	else
+		if y < 0 orelse y >= map.high orelse x < 0 orelse x >= map.wide then
+			return -1
+		end if
+	end if
+	return x + y * map.wide
+end function
+
+'Like readblock but either wraps (wrap true) or returns -1 over map edge
+function readblock_wrap_or_crop(map as TileMap, x as integer, y as integer, wrap as bool) as integer
+	dim idx as integer = wrap_or_crop(wrap, map, x, y)
+	if idx = -1 then return -1
+	return map.data[idx]
+end function
+
+'Like writeblock but either wraps (wrap true) or ignores writes over map edge
+sub writeblock_wrap_or_crop (map as TileMap, x as integer, y as integer, v as integer, wrap as bool)
+	dim idx as integer = wrap_or_crop(wrap, map, x, y)
+	if idx = -1 then exit sub
+	map.data[idx] = v
 end sub
 
 'Calculate which tile to display
@@ -3614,37 +3653,20 @@ local function calcblock (tmap as TileMap, x as integer, y as integer, overheadm
 'overheadmode = 0 : ignore overhead tile bit; draw normally;
 'overheadmode = 1 : draw non overhead tiles only (to avoid double draw)
 'overheadmode = 2 : draw overhead tiles only
-	dim block as integer
 
-	'check bounds
-	if bordertile = -1 then
-		'wrap
-		while y < 0
-			y = y + tmap.high
-		wend
-		while y >= tmap.high
-			y = y - tmap.high
-		wend
-		while x < 0
-			x = x + tmap.wide
-		wend
-		while x >= tmap.wide
-			x = x - tmap.wide
-		wend
-	else
-		if (y < 0) or (y >= tmap.high) or (x < 0) or (x >= tmap.wide) then
-			if tmap.layernum = 0 and overheadmode <= 1 then
-				'only draw the border tile once!
-				return bordertile
-			else
-				return -1
-			end if
+	dim block as integer
+	block = readblock_wrap_or_crop(tmap, x, y, bordertile = -1)
+
+	if block = -1 then
+		if tmap.layernum = 0 andalso overheadmode <= 1 then
+			'only draw the border tile once!
+			return bordertile
+		else
+			return -1
 		end if
 	end if
 
-	block = readblock(tmap, x, y)
-
-	if block = 0 and tmap.layernum > 0 then  'This could be an argument, maybe we could get rid of layernum
+	if block = 0 andalso tmap.layernum > 0 then  'This could be an argument, maybe we could get rid of layernum
 		return -1
 	end if
 
@@ -3652,7 +3674,7 @@ local function calcblock (tmap as TileMap, x as integer, y as integer, overheadm
 		if pmapptr = NULL then
 			showbug "calcblock: overheadmode but passmap ptr is NULL"
 			block = -1
-		elseif x >= pmapptr->wide or y >= pmapptr->high then
+		elseif x >= pmapptr->wide orelse y >= pmapptr->high then
 			'Impossible if the passmap is the same size
 			if overheadmode = 2 then block = -1
 		elseif ((readblock(*pmapptr, x, y) and passOverhead) <> 0) xor (overheadmode = 2) then
