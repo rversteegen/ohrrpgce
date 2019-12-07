@@ -686,22 +686,46 @@ SUB script_functions(byval cmdid as integer)
   scriptret = gam.map.id
  CASE 86'--advance text box
   advance_text_box
- CASE 97'--read map block
+ CASE 97'--read map block (x, y, layer)
+  'Note: used to bound() to map boundary, even on wrapping maps
   retvals(2) = get_optional_arg(2, 0)
   IF retvals(2) >= 0 AND retvals(2) <= UBOUND(maptiles) THEN
-   scriptret = readblock(maptiles(retvals(2)), bound(retvals(0), 0, mapsizetiles.x-1), bound(retvals(1), 0, mapsizetiles.y-1))
+   'Note that this is not affected by prefbit(37) 'Wrap map layers over edge of Crop maps'
+   scriptret = readblock_wrap_or_crop(maptiles(retvals(2)), retvals(0), retvals(1), gmap(5) = mapEdgeWrap)
+   IF scriptret = -1 THEN 'Cropped
+    IF retvals(2) = 0 ANDALSO gmap(5) = mapEdgeDefaultTile THEN
+     scriptret = gmap(6)
+    ELSE
+     scriptret = 0
+    END IF
+   END IF
   END IF
- CASE 98'--write map block
+ CASE 98'--write map block (x, y, block, layer)
+  'Note: used to bound() to map boundary, even on wrapping maps
+  'Out of bound writes now documented to not show an error.
   retvals(3) = get_optional_arg(3, 0)
-  IF retvals(3) >= 0 AND retvals(3) <= UBOUND(maptiles) AND retvals(2) >= 0 AND retvals(2) <= 255 THEN
-   writeblock maptiles(retvals(3)), bound(retvals(0), 0, mapsizetiles.x-1), bound(retvals(1), 0, mapsizetiles.y-1), retvals(2)
-   lump_reloading.maptiles.dirty = YES
+  IF retvals(3) >= 0 AND retvals(3) <= UBOUND(maptiles) THEN
+   IF retvals(2) >= 0 AND retvals(2) <= 255 THEN
+    writeblock_wrap_or_crop maptiles(retvals(3)), retvals(0), retvals(1), retvals(2), gmap(5) = mapEdgeWrap
+    lump_reloading.maptiles.dirty = YES
+   ELSE
+    scripterr "Bad tile number " & retvals(2)
+   END IF
   END IF
  CASE 99'--read pass block
-  scriptret = readblock(pass, bound(retvals(0), 0, mapsizetiles.x-1), bound(retvals(1), 0, mapsizetiles.y-1))
+  'Note: used to bound() to map boundary, even on wrapping maps
+  scriptret = readblock_wrap_or_crop(pass, retvals(0), retvals(1), gmap(5) = mapEdgeWrap)
+  'Tiles off map edge are all-walls
+  IF scriptret = -1 THEN scriptret = 15
  CASE 100'--write pass block
-  writeblock pass, bound(retvals(0), 0, mapsizetiles.x-1), bound(retvals(1), 0, mapsizetiles.y-1), bound(retvals(2), 0, 255)
-  lump_reloading.passmap.dirty = YES
+  'Note: used to bound() to map boundary, even on wrapping maps
+  'Out of bound writes now documented to not show an error.
+  IF retvals(2) >= 0 AND retvals(2) <= 255 THEN
+   writeblock_wrap_or_crop pass, retvals(0), retvals(1), retvals(2), gmap(5) = mapEdgeWrap
+   lump_reloading.passmap.dirty = YES
+  ELSE
+   scripterr "Bad wallmap block value " & retvals(2)
+  END IF
  CASE 144'--load tileset(tileset, map layer) or load tileset(tileset) or load tileset()
   'Unlike "change tileset", doesn't modify gmap
   IF retvals(0) <= gen(genMaxTile) THEN
