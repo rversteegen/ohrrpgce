@@ -8,6 +8,7 @@ SDL=${SDL:-SDL}
 
 if [ $ARCH = "x86_64" ]; then
   SUFFIX=-x86_64
+  export EUDIR=/home/ralph/local/euphoria-4.1.0-Linux-x64
 else
   SUFFIX=-x86
   # Unfortunately a single euphoria installation can only target one arch, so
@@ -36,6 +37,9 @@ if [ ! -f distrib-mac.sh ] ; then
   exit 1
 fi
 
+echo
+echo
+echo
 echo "Building binaries for ARCH=$ARCH GFX=$GFX"
 
 rm -f ohrrpgce-game ohrrpgce-custom
@@ -89,14 +93,16 @@ cp -p docs/more-docs.txt tmp/docs || exit 1
 echo "Creating disk image"
 mv tmp OHRRPGCE-$CODE$SUFFIX
 #tar -jcf distrib/ohrrpgce-mac-$TODAY-$CODE$SUFFIX.tar.bz2 ohrrpgce --exclude .svn
-hdiutil create -srcfolder OHRRPGCE-$CODE$SUFFIX/ -fs HFS+ distrib/OHRRPGCE-$TODAY-$CODE$SUFFIX.dmg || exit 1
+tar -zcf distrib/ohrrpgce-mac-$TODAY-$CODE$SUFFIX.tar.gz OHRRPGCE-$CODE$SUFFIX || exit 1
+mv distrib/ohrrpgce-mac-$TODAY-$CODE$SUFFIX.tar.gz distrib/OHRRPGCE-$TODAY-$CODE$SUFFIX.dmg
+#hdiutil create -srcfolder OHRRPGCE-$CODE$SUFFIX/ -fs HFS+ distrib/OHRRPGCE-$TODAY-$CODE$SUFFIX.dmg || exit 1
 mv OHRRPGCE-$CODE$SUFFIX tmp
 
 echo "Erasing contents of temporary directory"
 rm -Rf tmp/*
 
 echo "Create minimal player tarball"
-gnutar -zcf distrib/ohrrpgce-mac-minimal-$TODAY-$CODE$SUFFIX.tar.gz OHRRPGCE-Game.app README-player-only.txt LICENSE-binary.txt || exit 1
+tar -zcf distrib/ohrrpgce-mac-minimal-$TODAY-$CODE$SUFFIX.tar.gz OHRRPGCE-Game.app README-player-only.txt LICENSE-binary.txt || exit 1
 
 echo "Creating utilities archive"
 zip distrib/ohrrpgce-mac-util$SUFFIX.zip unlump relump hspeak plotscr.hsd scancode.hsi LICENSE-binary.txt || exit 1

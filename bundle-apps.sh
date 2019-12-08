@@ -24,13 +24,25 @@ rm -rf OHRRPGCE-Custom.app
 # Sanity checks
 for BINARY in ohrrpgce-game ohrrpgce-custom; do  #omit hspeak, currently broken
   if ! file $BINARY | grep $ARCH ; then
+    file "$BINARY"
     echo "$BINARY is missing or not compiled for $ARCH"
-    exit 1
+    #exit 1
   fi
 done
 
 find_framework() {
   NAME=$1
+
+  SRC="/mnt/common/Downloads/tmp/SDL/$NAME"
+  [ -d "$SRC" ] && return 0
+
+  SRC="/mnt/common/Downloads/tmp/fakeSDL2/$NAME"
+  [ -d "$SRC" ] && return 0
+
+  SRC="/mnt/common/Downloads/tmp/SDL_mixer/$NAME"
+  [ -d "$SRC" ] && return 0
+
+
   SRC="$HOME/Library/Frameworks/$NAME"
   [ -d "$SRC" ] && return 0
   SRC="/System/Library/Frameworks/$NAME"
@@ -42,8 +54,8 @@ find_framework() {
 thin_binary() {
   # Remove all archs from a fat binary except $ARCH
   echo thin_binary $1
-  lipo "$1" -thin $ARCH -output "$1.temp" &&
-  mv "$1.temp" "$1" || exit 1
+  #lipo "$1" -thin $ARCH -output "$1.temp" &&
+  #mv "$1.temp" "$1" || exit 1
 }
 
 thin_framework() {

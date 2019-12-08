@@ -10,34 +10,34 @@ UPLOAD_FOLDER="HamsterRepublic.com"
 UPLOAD_DEST="$UPLOAD_SERVER:$UPLOAD_FOLDER"
 TODAY=`date "+%Y-%m-%d"`
 
-cd ~/src/nightly
+# cd ~/src/nightly
 
-if [ ! -d ohrrpgce ] ; then
-  echo nightly snapshot not found, checking out from svn...
-  svn checkout https://rpg.hamsterrepublic.com/source ./ohrrpgce || exit 1
-fi
+# if [ ! -d ohrrpgce ] ; then
+#   echo nightly snapshot not found, checking out from svn...
+#   svn checkout https://rpg.hamsterrepublic.com/source ./ohrrpgce || exit 1
+# fi
 
-cd ohrrpgce
+# cd ohrrpgce
 
-svn cleanup
-# Plotdict gets modified by update-html.sh, remove any modifications or conflicts
-svn resolve --accept theirs-full --recursive docs
-svn revert --recursive docs
+# svn cleanup
+# # Plotdict gets modified by update-html.sh, remove any modifications or conflicts
+# svn resolve --accept theirs-full --recursive docs
+# svn revert --recursive docs
 
-svn update | tee ../nightly-temp.txt || exit 1
-UPDATE=`grep "Updated to revision" ../nightly-temp.txt`
-rm ../nightly-temp.txt
+# svn update | tee ../nightly-temp.txt || exit 1
+# UPDATE=`grep "Updated to revision" ../nightly-temp.txt`
+# rm ../nightly-temp.txt
 
-if [ -z "$UPDATE" ] ; then
-  echo no changes, no need to update nightly.
-  exit
-fi
+# if [ -z "$UPDATE" ] ; then
+#   echo no changes, no need to update nightly.
+#   exit
+# fi
 
 echo Now we go to build the Mac nightlies
 
-svn update || exit 1
+#svn update || exit 1
 
-cd wip
+#cd wip
 
 build_package() {
   export ARCH=$1
@@ -55,15 +55,20 @@ build_package() {
 
   ./distrib-mac.sh ${MORE_ARGS} || return
 
+  mkdir -p upload
+
   mv distrib/OHRRPGCE-*-wip$SUFFIX.dmg distrib/OHRRPGCE-wip$SUFFIX.dmg &&
-  scp -p distrib/OHRRPGCE-wip$SUFFIX.dmg $UPLOAD_DEST/ohrrpgce/nightly/
+  cp distrib/OHRRPGCE-wip$SUFFIX.dmg upload
+  #scp -p distrib/OHRRPGCE-wip$SUFFIX.dmg $UPLOAD_DEST/ohrrpgce/nightly/
   rm distrib/OHRRPGCE-wip$SUFFIX.dmg
 
   mv distrib/ohrrpgce-mac-minimal-*-wip$SUFFIX.tar.gz distrib/ohrrpgce-mac-minimal$SUFFIX.tar.gz &&
-  scp -p distrib/ohrrpgce-mac-minimal$SUFFIX.tar.gz $UPLOAD_DEST/ohrrpgce/nightly/
+  cp distrib/ohrrpgce-mac-minimal$SUFFIX.tar.gz upload
+  #scp -p distrib/ohrrpgce-mac-minimal$SUFFIX.tar.gz $UPLOAD_DEST/ohrrpgce/nightly/
   rm distrib/ohrrpgce-mac-minimal$SUFFIX.tar.gz
 
-  scp -p distrib/ohrrpgce-mac-util$SUFFIX.zip $UPLOAD_DEST/ohrrpgce/nightly/ &&
+  #scp -p distrib/ohrrpgce-mac-util$SUFFIX.zip $UPLOAD_DEST/ohrrpgce/nightly/ &&
+  cp distrib/ohrrpgce-mac-util$SUFFIX.zip upload
   rm distrib/ohrrpgce-mac-util$SUFFIX.zip
 }
 
