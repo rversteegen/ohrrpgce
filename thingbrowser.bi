@@ -158,7 +158,9 @@ Type TextboxBrowser extends ThingBrowser
  declare virtual function highest_possible_id() as integer
  declare virtual function create_thing_plank(byval id as integer) as Slice ptr
  declare virtual sub handle_cropafter(byval id as integer)
+ declare virtual sub build_thing_list()
  plank_template as Slice Ptr
+ say_fh as integer
 End Type
 
 '-----------------------------------------------------------------------

@@ -422,6 +422,8 @@ Function ThingBrowser.init_helpkey() as string
  return ""
 End Function
 
+dim shared say_plank_time as double
+
 Sub ThingBrowser.build_thing_list()
  dim timing as double = TIMER
 
@@ -436,6 +438,7 @@ Sub ThingBrowser.build_thing_list()
  for id as integer = lowest_id() to highest_id()
   plank = create_thing_plank(id)
   if plank = NULL then
+continue for
    showbug "create_thing_plank returned NULL!"
    exit for  'Probably something is really broken
   end if
@@ -450,6 +453,10 @@ Sub ThingBrowser.build_thing_list()
    'Don't use this one because it was filtered out
    DeleteSlice @(plank)
   end if
+
+
+say_plank_time += timer
+
  next id
  thinglist->Height = plank_size.y  'Only needed if a Grid: Height of one row (FIXME: this can't be right)
  if thinglist->SliceType = slGrid then
@@ -465,7 +472,7 @@ Sub ThingBrowser.build_thing_list()
  DrawSlice root, vpage 'refresh screen positions
 
  timing = TIMER - timing
- if timing > 0.25 then
+ if timing > 0.01 then
   debuginfo thing_kind_name() & ": build_thing_list() took " & cint(timing * 1000) & "ms"
  end if
 End Sub
@@ -1017,9 +1024,13 @@ Function TextboxBrowser.highest_possible_id() as integer
  return maxMaxTextbox
 End Function
 
+
 Function TextboxBrowser.create_thing_plank(byval id as integer) as Slice ptr
  dim box as TextBox
- LoadTextBox box, id
+ 'LoadTextBox say_fh, box, id
+LoadTextBox box, id
+
+say_plank_time -= timer
 
  'Most of the text will not be visible, but we still do want to use it for search and filter
  dim text as string = textbox_preview_line(box, 800)
@@ -1029,7 +1040,7 @@ Function TextboxBrowser.create_thing_plank(byval id as integer) as Slice ptr
  end if
  dim plank as Slice Ptr
  plank = CloneSliceTree(plank_template)
- 
+
  dim txt as Slice Ptr
  txt = LookupSliceSafe(SL_PLANK_MENU_SELECTABLE, plank, slText)
  dim caption as string
@@ -1052,12 +1063,41 @@ Function TextboxBrowser.create_thing_plank(byval id as integer) as Slice ptr
   ChangeRectangleSlice rect, , boxlook(box.boxstyle).bgcol, , borderNone, iif(box.opaque, transOpaque, transFuzzy)
  end if
 
+
+
  return plank
 End Function
 
 Sub TextboxBrowser.handle_cropafter(byval id as integer)
  cropafter id, gen(genMaxTextBox), 0, game & ".say", getbinsize(binSAY)
 End Sub
+
+
+extern say_load_time as double
+extern say_proc_time as double
+extern say_close_time as double
+extern say_read_time as double
+
+
+Sub TextboxBrowser.build_thing_list()
+ say_close_time = 0.
+ say_proc_time = 0.
+ say_load_time = 0.
+ say_read_time = 0.
+ say_plank_time = 0.
+
+' OPENFILE game & ".say", FOR_BINARY + ACCESS_READ, say_fh
+
+ base.build_thing_list()
+
+ 'close say_fh
+ 'say_fh = 0
+
+ dim x as string = strprintf("load in %.4f read in %.4f close in %.4f proc in %.4f plank in %.4f", say_load_time, say_read_time, say_close_time, say_proc_time, say_plank_time)
+ debug x
+? x
+end sub
+
 
 '-----------------------------------------------------------------------
 

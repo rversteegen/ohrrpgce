@@ -2685,7 +2685,37 @@ END SUB
 '                                        Textboxes
 '==========================================================================================
 
+extern say_load_time as double
+extern say_read_time as double
+extern say_proc_time as double
+extern say_close_time as double
+
+dim say_load_time as double
+dim say_read_time as double
+dim say_proc_time as double
+dim say_close_time as double
+
 SUB LoadTextBox (byref box as TextBox, byval record as integer)
+  say_load_time -= timer
+
+  DIM fh as integer
+  OPENFILE game & ".say", FOR_BINARY + ACCESS_READ, fh
+
+
+ dim ttt as double = timer
+ say_load_time += ttt
+ say_read_time -= ttt
+
+  LoadTextBox fh, box, record
+
+  ttt = timer
+ say_proc_time += ttt
+ say_close_time -= ttt
+  lazyclose fh
+  say_close_time += timer
+END SUB
+
+SUB LoadTextBox (fh as integer, byref box as TextBox, byval record as integer)
  DIM boxbuf(dimbinsize(binSAY)) as integer
  IF record < 0 OR record > gen(genMaxTextBox) THEN
   debug "LoadTextBox: invalid record: " & record
@@ -2693,9 +2723,13 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
   EXIT SUB
  END IF
 
- DIM filename as string
- filename = game & ".say"
- loadrecord boxbuf(), filename, getbinsize(binSAY) \ 2, record
+ loadrecord boxbuf(), fh, getbinsize(binSAY) \ 2, record
+
+
+ dim ttt as double = timer
+ say_read_time += ttt
+ say_proc_time -= ttt
+
 
  DIM i as integer
 
@@ -2778,11 +2812,11 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
 END SUB
 
 SUB SaveTextBox (byref box as TextBox, byval record as integer)
- DIM boxbuf(dimbinsize(binSAY)) as integer
- IF record < 0 OR record > gen(genMaxTextBox) THEN debug "SaveTextBox: invalid record: " & record : EXIT SUB
-
  DIM filename as string
  filename = game & ".say"
+
+ DIM boxbuf(dimbinsize(binSAY)) as integer
+ IF record < 0 OR record > gen(genMaxTextBox) THEN debug "SaveTextBox: invalid record: " & record : EXIT SUB
 
  DIM i as integer
 
@@ -4401,6 +4435,7 @@ SUB load_script_triggers_and_names()
   CLOSE fh
  END IF
 
+/'
  ' Load plotscr.lst (ID -> script name)
  IF OPENFILE(workingdir & SLASH & "plotscr.lst", FOR_BINARY, fh) THEN
   debuginfo "plotscr.lst missing"  'Never imported any scripts
@@ -4415,6 +4450,7 @@ SUB load_script_triggers_and_names()
   WEND
   CLOSE fh
  END IF
+'/
 END SUB
 
 

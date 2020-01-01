@@ -107,7 +107,8 @@ DECLARE FUNCTION LowColorCode () as integer
 declare Function ColorIndex(byval n as integer) as integer
 declare Function mouse_hover_tinted_color(text_col as integer = -1) as integer
 
-declare Sub LoadTextBox (byref box as TextBox, byval record as integer)
+declare Sub LoadTextBox OVERLOAD (fh as integer, byref box as TextBox, record as integer)
+declare Sub LoadTextBox OVERLOAD (byref box as TextBox, record as integer)
 declare Sub SaveTextBox (byref box as TextBox, byval record as integer)
 declare Sub ClearTextBox (byref box as TextBox)
 declare Function textbox_lines_to_string(byref box as TextBox, join_char as string = !"\n") as string
