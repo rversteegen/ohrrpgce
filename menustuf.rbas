@@ -155,6 +155,8 @@ SUB buystuff (byval shop_id as integer, byval shoptype as integer, storebuf() as
   IF usemenu(st) THEN
    IF menu.numitems > 0 THEN
     buystuff_refresh_selected buyst, menu.items[st.pt]->dataptr
+    'Menu size may have changed due to pricebox changing size
+    st.need_update = YES
    END IF
   END IF
   IF carray(ccMenu) > 1 THEN do_quit = YES
@@ -291,6 +293,7 @@ SUB buystuff_do_purchase(buyst as ShopBuyState, byval thing as NodePtr, byval th
  evalitemtags
 END SUB
 
+'Refreshes the money and info panels on the right of the Buy menu and the price box
 'thing is either "hero" or "item" node of a shop thing, in the new RELOAD respresentation of STF
 SUB buystuff_refresh_selected (buyst as ShopBuyState, byval thing as NodePtr)
  ChangeTextSlice buyst.money_sl, readglobalstring(145, "You have", 20) & " " & price_string(gold)
@@ -446,6 +449,15 @@ SUB buystuff_refresh_selected (buyst as ShopBuyState, byval thing as NodePtr)
   ELSE
    buyst.price_box->Visible = NO
   END IF
+
+  'Now we have to make space for the price box, moving other slices up
+
+  RefreshSliceScreenPos buyst.price_box
+  WITH *buyst.menupos_sl
+   .Height = buyst.root_sl->Height - .Y - buyst.price_box->ScreenY
+  END WITH
+
+  
  END IF
 
  init_menu_state buyst.info_st, buyst.info
@@ -650,20 +662,30 @@ FUNCTION buystuff_can_buy(byval thing as NodePtr, buyst as ShopBuyState, byval s
  RETURN YES
 END FUNCTION
 
+'Updates the menu of items for sale, not the 2nd MenuDef on the right-hand side of the shop screen
 SUB buystuff_refresh_menu (buyst as ShopBuyState, menu as MenuDef, st as MenuState)
  DIM thing as NodePtr
  DIM id as integer
  ClearMenuData menu
  WITH menu
   .textalign = alignLeft
+  .alignhoriz = alignLeft
+  .alignvert = alignTop
   .anchorhoriz = alignLeft
   .anchorvert = alignTop
-  .offset.x = -155
-  .offset.y = -95
   .bordersize = -2
-  .min_chars = 16
-  .max_chars = 16
-  .maxrows = 16
+  DIM bord as integer = 8 + .bordersize  'From position_menu
+  IF buyst.menupos_sl THEN
+   .offset = buyst.menupos_sl->ScreenPos
+   .maxrows = (buyst.menupos_sl->Height - bord * 2) \ 10
+   .min_chars = (buyst.menupos_sl->Width - bord * 2) \ 8
+  'ELSE
+  '.offset.x = 5
+  '.offset.y = 5
+  '.maxrows = 16
+  '.min_chars = 16
+  END IF
+  .max_chars = .min_chars
   .highlight_selection = YES
  END WITH
  DIM stuff_list as NodePtr = buyst.stuff_list
@@ -723,7 +745,18 @@ SUB buystuff_make_slices(buyst as ShopBuyState)
   .Fill = YES
  END WITH
  RefreshSliceScreenPos buyst.root_sl
- 
+
+ 'Container used by buystuff_refresh_menu to set the position and size of the items menu
+ buyst.menupos_sl = NewSliceOfType(slContainer, buyst.root_sl)
+ WITH *buyst.menupos_sl
+  .X = 5
+  .Y = 5
+  .Width = 138
+  'Actual height is set in buystuff_refresh_selected
+  .Height = 170
+ END WITH
+ RefreshSliceScreenPos buyst.menupos_sl
+
  'The container for the right side of the shop
  DIM right_panel as Slice Ptr
  right_panel = NewSliceOfType(slContainer, buyst.root_sl)
@@ -795,7 +828,7 @@ SUB buystuff_make_slices(buyst as ShopBuyState)
   END WITH
   ChangeSpriteSlice buyst.party_sl(i), sprTypeHero
  NEXT i
- 
+
  'info_sl is just used later to set the position and size of the info menu
  buyst.info_sl = NewSliceOfType(slContainer, info_box)
  WITH *(buyst.info_sl)

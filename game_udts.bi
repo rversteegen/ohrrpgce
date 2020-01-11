@@ -302,6 +302,7 @@ TYPE ShopBuyState
   root_sl        as Slice Ptr
   money_sl       as Slice Ptr
   info_sl        as Slice Ptr
+  menupos_sl     as Slice Ptr
   hero_box       as Slice Ptr
   party_box(3)    as Slice Ptr
   party_sl(3)    as Slice Ptr

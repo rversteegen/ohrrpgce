@@ -237,7 +237,7 @@ Type Slice
 
   Union
     Type
-      ScreenX as integer 'The actual X,Y, updated every frame
+      ScreenX as integer 'The actual X,Y of the topleft corner, updated every frame
       ScreenY as integer
     End Type
     ScreenPos as XYPair
