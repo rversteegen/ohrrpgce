@@ -1640,6 +1640,7 @@ end
 
 script, load sprite, hsd:type, hsd:number, hsd:pal = -1, begin
   if(hsd:type == spritetype:hero)        then(return(load hero sprite         (hsd:number, hsd:pal)))
+  if(hsd:type == spritetype:enemy)       then(return(load enemy sprite        (hsd:number, hsd:pal)))
   if(hsd:type == spritetype:smallenemy)  then(return(load small enemy sprite  (hsd:number, hsd:pal)))
   if(hsd:type == spritetype:mediumenemy) then(return(load medium enemy sprite (hsd:number, hsd:pal)))
   if(hsd:type == spritetype:largeenemy)  then(return(load large enemy sprite  (hsd:number, hsd:pal)))
@@ -1657,6 +1658,7 @@ end
 
 script, replace sprite, hsd:sl, hsd:type, hsd:number, hsd:pal = -1, begin
   if(hsd:type == spritetype:hero)        then(replace hero sprite         (hsd:sl, hsd:number, hsd:pal))
+  if(hsd:type == spritetype:enemy)       then(replace enemy sprite        (hsd:sl, hsd:number, hsd:pal))
   if(hsd:type == spritetype:smallenemy)  then(replace small enemy sprite  (hsd:sl, hsd:number, hsd:pal))
   if(hsd:type == spritetype:mediumenemy) then(replace medium enemy sprite (hsd:sl, hsd:number, hsd:pal))
   if(hsd:type == spritetype:largeenemy)  then(replace large enemy sprite  (hsd:sl, hsd:number, hsd:pal))
@@ -1668,6 +1670,10 @@ script, replace sprite, hsd:sl, hsd:type, hsd:number, hsd:pal = -1, begin
   if(hsd:type == spritetype:backdrop)    then(replace backdrop sprite     (hsd:sl, hsd:number))
 end
 
+# maybe this should become a builtin command with two different signatures: (size, set, pal), (set, pal)
+# with the EnemySize constants changed to  -10,-11,-12. Would break only if you wrote 0/1/2 instead
+# of using the size constants, and only if you recompile scripts. And replaceenemysprite, loadenemysprite
+# have zero uses in scanscripts (should doublecheck that)
 script, load enemy sprite, hsd:size, hsd:number, hsd:pal = -1, begin
   if(hsd:size == EnemySize:small) then(return(load small enemy sprite(hsd:number, hsd:pal)))
   if(hsd:size == EnemySize:medium) then(return(load medium enemy sprite(hsd:number, hsd:pal)))
@@ -2156,6 +2162,7 @@ define constant, begin
 7,spritetype:border
 8,spritetype:portrait
 9,spritetype:backdrop
+10,spritetype:enemy
 -1,border:line
 -2,border:none
 -99,border:raw

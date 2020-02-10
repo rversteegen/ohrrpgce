@@ -7865,6 +7865,7 @@ set horiz align(sl, edge:right)
 				You can compare the result with the following constants:
 				<ul>
 					<li>spritetype:hero</li>
+					<li>spritetype:enemy</li>
 					<li>spritetype:small enemy</li>
 					<li>spritetype:medium enemy</li>
 					<li>spritetype:large enemy</li>
