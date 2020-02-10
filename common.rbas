@@ -7780,6 +7780,9 @@ FUNCTION dissolve_type_caption(n as integer) as string
   CASE 9: RETURN "Shrink"
   CASE 10: RETURN "Flicker"
   CASE 11: RETURN "Shrink to Center"
+  CASE 12: RETURN "Wave"
+  CASE 13: RETURN "Wave2"
+  CASE 14: RETURN "Wave3"
   CASE ELSE: RETURN n & " Invalid!"
  END SELECT
 END FUNCTION

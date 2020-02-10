@@ -1717,8 +1717,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
      'FIXME: dissolve is advanced in DrawSpriteSlice, which is wrong, causing the slice to dissolve
      'in the slice editor, making this setting useless.
      'TODO: need to set d_time to 0 to reset the animation if it's already finished, when this is changed to YES
-     'a_append menu(), "  Animate: " & yesorno(dat->d_auto)
-     'sliceed_rule_tog rules(), "sprite_d_auto", @(dat->d_auto)
+     a_append menu(), "  Animate: " & yesorno(dat->d_auto)
+     sliceed_rule_tog rules(), "sprite_d_auto", @(dat->d_auto)
     END IF
     IF ses.privileged THEN
      a_append menu(), " Scaled: " & yesorno(dat->scaled)

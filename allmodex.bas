@@ -9422,12 +9422,12 @@ function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, sty
 	'(Note that Vapourise and Phase Out aren't blank on t==tlength, while others are, unless tlength=0
 	if t > tlength then return frame_duplicate(spr, YES)
 	'Return copy. (Actually Melt otherwise has very slight distortion on frame 0.)
-	if t <= 0 then return frame_duplicate(spr)
+	'if t <= 0 then return frame_duplicate(spr)
 
 	'by default, sprites use colourkey transparency instead of masks.
 	'We could easily not use a mask here, but by using one, this function can be called on 8-bit graphics
 	'too; just in case you ever want to fade out a backdrop or something?
-	dim startblank as integer = (style = 8 or style = 9 or style = 11)
+	dim startblank as integer = (style = 8 or style = 9 or style = 11 or style = 12)
 	dim cpy as Frame ptr
 	cpy = frame_duplicate(spr, startblank, 1)
 	if cpy = 0 then return 0
@@ -9681,6 +9681,29 @@ function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, sty
 					poffset += 1
 				next
 			next
+		case 12, 13, 14
+			for sy = 0 to spr->h - 1
+				dim xoffset as integer
+				if style <= 13 then
+					xoffset =  6* sin ( sy / 10 + 2*3.14159 * t / (tlength +1) )
+				else
+'					xoffset =  6* sin ( sy / 10 * 2*3.14159) * sin(2*3.14159* t / (tlength+1) )
+					xoffset =  6* sin ( sy / 10 * 2*3.14159  + 2*3.14159 * t / (tlength +1) ) * sin(2*3.14159* t / (tlength+1) )
+				end if
+
+				'cpy is initialised to a copy of spr
+				if (style = 13 andalso (sy and 1) = 0) then continue for
+
+				dim dx as integer = POSMOD(xoffset, spr->w)
+ 				for sx = 0 to spr->w - 1
+					cpy->image[sy * spr->pitch + dx] = spr->image[sy * spr->pitch + sx]
+					dim srcmask as ubyte ptr = iif(spr->mask, spr->mask, spr->image)
+					cpy->mask[sy * spr->pitch + dx] = srcmask[sy * spr->pitch + sx]
+					dx += 1
+					if dx = spr->w then dx = 0
+ 				next
+ 			next
+
 	end select
 
 	return cpy

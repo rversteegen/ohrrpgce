@@ -1953,8 +1953,9 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
     if .d_auto then
      .d_tick += 1
      if .d_tick > dtime then
-      .dissolving = NO
-      .d_auto = NO
+      '.dissolving = NO
+      '.d_auto = NO
+      .d_tick = 0
      end if
     end if
    end if
