@@ -2748,7 +2748,7 @@ END FUNCTION
 
 'Returns true on success
 FUNCTION automatic_backup (rpgfile as string) as bool
- DIM keep_how_many as integer = 10 'FIXME: this could be customized per-game
+ DIM keep_how_many as integer = read_config_int("game_foo.num_autobackups", 5)'fixme
 
  DIM backupdir as string = trimfilename(rpgfile) & SLASH & "autobackups"
  IF NOT isdir(backupdir) THEN makedir backupdir

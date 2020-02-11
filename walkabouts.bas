@@ -790,7 +790,7 @@ FUNCTION check_wallmap_collision (byval startpos as XYPair, byref pos as XYPair,
  LOOP
 END FUNCTION
 
-' See check_wallmap_collision.
+' See check_wallmap_collision. Return value is the same.
 ' This is a wrapper to that, which implements friction/sliding down walls.
 ' Friction is a percentage value from 0 to 100, the amount to decrease the remaining
 ' xygo by when hitting a wall and sliding down it (100 prevents any sliding).

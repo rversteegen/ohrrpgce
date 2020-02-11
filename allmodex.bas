@@ -2246,7 +2246,8 @@ sub JoystickState.update_keybits(joynum as integer)
 	dim as integer jx, jy
 
 	dim starttime as double = timer
-	if io_get_joystick_state then
+	if 1 then
+	elseif io_get_joystick_state then
 		dim ret as integer
 		ret = io_get_joystick_state(joynum, @state)
 		if ret > 0 then
@@ -8261,7 +8262,7 @@ sub sprite_empty_cache_range(minkey as integer, maxkey as integer, leakmsg as st
 		if pt->hash >= minkey andalso pt->hash <= maxkey then
 			'recall that the cache counts as a reference
 			if pt->p->refcount <> 1 then
-				debug "warning: " & leakmsg & pt->hash & " with " & pt->p->refcount & " references"
+				showbug "warning: " & leakmsg & pt->hash & " with " & pt->p->refcount & " references"
 				if freeleaks then sprite_remove_cache(pt)
 			else
 				sprite_remove_cache(pt)
@@ -8361,7 +8362,7 @@ sub sprite_empty_cache(sprtype as SpriteType = sprTypeInvalid, setnum as integer
 	if sprtype = sprTypeInvalid then
 		sprite_empty_cache_range(INT_MIN, INT_MAX, "leaked sprite ")
 		if sprcacheB_used <> 0 or sprcache.numitems <> 0 then
-			debug "sprite_empty_cache: corruption: sprcacheB_used=" & sprcacheB_used & " items=" & sprcache.numitems
+			showbug "sprite_empty_cache: corruption: sprcacheB_used=" & sprcacheB_used & " items=" & sprcache.numitems
 		end if
 	elseif setnum < 0 then
 		sprite_empty_cache_range(SPRITE_CACHE_MULT * sprtype, SPRITE_CACHE_MULT * (sprtype + 1) - 1, "leaked sprite ")

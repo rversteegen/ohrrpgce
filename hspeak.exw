@@ -1567,7 +1567,7 @@ function lexer_read_number(string s, integer i, integer stop, srcpos pos)
         exit  --Jumps down to the 'if digits=0' error case
       end if
       src_error(
-        sprintf_utf("Found unexpected character "&COLYEL&"%s"&COLRED&" while reading a number, "&COLYEL&"%s"&COLRED&". Names such as variables can't start with a digit. Or maybe you forgot a comma or operator?"
+        sprintf_utf("Found unexpected character "&COLYEL&"%s"&COLRED&" while reading a number, "&COLYEL&"%s"&COLRED&". Names (of scripts, variables, etc) can't start with a digit. Or maybe you forgot a comma or operator?"
                 ,{s[i],text})
         ,pos+i
       )
