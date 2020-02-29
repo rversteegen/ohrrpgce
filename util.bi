@@ -520,6 +520,7 @@ declare function fgetiob alias "fb_FileGetIOB" ( byval fnum as long, byval pos a
 
 declare function safe_shell (cmd as string, timeout as double = 5., log_it as bool = YES) as integer
 declare function run_and_get_output(cmd as string, byref stdout_s as string, byref stderr_s as string = "", log_it as bool = YES) as integer
+declare function where_is_app(appname as string) as string
 
 
 '----------------------------------------------------------------------

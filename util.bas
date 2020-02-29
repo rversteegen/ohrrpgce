@@ -2594,6 +2594,15 @@ FUNCTION run_and_get_output(cmd as string, byref stdout_s as string, byref stder
   RETURN ret
 END FUNCTION
 
+'Run 'which'. Returns "" if not found Unix only.
+'This is a simplified version of find_helper_app (which is only available in Game/Custom).
+FUNCTION where_is_app(appname as string) as string
+  DIM where as string
+  run_and_get_output("which " & appname, where, , NO)  'disable debuginfo spam
+  'where is empty on failure
+  RETURN RTRIM(where, !"\n")
+END FUNCTION
+
 'Create if it doesn't exist. Does NOT update its timestamp!
 SUB touchfile (filename as string)
   DIM as integer fh

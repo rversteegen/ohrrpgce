@@ -3421,10 +3421,7 @@ FUNCTION find_helper_app (appname as zstring ptr, try_install as bool=NO, downlo
  #ENDIF
  #IFDEF __FB_UNIX__
   'Use the standard util "which" to search the path
-  DIM where as string
-  run_and_get_output("which " & *appname, where, , NO)  'disable debuginfo spam
-  'where is empty on failure
-  where = RTRIM(where, !"\n")
+  DIM where as string = where_is_app(*appname)
   IF LEN(where) THEN RETURN where
   'Downloaded utilities are put here
   try_app_path(app_dir & "support/" & *appname)
