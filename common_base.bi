@@ -18,6 +18,11 @@ declare sub fatalerror (msg as const zstring ptr)
 declare sub fatalbug (msg as const zstring ptr)
 declare sub visible_debug (msg as const zstring ptr)
 
+declare function read_ini_prefixed_str (filename as string, prefixed_key as string, default as string="") as string
+declare function read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
+declare function read_config_int (key as zstring ptr, default as integer=0) as integer
+declare function read_config_bool (key as zstring ptr, default as bool=NO) as bool
+
 extern "C"
 declare sub onetime_debug (errorlevel as errorLevelEnum = errDebug, msg as const zstring ptr)
 

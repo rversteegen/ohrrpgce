@@ -77,3 +77,19 @@ END SUB
 ' SUB showbug (msg as const zstring ptr)
 '   debugc errShowBug, msg
 ' END SUB
+
+FUNCTION read_ini_prefixed_str (filename as string, prefixed_key as string, default as string="") as string
+  RETURN default
+RETURN
+
+FUNCTION read_config_str (key as zstring ptr, default as zstring ptr=@"") as string
+  RETURN default
+RETURN
+
+FUNCTION read_config_int (key as zstring ptr, default as integer=0) as integer
+  RETURN default
+RETURN
+
+FUNCTION read_config_bool (key as zstring ptr, default as bool=NO) as bool
+  RETURN default
+RETURN
