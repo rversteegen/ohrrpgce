@@ -2487,6 +2487,14 @@ FUNCTION pick_channel_name() as string
  #endif
 END FUNCTION
 
+'Internal to spawn_console_process
+LOCAL SUB try_term(byref termname as string, byref termexe as string, trywhat as string)
+ IF LEN(trywhat) ANDALSO termname = "" THEN
+  termexe = find_helper_app(trywhat)
+  IF LEN(termexe) THEN termname = trimpath(trywhat)
+ END IF
+END SUB
+
 ' Used by spawn_game to run gdb or valgrind.
 ' Returns a ProcessHandle or NO/NULL.
 ' Note: these's a fair bit of overlap between this and spawn_and_wait for Unix,
@@ -2494,20 +2502,32 @@ END FUNCTION
 FUNCTION spawn_console_process(executable as string, args as string, title as string) as ProcessHandle
  #IFDEF __FB_UNIX__
   ' On Unix the spawned program doesn't inherit access to our tty even if we have one,
-  ' so need to spawn it inside an xterm
+  ' so need to spawn it inside a terminal emulator.
   ' TODO: this isn't going to work on OSX... unless maybe you have X11 installed?
-  ' Wrap in a xterm call...
-  DIM xtermargs as string
-  xtermargs = " -geometry 120x30 -bg black -fg gray90 -title '" & title & "' -e " _
-              """" & escape_string(executable & " " & args, """\") & """"
-  executable = find_helper_app("xterm")
-  IF LEN(executable) = 0 THEN
-   notification "xterm is missing; can't continue"
+
+  DIM termname as string
+  DIM termexe as string
+  try_term termname, termexe, read_config_str("terminal")
+  try_term termname, termexe, "xfce4-terminal"
+  try_term termname, termexe, "gnome-terminal"
+  try_term termname, termexe, "konsole"
+  try_term termname, termexe, "xterm"
+  IF termexe = "" THEN
+   notification "Can't find a terminal emulator; can't continue. Set 'terminal' in ohrrpgce_config.ini or install one of gnome-terminal, xfce4-terminal, konsole or xterm."
    RETURN NO
   END IF
 
+  DIM termargs as string
+  IF termname = "xterm" THEN
+   termargs = " -geometry 120x30 -bg black -fg gray90 -title '" & title & "'"
+  ELSEIF termname = "xfce4-terminal" THEN
+   ' Supports --geometry too but we don't need it?
+   termargs = " --title '" & title & "'"
+  END IF
+  termargs += " -e """ & escape_string(executable & " " & args, """\") & """"
+
   waitforkeyrelease
-  RETURN open_process(executable, xtermargs, YES, YES)
+  RETURN open_process(termexe, termargs, YES, YES)
 
  #ELSEIF defined(__FB_WIN32__)
   waitforkeyrelease
