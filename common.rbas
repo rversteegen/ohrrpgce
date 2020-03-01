@@ -3247,6 +3247,7 @@ FUNCTION open_document (file_or_url as string) as bool
  #ENDIF
 END FUNCTION
 
+
 FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as bool = YES) as string
  'Run a commandline program in a terminal emulator and wait for it to finish.
  'WARNING: in general can't check whether it succeeded! Can check the exit code
@@ -3310,7 +3311,7 @@ FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as boo
  safekill dummyscript
  RETURN ""
 
-#ELSEIF defined(__FB_WIN32__)
+#ELSE ' IF defined(__FB_WIN32__)
 
  waitforkeyrelease
 
@@ -3350,33 +3351,45 @@ FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as boo
   dowait
  LOOP
 
-#ELSE
-
+'#ELSE
+/'
  'Generic UNIX: xterm is nearly everywhere (but not installed by default in some linux distros)
  'os_* process handling functions only currently implemented on Windows
  'We run run_and_get_output which runs sh (via system()), which runs xterm, which runs app.
  'That's a lot that can go wrong!
 
- IF LEN(find_helper_app("xterm")) = 0 THEN
-  RETURN "Could not continue because xterm is not installed, please install it. For example run 'yum install xterm' or 'apt-get install xterm'."
- END IF
+ ' DIM termexe as string
+ ' DIM termargs as string
+ ' DIM errmsg as string
+ ' errmsg = terminal_emulator_commandline(termexe, termargs, app, args, trimpath(app))
+ ' IF LEN(errmsg) THEN RETURN errmsg
 
  waitforkeyrelease
 
- DIM cmd as string, outbuffer as string, stderr_s as string
- cmd = "xterm -bg black -fg gray90 -e """ & escape_string(escape_filename(app) & " " & args, """\") & """"
- ' Capture stdout and stderr (Why?! It's from xterm, not the program, and xterm
- ' prints nothing even if it couldn't run the program!)
- DIM res as integer = run_and_get_output(cmd, outbuffer, stderr_s)
- 'res is < 0 if there was a problem running xterm, while > 0 are exitcodes returned from xterm,
- 'NOT from the program. There's no way to get xterm to report the program's exitcode :(
- 'outbuffer and stderr_s will probably be blank.
- IF res THEN
-  IF LEN(outbuffer) = 0 THEN outbuffer = "Error code " & res
-  RETURN "Could not run " & app & !":\n" & outbuffer & " " & stderr_s
+ DIM handle as ProcessHandle
+ handle = open_console_process(app, args)
+ IF handle = 0 THEN
+  RETURN "Could not run " & app
  END IF
+ 'Freeze until the process finishes
+ 'FIXME: doesn't work! This timesout and kills the process after a second or two!
+ cleanup_process @handle
+'/
 
- RETURN ""  'Success
+ ' DIM cmd as string, outbuffer as string, stderr_s as string
+ ' cmd = escape_filename(termexe) & " " & termargs
+ ' ' Capture stdout and stderr (Why?! It's from the terminal, not the program, and many emulators
+ ' ' print nothing if they couldn't run the program!)
+ ' DIM res as integer = run_and_get_output(cmd, outbuffer, stderr_s)
+ ' 'res is < 0 if there was a problem running xterm, while > 0 are exitcodes returned from xterm,
+ ' 'NOT from the program. There's no way to get xterm to report the program's exitcode :(
+ ' 'outbuffer and stderr_s will probably be blank.
+ ' IF res THEN
+ '  IF LEN(outbuffer) = 0 THEN outbuffer = "Error code " & res
+ '  RETURN "Could not run " & app & !":\n" & outbuffer & " " & stderr_s
+ ' END IF
+
+ ' RETURN ""  'Success
 
 #ENDIF
 

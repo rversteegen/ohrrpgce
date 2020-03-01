@@ -715,6 +715,7 @@ procedure opt_wait_for_key(integer error_or_warning)
   else
     color_print("[Press Any Key]\n",{})
     timeless_wait_key()
+color_print("got key!\n", {})
   end if
 end procedure
 

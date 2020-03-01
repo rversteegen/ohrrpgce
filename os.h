@@ -27,6 +27,8 @@ typedef struct PipeState PipeState;
 typedef PipeState *IPCChannel;
 #define NULL_CHANNEL NULL
 struct ProcessInfo {
+        boolint term_proc;  // Was created by open_console_process. term_file used, file and pid are NULL
+        char *term_file;
         boolint waitable;
         FILE *file;
         int pid;
@@ -85,7 +87,7 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 ProcessHandle open_piped_process (FBSTRING *program, FBSTRING *args, IPCChannel *iopipe);
 // run_process_and_get_output is Unix only
 int run_process_and_get_output(FBSTRING *program, FBSTRING *args, FBSTRING *output);
-ProcessHandle open_console_process (FBSTRING *program, FBSTRING *args);
+ProcessHandle open_console_process (FBSTRING *program, FBSTRING *args, FBSTRING *title);
 boolint process_running (ProcessHandle process, int *exitcode);
 void kill_process (ProcessHandle process);
 void cleanup_process (ProcessHandle *processp);

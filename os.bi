@@ -144,7 +144,7 @@ declare function open_process (program as string, args as string, waitable as bo
 declare function open_piped_process (program as string, args as string, byval iopipe as IPCChannel ptr) as ProcessHandle
 ' run_process_and_get_output is Unix only
 declare function run_process_and_get_output(program as string, args as string, outdata as string) as integer
-declare function open_console_process (program as string, args as string) as ProcessHandle
+declare function open_console_process (program as string, args as string, title as string = "") as ProcessHandle
 declare function process_running (byval process as ProcessHandle, byval exitcode as integer ptr = NULL) as boolint
 declare function wait_for_process (process as ProcessHandle ptr, timeoutms as integer = 4000) as integer
 declare sub kill_process (byval process as ProcessHandle)

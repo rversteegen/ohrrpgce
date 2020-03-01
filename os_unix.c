@@ -765,6 +765,7 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 		argstr = "";
 	char *buf = malloc(strlen(program_escaped) + strlen(argstr) + 2);
 	sprintf(buf, "%s %s", program_escaped, argstr);
+printf("<<<< %s\n", buf);
 	free(program_escaped);
 
 	errno = 0;
@@ -776,7 +777,9 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 		ret->file = popen(buf, "r");  //No intention to read or write
 		int err = errno;  //errno from popen is not reliable
 		if (!ret->file) {
-			debug(errError, "popen(%s, %s) failed: %s", program->data, args->data, strerror(err));
+			debug(errShowError, "popen(%s, %s) failed: %s", program->data, args->data, strerror(err));
+			free(ret);
+			ret = 0;
 		}
 	} else {
 		// Version for fire-and-forget running of programs
@@ -868,24 +871,64 @@ ProcessHandle open_piped_process (FBSTRING *program, FBSTRING *args, IPCChannel 
 //On Windows it displays a visible console window, on Unix it doesn't.
 //Could be generalised in future as needed.
 //TODO: spawn_console_process() in customsubs.rbas basically implements this, move here!
-ProcessHandle open_console_process (FBSTRING *program, FBSTRING *args) {
-	return open_process(program, args, true, true);
-}
+/* ProcessHandle open_console_process (FBSTRING *program, FBSTRING *args) { */
+/* 	return open_process(program, args, true, true); */
+/* } */
 
 //If exitcode is nonnull and the process exited, the exit code will be placed in it
 boolint process_running (ProcessHandle process, int *exitcode) {
-	//Unimplemented and not yet used
+	if (!process->term_proc) {
+		showbug("Unix: process_running can only be called on handle from open_console_process");
+		return false;
+	}
+
+	struct stat finfo;
+	int err;
+	if ((err = checked_stat(process->term_file, &finfo))) {
+		if (err == ENOENT)
+			// The inner shell hasn't even started yet
+			// TODO: use a timeout
+			return true;
+		debug(errShowError, "Can't read %s", process->term_file);
+		return false;
+	}
+	// When the process exits the exitcode gets put in term_file. Before that it has zero size.
+	boolint ret = (finfo.st_size == 0);
+	if (ret == false && exitcode) {
+		FILE *fh;
+		if (!(fh = fopen(process->term_file, "r"))) {
+			debug(errError, "Couldn't fopen(%s, r): %s", process->term_file, strerror(errno));
+			*exitcode = -9000;
+		} else {
+			fscanf(fh, "%d", exitcode);
+			fclose(fh);
+		}
+	}
+
 	return false;
 }
 
 int wait_for_process (ProcessHandle *processp, int timeoutms) {
 	//Unimplemented and not yet used
+	//(We should wait until term_file is a nonzero size)
 	cleanup_process(processp);
 	return -1;
 }
 
 void kill_process (ProcessHandle process) {
-	//Unimplemented and not yet used
+	if (!process->term_proc) {
+		showbug("Unix: kill_process can only be called on handle from open_console_process");
+		return;
+	}
+	//TODO: kill
+}
+
+// Internal to open_console_process
+ProcessHandle _open_console_process_handle(char *term_file) {
+	ProcessHandle ret = calloc(1, sizeof(struct ProcessInfo));
+	ret->term_proc = true;
+	ret->term_file = strdup(term_file);
+	return ret;
 }
 
 //Cleans up resources associated with a ProcessHandle
@@ -893,9 +936,11 @@ void cleanup_process (ProcessHandle *processp) {
 	// Early versions of the NDK don't have popen
 #ifndef __ANDROID__
 	if (processp && *processp) {
-		if ((*processp)->file)
-			pclose((*processp)->file); //FIXME: don't use popen/close, parent will freeze if the child does
-		free(*processp);
+		ProcessHandle proc = *processp;
+		free(proc->term_file);  // May be NULL
+		if (proc->file)
+			pclose(proc->file); //FIXME: don't use popen/close, parent will freeze if the child does
+		free(proc);
 		*processp = NULL;
 	}
 #endif
@@ -941,4 +986,76 @@ void *tls_get(TLSKey key) {
 
 void tls_set(TLSKey key, void *value) {
 	pthread_setspecific((pthread_key_t)key, value);
+}
+
+
+//https://stackoverflow.com/a/57807174/1185152
+FILE * custom_popen(char* command, char type, pid_t* pid)
+{
+    pid_t child_pid;
+    int fd[2];
+    pipe(fd);
+
+    if((child_pid = fork()) == -1)
+    {
+        perror("fork");
+        exit(1);
+    }
+
+    /* child process */
+    if (child_pid == 0)
+    {
+        if (type == 'r')
+        {
+            close(fd[0]);    //Close the READ end of the pipe since the child's fd is write-only
+            dup2(fd[1], 1); //Redirect stdout to pipe
+        }
+        else
+        {
+            close(fd[1]);    //Close the WRITE end of the pipe since the child's fd is read-only
+            dup2(fd[0], 0);   //Redirect stdin to pipe
+        }
+
+        setpgid(child_pid, child_pid); //Needed so negative PIDs can kill children of /bin/sh
+        execl(command, command, (char*)NULL);
+        exit(0);
+    }
+    else
+    {
+        printf("child pid %d\n", child_pid);
+        if (type == 'r')
+        {
+            close(fd[1]); //Close the WRITE end of the pipe since parent's fd is read-only
+        }
+        else
+        {
+            close(fd[0]); //Close the READ end of the pipe since parent's fd is write-only
+        }
+    }
+
+    *pid = child_pid;
+
+    if (type == 'r')
+    {
+        return fdopen(fd[0], "r");
+    }
+
+    return fdopen(fd[1], "w");
+}
+
+int custom_pclose(FILE * fp, pid_t pid)
+{
+    int stat;
+
+    fclose(fp);
+    while (waitpid(pid, &stat, 0) == -1)
+    {
+        if (errno != EINTR)
+        {
+            stat = -1;
+            break;
+        }
+    }
+
+    return stat;
 }

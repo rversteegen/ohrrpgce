@@ -1032,11 +1032,12 @@ function open_piped_process (program as string, args as string, byval iopipe as 
 end function
 
 'Returns 0 on failure.
+'Asynchronously run a console application in a command prompt (Windows)
+'or terminal emulator (Unix).
 'If successful, you should call cleanup_process with the handle after you don't need it any longer.
-'This is currently designed for asynchronously running console applications.
-'On Windows it displays a visible console window, on Unix it doesn't.
 'Could be generalised in future as needed.
-function open_console_process (program as string, args as string) as ProcessHandle
+'title: Window title.
+function open_console_process (program as string, args as string, title as string = "") as ProcessHandle
 	dim argstemp as string = escape_filename(program) + " " + args
 	dim flags as integer = 0
 	dim sinfo as STARTUPINFO
@@ -1047,6 +1048,7 @@ function open_console_process (program as string, args as string) as ProcessHand
 	sinfo.wShowWindow = 1 'SW_SHOWNORMAL  'Show and activate windows
 	sinfo.dwX = 5  'Try to move the window out of the way so that it doesn't cover our window
 	sinfo.dwY = 5
+	if len(title) then sinfo.lpTitle = strptr(title)
 
 	dim pinfop as ProcessHandle = Callocate(sizeof(PROCESS_INFORMATION))
 	if CreateProcess(strptr(program), strptr(argstemp), NULL, NULL, 0, flags, NULL, NULL, @sinfo, pinfop) = 0 then
