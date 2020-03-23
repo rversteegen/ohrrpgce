@@ -1600,9 +1600,12 @@ FUNCTION autotarget (who as integer, byref atk as AttackData, bslot() as BattleS
 
  END SELECT
  
+debug "autotarget attack for " & who & " class " & atk.targ_class
+
  '--check to see if any targets were actually chosen
  DIM result as bool = NO
  FOR i as integer = 0 TO UBOUND(t)
+debug strprintf("mask(%d) = %d t() = %d", i, tmask(i), t(i))
   IF t(i) >= 0 THEN result = YES
  NEXT i
 
