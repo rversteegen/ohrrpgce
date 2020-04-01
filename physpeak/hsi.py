@@ -4,6 +4,9 @@ import os
 from os import path
 import sys
 
+if sys.version_info.major == 2:
+    input = raw_input
+
 sys.path.insert(0,
     path.join(path.dirname(sys.argv[0]), "hs_lib")
 )

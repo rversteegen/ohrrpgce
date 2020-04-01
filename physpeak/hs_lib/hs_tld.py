@@ -1,4 +1,5 @@
 import sys
+from os import path
 import re
 from hs_ast import AST_state
 import hs_post
@@ -13,7 +14,19 @@ include_once = None
 n_failed_scripts = 0
 n_scripts = 0
 
-def parse_hss_2(fn, cpass):
+def find_file(fn, including_fn = None):
+    if including_fn:
+        fpath = path.join(path.dirname(including_fn), fn)
+        if path.isfile(fpath):
+            return fpath
+    if path.isfile(fn):
+        return fn
+    fpath = path.join(path.dirname(sys.argv[0]), fn)
+    if path.isfile(fpath):
+        return fpath
+    raise FileNotFoundError("Can't find " + fn)
+
+def parse_hss_2(fn, cpass, including_fn = None):
     global n_failed_scripts, n_scripts
 
     if fn in include_once:
@@ -21,10 +34,21 @@ def parse_hss_2(fn, cpass):
 
     include_once.add(fn)
 
+    fn = find_file(fn, including_fn)
+
+    if 'utf16' in fn:
+        return
+
     if cpass == 1:
         print("Including", fn)
 
-    fd = open(fn, "r")
+    for encoding in ('utf-8', 'latin-1', 'utf-16'):
+        with open(fn, "r", encoding = encoding) as fd:
+            try:
+                lines = fd.readlines()
+                break
+            except UnicodeError:
+                pass
 
     # current section
     csection = None
@@ -40,9 +64,11 @@ def parse_hss_2(fn, cpass):
     # Line number where the current block begins
     blockstart = 0
 
+    nesting = 0
+
     include_re = re.compile('include\s*,\s* ( ([^"#]+) | "([^"]+)" \s* ([^#]*) )', re.I + re.X)
 
-    for line in fd:
+    for line in lines:
         trimmed_line = line
 
         # remove comment
@@ -58,12 +84,21 @@ def parse_hss_2(fn, cpass):
             if match.group(4):
                 print("Line", cline, "garbage after include filename:", match.group(4))
             include_file = match.group(3) or match.group(2).rstrip()
-            parse_hss_2(include_file, cpass)
+            parse_hss_2(include_file, cpass, fn)
             continue
+
+        oopsie = False
+        if 'begin' in trimmed_line:
+            nesting += 1
+        if 'end' in trimmed_line:
+            nesting -= 1
+        if 'script,' in trimmed_line:
+            nesting = 0  # oops!
+            oopsie = True
 
         if csection == "script":
 
-            if trimmed_line == "end":
+            if nesting == 0:
 
                 if cpass == 2:
 
@@ -94,17 +129,20 @@ def parse_hss_2(fn, cpass):
                 csection = None
                 cname = None
                 cbuffer = None
+                if not oopsie:
+                    continue
+
+            if not oopsie:
+
+                if cpass == 1:
+                    continue
+
+                if cbuffer:
+                    cbuffer += line
+                else:
+                    cbuffer = line
+
                 continue
-
-            if cpass == 1:
-                continue
-
-            if cbuffer:
-                cbuffer += line
-            else:
-                cbuffer = line
-
-            continue
 
         # Skip empty lines except inside scripts
         if not trimmed_line:

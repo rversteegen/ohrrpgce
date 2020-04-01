@@ -59,6 +59,9 @@ unittest.xml
 # Created by filetest (usually cleaned up)
 _testfile*.tmp
 _writetest.tmp
+# Created by physpeak
+physpeak/hs_lib/parser.out
+physpeak/hs_lib/parsetab.py
 import/Music
 import/Sound Effects
 support/*.zip
