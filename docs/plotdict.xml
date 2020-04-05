@@ -2166,6 +2166,12 @@ wait for text box # wait until the player continues</example>
 				<ref>loadfromslot</ref>
 			</seealso>
 		</command>
+		<command id="resetgame">
+			<canon>reset game(args...)</canon>
+			<shortname>reset game</shortname>
+			<description>
+
+				</danger>
 		<reference ref="rungame"/>
 	</section>		<!-- Triggering Stuff-->
 
