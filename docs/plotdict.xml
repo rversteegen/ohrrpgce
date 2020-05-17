@@ -9717,6 +9717,38 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 				<ref>slicecollide</ref>
 			</seealso>
 		</command>
+
+		<command id="slicecollide">
+			<canon>check slice collision x (handle1, handle2, relative x, relative y)</canon>
+			<canon>check slice collision y (handle1, handle2, relative x, relative y)</canon>
+			<shortname>slice collide</shortname>
+			<description>
+				Check whether a slice (<p>handle1</p>) moving in straight line
+				will collide with a specific second slice (<p>handle2</p>).
+
+				Given a pair of slice handles, return true if their screen positions overlap with
+				one another (even if one or both are off the edge of the screen or hidden or
+				clipped by one of their ancestors).
+				Parent/child relationships have nothing to do with this test;
+				it does not matter if the slices are related or what their children are.
+
+				and the <p>relative x/y</p> offset of the target position of the object
+				(for example <tt>relative x</tt> is 20 for one tile to the right).
+
+				<lb/>
+				The return value is the maximum x or y offset
+				(for <tt>check wall collision x</tt> or <tt>y</tt> respectively) that the object could move
+				in a straight line towards the target before hitting a wall.
+				If there are no walls in the way, then the return value is <p>relative x</p> or <p>relative y</p>.
+
+			</description>
+			<seealso>
+				<ref>slicecollidepoint</ref>
+				<ref>slicecontains</ref>
+			</seealso>
+		</command>
+
+
 		<command id="sliceatpixel">
 			<canon>slice at pixel (parent, x, y, number, check descendants, visible only)</canon>
 			<shortname>slice at pixel</shortname>
@@ -10257,6 +10289,37 @@ end</example>
 			</seealso>
 		</command>
 		</section>		<!--Wall Checking-->
+
+
+
+		<command id="moveandslideslice">
+			<canon>move and slide slice (sl, relative x, relative y, friction%, pause on collide)</canon>
+			<shortname>move and slide slice</shortname>
+			<description>
+
+				<p>pause on collide</p> is optional, and defaults to <tt>false</tt>.
+				If it's true, then as soon as the slice bumps into something this
+				command will return <tt>false</tt>, so that you can decide what to do.
+				For example you might push an NPC, bounce off a wall, or make a projectile
+				injure an 
+			</description>
+		</command>
+
+		<command id="getcollidetype">
+			<canon>get collide type (sl)</canon>
+			<shortname>get collide type</shortname>
+			<description>
+				Returns one of:
+				<ul>
+					<li><tt>collide:none</tt> (Equal to <tt>false</tt>)
+					- The slice didn't collide with anything, and moved the full <p>relative x</p>, <p>relative y</p>
+					</li>
+					<li><tt>collide:wall</tt>
+
+			</description>
+		</command>
+
+		</section>		<!--Wall checking-->
 
 		</section>		<!--Tilemap, Wallmap and Foemap-->
 

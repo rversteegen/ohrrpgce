@@ -4045,6 +4045,16 @@ Function SliceContains(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr) as bool
  return NO
 end function
 
+
+Function slice_sweep_check() as bool
+ 'Implementing this by considering overlap on the X and Y axes separately
+ '(https://gamedev.stackexchange.com/a/168085 warning, slightly broken),
+ 'or by using the Minkowski sum (see https://gamedev.stackexchange.com/a/93096)
+ 'would be simpler and faster, but they are specific to AABB collisions.
+ 'I would like to eventually generalise this to rotated 
+end function
+
+
 Function FindSliceCollision(parent as Slice Ptr, sl as Slice Ptr, byref num as integer, descend as bool, visibleonly as bool = NO) as Slice Ptr
  'Find a child or descendant of parent which is not Special and is not sl which overlaps with sl.
  'descend:     Whether to recurse to decendents of parent.

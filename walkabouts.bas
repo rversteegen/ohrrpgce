@@ -828,6 +828,14 @@ FUNCTION sliding_wallmap_collision (byval startpos as XYPair, byref pos as XYPai
  RETURN ret
 END FUNCTION
 
+FUNCTION check_single_slice_collision(sl as Slice ptr, byval go as XYPair, obstacle as Slice ptr, byref newgo as XYPair) as bool
+ 
+END FUNCTION
+
+FUNCTION check_slice_collision(sl as Slice ptr, byval go as XYPair) as integer
+ 
+END FUNCTION
+
 FUNCTION wrapzonecheck (byval zone as integer, byval pos as XYPair, byval xygo as XYPair) as bool
  'pos is in pixels
  'Warning: always wraps! But that isn't a problem on non-wrapping maps.
