@@ -7863,7 +7863,7 @@ constructor GIFRecorder(outfile as string, secondscreen as string = "")
 	this.fname = outfile
 	this.secondscreen = secondscreen
 	dim file as FILE ptr = fopen(this.fname, "wb")
-	if GifBegin(@this.writer, file, vpages(vpage)->w, vpages(vpage)->h, 6, NO, @gifpal) then
+	if GifBegin(@this.writer, file, 112 /'vpages(vpage)->w'/, vpages(vpage)->h, 6, NO, @gifpal) then
 		show_overlay_message "Ctrl-F12 to stop recording", 1.
 		this.last_frame_end_time = timer
 		debuginfo "Starting to record to " & outfile
@@ -7985,8 +7985,10 @@ sub GIFRecorder.record_frame(fr as Frame ptr, pal() as RGBcolor)
 			if sf->width <> sf->pitch then _gif_pitch_fail "8-bit Surface"
 			ret = GifWriteFrame8(@this.writer, sf->pPaletteData, sf->width, sf->height, delay, @gifpal)
 		else
+			fr = frame_resized(fr, 112, fr->h, -(fr->w - 112), 0)
 			if fr->w <> fr->pitch then _gif_pitch_fail "Frame"
 			ret = GifWriteFrame8(@this.writer, fr->image, fr->w, fr->h, delay, @gifpal)
+			frame_unload @fr
 		end if
 	end if
 	if ret = NO then

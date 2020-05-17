@@ -674,7 +674,7 @@ preview_box = NewSliceOfType(slRectangle)
 ChangeRectangleSlice preview_box, ,uilook(uiDisabledItem), uilook(uiMenuItem), , transOpaque
 '--Align the box in the bottom right
 WITH *preview_box
- .X = -8
+ .X = -15
  .Y = -8
  .Width = 82
  .Height = 82
@@ -686,7 +686,7 @@ END WITH
 
 DIM clip_box as Slice Ptr
 clip_box = NewSliceOfType(slContainer, preview_box)
-clip_box->Clip = YES
+'clip_box->Clip = YES
 clip_box->Fill = YES
 
 'The preview backdrop + 1, or none if 0
