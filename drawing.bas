@@ -2579,9 +2579,9 @@ SUB spriteedit_display(ss as SpriteEditState)
   frame_draw ss_save.clone_brush, ss.palette, ss.previewpos.x + temppos.x, ss.previewpos.y + temppos.y, , dpage
  END IF
  textcolor uilook(uiMenuItem), 0
- printstr strprintf("x=%2d y=%2d", ss.x, ss.y), 0, 190, dpage
- printstr "Tool:" & ss.toolinfo(ss.tool).name, 0, 182, dpage
- printstr ss.framename, 0, 174, dpage
+ printstr strprintf("x=%2d y=%2d", ss.x, ss.y), 0+220, 190, dpage
+ printstr "Tool:" & ss.toolinfo(ss.tool).name, 0+220, 182, dpage
+ printstr ss.framename, 0+220, 174, dpage
  FOR i = 0 TO UBOUND(ss.toolinfo)
   spriteedit_draw_icon ss, ss.toolinfo(i).icon, ss.toolinfo(i).areanum, (ss.tool = i)
  NEXT i
@@ -2594,7 +2594,7 @@ SUB spriteedit_display(ss as SpriteEditState)
  ELSE
   textcolor_icon ss.zonenum = 20, NO
  END IF
- printstr "UNDO", 130, 182, dpage
+ printstr "UNDO", 130+100, 180-30, dpage
  ' Both undodepth = len and undodepth = len-1 are valid and indicate
  ' no more redo history (the later means no unsaved changes)
  IF ss.undodepth >= v_len(ss.undo_history) - 1 THEN
@@ -2602,12 +2602,12 @@ SUB spriteedit_display(ss as SpriteEditState)
  ELSE
   textcolor_icon ss.zonenum = 21, NO
  END IF
- printstr "REDO", 170, 182, dpage
+ printstr "REDO", 170+100, 180-30, dpage
 
  IF ss.tool = airbrush_tool THEN
   textcolor uilook(uiMenuItem), 0
-  printstr "SIZE" & ss.airsize, 228, 182, dpage
-  printstr "MIST" & ss.mist, 228, 190, dpage
+  printstr "SIZE" & ss.airsize, 228, 182-60, dpage
+  printstr "MIST" & ss.mist, 228, 190-60, dpage
   spriteedit_draw_icon ss, CHR(27), 14
   spriteedit_draw_icon ss, CHR(27), 15
   spriteedit_draw_icon ss, CHR(26), 16
@@ -2615,7 +2615,7 @@ SUB spriteedit_display(ss as SpriteEditState)
  END IF
  IF ss.tool <> airbrush_tool THEN
   textcolor uilook(uiMenuItem), 0
-  printstr "ROTATE", 228, 190, dpage
+  printstr "ROTATE", 128+100, 190-60, dpage
   spriteedit_draw_icon ss, CHR(27), 15
   spriteedit_draw_icon ss, CHR(26), 17
  END IF
@@ -2668,8 +2668,8 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(2).h = 96
  area(2).hidecursor = NO
  'FLIP BUTTON
- area(3).x = 184
- area(3).y = 190
+ area(3).x = 184+100
+ area(3).y = 190-30
  area(3).w = 8
  area(3).h = 10
  area(3).hidecursor = NO
@@ -2687,15 +2687,15 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(5).hidecursor = NO
  'TOOL BUTTONS (more below at 21-24)
  FOR i = 0 TO 5
-  area(6 + i).x = 80 + i * 10
-  area(6 + i).y = 190
+  area(6 + i).x = 230
+  area(6 + i).y = 6 + i * 10
   area(6 + i).w = 8
   area(6 + i).h = 10
   area(6 + i).hidecursor = NO
  NEXT i
  'IMPORT BUTTON
- area(12).x = 196
- area(12).y = 190
+ area(12).x = 196+100
+ area(12).y = 190-30
  area(12).w = 8
  area(12).h = 10
  area(12).hidecursor = NO
@@ -2707,25 +2707,25 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(13).hidecursor = YES
  'LESS AIRBRUSH AREA
  area(14).x = 220
- area(14).y = 182
+ area(14).y = 182-60
  area(14).w = 8
  area(14).h = 8
  area(14).hidecursor = NO
  'LESS AIRBRUSH MIST
  area(15).x = 220
- area(15).y = 190
+ area(15).y = 190-60
  area(15).w = 8
  area(15).h = 8
  area(15).hidecursor = NO
  'MORE AIRBRUSH AREA
  area(16).x = 276
- area(16).y = 182
+ area(16).y = 182-60
  area(16).w = 8
  area(16).h = 8
  area(16).hidecursor = NO
  'MORE AIRBRUSH MIST
  area(17).x = 276
- area(17).y = 190
+ area(17).y = 190-60
  area(17).w = 8
  area(17).h = 8
  area(17).hidecursor = NO
@@ -2736,28 +2736,28 @@ SUB init_sprite_zones(area() as MouseArea, ss as SpriteEditState)
  area(18).h = 8
  area(18).hidecursor = NO
  'UNDO BUTTON
- area(19).x = 130
- area(19).y = 182
+ area(19).x = 130+100
+ area(19).y = 182-30
  area(19).w = 32
  area(19).h = 8
  area(19).hidecursor = NO
  'REDO BUTTON
- area(20).x = 170
- area(20).y = 182
+ area(20).x = 170+100
+ area(20).y = 182-30
  area(20).w = 32
  area(20).h = 8
  area(20).hidecursor = NO
  'MORE TOOLS
  FOR i = 0 TO 3
-  area(21 + i).x = 140 + i * 10
-  area(21 + i).y = 190
+  area(21 + i).x = 230
+  area(21 + i).y = 66 + i * 10
   area(21 + i).w = 8
   area(21 + i).h = 10
   area(21 + i).hidecursor = NO
  NEXT i
  'EXPORT BUTTON
- area(25).x = 206
- area(25).y = 190
+ area(25).x = 206+100
+ area(25).y = 190-30
  area(25).w = 8
  area(25).h = 10
  area(25).hidecursor = NO
@@ -3351,7 +3351,7 @@ SUB sprite_editor_update_for_sprite_size(byref ss as SpriteEditState, sprite as 
   .x = small(.x, .wide - 1)
   .y = small(.y, .high - 1)
   .fastmovestep = large(4, .wide \ 10)
-  .previewpos.x = 319 - .wide
+  .previewpos.x = 10*319 - .wide
   .previewpos.y = 119
   .undomax = maxSpriteHistoryMem \ (sizeof(Frame) + .wide * .high)  'Could shorten .undo_history too
  END WITH
