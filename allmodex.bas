@@ -5056,6 +5056,16 @@ destructor PrintStrState()
 	Palette16_unload @localpal
 end destructor
 
+'Use of first 32 characters:
+'0 nul (font type: ascii/latin-1)
+'1-9: editor icons (9 is TAB (unused))
+'10: newline (has an icon)
+'11-14: unused (13 is CR (unused))
+'15-18: tcmds
+'19-23: unused
+'24-27: editor icons
+'28-31: unused
+
 'Special signalling characters
 #define tcmdFirst      15
 #define tcmdState      15  'Special argument format (6 bytes)
@@ -5146,7 +5156,9 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 				endchar_outbuf_len = len(outbuf) + chars_to_add
 			end if
 
-			if z[ch] = 10 and withnewlines then  'newline
+			dim char as integer = z[ch]
+
+			if char = 10 andalso withnewlines then  'newline
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 				chars_to_add = 0
@@ -5175,7 +5187,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 				'UPDATE_STATE(outbuf, leftmargin, 0)
 				'UPDATE_STATE(outbuf, rightmargin, wide)
 				return outbuf
-			elseif z[ch] = 8 then ' ^H, hide tag
+			elseif char = 8 then ' ^H, hide tag
 				if z[ch + 1] = asc("{") then
 					dim closebrace as integer = instr((ch + 2) + 1, z, "}") - 1
 					if closebrace <> -1 then
@@ -5191,7 +5203,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 						continue for
 					end if
 				end if
-			elseif z[ch] >= tcmdFirst and z[ch] <= tcmdLast then ' special signalling characters. Not allowed! (FIXME: delete this)
+			elseif char <= tcmdLast andalso char >= tcmdFirst then ' special signalling characters. Not allowed! (FIXME: delete this)
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
@@ -5201,7 +5213,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 					UPDATE_STATE(outbuf, charnum, ch + 1)
 				end if
 				continue for
-			elseif z[ch] = asc("$") then
+			elseif char = asc("$") then
 				if withtags and z[ch + 1] = asc("{") then
 					dim action as string
 					dim intarg as int32
@@ -5292,14 +5304,14 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 
 					badtexttag:
 				end if
-			elseif z[ch] = asc(" ") then
+			elseif char = asc(" ") then
 				lastspace = ch
 				lastspace_outbuf_len = len(outbuf) + chars_to_add
 				lastspace_x = .x
 				lastspace_line_height = line_height
 			end if
 
-			.x += .thefont->w(z[ch])
+			.x += .thefont->w(char)
 			if .x > .startx + .rightmargin then
 				'TEXTDBG("rm = " & .rightmargin & " lm = " & .leftmargin)
 				if lastspace > -1 and .x - lastspace_x < 3 * (.rightmargin - .leftmargin) \ 5 then
@@ -5309,6 +5321,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 						'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 
 						outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
+						chars_to_add = 0
 					end if
 					outbuf = left(outbuf, small(endchar_outbuf_len, lastspace_outbuf_len))
 					if lastspace < endchar then
@@ -5399,11 +5412,14 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 	with state
 		'TEXTDBG("draw frag: x=" & .x & " y=" & .y & " char=" & .charnum & " reallydraw=" & reallydraw & " layer=" & layer)
 		for ch as integer = 0 to len(parsed_line) - 1
-			if parsed_line[ch] = tcmdState then
+			'Note that ch is changed by READ_MEMBER, READ_VALUE.
+			dim char as integer = parsed_line[ch]
+
+			if char = tcmdState then
 				'Control sequence. Make a change to state, and move ch past the sequence
 				READ_MEMBER(state, parsed_line, ch)
 
-			elseif parsed_line[ch] = tcmdFont then
+			elseif char = tcmdFont then
 				READ_VALUE(arg, parsed_line, ch)
 				if arg >= -1 andalso arg <= ubound(fonts) then
 					if arg = -1 then
@@ -5428,7 +5444,7 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 					build_text_palette state, .thefont->pal
 				end if
 
-			elseif parsed_line[ch] = tcmdPalette then
+			elseif char = tcmdPalette then
 				READ_VALUE(arg, parsed_line, ch)
 				if reallydraw then
 					dim pal as Palette16 ptr
@@ -5442,7 +5458,7 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 					'FIXME: in fact pal should be kept around, for tcmdRepalette
 				end if
 
-			elseif parsed_line[ch] = tcmdRepalette then
+			elseif char = tcmdRepalette then
 				if reallydraw then
 					'FIXME: if we want to support switching to a non-font palette, then
 					'that palette should be stored in state and used here
@@ -5454,13 +5470,13 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 
 				'Fun hack! Console support
 				if layer = 1 and gfx_printchar <> NULL then
-					gfx_printchar(parsed_line[ch], .x, .y, .fgcolor)
+					gfx_printchar(char, .x, .y, .fgcolor)
 				end if
 
 				'Print one character past the end of the line
 				if reallydraw and .x <= cliprect.r then
 					if .thefont->layers(layer) <> NULL then
-						with .thefont->layers(layer)->chdata(parsed_line[ch])
+						with .thefont->layers(layer)->chdata(char)
 							charframe.image = state.thefont->layers(layer)->spr->image + .offset
 							charframe.w = .w
 							charframe.h = .h
@@ -5477,7 +5493,7 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 				end if
 
 				'Note: do not use charframe.w, that's just the width of the sprite
-				.x += .thefont->w(parsed_line[ch])
+				.x += .thefont->w(char)
 			end if
 		next
 	end with
