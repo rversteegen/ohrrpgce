@@ -246,7 +246,7 @@ DECLARE FUNCTION setwait_time_remaining() as double
 DECLARE FUNCTION get_tickcount() as integer
 
 '==========================================================================================
-'                               Fonts and text rendering
+'                                         Fonts
 
 CONST fontPlain = 0
 CONST fontEdged = 1
@@ -288,6 +288,38 @@ Type Font
 	declare destructor()
 End Type
 
+DECLARE FUNCTION get_font(fontnum as integer, show_err as bool = NO) as Font ptr
+
+DECLARE SUB setfont (f() as integer)
+DECLARE FUNCTION get_font_type (font() as integer) as fontTypeEnum
+DECLARE SUB set_font_type (font() as integer, ty as fontTypeEnum)
+DECLARE SUB font_unload (fontpp as Font ptr ptr)
+DECLARE FUNCTION font_create_edged (basefont as Font ptr) as Font ptr
+DECLARE FUNCTION font_create_shadowed (basefont as Font ptr, xdrop as integer = 1, ydrop as integer = 1) as Font ptr
+DECLARE FUNCTION font_loadbmps (directory as string, fallback as Font ptr = null) as Font ptr
+DECLARE FUNCTION font_load_16x16 (filename as string) as Font ptr
+
+
+'==========================================================================================
+'                            Text rendering and layout (measuring)
+
+'Arguments to render_text and text_layout_dimensions
+Type RenderTextArgs
+	fontnum as integer
+	fgcolor as integer           'May be -1 for none (Used by build_text_palette)
+	bgcolor as integer           'Only used if not_transparent
+	'pal as Palette16 ptr
+	not_transparent as bool      'Force non-transparency of layer 1
+	withtags as bool = YES
+	withnewlines as bool = YES
+	wide as RelPos = 999999      'X position at which to wrap (absolute, not relative to pos.x)
+	endchar as integer = 999999  'Max number of characters (bytes) of 'text' to display/measure.
+	                             '(But characters after endchar are still inspected to determine wrapping)
+	endline as integer = 999999  'Max number of lines to display/measure.
+	                             'TODO: only used by text_layout_dimensions, not render_text
+	'debug as bool               'Print debug statements (also need to uncomment desired TEXTDBG lines)
+End Type
+
 'text_layout_dimensions returns this struct
 Type StringSize
 	size as XYPair       'Width is the greatest width of any line
@@ -307,19 +339,19 @@ Type StringCharPos
 	lineh as integer     'height of containing line fragment
 End Type
 
-Type PrintStrStatePtr as PrintStrState ptr
-
-DECLARE FUNCTION parse_tag (z as string, offset as integer, byref action as string, arg as int32 ptr) as integer
-
+DECLARE SUB render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byval pos as RelPosXY)
+'Wrappers:
 DECLARE SUB printstr (text as string, x as RelPos, y as RelPos, page as integer, withtags as bool = NO, fontnum as integer = fontPlain)
 DECLARE SUB edgeprint (text as string, x as RelPos, y as RelPos, col as integer, page as integer, withtags as bool = NO, withnewlines as bool = NO)
 DECLARE SUB wrapprint (text as string, x as RelPos, y as RelPos, col as integer = -1, page as integer, wrapx as RelPos = rWidth, withtags as bool = YES, fontnum as integer = fontEdged)
 DECLARE SUB wrapprintbg (text as string, x as RelPos, y as RelPos, col as integer = -1, page as integer, drawbg as bool = YES, wrapx as RelPos = rWidth, withtags as bool = YES, fontnum as integer = fontEdged)
 DECLARE SUB textcolor (fg as integer, bg as integer)
 
-DECLARE SUB text_layout_dimensions (retsize as StringSize ptr, z as string, endchar as integer = 999999, maxlines as integer = 999999, wide as integer = 999999, fontp as Font ptr, withtags as bool = YES, withnewlines as bool = YES)
+DECLARE SUB text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, text as string)
+'Wrappers:
 DECLARE FUNCTION textwidth(text as string, fontnum as integer = fontPlain, withtags as bool = YES, withnewlines as bool = YES) as integer
 DECLARE FUNCTION textsize(text as string, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1) as XYPair
+
 DECLARE FUNCTION lineheight(fontnum as integer = fontEdged) as integer
 DECLARE FUNCTION charsize OVERLOAD(char as integer, font as Font ptr) as XYPair
 DECLARE FUNCTION charsize OVERLOAD(char as integer, fontnum as integer) as XYPair
@@ -331,17 +363,8 @@ DECLARE FUNCTION fgcol_text (text as string, colour as integer) as string
 DECLARE FUNCTION bgcol_text (text as string, colour as integer) as string
 DECLARE FUNCTION remove_markup(text as string) as string
 DECLARE FUNCTION just_markup(text as string) as string
+DECLARE FUNCTION parse_tag (z as string, offset as integer, byref action as string, arg as integer ptr) as integer
 
-DECLARE FUNCTION get_font(fontnum as integer, show_err as bool = NO) as Font ptr
-
-DECLARE SUB setfont (f() as integer)
-DECLARE FUNCTION get_font_type (font() as integer) as fontTypeEnum
-DECLARE SUB set_font_type (font() as integer, ty as fontTypeEnum)
-DECLARE SUB font_unload (fontpp as Font ptr ptr)
-DECLARE FUNCTION font_create_edged (basefont as Font ptr) as Font ptr
-DECLARE FUNCTION font_create_shadowed (basefont as Font ptr, xdrop as integer = 1, ydrop as integer = 1) as Font ptr
-DECLARE FUNCTION font_loadbmps (directory as string, fallback as Font ptr = null) as Font ptr
-DECLARE FUNCTION font_load_16x16 (filename as string) as Font ptr
 
 '==========================================================================================
 '                                    BMPs/GIFs/screenshots

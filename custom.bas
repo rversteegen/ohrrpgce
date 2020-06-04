@@ -1790,7 +1790,11 @@ SUB text_test_menu
   edgeboxstyle 10, 10, 300, 185, 0, vpage
   wrapprint text, textpos.x, textpos.y, , vpage, 280, , fontPlain
 
-  text_layout_dimensions @pos2, text, curspos.charnum, , 280, fonts(0), YES, YES
+  DIM args as RenderTextArgs
+  args.fontnum = 0
+  args.wide = 280
+  args.endchar = curspos.charnum
+  text_layout_dimensions @pos2, args, text
 
   rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(uiHighlight))
   printstr CHR(3), mouse.x - 3, mouse.y - 3, vpage
