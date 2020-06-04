@@ -5100,7 +5100,7 @@ end function
 'Pass a string, a 0-based offset of the start of the contents (eg. after "${"),
 'and action and arg pointer, to fill with the parse results. (Action in UPPERCASE)
 'Returns 0 for an invalidly formed tag, otherwise the (0-based) offset of the closing }.
-function parse_tag(z as string, offset as integer, byref action as string, arg as int32 ptr) as integer
+function parse_tag(z as string, offset as integer, byref action as string, arg as integer ptr) as integer
 	dim closebrace as integer = instr((offset + 2) + 1, z, "}") - 1
 	if closebrace <> -1 then
 		z[closebrace] = 0
@@ -5154,42 +5154,70 @@ function next_text_markup(text as string, byref offset as integer, byref tagend 
 	return NO
 end function
 
-'FIXME: refactor, making use of OO which we can now use
 type PrintStrState
-	'Public members (may set before passing to render_text)
-	as Font ptr thefont
-	as long fgcolor          'Used when resetting localpal. May be -1 for none
-	as long bgcolor          'Only used if not_transparent
-	as bool not_transparent  'Force non-transparency of layer 1
-	'as bool debug           'Print debug statements (also need to uncomment this and TEXTDBG lines)
+	args as RenderTextArgs ptr
+	initial_font as Font ptr   'Used when resetting thefont, = get_font(args->fontnum)
+	startx as integer          '= pos.x
+	endchar as integer         '= small(args->endchar, len(text))
+	'The remaining members change during layout/drawing
 
-	'Internal members
-	as Font ptr initial_font    'Used when resetting thefont
-	as long leftmargin
-	as long rightmargin
+	thefont as Font ptr
+
+	leftmargin as integer
+	rightmargin as integer
 	union
-		as XYPair pos
+		pos as XYPair
 		type
-			as long x, y
+			x as integer
+			y as integer
 		end type
 	end union
-	as long startx
-	as long charnum
+	charnum as integer
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
-	as Palette16 ptr localpal  'NULL if not initialised
-	as long initial_fgcolor  'Used when resetting fgcolor
-	as long initial_bgcolor  'Used when resetting bgcolor
-	as bool initial_not_trans 'Used when resetting bgcolor
+	localpal as Palette16 ptr  'NULL if not initialised
+	'The following are initialised from args
+	fgcolor as integer         'Used when resetting localpal. May be -1 for none
+	bgcolor as integer         'Only used if not_transparent
+	not_transparent as bool    'Force non-transparency of layer 1
 
 	declare constructor()
+	declare constructor(args as RenderTextArgs, text as string, pos as RelPosXY = XY(0,0), dest as Frame ptr = NULL, text_sze as XYPair = XY(0,0))
 	declare constructor(rhs as PrintStrState)
 	declare destructor()
 	declare sub duplicate_from(rhs as PrintStrState)
 end type
 
-' Need a default ctor just because there is a copy ctor
+
 constructor PrintStrState()
+end constructor
+
+'text_size is the size of text, pre-measured
+constructor PrintStrState(args as RenderTextArgs, text as string, pos as RelPosXY = XY(0,0), dest as Frame ptr = NULL, text_size as XYPair = XY(0,0))
+	this.args = @args
+	fgcolor = args.fgcolor
+	bgcolor = args.bgcolor
+	not_transparent = args.not_transparent
+
+	thefont = get_font(args.fontnum, YES)
+	if thefont = NULL then exit constructor
+	initial_font = thefont
+	endchar = small(args.endchar, len(text))
+	charnum = 0
+
+	if dest then
+		this.pos = relative_pos(pos, dest->size, text_size) + thefont->offset
+	else
+		this.pos = pos + thefont->offset
+	end if
+	startx = this.pos.x
+	'Margins are measured relative to pos.x
+	leftmargin = 0
+	if dest then
+		rightmargin = relative_pos(args.wide, dest->w)
+	else
+		rightmargin = args.wide
+	end if
 end constructor
 
 constructor PrintStrState(rhs as PrintStrState)
@@ -5280,7 +5308,7 @@ end destructor
 'expensive. However, .x, .y and .charnum are updated at the end.
 'If updatecharnum is true, it is updated only when .charnum jumps; you still need to
 'increment after every printing character yourself.
-local function layout_line_fragment(z as string, endchar as integer, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, wide as integer, withtags as bool, withnewlines as bool, updatecharnum as bool = NO) as string
+local function layout_line_fragment(z as string, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, updatecharnum as bool = NO) as string
 	dim lastspace as integer = -1
 	dim lastspace_x as integer
 	dim lastspace_outbuf_len as integer
@@ -5302,7 +5330,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 		line_height = .thefont->line_h
 		for ch = .charnum to len(z) - 1
 			'We keep going past endchar until the end of the line, to figure out where to linebreak
-			if ch >= endchar andalso endchar_outbuf_len = 999999 then
+			if ch >= .endchar andalso endchar_outbuf_len = 999999 then
 				'If the final character is a newline (and maybe other cases?), or if endchar
 				'isn't len(z), then we need to record this.
 				'We might skip over ch = endchar because it's in the middle of markup.
@@ -5313,13 +5341,13 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 
 			dim char as integer = z[ch]
 
-			if char = 10 andalso withnewlines then  'newline
+			if char = 10 andalso .args->withnewlines then  'newline
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 				chars_to_add = 0
 				'Skip past the newline character, but don't add to outbuf
 				ch += 1
-				if ch - 1 >= endchar then
+				if ch - 1 >= .endchar then
 					'FIXME: If the final character is a newline, we don't add a blank line.
 					'But text slices do! We should probably do the same here, e.g. removing
 					'this if block (and much more work).
@@ -5340,7 +5368,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 				UPDATE_STATE(outbuf, charnum, ch)
 				'Reset margins for next paragraph? No.
 				'UPDATE_STATE(outbuf, leftmargin, 0)
-				'UPDATE_STATE(outbuf, rightmargin, wide)
+				'UPDATE_STATE(outbuf, rightmargin, .args->wide)
 				return outbuf
 			elseif char = 8 then ' ^H, hide tag
 				if z[ch + 1] = asc("{") then
@@ -5369,7 +5397,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 				end if
 				continue for
 			elseif char = asc("$") then
-				if withtags and z[ch + 1] = asc("{") then
+				if .args->withtags and z[ch + 1] = asc("{") then
 					dim action as string
 					dim intarg as int32
 
@@ -5404,7 +5432,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 							'Foreground colour
 							dim col as integer
 							if intarg <= -1 then
-								col = .initial_fgcolor
+								col = .args->fgcolor
 							elseif intarg <= 255 THEN
 								col = intarg
 							else
@@ -5418,9 +5446,9 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 							'Background colour
 							dim col as integer
 							if intarg <= -1 then
-								col = .initial_bgcolor
-								if .not_transparent <> .initial_not_trans then
-									UPDATE_STATE(outbuf, not_transparent, .initial_not_trans)
+								col = .args->bgcolor
+								if .not_transparent <> .args->not_transparent then
+									UPDATE_STATE(outbuf, not_transparent, .args->not_transparent)
 								end if
 							elseif intarg <= 255 THEN
 								col = intarg
@@ -5446,7 +5474,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 						elseif action = "LM" then
 							UPDATE_STATE(outbuf, leftmargin, intarg)
 						elseif action = "RM" then
-							UPDATE_STATE(outbuf, rightmargin, wide - intarg)
+							UPDATE_STATE(outbuf, rightmargin, .args->wide - intarg)
 						else
 							goto badtexttag
 						end if
@@ -5479,7 +5507,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 						chars_to_add = 0
 					end if
 					outbuf = left(outbuf, small(endchar_outbuf_len, lastspace_outbuf_len))
-					if lastspace < endchar then
+					if lastspace < .endchar then
 						line_width = lastspace_x
 						UPDATE_STATE(outbuf, x, .startx + .leftmargin)
 					else
@@ -5511,7 +5539,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 			outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 		end if
 		'Set final x and charnum, and trim off outbuf anything parsed after endchar
-		if endchar_outbuf_len = 999999 then 'ch <= endchar then
+		if endchar_outbuf_len = 999999 then 'ch <= .endchar then
 			'Didn't reach endchar
 			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", .x = " & .x)
 			line_width = .x
@@ -5531,7 +5559,7 @@ local function layout_line_fragment(z as string, endchar as integer, byval state
 end function
 
 'Build state.localpal
-sub build_text_palette(byref state as PrintStrState, srcpal as Palette16 ptr)
+local sub build_text_palette(byref state as PrintStrState, srcpal as Palette16 ptr)
 	with state
 		if state.localpal = NULL then
 			state.localpal = Palette16_new()
@@ -5556,7 +5584,7 @@ sub build_text_palette(byref state as PrintStrState, srcpal as Palette16 ptr)
 end sub
 
 'Processes a parsed line, updating the state passed to it, and also optionally draws one of the layers (if reallydraw)
-sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as integer, parsed_line as string, reallydraw as bool)
+local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as integer, parsed_line as string, reallydraw as bool)
 	dim arg as integer
 	dim as Frame charframe
 	charframe.mask = NULL
@@ -5594,7 +5622,7 @@ sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, layer as
 				if reallydraw then
 					'In case .fgcolor == -1 and .thefont->pal == NULL. Palette changes are per-font,
 					'so reset the colour.
-					if .fgcolor = -1 then .fgcolor = .initial_fgcolor
+					if .fgcolor = -1 then .fgcolor = .args->fgcolor
 					'We rebuild the local palette using either the font's palette or from scratch
 					build_text_palette state, .thefont->pal
 				end if
@@ -5660,7 +5688,7 @@ end sub
 '
 'Arguments:
 '
-'Pass in a reference to a (fresh!!) PrintStrState object with .thefont and .fgcolor set
+'Pass in a RenderTextArgs with at least .fontnum and .fgcolor set.
 '.fgcolor can be -1 for no colour (just use font palette).
 '.not_transparent and .bgcolor (only used if .not_transparent) may also be set
 '
@@ -5699,14 +5727,14 @@ end sub
 'If you want to skip some number of lines, you should clip, and draw some number of pixels
 'above the clipping rectangle.
 '
-sub render_text (dest as Frame ptr, byref state as PrintStrState, text as string, endchar as integer = 999999, xpos as RelPos, ypos as RelPos, wide as RelPos = 999999, pal as Palette16 ptr = NULL, withtags as bool = YES, withnewlines as bool = YES)
+sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byval pos as RelPosXY)
 ', cached_state as PrintStrStatePtr = NULL, use_cached_state as bool = YES)
 
 'static tog as integer = 0
 'tog xor= 1
 'dim t as double = timer
 
-	BUG_IF(dest = null, "NULL dest")
+	BUG_IF(dest = NULL, "NULL dest")
 
 	dim byref cliprect as ClipState = get_cliprect(dest)
 
@@ -5714,39 +5742,28 @@ sub render_text (dest as Frame ptr, byref state as PrintStrState, text as string
 
 	'TEXTDBG("printstr '" & text & "' (len=" & len(text) & ") wide = " & wide & " tags=" & withtags & " nl=" & withnewlines)
 
-	wide = relative_pos(wide, dest->w)
-
 	' Only pre-compute the text dimensions if required for anchoring, as it's quite expensive
 	dim as AlignType xanchor, yanchor, xshow, yshow
-	RelPos_decode xpos, 0, 0, xanchor, xshow
-	RelPos_decode ypos, 0, 0, yanchor, yshow
+	RelPos_decode pos.x, 0, 0, xanchor, xshow
+	RelPos_decode pos.y, 0, 0, yanchor, yshow
 	dim finalsize as StringSize
-	if xanchor <> alignLeft or yanchor <> alignLeft or xshow <> alignCenter or yshow <> alignCenter then
-		text_layout_dimensions @finalsize, text, endchar, , wide, state.thefont, withtags, withnewlines
+	if xanchor <> alignLeft orelse yanchor <> alignLeft orelse xshow <> alignCenter orelse yshow <> alignCenter then
+		text_layout_dimensions @finalsize, args, text
 	end if
 
+	/'
+	if cached_state <> NULL and use_cached_state then
+		state = *cached_state
+		cached_state = NULL
+	else
+	'/
+	dim state as PrintStrState = PrintStrState(args, text, pos, dest, finalsize.size)
 	with state
-		/'
-		if cached_state <> NULL and use_cached_state then
-			state = *cached_state
-			cached_state = NULL
-		else
-		'/
-			'if pal then
-			'	build_text_palette state, pal
-			'else
-				build_text_palette state, .thefont->pal
-			'end if
-			.initial_font = .thefont
-			.initial_fgcolor = .fgcolor
-			.initial_bgcolor = .bgcolor
-			.initial_not_trans = .not_transparent
-			.charnum = 0
-			.pos = relative_pos(XY(xpos, ypos), dest->size, finalsize.size) + .thefont->offset
-			.startx = .x
-			'Margins are measured relative to xpos
-			.leftmargin = 0
-			.rightmargin = wide
+		if .thefont = NULL then exit sub
+		'if args.pal then
+		'	build_text_palette state, args.pal
+		'else
+			build_text_palette state, .thefont->pal
 		'end if
 
 		dim as bool visibleline  'Draw this line of text?
@@ -5761,10 +5778,9 @@ sub render_text (dest as Frame ptr, byref state as PrintStrState, text as string
 		dim prev_visible as bool
 		dim draw_layer1 as bool = NO  'Don't draw on first loop
 
-		if endchar > len(text) then endchar = len(text)
 		do
 			dim line_height as integer
-			dim parsed_line as string = layout_line_fragment(text, endchar, state, 0, line_height, wide, withtags, withnewlines)
+			dim parsed_line as string = layout_line_fragment(text, state, 0, line_height)
 			'TEXTDBG("parsed: " + parsed_line)
 			'Print at least one extra line above and below the visible region, in case the
 			'characters are big (we only approximate this policy, with the current font height)
@@ -5791,7 +5807,7 @@ sub render_text (dest as Frame ptr, byref state as PrintStrState, text as string
 				'as it was at the start of this loop.
 				draw_line_fragment(dest, prev_state, 1, prev_parse, prev_visible)
 				'TEXTDBG("prev.charnum=" & prev_state.charnum)
-				if prev_state.charnum >= endchar then /'debug "text end" :'/ exit do
+				if prev_state.charnum >= .endchar then /'debug "text end" :'/ exit do
 				if prev_state.y > cliprect.b + prev_state.thefont->char_h then exit do
 			end if
 			draw_layer1 = YES
@@ -5806,34 +5822,25 @@ end sub
 
 'Calculate size of part of a block of text when drawn, returned in retsize
 'endchar and endline can be used to trim the string.
-'endchar is the number of chars (bytes), not a 1-based string position!
 'NOTE: Edged font has width 1 pixel more than Plain font, due to .offset.x.
-sub text_layout_dimensions (retsize as StringSize ptr, z as string, endchar as integer = 999999, endline as integer = 999999, wide as integer = 999999, fontp as Font ptr, withtags as bool = YES, withnewlines as bool = YES)
-	'debug "[text_layout_dimensions] endchar=" & endchar
-	dim state as PrintStrState
+sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, text as string)
+	dim state as PrintStrState = PrintStrState(args, text)
 	with state
-		'.localpal/?gcolor/initial_?gcolor/transparency non-initialised
-		.thefont = fontp
-		.initial_font = .thefont
-		.charnum = 0
-		.pos = .thefont->offset
-		'Margins are measured relative to xpos
-		.leftmargin = 0
-		.rightmargin = wide
+		if .thefont = NULL then exit sub
+		'.localpal not initialised
 
 		dim maxwidth as integer = 0
 		dim line_width as integer = 0
 		dim line_height as integer = 0
 		retsize->lines = 0
 
-		if endchar > len(z) then endchar = len(z)
-		while .charnum < len(z)
-			if .charnum > endchar orelse retsize->lines >= endline then exit while
+		while .charnum < len(text)
+			if .charnum > .endchar orelse retsize->lines >= .args->endline then exit while
 			'If .charnum = endchar, the last line is zero length, but should be included.
 			'(That sounds wrong. Doesn't it actually mean endchar points at a newline?)
 			'.charnum won't advance, so need extra check to prevent infinite loop!
-			dim exitloop as bool = (.charnum = endchar)
-			dim parsed_line as string = layout_line_fragment(z, endchar, state, line_width, line_height, wide, withtags, withnewlines)
+			dim exitloop as bool = (.charnum = .endchar)
+			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height)
 			retsize->lines += 1
 			'TEXTDBG("parsed a line, line_width =" & line_width)
 			maxwidth = large(maxwidth, line_width)
@@ -5855,14 +5862,17 @@ sub text_layout_dimensions (retsize as StringSize ptr, z as string, endchar as i
 		retsize->lastw = line_width
 		retsize->lasth = line_height
 		retsize->finalfont = .thefont
-		'debug "[/text_layout_dimensions] charnum=" & .charnum
 	end with
 end sub
 
 'Returns the length in pixels of the longest line of a *non-autowrapped* string.
 function textwidth(text as string, fontnum as integer = fontPlain, withtags as bool = YES, withnewlines as bool = YES) as integer
+	dim args as RenderTextArgs
+	args.fontnum = fontnum
+	args.withtags = withtags
+	args.withnewlines = withnewlines
 	dim retsize as StringSize
-	text_layout_dimensions @retsize, text, , , , get_font(fontnum), withtags, withnewlines
+	text_layout_dimensions @retsize, args, text
 	return retsize.size.w
 end function
 
@@ -5870,10 +5880,16 @@ end function
 'Specify the wrapping width; 'wide' might include rWidth for the width of the screen
 '(which is what the page arg is for).
 function textsize(text as string, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1) as XYPair
-	if page = -1 then page = vpage
-	wide = relative_pos(wide, vpages(page)->w)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontnum
+		.withtags = withtags
+		.withnewlines = YES
+		if page = -1 then page = vpage
+		.wide = relative_pos(wide, vpages(page)->w)
+	end with
 	dim retsize as StringSize
-	text_layout_dimensions @retsize, text, , , wide, get_font(fontnum), withtags, YES
+	text_layout_dimensions @retsize, args, text
 	return retsize.size
 end function
 
@@ -5905,10 +5921,17 @@ end function
 'returns the start of the next line).
 'To fix, render_text (or maybe layout_line_fragment?) needs to be changed.
 sub find_text_char_position(retsize as StringCharPos ptr, text as string, charnum as integer, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1)
-	if page = -1 then page = vpage
-	wide = relative_pos(wide, vpages(page)->w)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontnum
+		.withtags = withtags
+		.withnewlines = YES
+		if page = -1 then page = vpage
+		.wide = relative_pos(wide, vpages(page)->w)
+		.endchar = charnum
+	end with
 	dim size as StringSize
-	text_layout_dimensions @size, text, charnum, , wide, get_font(fontnum), withtags, YES
+	text_layout_dimensions @size, args, text
 	with *retsize
 		.charnum = charnum
 		.exacthit = YES   'Maybe return NO if it's at the end of the line?
@@ -5923,21 +5946,18 @@ end sub
 'draw_pos is where the text was drawn... redundant to subtracting that out of seekpt,
 'but in future we might cache render_text state.
 'NOTE: draw_pos is NOT a RelPosXY, unlike render_text! Because we don't know the size of the dest Frame.
-sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as string, wide as integer = 999999, draw_pos as XYPair = XY(0,0), fontnum as integer, withtags as bool = YES, withnewlines as bool = YES)
-	dim state as PrintStrState
+sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as string, wide as integer = 999999, draw_pos as XYPair = XY(0,0), fontnum as integer, withtags as bool = YES, withnewlines as bool = YES)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontnum
+		.wide = wide
+		.withtags = withtags
+		.withnewlines = withnewlines
+	end with
+	dim state as PrintStrState = PrintStrState(args, text, draw_pos)
 	with state
-		'.localpal/?gcolor/initial_?gcolor/transparency non-initialised
-		.thefont = get_font(fontnum)
-		.initial_font = .thefont
-		.charnum = 0
-		.pos = draw_pos + .thefont->offset
-		'.pos = relative_pos(draw_pos, destfr->size, finalsize.size) + .thefont->offset
-		.startx = .x
-
-		'Margins are measured relative to draw_pos.x
-		.leftmargin = 0
-		.rightmargin = wide
-		'if left(z,11) = "${K15}Press" then .debug = YES
+		if .thefont = NULL then exit sub
+		'.localpal not initialised
 
 		dim delayedmatch as bool = NO
 		dim line_width as integer
@@ -5946,8 +5966,8 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as str
 
 		retsize->exacthit = NO
 
-		while .charnum < len(z)
-			dim parsed_line as string = layout_line_fragment(z, len(z), state, line_width, line_height, wide, withtags, withnewlines, YES)
+		while .charnum < len(text)
+			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES)
 			.y += line_height
 			'.y now points to 1 pixel past the bottom of the line fragment
 
@@ -5994,7 +6014,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as str
 			if .y > seekpt.y then
 				'Position was off the (right-hand) end of the line
 				if .charnum > 0 then
-					dim lastchar as ubyte = z[.charnum - 1]
+					dim lastchar as ubyte = text[.charnum - 1]
 					if lastchar = 32 or (lastchar = 10 andalso withnewlines) then
 						'This point is actually on a space/newline, which was
 						'not added to parsed_string. So don't delay.
@@ -6012,20 +6032,23 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as str
 		retsize->charnum = .charnum
 		retsize->pos.x = .x
 		retsize->pos.y = .y - .thefont->line_h
-		retsize->size = charsize(z[.charnum], .thefont)  '.charnum = len(z) is OK
+		retsize->size = charsize(text[.charnum], .thefont)  '.charnum = len(z) is OK
 		retsize->lineh = line_height
 	end with
 end sub
 
 'the old printstr -- no autowrapping
 sub printstr (text as string, x as RelPos, y as RelPos, page as integer, withtags as bool = NO, fontnum as integer = fontPlain)
-	dim state as PrintStrState
-	state.thefont = get_font(fontnum)
-	if textbg <> 0 then state.not_transparent = YES
-	state.bgcolor = textbg
-	state.fgcolor = textfg
-
-	render_text (vpages(page), state, text, , x, y, , , withtags, NO)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontnum
+		if textbg <> 0 then .not_transparent = YES
+		.bgcolor = textbg
+		.fgcolor = textfg
+		.withtags = withtags
+		.withnewlines = NO
+	end with
+	render_text vpages(page), args, text, XY(x, y)
 end sub
 
 'this doesn't autowrap either
@@ -6034,28 +6057,36 @@ sub edgeprint (text as string, x as RelPos, y as RelPos, col as integer, page as
 	textfg = col
 	textbg = 0
 
-	dim state as PrintStrState
-	state.thefont = fonts(fontEdged)
-	state.fgcolor = col
-
-	render_text (vpages(page), state, text, , x, y, , , withtags, withnewlines)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontEdged
+		.fgcolor = col
+		.withtags = withtags
+		.withnewlines = withnewlines
+	end with
+	render_text vpages(page), args, text, XY(x, y)
 end sub
 
 'A flexible edgeprint/printstr replacement.
 'Either specify the colour, or omit it and use textcolor().
 'Wraps the text at 'wide'; pass "rWidth - x" to wrap at the right edge of the screen.
 sub wrapprint (text as string, x as RelPos, y as RelPos, col as integer = -1, page as integer, wide as RelPos = rWidth, withtags as bool = YES, fontnum as integer = fontEdged)
-	dim state as PrintStrState
-	state.thefont = fonts(fontnum)
-	if col = -1 then
-		state.fgcolor = textfg
-		state.bgcolor = textbg
-		if textbg <> 0 then state.not_transparent = YES
-	else
-		state.fgcolor = col
-		state.bgcolor = 0
-	end if
-	render_text (vpages(page), state, text, , x, y, wide, , withtags, YES)
+	dim args as RenderTextArgs
+	with args
+		.fontnum = fontnum
+		if col = -1 then
+			.fgcolor = textfg
+			.bgcolor = textbg
+			if textbg <> 0 then .not_transparent = YES
+		else
+			.fgcolor = col
+			.bgcolor = 0
+		end if
+		.wide = wide
+		.withtags = withtags
+		.withnewlines = YES
+	end with
+	render_text vpages(page), args, text, XY(x, y)
 end sub
 
 'Like wrapprint except (optionally, by default) a transparent rectangle is drawn
