@@ -5178,8 +5178,7 @@ type PrintStrState
 	localpal as Palette16 ptr  'NULL if not initialised
 	'The following are initialised from args
 	fgcolor as integer         'Used when resetting localpal. May be -1 for none
-	bgcolor as integer         'Only used if not_transparent
-	not_transparent as bool    'Force non-transparency of layer 1
+	bgcolor as integer         '0 for transparent, 1-255 for opaque background color
 
 	declare constructor()
 	declare constructor(args as RenderTextArgs, text as string, pos as RelPosXY = XY(0,0), dest as Frame ptr = NULL, text_sze as XYPair = XY(0,0))
@@ -5197,7 +5196,6 @@ constructor PrintStrState(args as RenderTextArgs, text as string, pos as RelPosX
 	this.args = @args
 	fgcolor = args.fgcolor
 	bgcolor = args.bgcolor
-	not_transparent = args.not_transparent
 
 	thefont = get_font(args.fontnum, YES)
 	if thefont = NULL then exit constructor
@@ -5436,14 +5434,8 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 							dim col as integer
 							if intarg <= -1 then
 								col = .args->bgcolor
-								if .not_transparent <> .args->not_transparent then
-									UPDATE_STATE(outbuf, not_transparent, .args->not_transparent)
-								end if
 							elseif intarg <= 255 THEN
-								col = intarg
-								if .not_transparent = NO then
-									UPDATE_STATE(outbuf, not_transparent, YES)
-								end if
+								col = intarg  '0 is transparent
 							else
 								goto badtexttag
 							end if
@@ -5653,6 +5645,9 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 				'Print one character past the end of the line
 				if reallydraw and .x <= cliprect.r then
 					if .thefont->layers(layer) <> NULL then
+						'Are we drawing the bottommost layer?
+						dim bottom_layer as bool = (layer = 0 orelse .thefont->layers(0) = NULL)
+
 						with .thefont->layers(layer)->chdata(char)
 							charframe.image = state.thefont->layers(layer)->spr->image + .offset
 							charframe.w = .w
@@ -5660,10 +5655,7 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 							charframe.pitch = .w
 'debug " <" & (state.x + .offx) & "," & (state.y + .offy) & ">"
 							dim trans as bool = YES
-							'FIXME: why do we only allow 1-layer fonts to be non transparent?
-							'(2-layer fonts would need layer 0 to be opaque)
-							'ALSO, this would stuff up ${KB#} on 2-layer fonts
-							if layer = 1 and state.not_transparent then trans = NO
+							if bottom_layer andalso state.bgcolor > 0 then trans = NO
 							frame_draw_internal(@charframe, curmasterpal(), state.localpal, state.x + .offx, state.y + .offy - state.thefont->line_h, trans, dest)
 						end with
 					end if
@@ -5677,18 +5669,15 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 end sub
 
 
-'Draw a string. You will normally want to use one of the friendlier overloads for this,
-'probably the most complicated function in the engine.
+'Draw a string. You will normally want to use one of the wrappers for this:
+'wrapprint, edgeprint, printstr.
 '
 'Arguments:
 '
 'Pass in a RenderTextArgs with at least .fontnum and .fgcolor set.
-'.fgcolor can be -1 for no colour (just use font palette).
-'.not_transparent and .bgcolor (only used if .not_transparent) may also be set
-'
-'At least one of <s>pal and</s> the (current) font pal and .fgcolor must be not NULL/-1.
-'This can be ensured by starting with either a palette or a .fgcolor!=-1
-'FIXME: pal is currently disabled; palette handling needs rewriting.
+'.bgcolor may also be set.
+'(In future, .fgcolor can be -1 for no colour: just use font palette).
+'(TODO: pal is currently disabled; palette handling needs rewriting.)
 '
 'endchar shouldn't be used; currently broken?
 '
@@ -5698,14 +5687,12 @@ end sub
 '-${F#}  changes to font # or return to initial font if # == -1
 '-${K#}  changes foreground/first colour, or return to initial colour if # == -1
 '        (Note that this does disable the foreground colour, unless the initial fg colour was -1!)
-'-${KB#} changes the background colour, and turns on not_transparent.
-'        Specify -1 to restore previous background colour and transparency
-'        FIXME: ${KB0} does NOT switch to transparency, but an initial bgcol of 0 IS transparent!
+'-${KB#} changes the background colour.
+'        Specify 0 to instead make the background transparent.
 '-${KP#} changes to palette # (-1 is invalid) (Maybe should make ${F-1} return to the default)
 '        (Note, palette changes are per-font, and expire when the font changes)
 '-${LM#} sets left margin for the current line, in pixels
 '-${RM#} sets right margin for the current line, in pixels
-'Purposefully no way to set background colour.
 'Unrecognised and invalid basic texttags are printed as normal.
 'ASCII character 8 can be used to hide texttags by overwriting the $, like so: \008{X#}
 '
@@ -6042,9 +6029,8 @@ sub printstr (text as string, x as RelPos, y as RelPos, page as integer, withtag
 	dim args as RenderTextArgs
 	with args
 		.fontnum = fontnum
-		if textbg <> 0 then .not_transparent = YES
-		.bgcolor = textbg
 		.fgcolor = textfg
+		.bgcolor = textbg
 		.withtags = withtags
 		.withnewlines = NO
 	end with
@@ -6077,10 +6063,9 @@ sub wrapprint (text as string, x as RelPos, y as RelPos, col as integer = -1, pa
 		if col = -1 then
 			.fgcolor = textfg
 			.bgcolor = textbg
-			if textbg <> 0 then .not_transparent = YES
 		else
 			.fgcolor = col
-			.bgcolor = 0
+			.bgcolor = 0  'Transparent
 		end if
 		.wide = wide
 		.withtags = withtags
@@ -6100,6 +6085,8 @@ sub wrapprintbg (text as string, x as RelPos, y as RelPos, col as integer = -1, 
 	wrapprint text, x, y, col, page, wrapx, withtags, fontnum
 end sub
 
+'Set the text color for printstr and wrapprint (if color not passed to it)
+'bg 0 means transparent
 sub textcolor (fg as integer, bg as integer)
 	textfg = fg
 	textbg = bg

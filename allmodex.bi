@@ -310,10 +310,9 @@ DECLARE FUNCTION font_load_16x16 (filename as string) as Font ptr
 'Arguments to render_text and text_layout_dimensions
 Type RenderTextArgs
 	fontnum as integer
-	fgcolor as integer           'May be -1 for none (Used by build_text_palette)
-	bgcolor as integer           'Only used if not_transparent
-	'pal as Palette16 ptr
-	not_transparent as bool      'Force non-transparency of layer 1
+	fgcolor as integer           'Text color
+	bgcolor as integer           '0: transparent background, 1-255: opaque background color
+	'pal as Palette16 ptr        'Alternative to fgcolor
 	withtags as bool = YES
 	withnewlines as bool = YES
 	wide as RelPos = 999999      'X position at which to wrap (absolute, not relative to pos.x)
