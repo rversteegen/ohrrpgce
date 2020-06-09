@@ -4439,7 +4439,6 @@ SUB SpriteSetBrowser.update()
   ELSE
     IF cur_framenum = -1 OR get_resolution.x >= 380 THEN  'Only if there's room
       info_text_right->Visible = YES
-      info_text_right->TextData->use_render_text = YES
       ChangeTextSlice info_text_right, "SHIFT: move by spriteset"
     END IF
 
