@@ -1334,7 +1334,7 @@ SUB update_heroes(force_step_check as bool=NO)
     DIM herotile as XYPair = herotpos(whoi)
     wrappass herotile.x, herotile.y, herow(whoi).xgo, herow(whoi).ygo, vstate.active
    END IF
-   IF readbit(gen(), genSuspendBits, suspendobstruction) = 0 THEN
+   IF readbit(gen(), genSuspendBits, suspendobstruction) = 0 ANDALSO readbit(gen(), genSuspendBits, suspendheroobstruction) = 0 THEN
     '--this only happens if obstruction is on
     FOR i as NPCIndex = 0 TO UBOUND(npc)
      WITH npc(i)
@@ -2234,7 +2234,7 @@ FUNCTION npc_collision_check(npci as NPCInst, npcdata as NPCType, byval xgo as i
    NEXT i
   END IF
   '---Check for hero-NPC collision
-  IF npcdata.activation <> 2 THEN  'Not step-on activated
+  IF npcdata.activation <> 2 ANDALSO readbit(gen(), genSuspendBits, suspendheroobstruction) = 0 THEN  'Not step-on activated
    IF wrapcollision (npci.pos, XY(xgo, ygo), heropos(0), herow(0).xygo) THEN
     collision_type = collideHero
     RETURN YES
