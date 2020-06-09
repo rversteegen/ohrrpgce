@@ -451,7 +451,7 @@ Type TextSliceData
  'Declare constructor(st as string, byval col as integer = -1, byval ol as bool = YES)
 
  'All of the following are UNSAVED and not cloned and are not exposed to users in the editor or in scripts
- use_render_text as bool 'Use alternative render_text-based implementation. Enables text markup.
+ use_render_text as integer = YES 'Whether to use alternative render_text-based implementation (enables text markup), or 1 to toggle each tick
  fontnum as integer    'Overrides 'outline' if not 0. Only when use_render_text=YES
  insert as integer 'char offset of insertion pointer. Zero-based!
  show_insert as bool    ' set to YES to display insertion point
