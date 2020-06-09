@@ -282,6 +282,7 @@ Type Font
 	char_h as integer	'nominal height of a character (e.g. for insert cursor)
 	line_h as integer	'height of a line (default separation between lines)
 	offset as XYPair	'added to coordinates when printing
+	size_offset as XYPair   'added to measured text size, used to ensure slice size backcompat
 	cols as integer		'number of used colours, not including colour 0 (transparency), so at most 15
 	pal as Palette16 ptr    '(Default) palette template to use, or NULL if this font is unpaletted (foreground colour only)
 	outline_col as integer  'palette entry (1 to .cols) which should be filled with uiOutline, or 0 for none.

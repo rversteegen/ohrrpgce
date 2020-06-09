@@ -5770,7 +5770,6 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 			'characters are big (we only approximate this policy, with the current font height)
 			visibleline = (.y + line_height > cliprect.t - .thefont->char_h AND .y < cliprect.b + .thefont->char_h)
 			'if tog then visibleline = NO
-			'debug "vis: " & visibleline
 
 			'FIXME: state caching was meant to kick in after the first visible line of text, not here;
 			'however need to rethink how it should work
@@ -5806,7 +5805,7 @@ end sub
 
 'Calculate size of part of a block of text when drawn, returned in retsize
 'endchar and endline can be used to trim the string.
-'NOTE: Edged font has width 1 pixel more than Plain font, due to .offset.x.
+'A zero-length string has width 0 and height of one line.
 sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, text as string)
 	dim state as PrintStrState = PrintStrState(args, text)
 	with state
@@ -5825,7 +5824,6 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 
 			retsize->lines += 1
 			'TEXTDBG("parsed a line, line_width =" & line_width & "  wrapped_on_whitespace=" & wrapped_on_whitespace)
-			maxwidth = large(maxwidth, line_width)
 
 			'if .debug then edgeprint STR(line_width), pRight, .y, 10, vpage
 
@@ -5833,6 +5831,9 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 			.y += line_height
 			draw_line_fragment(NULL, state, 0, parsed_line, NO)  'reallydraw=NO
 			'TEXTDBG("now " & .charnum & " at " & .pos)
+
+			line_width += .thefont->size_offset.x  'A hack to ensure size same as text slices
+			maxwidth = large(maxwidth, line_width)
 
 			'If .charnum = endchar and wrapped_on_whitespace = YES, then the last
 			'character is a space which didn't fit on the line or a newline, and
@@ -5845,7 +5846,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		'index. Instead we return it as a 1-based index to the end of the current line
 		'(char on which the line wraps).
 		retsize->lineend = .charnum
-		retsize->size = XY(maxwidth, .y)
+		retsize->size = XY(maxwidth, .y + .thefont->size_offset.y)
 		retsize->lastw = line_width
 		retsize->lasth = line_height
 		retsize->finalfont = .thefont
@@ -5866,6 +5867,7 @@ end function
 'Returns the width and height of an autowrapped string.
 'Specify the wrapping width; 'wide' might include rWidth for the width of the screen
 '(which is what the page arg is for).
+'A zero-length string has width 0 and height of one line.
 function textsize(text as string, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1) as XYPair
 	dim args as RenderTextArgs
 	with args
@@ -5922,6 +5924,8 @@ sub find_text_char_position(retsize as StringCharPos ptr, text as string, charnu
 	with *retsize
 		.charnum = charnum
 		.exacthit = YES   'Maybe return NO if it's at the end of the line?
+		'NOTE: this doesn't take thefont->offset or thefont->size_offset.y into account.
+		'(.thefont->size_offset.x does affect pos.x)
 		.pos.x = size.lastw
 		.pos.y = size.size.h - size.lasth
 		.size = charsize(iif(charnum >= len(text), 0, text[charnum]), size.finalfont)
@@ -6239,8 +6243,12 @@ function font_create_edged (basefont as Font ptr) as Font ptr
 	end if
 
 	'Stuff currently hardcoded to keep edged font working as before
-	newfont->offset.x = 1
-	newfont->offset.y = 1
+	newfont->offset = XY(1,1)
+	'The result of this offset is that if you align one text slice to the right
+	'of or below another the spacing will be seamless.
+	'However, if the background is opaque it will extend to the right of the text
+	'slice's boundary by 2 pixels.
+	newfont->size_offset = XY(-1,-1)
 
 	'dim as ubyte ptr maskp = basefont->layers(0)->spr->mask
 	dim as ubyte ptr sptr
