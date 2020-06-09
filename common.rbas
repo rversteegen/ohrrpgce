@@ -2555,6 +2555,7 @@ SUB pop_warning(msg as zstring ptr, byval autoquit as bool = NO)
  text_area = NewSliceOfType(slText, inner_box)
  WITH *text_area
   .Fill = YES
+  .TextData->use_render_text = NO  'Because we use first_line
   ChangeTextSlice text_area, *msg, , , YES
  END WITH
  DIM animate as Slice Ptr
@@ -2777,7 +2778,6 @@ SUB show_help(helpkey as zstring ptr)
   .Y = -4
  END WITH
  ChangeTextSlice footer_text, , uilook(uiMenuItem), NO, , boxlook(1).bgcol  'outline=NO
- footer_text->TextData->use_render_text = YES
  'Fills the clipping area
  DIM clip_box as Slice Ptr
  clip_box = NewSliceOfType(slContainer, help_box)
@@ -2797,7 +2797,6 @@ SUB show_help(helpkey as zstring ptr)
  WITH *help_text
   .Fill = YES
   .FillMode = sliceFillHoriz
-  .TextData->use_render_text = YES
   ChangeTextSlice help_text, help_str, , , YES  'wrap=YES
  END WITH
  DIM animate as Slice Ptr
@@ -2863,8 +2862,8 @@ SUB show_help(helpkey as zstring ptr)
 
    IF editing THEN
     IF keyval(scCtrl) > 0 AND keyval(scS) > 1 THEN
-     'Previously we didn't use_render_text while editing so couldn't do text highlighting,
-     'so use this old search implementation. TODO: Ctrl-S to start incremental search.
+     'TODO: Previously we didn't use_render_text while editing so couldn't do text highlighting,
+     'so used this old search implementation. We could now make Ctrl-S start incremental search.
      IF prompt_for_string(searchstring, "Search") THEN
       DIM idx as integer = INSTR(dat->insert + 2, LCASE(dat->s), LCASE(searchstring))
       IF idx = 0 THEN  'wrap
@@ -3029,6 +3028,7 @@ FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_sa
  DIM text as Slice Ptr
  text = NewSliceOfType(slText, box)
  WITH *text
+  .TextData->use_render_text = NO  'Because we use first_line
   .Fill = YES
   ChangeTextSlice text, s, , , YES
  END WITH

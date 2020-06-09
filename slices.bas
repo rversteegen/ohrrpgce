@@ -1612,7 +1612,7 @@ Sub DrawTextSlice(byval sl as Slice ptr, byval p as integer)
  if col = 0 then col = uilook(uiText) '--This is backcompat for before it was possible to choose uiText directly using ColorIndex
  col = ColorIndex(col)
 
- if dat->use_render_text then
+ if dat->use_render_text = YES orelse (dat->use_render_text = 1 andalso global_tog) then
   NewDrawTextSlice sl, p, col
   exit sub
  end if
@@ -1675,7 +1675,7 @@ Sub UpdateTextSlice(byval sl as Slice ptr)
  
  dim dat as TextSliceData ptr = sl->SliceData
 
- if dat->use_render_text then
+ if dat->use_render_text = YES orelse (dat->use_render_text = 1 andalso global_tog) then
   NewUpdateTextSlice sl
   exit sub
  end if
