@@ -1564,11 +1564,25 @@ Local Function TextSliceRenderTextWide(sl as Slice ptr, dat as TextSliceData ptr
  end if
 end function
 
+Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col as integer = 0)
+ dim dat as TextSliceData ptr = sl->TextData
+ with args
+  .fontnum = iif(dat->outline, fontEdged, fontPlain)
+  .fgcolor = col
+  if dat->outline_backcompat then
+   .bgcolor = 0  'Backcompat
+  else
+   .bgcolor = ColorIndex(dat->bgcol)
+  end if
+  .wide = TextSliceRenderTextWide(sl, dat)
+  .endline = dat->line_limit
+  'first_line not supported yet (and probably never will be)
+ end with
+end sub
+
 'New render_text-based drawing of Text slices. Only used when dat->use_render_text
 Sub NewDrawTextSlice(byval sl as Slice ptr, byval p as integer, col as integer)
  dim dat as TextSliceData ptr = sl->SliceData
-
- 'dat->line_limit is not yet supported (render_text ought to be extended for it)
 
  'If the slice wraps, then its height changes any time that its width does
  'FIXME: we should update the size in ChildRefresh/ChildrenRefresh() instead,
@@ -1577,28 +1591,20 @@ Sub NewDrawTextSlice(byval sl as Slice ptr, byval p as integer, col as integer)
  'when the size might have changed.
  NewUpdateTextSlice sl
 
- dim text as string = dat->s
- dim wide as integer = TextSliceRenderTextWide(sl, dat)
- dim fontnum as integer = iif(dat->outline, fontEdged, fontPlain)
- dim bgcol as integer
- if dat->outline_backcompat then
-  bgcol = 0  'Backcompat
- else
-  bgcol = ColorIndex(dat->bgcol)
- end if
+ dim args as RenderTextArgs
+ GetRenderTextArgs sl, args, col
 
  dat->insert_tog = dat->insert_tog xor 1
 
  if dat->show_insert then
   'Figure out where the insert cursor is and draw it
   dim charpos as StringCharPos
-  find_text_char_position(@charpos, text, dat->insert, wide, fontnum)
+  find_text_char_position(@charpos, dat->s, dat->insert, args.wide, args.fontnum)
   dim insert_pos as XYPair = sl->ScreenPos + charpos.pos
   rectangle(vpages(p), XY_WH(insert_pos, charpos.size), uilook(uiHighlight + dat->insert_tog))
  end if
 
- textcolor col, bgcol
- wrapprint text, sl->ScreenX, sl->ScreenY, , p, wide, YES, fontnum
+ render_text vpages(p), args, dat->s, sl->ScreenPos
 end sub
 
 Sub DrawTextSlice(byval sl as Slice ptr, byval p as integer)
@@ -1656,14 +1662,14 @@ end sub
 
 'New render_text-based updating of Text slice size. Only used when dat->use_render_text
 Sub NewUpdateTextSlice(byval sl as Slice ptr)
- dim dat as TextSliceData ptr = sl->SliceData
-
- 'dat->line_limit not supported yet
- dim fontnum as integer = iif(dat->outline, fontEdged, fontPlain)
- dim wide as integer = TextSliceRenderTextWide(sl, dat)
- dim size as XYPair = textsize(dat->s, wide, fontnum, YES)
- sl->Height = size.h
- if dat->Wrap = NO then sl->Width = size.w
+ dim dat as TextSliceData ptr = sl->TextData
+ dim args as RenderTextArgs
+ GetRenderTextArgs sl, args
+ dim retsize as StringSize
+ text_layout_dimensions @retsize, args, dat->s
+ sl->Height = retsize.size.h
+ if dat->Wrap = NO then sl->Width = retsize.size.w
+ dat->line_count = retsize.lines
 end sub
 
 'Update the size of text slice. This only happens when you call ChangeTextSlice.
