@@ -898,7 +898,7 @@ local sub screen_size_update ()
 	'Changes windowsize if user tried to resize, otherwise does nothing
 	if gfx_get_resize(windowsize) then
 		'debuginfo "User window resize to " & windowsize.wh
-		show_overlay_message windowsize.wh & " x " & windowsize.h, 0.7
+		show_overlay_message windowsize.w & " x " & windowsize.h, 0.7
 	end if
 
 	'Clamping windowsize to the minwinsize here means trying to override user
@@ -5018,6 +5018,7 @@ type PrintStrState
 		end type
 	end union
 	charnum as integer
+	lines as integer           'Number of lines processed so far
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
 	localpal as Palette16 ptr  'NULL if not initialised
@@ -5510,8 +5511,19 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 				.x += .thefont->w(char)
 			end if
 		next
+
+		.lines += 1
 	end with
 end sub
+
+'We've drawn enough
+local function state_finished_drawing(byref state as PrintStrState, byref cliprect as ClipState) as bool
+	with state
+		return .charnum >= .endchar orelse _
+		       .lines >= .args->endline orelse _
+		       .y > cliprect.b + .thefont->char_h
+	end with
+end function
 
 
 'Draw a string. You will normally want to use one of the wrappers for this:
@@ -5600,9 +5612,9 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 		dim prev_state as PrintStrState
 		prev_state.duplicate_from(state)
 		'On the first iteration, we draw just layer 0 of the first line.
+		'On the last iteration, just layer 1 of the last line.
 		'On other iterations, we draw layer 0 of the current line and layer 1
 		'of the previous line.
-		'This means there's one extra draw_line_fragment call at the end... is that alright?
 		dim prev_parse as string
 		dim prev_visible as bool
 		dim draw_layer1 as bool = NO
@@ -5626,8 +5638,10 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 '/
 			.y += line_height
 
-			'Update state while drawing layer 0 (if visible)
-			draw_line_fragment(dest, state, 0, parsed_line, visibleline)
+			if state_finished_drawing(state, cliprect) = NO then
+				'Update state while drawing layer 0 (if visible)
+				draw_line_fragment(dest, state, 0, parsed_line, visibleline)
+			end if
 
 			if draw_layer1 then
 				'Now update prev_state (to the beginning of THIS line) while drawing layer 1
@@ -5635,8 +5649,7 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 				'as it was at the start of this loop.
 				draw_line_fragment(dest, prev_state, 1, prev_parse, prev_visible)
 				'TEXTDBG("prev.charnum=" & prev_state.charnum)
-				if prev_state.charnum >= .endchar then /'debug "text end" :'/ exit do
-				if prev_state.y > cliprect.b + prev_state.thefont->char_h then exit do
+				if state_finished_drawing(prev_state, cliprect) then exit do
 			end if
 			draw_layer1 = YES
 			prev_parse = parsed_line
@@ -5661,13 +5674,11 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		dim line_width as integer = 0
 		dim line_height as integer = 0
 		dim wrapped_on_whitespace as bool
-		retsize->lines = 0
 
 		'(I'm not sure .charnum > .endchar ever happens)
 		while .charnum <= .endchar andalso retsize->lines < .args->endline
 			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped_on_whitespace)
 
-			retsize->lines += 1
 			'TEXTDBG("parsed a line, line_width =" & line_width & "  wrapped_on_whitespace=" & wrapped_on_whitespace)
 
 			'if .debug then edgeprint STR(line_width), pRight, .y, 10, vpage
@@ -5691,6 +5702,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		'index. Instead we return it as a 1-based index to the end of the current line
 		'(char on which the line wraps).
 		retsize->lineend = .charnum
+		retsize->lines = .lines
 		retsize->size = XY(maxwidth, .y + .thefont->size_offset.y)
 		retsize->lastw = line_width
 		retsize->lasth = line_height
@@ -5802,8 +5814,9 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 
 		retsize->exacthit = NO
 
-		while .charnum < len(text)
+		while .charnum < .endchar 'andalso .lines < .args->endline
 			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES)
+			.lines += 1
 			.y += line_height
 			'.y now points to 1 pixel past the bottom of the line fragment
 
