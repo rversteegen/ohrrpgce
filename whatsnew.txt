@@ -11,6 +11,7 @@ August ? 2020 [H???]
     * Slice collections can be named. The name and collection ID are shown in
       the in-game slice debugger [Ralph]
     * F8 debug menu option "Enable/Disable random battles" [Ralph]
+    * Outlined text slices can have a colored opaque background [Ralph]
 
    * New Plotscripting Features
     * "set timer args" [Ralph]
