@@ -418,8 +418,9 @@ End Type
 
 Type TextSliceData
  col as integer
- bgcol as integer
+ bgcol as integer '0: transparent, 1 - 255: opaque background color, <= -1: UI color
  outline as bool
+ outline_backcompat as bool 'If true, bgcol ignored, always transparent. Used only in-game, not saved!
  s as string
  s_orig as string 'UNSAVED: Used when expanding ${} codes, so the codes can be re-expanded again later
  wrap as bool     'Whether to wrap the text according to slice width. Otherwise slice width is determined by s.

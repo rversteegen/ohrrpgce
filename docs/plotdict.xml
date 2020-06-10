@@ -9064,7 +9064,7 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="gettextcolor">
 			<canon>get text color(handle)</canon>
 			<shortname>get text color</shortname>
-			<description>Given a text slice <p>handle</p>, returns the current color of the text.</description>
+			<description>Given a text slice <p>handle</p>, returns the color of the text (initial color before text markup).</description>
 			<seealso>
 				<ref>settextcolor</ref>
 			</seealso>
@@ -9080,7 +9080,7 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="gettextbg">
 			<canon>get text bg(handle)</canon>
 			<shortname>get text bg</shortname>
-			<description>Given a text slice <p>handle</p>, returns the current background color of the text. Note that this only matters if the text slice is not displaying an outline.</description>
+			<description>Given a text slice <p>handle</p>, returns the background color of the text. 0 means transparent.</description>
 			<seealso>
 				<ref>gettextcolor</ref>
 				<ref>settextbg</ref>
@@ -9089,7 +9089,12 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="settextbg">
 			<canon>set text bg(handle, color)</canon>
 			<shortname>set text bg</shortname>
-			<description>Given a text slice <p>handle</p>, change the background <p>color</p> used to display the text. This only matters if the text slice is set to not use an outline.</description>
+			<description>
+				Given a text slice <p>handle</p>, change the background <p>color</p> used to display the text.
+				0 means transparent (no background).
+				<lb/>
+				Previously you could only give non-outlined text a background, but now any text slice can have one.
+			</description>
 			<seealso>
 				<ref>gettextbg</ref>
 				<ref>settextcolor</ref>
@@ -9098,7 +9103,10 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="getoutline">
 			<canon>get outline(handle)</canon>
 			<shortname>get outline</shortname>
-			<description>Given a text slice <p>handle</p>, <p>true</p> if the text slice is configured to display an outline, or <p>false</p> if it is configured not to display and outline.</description>
+			<description>
+				Given a text slice <p>handle</p>, returns <tt>true</tt> or <tt>false</tt>:
+				whether the text slice displays an outline around the font.
+			</description>
 			<seealso>
 				<ref>setoutline</ref>
 			</seealso>
@@ -9106,7 +9114,10 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="setoutline">
 			<canon>set outline(handle, outline)</canon>
 			<shortname>set outline</shortname>
-			<description>Given a text slice <p>handle</p>, change whether or not it will be displayed with an outline. If the second argument is omitted or <p>true</p>, change the slice to show an outline, if the second argument is <p>false</p> change the slice to show no outline.</description>
+			<description>
+				Given a text slice <p>handle</p>, change whether the font will be displayed with an outline.
+				<p>outline</p> defaults to <p>true</p>.
+			</description>
 			<seealso>
 				<ref>getoutline</ref>
 			</seealso>
@@ -9114,7 +9125,10 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="getwrap">
 			<canon>get wrap(handle)</canon>
 			<shortname>get wrap</shortname>
-			<description>Given a text slice <p>handle</p>, <p>true</p> if the text slice is configured to wrap, or <p>false</p> if it is configured not to wrap.</description>
+			<description>
+				Given a text slice <p>handle</p>, returns <tt>true</tt> or <tt>false</tt>:
+				whether the text slice wraps to maintain a fixed width.
+			</description>
 			<seealso>
 				<ref>setwrap</ref>
 			</seealso>
@@ -9122,7 +9136,12 @@ set rect trans(rect, trans:fuzzy)  # Becomes fuzzy with 70% fuzziness</example>
 		<command id="setwrap">
 			<canon>set wrap(handle, wrap)</canon>
 			<shortname>set wrap</shortname>
-			<description>Given a text slice <p>handle</p>, change whether or not it will wrap. If the second argument is omitted or <p>true</p>, change the slice to wrap-mode, if the second argument is <p>false</p> change the slice into non-wrapping mode.</description>
+			<description>
+				Given a text slice <p>handle</p>, change whether it will wrap to maintain a fixed width.
+				(This makes the width adjustable with <ref>setslicewidth</ref>, but the height still can't
+				be changed (it's computed).
+				<p>wrap</p> defaults to true.
+			</description>
 			<seealso>
 				<ref>getwrap</ref>
 			</seealso>

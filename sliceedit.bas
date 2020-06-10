@@ -1784,10 +1784,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     END IF
     a_append menu(), " Color: " & slice_color_caption(dat->col, "Default")
     sliceed_rule rules(), "text_color", erIntgrabber, @(dat->col), LowColorCode(), 255, slgrPICKCOL
-    IF dat->outline = NO THEN
-     a_append menu(), " Background Color: " & slice_color_caption(dat->bgcol, "Transparent")
-     sliceed_rule rules(), "text_bg", erIntgrabber, @(dat->bgcol), LowColorCode(), 255, slgrPICKCOL
-    END IF
+    a_append menu(), " Background Color: " & slice_color_caption(dat->bgcol, "Transparent")
+    sliceed_rule rules(), "text_bg", erIntgrabber, @(dat->bgcol), LowColorCode(), 255, slgrPICKCOL
     a_append menu(), " Outline: " & yesorno(dat->outline)
     sliceed_rule_tog rules(), "text_outline", @(dat->outline)
     a_append menu(), " Wrap: " & yesorno(dat->wrap)

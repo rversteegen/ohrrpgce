@@ -2842,25 +2842,25 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 428 '--get text bg
   IF valid_plottextslice(retvals(0)) THEN
-   DIM dat as TextSliceData Ptr
-   dat = plotslices(retvals(0))->SliceData
-   scriptret = dat->bgcol
+   scriptret = plotslices(retvals(0))->TextData->bgcol
   END IF
  CASE 429 '--set text bg
   IF valid_plottextslice(retvals(0)) THEN
    IF valid_color(retvals(1)) THEN
+    'This sets outline_backcompat = NO
     ChangeTextSlice plotslices(retvals(0)), , , , , retvals(1)
    END IF
   END IF
  CASE 430 '--get outline
   IF valid_plottextslice(retvals(0)) THEN
-   DIM dat as TextSliceData Ptr
-   dat = plotslices(retvals(0))->SliceData
-   scriptret = ABS(dat->outline)
+   scriptret = ABS(plotslices(retvals(0))->TextData->outline)
   END IF
  CASE 431 '--set outline
   IF valid_plottextslice(retvals(0)) THEN
-   ChangeTextSlice plotslices(retvals(0)), , ,(retvals(1)<>0)
+   DIM sl as Slice ptr = plotslices(retvals(0))
+   ChangeTextSlice sl, , , (retvals(1)<>0)
+   'For back-compatibility, the background will be transparent regardless of bgcol
+   sl->TextData->outline_backcompat = (retvals(1)<>0)
   END IF
  CASE 433'--slice at pixel(parent, x, y, num, descend, visibleonly)
   'visibleonly is recent addition
