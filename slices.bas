@@ -1624,6 +1624,12 @@ Sub NewDrawTextSlice(byval sl as Slice ptr, byval p as integer, col as integer)
  dim wide as integer = TextSliceRenderTextWide(sl, dat)
  dim fontnum as integer = iif(dat->fontnum, dat->fontnum, iif(dat->outline, fontEdged, fontPlain))
  if fontnum > ubound(fonts) then fontnum = 0  'Silent failure; might have loaded slices from a different game
+ dim bgcol as integer
+ if dat->outline_backcompat then
+  bgcol = 0  'Backcompat
+ else
+  bgcol = ColorIndex(dat->bgcol)
+ end if
 
  dat->insert_tog = dat->insert_tog xor 1
 
@@ -1635,7 +1641,7 @@ Sub NewDrawTextSlice(byval sl as Slice ptr, byval p as integer, col as integer)
   rectangle(vpages(p), XY_WH(insert_pos, charpos.size), uilook(uiHighlight + dat->insert_tog))
  end if
 
- textcolor col, ColorIndex(dat->bgcol)
+ textcolor col, bgcol
  wrapprint text, sl->ScreenX, sl->ScreenY, , p, wide, YES, fontnum
 end sub
 
@@ -1791,6 +1797,7 @@ Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->outline = LoadPropBool(node, "outline")
  dat->wrap    = LoadPropBool(node, "wrap")
  dat->bgcol   = LoadProp(node, "bgcol")
+ 'FIXME: IF dat->outline THEN dat->bgcol = 0
 
  'Ensure that width is correct, because it's currently only set when something changes,
  'and I have seen it saved wrong (e.g. due to a bug in etheldreme)
@@ -1837,6 +1844,7 @@ Sub ChangeTextSlice(byval sl as Slice ptr,_
   end if
   if bgcol <> colInvalid then
    .bgcol = bgcol
+   .outline_backcompat = NO
   end if
   if outline > -2 then
    .outline = outline <> 0

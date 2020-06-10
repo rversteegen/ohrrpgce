@@ -2857,6 +2857,7 @@ SUB script_functions(byval cmdid as integer)
  CASE 429 '--set text bg
   sl = get_arg_textsl(0)
   IF sl ANDALSO valid_color(retvals(1)) THEN
+   'This sets outline_backcompat = NO
    ChangeTextSlice sl, , , , , retvals(1)
   END IF
  CASE 430 '--get outline
@@ -2868,6 +2869,8 @@ SUB script_functions(byval cmdid as integer)
   sl = get_arg_textsl(0)
   IF sl THEN
    ChangeTextSlice sl, , , (retvals(1) <> 0)
+   'For back-compatibility, the background will be transparent regardless of bgcol
+   sl->TextData->outline_backcompat = (retvals(1)<>0)
   END IF
  CASE 433'--slice at pixel(parent, x, y, num, descend, visibleonly)
   sl = get_arg_slice(0)

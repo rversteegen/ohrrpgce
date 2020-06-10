@@ -1,1 +1,5 @@
-When text outline is turned off, you can choose a background color that will be drawn behind the text. Press ENTER or SPACE to browse for a color.
+You can choose a background color that will be drawn behind the text. Press ENTER or SPACE to browse for a color.
+
+Where the background is drawn depends on font settings. Non-outlined font by default has two pixels between lines.
+
+The area covered by the background color is slightly different (two pixels wider) than the size of the text slice. The text slice size doesn't include the background.

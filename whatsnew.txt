@@ -45,6 +45,7 @@ WHAT IS NEW?
       with attacks. [James]
     * New battle feature "Defector target" causes an enemy or hero to be
       targetted as if it is a member of the other team [James]
+    * Outlined text slices can also have a colored opaque background [Ralph]
 
    * New Plotscripting Features
     * "dir X", "dir Y" [Ralph]
