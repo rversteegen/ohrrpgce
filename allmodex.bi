@@ -320,7 +320,6 @@ Type RenderTextArgs
 	endchar as integer = 999999  'Max number of characters (bytes) of 'text' to display/measure.
 	                             '(But characters after endchar are still inspected to determine wrapping)
 	endline as integer = 999999  'Max number of lines to display/measure.
-	                             'TODO: only used by text_layout_dimensions, not render_text
 	'debug as bool               'Print debug statements (also need to uncomment desired TEXTDBG lines)
 End Type
 
