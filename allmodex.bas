@@ -5516,16 +5516,6 @@ local sub draw_line_fragment(dest as Frame ptr, byref state as PrintStrState, la
 	end with
 end sub
 
-'We've drawn enough
-local function state_finished_drawing(byref state as PrintStrState, byref cliprect as ClipState) as bool
-	with state
-		return .charnum >= .endchar orelse _
-		       .lines >= .args->endline orelse _
-		       .y > cliprect.b + .thefont->char_h
-	end with
-end function
-
-
 'Draw a string. You will normally want to use one of the wrappers for this:
 'wrapprint, edgeprint, printstr.
 '
@@ -5604,7 +5594,8 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 			build_text_palette state, .thefont->pal
 		'end if
 
-		dim as bool visibleline  'Draw this line of text?
+		dim visibleline as bool  'Is this (layer 1 of) line of text below the top of the cliprect?
+		dim finished as bool  'Have we finished drawing layer 1 of all visible lines?
 
 		'We have to process both layers, even if the current font has only one layer,
 		'in case the string switches to a font that has two!
@@ -5616,29 +5607,35 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 		'On other iterations, we draw layer 0 of the current line and layer 1
 		'of the previous line.
 		dim prev_parse as string
-		dim prev_visible as bool
 		dim draw_layer1 as bool = NO
 
 		do
+			finished = .charnum >= .endchar orelse _
+			           .lines >= .args->endline orelse _
+			           .y >= cliprect.b + .thefont->char_h  'At least one extra line below the cliprect
+
 			dim line_height as integer
-			dim parsed_line as string = layout_line_fragment(text, state, 0, line_height)
-			'TEXTDBG("parsed: " + parsed_line)
-			'Print at least one extra line above and below the visible region, in case the
-			'characters are big (we only approximate this policy, with the current font height)
-			visibleline = (.y + line_height > cliprect.t - .thefont->char_h AND .y < cliprect.b + .thefont->char_h)
-			'if tog then visibleline = NO
+			dim parsed_line as string
 
-			'FIXME: state caching was meant to kick in after the first visible line of text, not here;
-			'however need to rethink how it should work
-/'
-			if cached_state then
-				*cached_state = state
-				cached_state = NULL  'Don't save again
-			end if
-'/
-			.y += line_height
+			if finished = NO then
+				parsed_line = layout_line_fragment(text, state, 0, line_height)
+				'TEXTDBG("parsed: " + parsed_line)
 
-			if state_finished_drawing(state, cliprect) = NO then
+				.y += line_height
+				'Print at least one extra line above the visible region, in case the
+				'characters are big (we only approximate this policy, with the current font height)
+				visibleline = (.y > cliprect.t - .thefont->char_h)
+				'if tog then visibleline = NO
+
+				'TODO: state caching would allow skipping ahead to first visible line of text
+				'however need to rethink how it should work
+				/'
+				if visibleline andalso cached_state then
+					*cached_state = state
+					cached_state = NULL  'Don't save again
+				end if
+				'/
+
 				'Update state while drawing layer 0 (if visible)
 				draw_line_fragment(dest, state, 0, parsed_line, visibleline)
 			end if
@@ -5647,13 +5644,14 @@ sub render_text (dest as Frame ptr, args as RenderTextArgs, text as string, byva
 				'Now update prev_state (to the beginning of THIS line) while drawing layer 1
 				'for the previous line. Afterwards, prev_state will be identical to state
 				'as it was at the start of this loop.
-				draw_line_fragment(dest, prev_state, 1, prev_parse, prev_visible)
-				'TEXTDBG("prev.charnum=" & prev_state.charnum)
-				if state_finished_drawing(prev_state, cliprect) then exit do
+				visibleline = (prev_state.y > cliprect.t - prev_state.thefont->char_h)
+				draw_line_fragment(dest, prev_state, 1, prev_parse, visibleline)
 			end if
+
+			if finished then exit do
+
 			draw_layer1 = YES
 			prev_parse = parsed_line
-			prev_visible = visibleline
 			prev_state.y += line_height
 		loop
 	end with
@@ -5663,7 +5661,8 @@ end sub
 
 'Calculate size of part of a block of text when drawn, returned in retsize
 'endchar and endline can be used to trim the string.
-'A zero-length string has width 0 and height of one line.
+'A zero-length string has width 0 and height of one line,
+'unless endline is 0 in which case it has height zero.
 sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, text as string)
 	dim state as PrintStrState = PrintStrState(args, text)
 	with state
@@ -5676,7 +5675,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		dim wrapped_on_whitespace as bool
 
 		'(I'm not sure .charnum > .endchar ever happens)
-		while .charnum <= .endchar andalso retsize->lines < .args->endline
+		while .charnum <= .endchar andalso .lines < .args->endline
 			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped_on_whitespace)
 
 			'TEXTDBG("parsed a line, line_width =" & line_width & "  wrapped_on_whitespace=" & wrapped_on_whitespace)
