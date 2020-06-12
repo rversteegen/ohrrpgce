@@ -316,26 +316,30 @@ Type RenderTextArgs
 	'pal as Palette16 ptr        'Alternative to fgcolor
 	withtags as bool = YES
 	withnewlines as bool = YES
-	wide as RelPos = 999999      'X position at which to wrap (absolute, not relative to pos.x)
-	endchar as integer = 999999  'Max number of characters (bytes) of 'text' to display/measure.
+	wide as RelPos = 9999999     'X position at which to wrap (absolute, not relative to pos.x)
+	endchar as integer = 9999999 'Max number of bytes of 'text' to display/measure.
 	                             '(But characters after endchar are still inspected to determine wrapping)
-	endline as integer = 999999  'Max number of lines to display/measure.
+	char_limit as integer = 9999999 'Max number of visible (not markup or whitespace) characters to display/measure.
+	line_limit as integer = 9999999 'Max number of lines to display/measure.
 	'debug as bool               'Print debug statements (also need to uncomment desired TEXTDBG lines)
 End Type
 
 'text_layout_dimensions returns this struct
 Type StringSize
 	size as XYPair       'Width is the greatest width of any line
-	lineend as integer   '1-based character position of the end of the line containing endchar or endline
-	                     'This is the character which was wrapped, usually a space or newline, or first char on next line.
+	'lineend as integer   '1-based character position of the end of the last line (affected by endchar/char_limit/line_limit)
+	'                     'This is the character which was wrapped, usually a space or newline, or first char on next line.
 	lastw as integer     'Width of last line fragment
 	lasth as integer     'Height of last line fragment
-	lines as integer     'Number of lines (always at least 1)   FIXME:  not true
+	lines as integer     'Number of lines
+	vis_chars as integer 'Number of visible (not markup or whitespace) characters.
 	finalfont as Font ptr
 End Type
 
 Type StringCharPos
 	charnum as integer   '0-based!! offset in string; equal to len(text) if off the end
+	line as integer      'Line number (0-based)
+	vis_char as integer  'Visible (not markup or whitespace) character number (0-based).
 	exacthit as bool     'whether actually on this character, or just the nearest (eg. off end of line)
 	pos as XYPair        'position is in screen coordinates
 	size as XYPair       'Size of the selected character
@@ -360,7 +364,7 @@ DECLARE FUNCTION charsize OVERLOAD(char as integer, font as Font ptr) as XYPair
 DECLARE FUNCTION charsize OVERLOAD(char as integer, fontnum as integer) as XYPair
 
 DECLARE SUB find_text_char_position(retsize as StringCharPos ptr, text as string, charnum as integer, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1)
-DECLARE SUB find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as string, wide as integer = 999999, draw_pos as XYPair = XY(0,0), fontnum as integer, withtags as bool = YES, withnewlines as bool = YES)
+DECLARE SUB find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, z as string, wide as integer = 9999999, draw_pos as XYPair = XY(0,0), fontnum as integer, withtags as bool = YES, withnewlines as bool = YES)
 
 DECLARE FUNCTION fgcol_text (text as string, colour as integer) as string
 DECLARE FUNCTION bgcol_text (text as string, colour as integer) as string

@@ -1799,7 +1799,9 @@ SUB text_test_menu
   rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(uiHighlight))
   printstr CHR(3), mouse.x - 3, mouse.y - 3, vpage
   DIM cursor_show as string
-  cursor_show = lpad(STR(curspos.charnum), , 4) & " (lineend=" & pos2.lineend & ") "
+  cursor_show = lpad(STR(curspos.charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & ") "
+  edgeprint cursor_show, 0, pBottom - 10, uilook(uiText), vpage
+  cursor_show = ""
   DIM tpos as integer = curspos.charnum + 1  'curspos.charnum is 0-based!
   cursor_show &= RIGHT(LEFT(text, tpos - 1), 15)
   cursor_show &= "[" & MID(text, tpos, 1) & "]"
