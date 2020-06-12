@@ -424,6 +424,9 @@ Type TextSliceData
  s as string
  s_orig as string 'UNSAVED: Used when expanding ${} codes, so the codes can be re-expanded again later
  wrap as bool     'Whether to wrap the text according to slice width. Otherwise slice width is determined by s.
+ line_limit as integer = -1 'Number of lines to display. -1 is no limit
+ char_limit as integer = -1 'Number of visible characters to display. -1 is no limit
+
  'Declare constructor(st as string, byval col as integer = -1, byval ol as bool = YES)
 
  'All of the following are UNSAVED and not cloned and are not exposed to users in the editor or in scripts
@@ -432,8 +435,8 @@ Type TextSliceData
  show_insert as bool    ' set to YES to display insertion point
  insert_tog as integer 'flash state of insertion pointer (0 or 1)
  first_line as integer 'Top-most line to show. Used for scrolling
- line_limit as integer = -1 'Number of lines to display. -1 is no limit
  line_count as integer 'automatically populated when the slice changes
+ char_count as integer
 End Type
 
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!

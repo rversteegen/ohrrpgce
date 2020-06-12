@@ -1790,6 +1790,10 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule_tog rules(), "text_outline", @(dat->outline)
     a_append menu(), " Wrap: " & yesorno(dat->wrap)
     sliceed_rule_tog rules(), "text_wrap", @(dat->wrap)
+    a_append menu(), " Line limit: " & IIF(dat->line_limit = -1, "None", STR(dat->line_limit))
+    sliceed_rule rules(), "text_line_limit", erIntgrabber, @(dat->line_limit), -1, 99999999
+    a_append menu(), " Character limit: " & IIF(dat->char_limit = -1, "None", STR(dat->char_limit))
+    sliceed_rule rules(), "text_char_limit", erIntgrabber, @(dat->char_limit), -1, 99999999
 
    CASE slSprite
     DIM dat as SpriteSliceData Ptr = .SliceData
