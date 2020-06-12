@@ -1582,7 +1582,7 @@ Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col a
    .bgcolor = ColorIndex(dat->bgcol)
   end if
   .wide = TextSliceRenderTextWide(sl, dat)
-  .endline = dat->line_limit
+  if dat->line_limit > -1 then .endline = dat->line_limit
   'first_line not supported yet (and probably never will be)
  end with
 end sub
