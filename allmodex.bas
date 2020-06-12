@@ -5491,8 +5491,8 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				'Line full. Decide whether to backtrack to the last space, or split the current word
 				'(It would be ideal to instead keep going to figure out how long this word actually is,
 				'and where to break it)
-				dim breaklen as integer = 3 * (.rightmargin - .leftmargin) \ 5 - 10
-				if lastspace_ch > -1 andalso (ch = lastspace_ch orelse (.startx + .rightmargin) - lastspace_x < breaklen) then
+				dim breaklen as integer = 3 * (.rightmargin - .leftmargin) \ 5
+				if lastspace_ch > -1 andalso (ch <= lastspace_ch + 1 orelse (.startx + .rightmargin) - lastspace_x < breaklen) then
 					'Split at the last space; backtrack
 					'(If endchar_ch was before lastspace_ch then we will backtrack again after EXIT FOR)
 					'if endchar_ch = -1 orelse endchar_ch > ch then
