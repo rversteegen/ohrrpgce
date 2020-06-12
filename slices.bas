@@ -1564,7 +1564,7 @@ Local Function TextSliceRenderTextWide(sl as Slice ptr, dat as TextSliceData ptr
  end if
 end function
 
-Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col as integer = 0)
+Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col as integer = 0, limits as bool = YES)
  dim dat as TextSliceData ptr = sl->TextData
  with args
   .fontnum = iif(dat->outline, fontEdged, fontPlain)
@@ -1575,7 +1575,10 @@ Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col a
    .bgcolor = ColorIndex(dat->bgcol)
   end if
   .wide = TextSliceRenderTextWide(sl, dat)
-  if dat->line_limit > -1 then .endline = dat->line_limit
+  if limits then
+   if dat->line_limit > -1 then .line_limit = dat->line_limit
+   if dat->char_limit > -1 then .char_limit = dat->char_limit
+  end if
   'first_line not supported yet (and probably never will be)
  end with
 end sub
@@ -1664,12 +1667,13 @@ end sub
 Sub NewUpdateTextSlice(byval sl as Slice ptr)
  dim dat as TextSliceData ptr = sl->TextData
  dim args as RenderTextArgs
- GetRenderTextArgs sl, args
+ GetRenderTextArgs sl, args, , NO
  dim retsize as StringSize
  text_layout_dimensions @retsize, args, dat->s
  sl->Height = retsize.size.h
  if dat->Wrap = NO then sl->Width = retsize.size.w
  dat->line_count = retsize.lines
+ dat->char_count = retsize.vis_chars
 end sub
 
 'Update the size of text slice. This only happens when you call ChangeTextSlice.
@@ -1743,13 +1747,15 @@ end sub
 
 Sub SaveTextSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  if sl = 0 or node = 0 then debug "SaveTextSlice null ptr": exit sub
- DIM dat as TextSliceData Ptr
+ dim dat as TextSliceData Ptr
  dat = sl->SliceData
  SavePropAlways node, "s", dat->s
  SaveProp node, "col", dat->col
  SaveProp node, "outline", dat->outline
  SaveProp node, "wrap", dat->wrap
  SaveProp node, "bgcol", dat->bgcol
+ if dat->line_limit <> -1 then SavePropAlways node, "linelim", dat->line_limit
+ if dat->char_limit <> -1 then SavePropAlways node, "charlim", dat->char_limit
 End Sub
 
 Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
@@ -1761,6 +1767,8 @@ Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->outline = LoadPropBool(node, "outline")
  dat->wrap    = LoadPropBool(node, "wrap")
  dat->bgcol   = LoadProp(node, "bgcol")
+ dat->line_limit = LoadProp(node, "linelim", -1)
+ dat->char_limit = LoadProp(node, "charlim", -1)
  'FIXME: IF dat->outline THEN dat->bgcol = 0
 
  'Ensure that width is correct, because it's currently only set when something changes,
