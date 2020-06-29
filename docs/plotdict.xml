@@ -5274,6 +5274,8 @@ end</example>
 			<description>
 				Given a <ref>menuitemhandle</ref>,
 				move the menu selection cursor to point to that menu item.
+				This works even if the menu item is in a menu that's not top-most/selected, but the
+				menu won't become selected.
 				Unselectable menu items (see <ref>menuitemselectable</ref>) can't be selected;
 				if you try to select one this command silently fails and returns <tt>false</tt>;
 				normally it returns <tt>true</tt>.
