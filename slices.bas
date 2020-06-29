@@ -2047,9 +2047,7 @@ Local Sub LoadAssetSprite(sl as Slice ptr, warn_if_missing as bool = YES)
                   & !"\nThe OHRRPGCE apparently isn't installed properly. Try reinstalling, or report this error."
    end if
    ' Draw an X (the width and height were hopefully loaded from a .slice file)
-   .img.sprite = frame_new(sl->Width, sl->Height, , YES)
-   drawline .img.sprite, 0, 0, sl->Width - 1, sl->Height - 1, uilook(uiSelectedItem)
-   drawline .img.sprite, sl->Width - 1, 0, 0, sl->Height - 1, uilook(uiSelectedItem)
+   .img.sprite = dummy_missing_image(sl->Size)
   end if
  end with
 End Sub

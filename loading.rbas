@@ -3347,11 +3347,11 @@ SUB initialise_backcompat_pt_frameids(fr as Frame ptr, sprtype as SpriteType)
   STATIC default_pt4_frameids(7) as integer = {0, 1, 100, 101, 200, 201, 300, 301}
 
   IF sprtype = sprTypeHero THEN
-    FOR i as integer = 0 TO 7
+    FOR i as integer = 0 TO small(8, fr->arraylen) - 1
       fr[i].frameid = default_pt0_frameids(i)
     NEXT
   ELSEIF sprtype = sprTypeWalkabout THEN
-    FOR i as integer = 0 TO 7
+    FOR i as integer = 0 TO small(8, fr->arraylen) - 1
       fr[i].frameid = default_pt4_frameids(i)
     NEXT
   END IF

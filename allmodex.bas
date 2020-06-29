@@ -4924,6 +4924,70 @@ end sub
 
 
 '==========================================================================================
+'                                          Icons
+'==========================================================================================
+
+type TextIconSprite
+	original as Surface ptr  'Original color (32-bit)
+	spr as Frame ptr  'Remapped to the current master palette
+end type
+
+dim shared text_icons() as TextIconSprite
+
+'Return a Frame of given size with an X drawn across it, to use when an image is missing.
+function dummy_missing_image(size as XYPair) as Frame ptr
+	' Draw an X (the width and height were hopefully loaded from a .slice file)
+	dim ret as Frame ptr = frame_new(size.w, size.h, , YES)
+	drawline ret, 0, 0, size.w - 1, size.h - 1, uilook(uiSelectedItem)
+	drawline ret, size.w - 1, 0, 0, size.h - 1, uilook(uiSelectedItem)
+	return ret
+end function
+
+'filename should be inside data/
+sub load_icon2(index as integer, filename as string)
+	if index < lbound(text_icons) then
+		redim preserve text_icons(index to ubound(text_icons))
+	end if
+	if index > ubound(text_icons) then
+		redim preserve text_icons(lbound(text_icons) to index)
+	end if
+
+	surface_assign @text_icons(index).original, image_import_as_surface(filename, YES)
+end sub
+
+sub load_editor_icons()
+
+	dim ret as Frame ptr = frame_new(8,8 ,slLine+1, YES)
+
+	load_icon2 slContainer, "containerico.bmp"
+	load_icon2 slEllipse, "ellipseico.bmp"
+	load_icon2 slGrid, "gridico.bmp"
+	load_icon2 slLine, "lineico.bmp"
+	load_icon2 slPanel, "panelico.bmp"
+	load_icon2 slRectangle, "rectico.bmp"
+	load_icon2 slScroll, "scrollico.bmp"
+	load_icon2 slSelect, "selectico.bmp"
+	load_icon2 slSprite, "spriteico.bmp"
+	load_icon2 slText, "textico.bmp"
+
+	
+end sub
+
+'Should be called after the master palette changes
+sub update_editor_icon_palettes()
+	dim options as QuantizeOptions = TYPE(0, -1)
+
+	for idx as integer = lbound(text_icons) to ubound(text_icons)
+		with text_icons(idx)
+			if .original then
+				frame_assign @.spr, quantize_surface(.original, curmasterpal(), options)
+			end if
+		end with
+	next idx
+end sub
+
+
+'==========================================================================================
 '                                      Text routines
 '==========================================================================================
 

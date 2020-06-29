@@ -98,4 +98,6 @@ DECLARE SUB mark_non_elemental_elementals ()
 
 DECLARE FUNCTION custom_setoption(opt as string, arg as string) as integer
 
+DECLARE FUNCTION load_editor_spriteset(filename as string, numframes as integer, dont_return_null as bool = YES) as Frame ptr
+
 #endif

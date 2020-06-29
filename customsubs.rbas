@@ -4049,3 +4049,38 @@ END FUNCTION
 'Destructors can't be abstract...
 DESTRUCTOR RecordPreviewer()
 END DESTRUCTOR
+
+'------------------------------------------------------------------------------
+
+'Load a spriteset with given number of frames from a file in data/, and map
+'it to the current master palette.
+FUNCTION load_editor_spriteset_and_palette(byref ret as GraphicPair, filename as string, numframes as integer, dont_return_null as bool = YES) as bool
+ DIM ret as bool
+ DIM path as string = finddatafile(filename)
+ IF LEN(path) ANDALSO image_import_as_frame_and_palette16(ret, path) THEN
+  frame_assign @ret.sprite, spriteset_from_basic_spritesheet(ret.sprite, sprTypeFrame, numframes)
+  ret = YES
+ ELSE
+  'No need to show an error, finddatafile already did
+  IF dont_return_null THEN
+   ret.sprite = frame_new(1, 1, numframes, YES)
+   'ret.pal was set to NULL by image_import_as_frame_and_palette16
+  END IF
+ END IF
+ IF dont_return_null ANDALSO ret.pal = NULL THEN ret.pal = 
+ 
+ RETURN ret
+END FUNCTION
+
+FUNCTION load_editor_spriteset(filename as string, numframes as integer, dont_return_null as bool = YES) as Frame ptr
+ DIM ret as Frame ptr
+ DIM path as string = finddatafile(filename)
+ IF LEN(path) THEN
+  ret = image_import_as_frame_8bit(path, master())
+  frame_assign @ret, spriteset_from_basic_spritesheet(ret, sprTypeFrame, numframes)
+ ELSE
+  'No need to show an error, finddatafile already did
+  IF dont_return_null THEN ret = frame_new(1, 1, numframes, YES)
+ END IF
+ RETURN ret
+END FUNCTION

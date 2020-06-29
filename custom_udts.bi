@@ -345,7 +345,7 @@ TYPE MapEditState
   hero_gfx as GraphicPair
   overlaytileset as Frame ptr
   zonetileset(2) as Frame ptr
-  arrow_icons(12) as Frame ptr
+  arrow_icons as Frame ptr
   lockedzonelist(any) as integer
  
   tiny as bool               'whether or not to show the tiny screen relative to map area

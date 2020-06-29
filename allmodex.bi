@@ -394,6 +394,8 @@ DECLARE FUNCTION image_import_as_surface (bmp as string, always_32bit as bool) a
 DECLARE SUB frame_export_image (fr as Frame ptr, filename as string, masterpal() as RGBcolor, pal as Palette16 ptr = NULL)
 DECLARE SUB surface_export_image (surf as Surface ptr, filename as string)
 
+DECLARE FUNCTION dummy_missing_image (size as XYPair) as Frame ptr
+
 DECLARE SUB palette_from_16x16_image (filename as string, pal() as RGBcolor)
 
 DECLARE FUNCTION screenshot(basename as string = "") as string

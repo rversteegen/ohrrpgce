@@ -552,14 +552,8 @@ rectangle st.cursor.sprite + 1, 1, 1, 18, 18, 0
 rectangle st.cursor.sprite + 1, 3, 3, 14, 14, 2
 rectangle st.cursor.sprite + 1, 4, 4, 12, 12, 0
 
-DIM datafile as string = finddatafile("arrows2.bmp")  'Actually a walkabout set
-IF LEN(datafile) THEN
- DIM arrowset as Frame ptr = image_import_as_frame_raw(datafile)
- FOR idx as integer = 0 TO UBOUND(st.arrow_icons)
-  st.arrow_icons(idx) = frame_resized(arrowset, 20, 20, idx * -20, 0)
- NEXT
- frame_unload @arrowset
-END IF
+load_editor_spriteset_and_pal16(st.arrow_icons, "arrows2.bmp", 14)
+IF st.arrow_icons.pal = NULL THEN st.at
 
 mapedit_update_layer_palettes st
 
@@ -818,9 +812,7 @@ frame_unload @st.zonetileset(1)
 frame_unload @st.zonetileset(2)
 frame_unload @st.overlaytileset
 frame_unload @st.zoneminimap
-FOR idx as integer = 0 TO UBOUND(st.arrow_icons)
- frame_unload @st.arrow_icons(idx)
-NEXT
+unload_sprite_and_pal st.arrow_icons
 mapedit_free_layer_palettes st
 palette16_unload @st.shadowpal
 v_free st.mode_tools
@@ -1986,12 +1978,12 @@ DO
 
       ' Draw a circle in the center, to indicate the bit is set even if there are no walls
       IF (wallbits AND passAllWalls) = 0 THEN
-       frame_draw st.arrow_icons(frameoffset + 4), @temppal, pixelx, pixely, , dpage
+       frame_draw st.arrow_icons + frameoffset + 4, @temppal, pixelx, pixely, , dpage
       END IF
 
       FOR direc as DirNum = 0 TO 3
        IF wallbits AND (1 SHL direc) THEN
-        frame_draw st.arrow_icons(frameoffset + direc), @temppal, pixelx, pixely, , dpage
+        frame_draw st.arrow_icons + frameoffset + direc, @temppal, pixelx, pixely, , dpage
        END IF
       NEXT
 
