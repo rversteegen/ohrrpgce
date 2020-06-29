@@ -109,8 +109,8 @@ DO
 
   menu(4) = "Vehicle Bitsets..." '9,10
 
-  menu(5) = "Override walls: "
-  menu(6) = "Blocked by: "
+  menu(5) = "Disable walls when on: "
+  menu(6) = "Also blocked by: "
   menu(7) = "Mount from: "
   menu(8) = "Dismount to: "
   FOR i as integer = 0 TO 3

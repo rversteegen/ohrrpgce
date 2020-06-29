@@ -1206,11 +1206,12 @@ FUNCTION vehpass (byval n as integer, byval tile as integer, byval default as in
  DIM v as integer = default
 
  SELECT CASE n
-  CASE 1
+  'CASE 0 'Default
+  CASE 1 'A
    v = (tile AND passVehA)
-  CASE 2
+  CASE 2 'B
    v = (tile AND passVehB)
-  CASE 3
+  CASE 3 'A and B
    v = ((tile AND passVehA) = passVehA) AND ((tile AND passVehB) = passVehB)
   CASE 4
    v = ((tile AND passVehA) = passVehA) OR ((tile AND passVehB) = passVehB)
