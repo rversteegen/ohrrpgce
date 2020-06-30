@@ -348,9 +348,9 @@ tog = tog XOR 1
 
 'On the first tick, show_lines is -1
 IF txt.fully_shown = NO THEN
- txt.show_lines += 1
+ txt.show_lines += 2 '1
  '--play sounds for non-blank lines
- IF TRIM(txt.box.text(txt.show_lines)) <> "" THEN
+ IF YES THEN 'TRIM(txt.box.text(txt.show_lines)) <> "" THEN
   IF txt.box.line_sound > 0 THEN
    ' Don't subtract 1, since menusound takes sfx id + 1
    menusound txt.box.line_sound
@@ -362,9 +362,9 @@ IF txt.fully_shown = NO THEN
   END IF
  END IF
  '--note when the display of lines is done
- IF txt.show_lines >= UBOUND(txt.box.text) THEN
-  txt.fully_shown = YES
- END IF
+ ' IF txt.show_lines >= UBOUND(txt.box.text) THEN
+ '  txt.fully_shown = YES
+ ' END IF
  '--update the slice to show the right number of lines
  DIM text_sl As Slice Ptr
  text_sl = LookupSlice(SL_TEXTBOX_TEXT, txt.sl)
@@ -372,9 +372,14 @@ IF txt.fully_shown = NO THEN
   DIM dat as TextSliceData Ptr
   dat = text_sl->SliceData
   IF dat THEN
-   dat->line_limit = txt.show_lines
-   IF txt.fully_shown THEN
-    dat->line_limit = -1  'Show all
+   IF 0 THEN
+    dat->line_limit = txt.show_lines
+    IF txt.fully_shown THEN
+     dat->line_limit = -1  'Show all
+    END IF
+   ELSE
+    dat->char_limit = IIF(txt.fully_shown, -1, txt.show_lines)
+    txt.fully_shown = (dat->char_limit >= dat->char_count)
    END IF
   END IF
  END IF

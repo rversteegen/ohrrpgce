@@ -3725,7 +3725,8 @@ SUB init_text_box_slices(txt as TextBoxState)
  DIM dat as TextSliceData Ptr
  dat = text_sl->SliceData
  IF dat THEN
-  dat->line_limit = 0
+  'dat->line_limit = 0
+  dat->char_limit = 0
  END IF
 
  '--figure out which portrait to load
