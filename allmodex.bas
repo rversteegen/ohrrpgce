@@ -5314,13 +5314,13 @@ end destructor
 local function layout_line_fragment(z as string, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, updatecharnum as bool = NO, byref wrapped_on_whitespace as bool = NO) as string
 	'Saved state at last space seen
 	dim lastspace_ch as integer = -1     'Index in z of the space
-	dim lastspace_x as integer           'i.e. line_width
+	dim lastspace_x as integer           'i.e. .startx + line_width
 	dim lastspace_line_height as integer
 	dim lastspace_vis_chars as integer
 	dim lastspace_outbuf_len as integer  'Length of outbuf
 	'Saved state at endchar/char_limit (whichever is encountered first); endchar_ch=-1 indicates no recorded state
 	dim endchar_ch as integer = -1
-	dim endchar_x as integer             'i.e. line_width
+	dim endchar_x as integer             'i.e. .startx + line_width
 	dim endchar_line_height as integer
 	dim endchar_vis_chars as integer
 	dim endchar_outbuf_len as integer    'Length of outbuf
@@ -5540,7 +5540,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 		if endchar_ch = -1 orelse endchar_ch > ch then
 			'Didn't reach endchar or char_limit, or backtracked (lastspace) before it
 			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", .x = " & .x)
-			line_width = .x
+			line_width = .x - .startx
 			UPDATE_STATE(outbuf, x, .startx + .leftmargin)  'Reset to new line!
 			UPDATE_STATE(outbuf, vis_chars, .vis_chars)
 			UPDATE_STATE(outbuf, charnum, ch)
@@ -5549,7 +5549,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", endchar_x = " & endchar_x)
 			wrapped_on_whitespace = NO  'We didn't actually reach that whitespace
 			outbuf = left(outbuf, endchar_outbuf_len)
-			line_width = endchar_x
+			line_width = endchar_x - .startx
 			line_height = endchar_line_height
 			UPDATE_STATE(outbuf, x, endchar_x)  'Don't reset for new line!
 			UPDATE_STATE(outbuf, vis_chars, endchar_vis_chars)
@@ -6051,7 +6051,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 						'This point is actually on a space/newline, which was
 						'not added to parsed_string. So don't delay.
 						retsize->exacthit = YES
-						.x = line_width
+						.x = .startx + line_width
 						.charnum -= 1
 						'Don't decrement .vis_chars
 						exit while
