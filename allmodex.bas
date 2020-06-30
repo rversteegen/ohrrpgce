@@ -5495,9 +5495,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				if lastspace_ch > -1 andalso (ch <= lastspace_ch + 1 orelse (.startx + .rightmargin) - lastspace_x < breaklen) then
 					'Split at the last space; backtrack
 					'(If endchar_ch was before lastspace_ch then we will backtrack again after EXIT FOR)
-					'if endchar_ch = -1 orelse endchar_ch > ch then
-						wrapped_on_whitespace = YES
-					'end if
+					wrapped_on_whitespace = YES
 					if chars_to_add then
 						'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 
@@ -5549,6 +5547,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 		else
 			'Reached endchar/char_limit and continued
 			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", endchar_x = " & endchar_x)
+			wrapped_on_whitespace = NO  'We didn't actually reach that whitespace
 			outbuf = left(outbuf, endchar_outbuf_len)
 			line_width = endchar_x
 			line_height = endchar_line_height
@@ -5847,31 +5846,34 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 
 		'(I'm not sure .charnum > .endchar ever happens)
 		while .charnum <= .endchar andalso .lines < .args->line_limit andalso .vis_chars < .args->char_limit
-			dim prev_charnum as integer = .charnum
 			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped_on_whitespace)
 
-			'TEXTDBG("parsed a line, line_width =" & line_width & "  wrapped_on_whitespace=" & wrapped_on_whitespace)
+			'TEXTDBG("parsed a line, line_width=" & line_width & " line_height=" & line_height & " wrapped_on_whitespace=" & wrapped_on_whitespace)
 
 			'if .debug then edgeprint STR(line_width), pRight, .y, 10, vpage
 
 			'Update state
 			.y += line_height
 			draw_line_fragment(NULL, state, 0, parsed_line, NO)  'reallydraw=NO
-			'TEXTDBG("now " & .charnum & " at " & .pos)
+			'TEXTDBG("now charnum=" & .charnum & " lines=" & .lines & " at pos=" & .pos)
 
 			line_width += .thefont->size_offset.x  'A hack to ensure size same as text slices
 			maxwidth = large(maxwidth, line_width)
 
-			if .charnum <= prev_charnum then
-				.lines -= 1
+			if .charnum >= .endchar then
+				'TEXTDBG("exit: at endchar")
+				'If .charnum = endchar and wrapped_on_whitespace = YES, then the last
+				'character is a space which didn't fit on the line or a newline.
+				'If so we add a zero-length last line in order to behave the same as
+				'the old wrapping Text slice implementation.
+				if wrapped_on_whitespace then
+					line_width = 0
+					line_height = .thefont->line_h
+					.y += line_height
+					.lines += 1
+				end if
 				exit while
 			end if
-
-			'If .charnum = endchar and wrapped_on_whitespace = YES, then the last
-			'character is a space which didn't fit on the line or a newline, and
-			'we loop once more with a zero-length last line. We do this only to
-			'behave the same as previous wrapping Text slice implementation.
-			if .charnum = .endchar andalso wrapped_on_whitespace = NO then exit while
 		wend
 
 		'layout_line_fragment USED TO set .charnum to the beginning of the next line. It's a 0-based

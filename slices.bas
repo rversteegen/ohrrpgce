@@ -1674,11 +1674,15 @@ end sub
 Sub NewUpdateTextSlice(byval sl as Slice ptr)
  dim dat as TextSliceData ptr = sl->TextData
  dim args as RenderTextArgs
- GetRenderTextArgs sl, args, , NO
+ GetRenderTextArgs sl, args, , YES  'limits=YES
  dim retsize as StringSize
  text_layout_dimensions @retsize, args, dat->s
  sl->Height = retsize.size.h
  if dat->Wrap = NO then sl->Width = retsize.size.w
+ 'Very unhappy that we have to call text_layout_dimensions twice every frame
+ 'just to compute line_count. TODO: have a function to compute char/line_count instead.
+ GetRenderTextArgs sl, args, , NO  'limits=NO
+ text_layout_dimensions @retsize, args, dat->s
  dat->line_count = retsize.lines
  dat->char_count = retsize.vis_chars
 end sub

@@ -1761,7 +1761,13 @@ END SUB
 
 
 SUB text_test_menu
- DIM text as string = load_help_file("texttest")
+ DIM text as string = RTRIM(load_help_file("texttest"), !"\n")
+
+ DIM char_limit as integer
+ DIM line_limit as integer
+
+ DIM need_update as bool = YES
+
  DIM mouse as MouseInfo
  hidemousecursor
  DO
@@ -1771,32 +1777,58 @@ SUB text_test_menu
   IF keyval(ccCancel) > 1 THEN EXIT DO
   IF keyval(scF1) > 1 THEN
    show_help "texttest"
-   text = load_help_file("texttest")
+   text = RTRIM(load_help_file("texttest"))
+   need_update = YES
   END IF
   IF keyval(scF2) > 1 THEN
    pop_warning !"Extreemmmely lonngggg Extreemmmely lonngggg Extreemmmely lonngggg Extreemmmely lonngggg Extreemmmely lonngggg Extreemmmely lonngggg Extreemmmely lonngggg \n\ntext\nbox\n\nnargh\nnargh\nnargh\nndargh\nnargh\nnagrgh\nnargh\n\nmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
   END IF
   IF keyval(scF3) > 1 THEN
    text = load_help_file("texttest_stress_test")
+   need_update = YES
   END IF
+
+  DIM args as RenderTextArgs
+  DIM pos2 as StringSize
+
+  IF need_update THEN
+   need_update = NO
+   args.fontnum = fontPlain
+   args.wide = 280
+   text_layout_dimensions @pos2, args, text
+   char_limit = pos2.vis_chars
+   line_limit = pos2.lines
+  END IF
+
+  IF keyval(ccUp) > 1 THEN line_limit = large(0, line_limit - 1)
+  IF keyval(ccDown) > 1 THEN line_limit = line_limit + 1
+  IF keyval(ccLeft) > 1 THEN char_limit = large(0, char_limit - 1)
+  IF keyval(ccRight) > 1 THEN char_limit = char_limit + 1
 
   DIM textpos as XYPair = XY(20, 20)
 
-  DIM curspos as StringCharPos
-  DIM pos2 as StringSize
-  find_point_in_text @curspos, mouse.pos, text, 280, textpos, 0, YES, YES
-
   clearpage vpage
   edgeboxstyle 10, 10, 300, 185, 0, vpage
-  wrapprint text, textpos.x, textpos.y, , vpage, 280, , fontPlain
 
-  DIM args as RenderTextArgs
-  args.fontnum = 0
+  args.fontnum = fontPlain
   args.wide = 280
-  args.endchar = curspos.charnum
-  text_layout_dimensions @pos2, args, text
+  args.char_limit = char_limit
+  args.line_limit = line_limit
+  args.fgcolor = uilook(uiText)
+  render_text vpages(vpage), args, text, textpos
 
-  rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(uiHighlight))
+  'Draw cursor
+  DIM curspos as StringCharPos
+  find_point_in_text @curspos, mouse.pos, text, 280, textpos, 0, YES, YES
+  rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(IIF(curspos.exacthit, uiHighlight, uiHighlight2)))
+
+  'Alternative way to get cursor position: check it matches (used text slice insert cursor)
+  DIM charpos as StringCharPos
+  find_text_char_position(@charpos, text, curspos.charnum, args.wide, args.fontnum)
+  DIM insert_pos as XYPair = textpos + charpos.pos
+
+  drawbox vpages(vpage), insert_pos.x, insert_pos.y, charpos.size.w, charpos.size.h, findrgb(170,90,255)
+
   printstr CHR(3), mouse.x - 3, mouse.y - 3, vpage
   DIM cursor_show as string
   cursor_show = lpad(STR(curspos.charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & ") "
@@ -1807,7 +1839,9 @@ SUB text_test_menu
   cursor_show &= "[" & MID(text, tpos, 1) & "]"
   cursor_show &=       MID(text, tpos + 1, 10)
   rectangle 0, pBottom, rWidth, 10, uilook(uiBackground), vpage
+
   edgeprint cursor_show, 0, pBottom, uilook(uiText), vpage
+  edgeprint "</> charlim=" & char_limit & "  ^/v linelim=" & line_limit, pRight, pTop, uilook(uiText), vpage
   setvispage vpage
   dowait
  LOOP
