@@ -5331,6 +5331,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 	'Appending characters one at a time to outbuf is slow, so we delay it.
 	'chars_to_add counts the number of delayed characters
 	dim chars_to_add as integer = 0
+	dim wrapped as bool                  'Hit the end of the line, rather than end of text
 
         'Avoid overflow
 	if state.rightmargin = INT_MAX then state.rightmargin = 999999
@@ -5354,12 +5355,14 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			dim char as integer = z[ch]
 
 			if char = 10 andalso .args->withnewlines then  'newline
+				'TEXTDBG("hit newline at " & ch)
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 				chars_to_add = 0
 				'Skip past the newline character, but don't add it to outbuf
 				ch += 1
 				wrapped_on_whitespace = YES
+				wrapped = YES
 				'TODO: Should we reset margins for next paragraph on a newline?
 				'UPDATE_STATE(outbuf, leftmargin, 0)
 				'UPDATE_STATE(outbuf, rightmargin, .args->wide)
@@ -5487,10 +5490,11 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 
 			.x += .thefont->w(char)
 			if .x > .startx + .rightmargin then
-				'TEXTDBG("rm = " & .rightmargin & " lm = " & .leftmargin)
+				'TEXTDBG("x hit margin: rm = " & .rightmargin & " lm = " & .leftmargin)
 				'Line full. Decide whether to backtrack to the last space, or split the current word
 				'(It would be ideal to instead keep going to figure out how long this word actually is,
 				'and where to break it)
+				wrapped = YES
 				dim breaklen as integer = 3 * (.rightmargin - .leftmargin) \ 5
 				if lastspace_ch > -1 andalso (ch <= lastspace_ch + 1 orelse (.startx + .rightmargin) - lastspace_x < breaklen) then
 					'Split at the last space; backtrack
@@ -5541,7 +5545,10 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			'Didn't reach endchar or char_limit, or backtracked (lastspace) before it
 			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", .x = " & .x)
 			line_width = .x - .startx
-			UPDATE_STATE(outbuf, x, .startx + .leftmargin)  'Reset to new line!
+			if wrapped then
+				'Reset x to the next line if there is one (we didn't hit end of the text)
+				UPDATE_STATE(outbuf, x, .startx + .leftmargin)
+			end if
 			UPDATE_STATE(outbuf, vis_chars, .vis_chars)
 			UPDATE_STATE(outbuf, charnum, ch)
 		else
@@ -5989,15 +5996,15 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 		if .thefont = NULL then exit sub
 		'.localpal not initialised
 
-		dim delayedmatch as bool = NO
 		dim line_width as integer
 		dim line_height as integer
 		dim arg as integer
+		dim wrapped_on_whitespace as bool
 
 		retsize->exacthit = NO
 
 		while .charnum < .endchar 'andalso .lines < .args->line_limit andalso .vis_chars < .args->char_limit
-			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES)
+			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES, wrapped_on_whitespace)
 			.lines += 1
 			.y += line_height
 			'.y now points to 1 pixel past the bottom of the line fragment
@@ -6024,10 +6031,6 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 					'TEXTDBG("CHAR(" & char & " " & CHR(char) & ") ch=" & ch & " charnum = " & .charnum & " x = " & .x)
 					dim w as integer = .thefont->w(char)
 					'Draw a character
-					if delayedmatch then
-						'retsize->w = w
-						exit while
-					end if
 					.x += w
 					if .y > seekpt.y andalso .x > seekpt.x then
 						'TEXTDBG("HIT w/ x=" & .x & " ch=" & ch & " charnum=" & .charnum)
@@ -6045,21 +6048,35 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 
 			if .y > seekpt.y then
 				'Position was off the (right-hand) end of the line
-				if .charnum > 0 then
-					dim lastchar as ubyte = text[.charnum - 1]
-					if lastchar = 32 orelse (lastchar = 10 andalso withnewlines) then
-						'This point is actually on a space/newline, which was
-						'not added to parsed_string. So don't delay.
-						retsize->exacthit = YES
-						.x = .startx + line_width
-						.charnum -= 1
-						'Don't decrement .vis_chars
-						exit while
-					end if
+				'TEXTDBG("Off right hand side  wrapped_on_whitespace=" & wrapped_on_whitespace)
+
+				'layout_line_fragment resets .x at the end of the line.
+				'But if there is no next line, then we won't want this reset.
+				.x = .startx + line_width
+
+				if wrapped_on_whitespace then
+					'TEXTDBG("Whitespace at point")
+					'This point is actually on a space/newline, which was not added to parsed_string
+					retsize->exacthit = YES
+					.charnum -= 1
+					'Don't decrement .vis_chars
 				end if
-				delayedmatch = YES
-				'TEXTDBG("FIND IN: delayed")
+				exit while
+			elseif .charnum >= .endchar then
+				'Position is below the bottom of the text
+				'TEXTDBG("exit: at endchar wrapped_on_whitespace=" & wrapped_on_whitespace)
+				if wrapped_on_whitespace then
+					'The text ends on a space which didn't fit on the line or a
+					'newline.  Add a zero-length last line in order to behave
+					'the same as the old wrapping Text slice implementation.
+					line_width = 0
+					line_height = .thefont->line_h
+					.y += line_height
+					.lines += 1
+				end if
 			end if
+
+			'TEXTDBG("Line end:: charnum = " & .charnum & " endchar = " & .endchar)
 		wend
 
 		retsize->charnum = .charnum
