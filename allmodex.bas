@@ -5321,7 +5321,6 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 	'Saved state at endchar/char_limit (whichever is encountered first); endchar_ch=-1 indicates no recorded state
 	dim endchar_ch as integer = -1
 	dim endchar_x as integer             'i.e. .startx + line_width
-	dim endchar_line_height as integer
 	dim endchar_vis_chars as integer
 	dim endchar_outbuf_len as integer    'Length of outbuf
 
@@ -5348,7 +5347,6 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				endchar_ch = ch
 				endchar_outbuf_len = len(outbuf) + chars_to_add
 				endchar_x = .x
-				endchar_line_height = line_height
 				endchar_vis_chars = .vis_chars
 			end if
 
@@ -5484,6 +5482,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				lastspace_ch = ch
 				lastspace_outbuf_len = len(outbuf) + chars_to_add
 				lastspace_x = .x
+				'Note that we backtrack line_height to the wrap point, unlike when backtracking to endchar
 				lastspace_line_height = line_height
 				lastspace_vis_chars = .vis_chars
 			end if
@@ -5508,9 +5507,9 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 					end if
 					outbuf = left(outbuf, lastspace_outbuf_len)
 					ch = lastspace_ch + 1  'Skip past the space
+					line_height = lastspace_line_height
 					.vis_chars = lastspace_vis_chars
 					.x = lastspace_x
-					line_height = lastspace_line_height
 					'Note: to support StringSize.lineend, we used to UPDATE_STATE(outbuf, charnum, lastspace_ch)
 					'(even if backtracking to .endchar) and return outbuf here
 					exit for
@@ -5557,7 +5556,6 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			wrapped_on_whitespace = NO  'We didn't actually reach that whitespace
 			outbuf = left(outbuf, endchar_outbuf_len)
 			line_width = endchar_x - .startx
-			line_height = endchar_line_height
 			UPDATE_STATE(outbuf, x, endchar_x)  'Don't reset for new line!
 			UPDATE_STATE(outbuf, vis_chars, endchar_vis_chars)
 			UPDATE_STATE(outbuf, charnum, endchar_ch)
