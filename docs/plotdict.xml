@@ -4760,11 +4760,18 @@ There is no limit on string length.<lb/>
 		<reference ref="showstring" />
 		<reference ref="inputstring" />
 
-
 		<command id="expandstring">
 			<canon>expand string(ID, saveslot)</canon>
 			<shortname>expand string</shortname>
-			<description>Expands codes in <p>ID</p> such as ${H1}. This does the same thing that textboxes do automatically. The <p>saveslot</p> argument is optional. If you leave it out, the string's codes will be expanded based on the currently running game state. If you specify a save slot number from 1-1000 then the string will be expanded based on hero names, variables, and strings in that save slot.</description>
+			<description>
+				Expands "embed" codes in string <p>ID</p> such as ${H1}, modifying the string.
+				(See the textbox editor for the list of all available embed codes.)
+				This does the same thing that textboxes do automatically.
+				The <p>saveslot</p> argument is optional.
+				If you leave it out, the string's codes will be expanded based on the currently running game state.
+				If you specify a save slot number (from 1-1000) then the string will be expanded based on data
+				(hero names, variables, strings, etc.) from that saved game.
+			</description>
 			<seealso>
 				<ref>expandstringsinslices</ref>
 			</seealso>
