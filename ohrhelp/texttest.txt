@@ -1,11 +1,12 @@
 ${K15}Press F1 to edit, F2 for a wrapping test, F3 for a stress test.
+Press ${K12}left/right/up/down${K-1} to change the limits on visible characters and lines.
 
-${K100}T${K110},${K9}
-hsimport:
-debuginfo "Importing scripts from " & hsfile
+Font 0 is default, ${F1}here's font 1${F2} and font 2 and ${F3}font 3...${F0} ... 
 
-Font 0 is default, ${F1}here's font 1${F2} and font 2
-${F3}${RM50}font 3..... 
-xbload game + ".gen", gen(), "general data is missing, RPG file corruption is likely"
+Box cursor: ${F2}find_text_char_position${F0}
+Solid cursor: ${F2}find_point_in_text${F0}  (ignores limits), ${K10}color indicates exact hit${K-1}
 
-${LM20}upgrade font() 'needed because it has not already happened because we are doing command-line import
+${F1}0123456789012345678901234567890123456789012345678901234567890123456789
+
+50px margins:${RM50}${LM50}
+${F3}"No snowflake ever falls in the wrong place." ${F2}-Zen Proverb

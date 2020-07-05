@@ -5295,23 +5295,32 @@ end destructor
 	variable = *Cast(long ptr, @outbuf[ch + 1]) : _
 	ch += 4  '5 bytes in total, assume inside FOR loop that increments ch
 
+Enum 'WrappedEnum
+   'NO = 0
+   wrappedOnWhitespace = 1
+   wrappedOnChar = 2
+End Enum
+type WrappedEnum as integer
+
 'Processes starting from z[state.charnum] until the end of the line, returning a string
 'which describes a line fragment. It contains printing characters plus command sequences
 'for modifying state. state is passed byval (upon wrapping we would have to undo changes
 'to the state, which is too hard).
-'endchar is 0 based, and exclusive - normally len(z).
+'state.endchar is 0 based, and exclusive - normally len(z).
 'We also compute the line_height (height of the tallest font on the line) and the line_width
 'of the line fragment. You have to know the line height before you can know the y
 'coordinate of each character on the line.
-'wrapped_on_whitespace is output only: tells whether the line ended on a newline or space
-'which got omitted from outbuf.
+'wrapped: (output) tells whether the line ended on a newline or space
+'         which got omitted from outbuf.
+'reached_end: (output) whether the character at char_limit/endchar appears on this line
+'         (or as whitespace off the end). Can be false even if .charnum = .endchar.
 'Updates to .x, .y are not written because they can be recreated from the character stream,
 'nor is .charnum or .vis_chars for printing characters because it's too expensive.
 'However, .x, .charnum and .vis_chars are updated at the end.
 'The caller needs to increment .y using line_height before called draw_line_fragment.
 'If updatecharnum is true, .charnum is updated when .charnum jumps by more than one;
 'you still need to increment it (and .x, .vis_chars) after every printing character yourself.
-local function layout_line_fragment(z as string, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, updatecharnum as bool = NO, byref wrapped_on_whitespace as bool = NO) as string
+local function layout_line_fragment(z as string, byval state as PrintStrState, byref line_width as integer, byref line_height as integer, updatecharnum as bool = NO, byref wrapped as WrappedEnum = NO, byref reached_end as bool = NO) as string
 	'Saved state at last space seen
 	dim lastspace_ch as integer = -1     'Index in z of the space
 	dim lastspace_x as integer           'i.e. .startx + line_width
@@ -5330,7 +5339,6 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 	'Appending characters one at a time to outbuf is slow, so we delay it.
 	'chars_to_add counts the number of delayed characters
 	dim chars_to_add as integer = 0
-	dim wrapped as bool                  'Hit the end of the line, rather than end of text
 
         'Avoid overflow
 	if state.rightmargin = INT_MAX then state.rightmargin = 999999
@@ -5338,7 +5346,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 	with state
 		'TEXTDBG("layout '" & exclude(z, !"\n") & "' from " & .charnum & " at " & .x & "," & .y)
 		line_height = .thefont->line_h
-		wrapped_on_whitespace = NO
+		wrapped = NO
 		for ch = .charnum to len(z) - 1
 			'We keep going past endchar/char_limit until the end of the line, to figure out where to linebreak,
 			'so record state for backtracking. We might skip over ch = endchar because it's in the middle of markup.
@@ -5357,10 +5365,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 				chars_to_add = 0
-				'Skip past the newline character, but don't add it to outbuf
-				ch += 1
-				wrapped_on_whitespace = YES
-				wrapped = YES
+				wrapped = wrappedOnWhitespace
 				'TODO: Should we reset margins for next paragraph on a newline?
 				'UPDATE_STATE(outbuf, leftmargin, 0)
 				'UPDATE_STATE(outbuf, rightmargin, .args->wide)
@@ -5486,19 +5491,21 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				lastspace_line_height = line_height
 				lastspace_vis_chars = .vis_chars
 			end if
+			'We reach here only if not markup or a newline
 
-			.x += .thefont->w(char)
-			if .x > .startx + .rightmargin then
-				'TEXTDBG("x hit margin: rm = " & .rightmargin & " lm = " & .leftmargin)
+			dim charwidth as integer = .thefont->w(char)
+
+			'End of line? (Only check after at least one character, to avoid infinite loops)
+			if .x + charwidth > .startx + .rightmargin andalso ch > initial_charnum then
+				'TEXTDBG("x hit margin: ch=" & ch & " rm = " & .rightmargin & " lm = " & .leftmargin)
 				'Line full. Decide whether to backtrack to the last space, or split the current word
 				'(It would be ideal to instead keep going to figure out how long this word actually is,
 				'and where to break it)
-				wrapped = YES
 				dim breaklen as integer = 3 * (.rightmargin - .leftmargin) \ 5
 				if lastspace_ch > -1 andalso (ch <= lastspace_ch + 1 orelse (.startx + .rightmargin) - lastspace_x < breaklen) then
 					'Split at the last space; backtrack
 					'(If endchar_ch was before lastspace_ch then we will backtrack again after EXIT FOR)
-					wrapped_on_whitespace = YES
+					wrapped = wrappedOnWhitespace
 					if chars_to_add then
 						'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 
@@ -5506,7 +5513,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 						chars_to_add = 0
 					end if
 					outbuf = left(outbuf, lastspace_outbuf_len)
-					ch = lastspace_ch + 1  'Skip past the space
+					ch = lastspace_ch
 					line_height = lastspace_line_height
 					.vis_chars = lastspace_vis_chars
 					.x = lastspace_x
@@ -5515,50 +5522,70 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 					exit for
 				else
 					'Split the word right here instead, it would just look ugly to break the line
-					if initial_charnum = ch then
-						'Always output at least one character
-						'(FIXME: this seems wrong, what if the next char is part of markup?
-						'but better than an infinite loop!)
-						chars_to_add += 1
-						.vis_chars += 1
-						ch += 1
-					end if
+					wrapped = wrappedOnChar
 					exit for
 				end if
 			end if
 
+			.x += charwidth
 			'Add this character to outbuf. But not immediately.
 			chars_to_add += 1
 			'Spaces aren't visible, newlines count as visible if withnewlines=NO
 			if char <> 32 then .vis_chars += 1
 		next
 
-		'Hit end of text, or splitting word
+		'Hit end of text, or wrapping
 		if chars_to_add then
 			'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 			outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
 			chars_to_add = 0
 		end if
-		'Set final x and charnum, and trim off outbuf anything parsed after endchar
+		'TEXTDBG("exiting layout_line_fragment")
+
+		'Backtrack to endchar/char_limit if needed, and set final x and charnum
 		if endchar_ch = -1 orelse endchar_ch > ch then
-			'Didn't reach endchar or char_limit, or backtracked (lastspace) before it
-			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", .x = " & .x)
+			'We don't need to backtrack to endchar or char_limit, possibly because we hit the end of the
+			'text (fell out of the for loop), or possibly because we backtracked before it to lastspace.
+			'TEXTDBG("  ch = " & ch & ", .x = " & .x)
+			reached_end = (ch >= .endchar orelse .vis_chars >= .args->char_limit)
 			line_width = .x - .startx
 			if wrapped then
 				'Reset x to the next line if there is one (we didn't hit end of the text)
 				UPDATE_STATE(outbuf, x, .startx + .leftmargin)
 			end if
 			UPDATE_STATE(outbuf, vis_chars, .vis_chars)
+			if wrapped = wrappedOnWhitespace then
+				ch += 1  'Skip past the space
+				'(Note that now we might have ch = .endchar but reached_end = NO)
+			end if
 			UPDATE_STATE(outbuf, charnum, ch)
 		else
 			'Reached endchar/char_limit and continued
-			'TEXTDBG("exiting layout_line_fragment, ch = " & ch & ", endchar_x = " & endchar_x)
-			wrapped_on_whitespace = NO  'We didn't actually reach that whitespace
+			'TEXTDBG("  ch=" & ch & ", endchar_{ch=" & endchar_ch & ", x=" & endchar_x & "} wrapped=" & wrapped)
 			outbuf = left(outbuf, endchar_outbuf_len)
 			line_width = endchar_x - .startx
-			UPDATE_STATE(outbuf, x, endchar_x)  'Don't reset for new line!
+
+			reached_end = YES
+			if endchar_ch < ch then
+				'Backtrack. That means we don't actually reach ch (which is the
+				'character on which we would wrap on, if wrapped <> NO).
+				wrapped = NO
+				UPDATE_STATE(outbuf, x, endchar_x)  'Don't reset for new line!
+			else  'endchar_ch = ch
+				'endchar/char_limit points at the character that ends the line.
+				if wrapped = wrappedOnWhitespace then
+					'It's treated at being at end of the line although it isn't drawn.
+					'Don't change .x
+				elseif wrapped then
+					'It's at the start of the next line
+					reached_end = NO
+					UPDATE_STATE(outbuf, x, .startx + .leftmargin)
+				end if
+			end if
+
 			UPDATE_STATE(outbuf, vis_chars, endchar_vis_chars)
 			UPDATE_STATE(outbuf, charnum, endchar_ch)
+			ch = endchar_ch
 		end if
 		'Preserve .leftmargin and .rightmargin
 
@@ -5847,13 +5874,16 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		dim maxwidth as integer = 0
 		dim line_width as integer = 0
 		dim line_height as integer = 0
-		dim wrapped_on_whitespace as bool
+		dim reached_end as bool
 
-		'(I'm not sure .charnum > .endchar ever happens)
+		'TEXTDBG("--text_layout_dimensions-- until endchar = " & .endchar & " len " & len(text))
+
 		while .charnum <= .endchar andalso .lines < .args->line_limit andalso .vis_chars < .args->char_limit
-			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped_on_whitespace)
+			dim prev_charnum as integer = .charnum
+			dim wrapped as WrappedEnum
+			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped, reached_end)
 
-			'TEXTDBG("parsed a line, line_width=" & line_width & " line_height=" & line_height & " wrapped_on_whitespace=" & wrapped_on_whitespace)
+			'TEXTDBG("parsed line, line_{width=" & line_width & ", height=" & line_height & "} wrapped=" & wrapped & " end=" & reached_end)
 
 			'if .debug then edgeprint STR(line_width), pRight, .y, 10, vpage
 
@@ -5866,18 +5896,22 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 			maxwidth = large(maxwidth, line_width)
 
 			if .charnum >= .endchar then
-				'TEXTDBG("exit: at endchar")
-				'If .charnum = endchar and wrapped_on_whitespace = YES, then the last
-				'character is a space which didn't fit on the line or a newline.
-				'If so we add a zero-length last line in order to behave the same as
-				'the old wrapping Text slice implementation.
-				if wrapped_on_whitespace then
-					line_width = 0
-					line_height = .thefont->line_h
-					.y += line_height
-					.lines += 1
+				'TEXTDBG("exit: at endchar " & .charnum & " >= " & .endchar)
+				if reached_end then
+					'Final character was on this line (possibly as invisible whitespace at
+					'the end).  We will have .charnum = .endchar but reached_end = NO if
+					'we wrapped immediately before .endchar (e.g. the last char in text is
+					'a newline).  In that case, looping again starting from .endchar we'll
+					'get reached_end = YES, and we'll measure an extra blank line, which
+					'is for backcompat with old wrapping Text slices.
+					exit while
 				end if
-				exit while
+
+				if .charnum <= prev_charnum then
+					debug "BUG on: " & text
+					showbug "text_layout_dimensions infinite loop"
+					exit while
+				end if
 			end if
 		wend
 
@@ -5885,12 +5919,18 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 		'index. Instead we return it as a 1-based index to the end of the current line
 		'(char on which the line wraps).
 		'retsize->lineend = .charnum
-		'FIXME: lines is broken when the last line is zero-width
 		retsize->lines = large(0, .lines - 1)
 		retsize->vis_chars = .vis_chars
 		retsize->size = XY(maxwidth, .y + .thefont->size_offset.y)
-		retsize->lastw = line_width
-		retsize->lasth = line_height
+		retsize->last_line_size = XY(line_width, line_height)
+		retsize->next_pos = XY(.x, .y - .thefont->line_h)
+		'If hit the line limit then move next_pos to start of the next line.
+		'(Warning: will be inaccurate because we don't know the actual height of the next line)
+		if .lines = .args->line_limit and reached_end = NO then retsize->next_pos.y += .thefont->line_h
+		'with .thefont->layers(1)->chdata(char)
+		'  next_pos += XY(.offx, .offy)
+		'end with
+		retsize->end_charnum = .charnum
 		retsize->finalfont = .thefont
 	end with
 end sub
@@ -5947,10 +5987,8 @@ function charsize(char as integer, fontnum as integer) as XYPair
 	return charsize(char, get_font(fontnum))
 end function
 
-'Calculate the position at which a certain character in a block of text will be drawn
-'FIXME: this returns the wrong position for a space/newline at the end of a line (it
-'returns the start of the next line).
-'To fix, render_text (or maybe layout_line_fragment?) needs to be changed.
+'Calculate the position at which a certain character in a block of text will be drawn,
+'it size, line number, and more.
 sub find_text_char_position(retsize as StringCharPos ptr, text as string, charnum as integer, wide as RelPos = rWidth, fontnum as integer = fontPlain, withtags as bool = YES, page as integer = -1)
 	dim args as RenderTextArgs
 	with args
@@ -5964,16 +6002,15 @@ sub find_text_char_position(retsize as StringCharPos ptr, text as string, charnu
 	dim size as StringSize
 	text_layout_dimensions @size, args, text
 	with *retsize
-		.charnum = charnum
+		.charnum = size.end_charnum
 		.line = size.lines - 1
 		.vis_char = size.vis_chars - 1
 		.exacthit = YES   'Maybe return NO if it's at the end of the line?
 		'NOTE: this doesn't take thefont->offset or thefont->size_offset.y into account.
 		'(.thefont->size_offset.x does affect pos.x)
-		.pos.x = size.lastw
-		.pos.y = size.size.h - size.lasth
-		.size = charsize(iif(charnum >= len(text), 0, text[charnum]), size.finalfont)
-		.lineh = size.lasth
+		.pos = size.next_pos
+		.size = charsize(iif(.charnum >= len(text), 0, text[.charnum]), size.finalfont)
+		.lineh = size.last_line_size.h
 	end with
 end sub
 
@@ -5994,23 +6031,30 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 		if .thefont = NULL then exit sub
 		'.localpal not initialised
 
+		'TEXTDBG("--find_point_in_text--")
+
 		dim line_width as integer
 		dim line_height as integer
 		dim arg as integer
-		dim wrapped_on_whitespace as bool
+		dim wrapped as WrappedEnum
 
 		retsize->exacthit = NO
 
 		while .charnum < .endchar 'andalso .lines < .args->line_limit andalso .vis_chars < .args->char_limit
-			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES, wrapped_on_whitespace)
+			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, YES, wrapped)
+			'TEXTDBG("After parsing: line_width = " & line_width & " wrapped=" & wrapped)
+
 			.lines += 1
 			.y += line_height
 			'.y now points to 1 pixel past the bottom of the line fragment
 
+			dim char as integer
+			dim lastx as integer = INT_MIN
+
 			'Update state
 			'Note: .charnum is character in original text, ch is character in parser output
 			for ch as integer = 0 to len(parsed_line) - 1
-				dim char as integer = parsed_line[ch]
+				char = parsed_line[ch]
 				if char = tcmdState then
 					'Make a change to the state
 					'TEXTDBG("READ_MEMBER: ch=" & ch & " charnum=" & .charnum)
@@ -6029,6 +6073,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 					'TEXTDBG("CHAR(" & char & " " & CHR(char) & ") ch=" & ch & " charnum = " & .charnum & " x = " & .x)
 					dim w as integer = .thefont->w(char)
 					'Draw a character
+					lastx = .x
 					.x += w
 					if .y > seekpt.y andalso .x > seekpt.x then
 						'TEXTDBG("HIT w/ x=" & .x & " ch=" & ch & " charnum=" & .charnum)
@@ -6042,28 +6087,30 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 				end if
 			next
 
-			'TEXTDBG("After parsing: charnum = " & .charnum & " line_width = " & line_width & " x = " & .x)
+			'TEXTDBG("After updating: charnum = " & .charnum & " x = " & .x & " wrapped=" & wrapped)
 
 			if .y > seekpt.y then
 				'Position was off the (right-hand) end of the line
-				'TEXTDBG("Off right hand side  wrapped_on_whitespace=" & wrapped_on_whitespace)
+				'TEXTDBG("Off right hand side")
 
 				'layout_line_fragment resets .x at the end of the line.
-				'But if there is no next line, then we won't want this reset.
-				.x = .startx + line_width
+				'But we're not going to the next line, so restore .x
+				if wrapped = wrappedOnChar then
+					if lastx <> INT_MIN then .x = lastx
+				elseif wrapped = wrappedOnWhitespace then
+					.x = .startx + line_width
+				end if
 
-				if wrapped_on_whitespace then
-					'TEXTDBG("Whitespace at point")
-					'This point is actually on a space/newline, which was not added to parsed_string
-					retsize->exacthit = YES
+				if wrapped then  'This maybe be wrong. wrapped=wrappedOnWhitespace instead?
 					.charnum -= 1
-					'Don't decrement .vis_chars
+					if char <> 32 then .vis_chars -= 1
 				end if
 				exit while
 			elseif .charnum >= .endchar then
 				'Position is below the bottom of the text
-				'TEXTDBG("exit: at endchar wrapped_on_whitespace=" & wrapped_on_whitespace)
-				if wrapped_on_whitespace then
+				'TEXTDBG("exit: at endchar")
+				'Could probably loop an extra time and check reached_end instead of having this block
+				if wrapped then
 					'The text ends on a space which didn't fit on the line or a
 					'newline.  Add a zero-length last line in order to behave
 					'the same as the old wrapping Text slice implementation.
@@ -6080,12 +6127,13 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 		retsize->charnum = .charnum
 		retsize->line = large(0, .lines - 1)
 		retsize->vis_char = .vis_chars
-		retsize->pos.x = .x
-		retsize->pos.y = .y - .thefont->line_h
+		retsize->pos = XY(.x, .y - .thefont->line_h)
 		retsize->size = charsize(text[.charnum], .thefont)  '.charnum = len(z) is OK
 		retsize->lineh = line_height
 	end with
 end sub
+
+'==========================================================================================
 
 'the old printstr -- no autowrapping
 sub printstr (text as string, x as RelPos, y as RelPos, page as integer, withtags as bool = NO, fontnum as integer = fontPlain)

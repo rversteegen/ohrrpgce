@@ -1763,6 +1763,11 @@ END SUB
 SUB text_test_menu
  DIM text as string = RTRIM(load_help_file("texttest"), !"\n")
 
+ font_unload @fonts(2)
+ font_unload @fonts(3)
+ fonts(2) = font_load_16x16(finddatafile("../fonttests/NewFont10x10x1.bmp"))
+ fonts(3) = font_load_16x16(finddatafile("../fonttests/NewFont10x20x1.bmp"))
+
  DIM char_limit as integer
  DIM line_limit as integer
 
@@ -1788,16 +1793,17 @@ SUB text_test_menu
    need_update = YES
   END IF
 
+  DIM wide as integer = vpages(vpage)->w - 40
   DIM args as RenderTextArgs
-  DIM pos2 as StringSize
+  DIM ssize as StringSize
 
   IF need_update THEN
    need_update = NO
    args.fontnum = fontPlain
-   args.wide = 280
-   text_layout_dimensions @pos2, args, text
-   char_limit = pos2.vis_chars
-   line_limit = pos2.lines
+   args.wide = wide
+   text_layout_dimensions @ssize, args, text
+   char_limit = ssize.vis_chars + 1
+   line_limit = ssize.lines + 1
   END IF
 
   IF keyval(ccUp) > 1 THEN line_limit = large(0, line_limit - 1)
@@ -1808,18 +1814,22 @@ SUB text_test_menu
   DIM textpos as XYPair = XY(20, 20)
 
   clearpage vpage
-  edgeboxstyle 10, 10, 300, 185, 0, vpage
+  edgeboxstyle 10, 10, wide + 20, vpages(vpage)->h - 20, 3, vpage
 
   args.fontnum = fontPlain
-  args.wide = 280
+  args.wide = wide
   args.char_limit = char_limit
   args.line_limit = line_limit
   args.fgcolor = uilook(uiText)
+
+  text_layout_dimensions @ssize, args, text
+  drawants vpages(vpage), textpos.x, textpos.y, ssize.size.w, ssize.size.h
+
   render_text vpages(vpage), args, text, textpos
 
   'Draw cursor
   DIM curspos as StringCharPos
-  find_point_in_text @curspos, mouse.pos, text, 280, textpos, 0, YES, YES
+  find_point_in_text @curspos, mouse.pos, text, wide, textpos, 0, YES, YES
   rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(IIF(curspos.exacthit, uiHighlight, uiHighlight2)))
 
   'Alternative way to get cursor position: check it matches (used text slice insert cursor)
@@ -1829,16 +1839,17 @@ SUB text_test_menu
 
   drawbox vpages(vpage), insert_pos.x, insert_pos.y, charpos.size.w, charpos.size.h, findrgb(170,90,255)
 
+  rectangle 0, pBottom, rWidth, 20, uilook(uiBackground), vpage
+
   printstr CHR(3), mouse.x - 3, mouse.y - 3, vpage
   DIM cursor_show as string
-  cursor_show = lpad(STR(curspos.charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & ") "
+  cursor_show = lpad(STR(curspos.charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & " lineh=" & curspos.lineh & ")"
   edgeprint cursor_show, 0, pBottom - 10, uilook(uiText), vpage
   cursor_show = ""
   DIM tpos as integer = curspos.charnum + 1  'curspos.charnum is 0-based!
   cursor_show &= RIGHT(LEFT(text, tpos - 1), 15)
   cursor_show &= "[" & MID(text, tpos, 1) & "]"
   cursor_show &=       MID(text, tpos + 1, 10)
-  rectangle 0, pBottom, rWidth, 10, uilook(uiBackground), vpage
 
   edgeprint cursor_show, 0, pBottom, uilook(uiText), vpage
   edgeprint "</> charlim=" & char_limit & "  ^/v linelim=" & line_limit, pRight, pTop, uilook(uiText), vpage

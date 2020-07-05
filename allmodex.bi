@@ -329,8 +329,10 @@ Type StringSize
 	size as XYPair       'Width is the greatest width of any line
 	'lineend as integer   '1-based character position of the end of the last line (affected by endchar/char_limit/line_limit)
 	'                     'This is the character which was wrapped, usually a space or newline, or first char on next line.
-	lastw as integer     'Width of last line fragment
-	lasth as integer     'Height of last line fragment
+	next_pos as XYPair   'Position the next character (after char/line_limit/endchar) would be drawn
+	                     '(Warning: may be inaccurate if line_limit is used)
+	last_line_size as XYPair  'Size of last line
+	end_charnum as integer    '0-based index of the last character within char_limit, line_limit and endchar
 	lines as integer     'Number of lines
 	vis_chars as integer 'Number of visible (not markup or whitespace) characters.
 	finalfont as Font ptr
