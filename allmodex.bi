@@ -319,7 +319,8 @@ Type RenderTextArgs
 	wide as RelPos = 9999999     'X position at which to wrap (absolute, not relative to pos.x)
 	endchar as integer = 9999999 'Max number of bytes of 'text' to display/measure.
 	                             '(But characters after endchar are still inspected to determine wrapping)
-	char_limit as integer = 9999999 'Max number of visible (not markup or whitespace) characters to display/measure.
+	char_limit as integer = 9999999 'Max number of visible (excludes markup) characters to display/measure.
+	count_whitespace as bool        'Count spaces and newlines towards char_limit
 	line_limit as integer = 9999999 'Max number of lines to display/measure.
 	'debug as bool               'Print debug statements (also need to uncomment desired TEXTDBG lines)
 End Type
@@ -334,14 +335,14 @@ Type StringSize
 	last_line_size as XYPair  'Size of last line
 	end_charnum as integer    '0-based index of the last character within char_limit, line_limit and endchar
 	lines as integer     'Number of lines
-	vis_chars as integer 'Number of visible (not markup or whitespace) characters.
+	vis_chars as integer 'Number of visible (not markup) characters. Affected by args.count_whitespace
 	finalfont as Font ptr
 End Type
 
 Type StringCharPos
 	charnum as integer   '0-based!! offset in string; equal to len(text) if off the end
 	line as integer      'Line number (0-based)
-	vis_char as integer  'Visible (not markup or whitespace) character number (0-based).
+	vis_char as integer  'Visible (not markup) character number (0-based). Affected by args.count_whitespace
 	exacthit as bool     'whether actually on this character, or it's just the nearest (eg. off end of line)
 	pos as XYPair        'position is in screen coordinates
 	size as XYPair       'Size of the selected character

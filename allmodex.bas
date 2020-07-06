@@ -5173,7 +5173,7 @@ type PrintStrState
 		end type
 	end union
 	charnum as integer         'Current index (0-based) in the string
-	vis_chars as integer       'Number of visible (not markup or whitespace) characters.
+	vis_chars as integer       'Number of visible (not markup) characters. See args->count_whitespace
 	lines as integer           'Number of lines processed so far
 
 	'Internal members used only if drawing, as opposed to laying out/measuring
@@ -5530,8 +5530,10 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			.x += charwidth
 			'Add this character to outbuf. But not immediately.
 			chars_to_add += 1
-			'Spaces aren't visible, newlines count as visible if withnewlines=NO
-			if char <> 32 then .vis_chars += 1
+			'Newlines count as visible if withnewlines=NO
+			if char <> 32 orelse .args->count_whitespace then
+				.vis_chars += 1
+			end if
 		next
 
 		'Hit end of text, or wrapping
@@ -5553,11 +5555,12 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				'Reset x to the next line if there is one (we didn't hit end of the text)
 				UPDATE_STATE(outbuf, x, .startx + .leftmargin)
 			end if
-			UPDATE_STATE(outbuf, vis_chars, .vis_chars)
 			if wrapped = wrappedOnWhitespace then
 				ch += 1  'Skip past the space
+				if .args->count_whitespace then .vis_chars += 1
 				'(Note that now we might have ch = .endchar but reached_end = NO)
 			end if
+			UPDATE_STATE(outbuf, vis_chars, .vis_chars)
 			UPDATE_STATE(outbuf, charnum, ch)
 		else
 			'Reached endchar/char_limit and continued
@@ -5998,6 +6001,7 @@ sub find_text_char_position(retsize as StringCharPos ptr, text as string, charnu
 		if page = -1 then page = vpage
 		.wide = relative_pos(wide, vpages(page)->w)
 		.endchar = charnum
+		.count_whitespace = YES
 	end with
 	dim size as StringSize
 	text_layout_dimensions @size, args, text
@@ -6025,6 +6029,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 		.wide = wide
 		.withtags = withtags
 		.withnewlines = withnewlines
+		.count_whitespace = YES
 	end with
 	dim state as PrintStrState = PrintStrState(args, text, draw_pos)
 	with state
@@ -6093,7 +6098,9 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 						exit while
 					end if
 					.charnum += 1
-					if char <> 32 then .vis_chars += 1
+					if char <> 32 orelse .args->count_whitespace then
+						.vis_chars += 1
+					end if
 				end if
 			next
 
@@ -6113,7 +6120,9 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 
 				if wrapped then  'This maybe be wrong. wrapped=wrappedOnWhitespace instead?
 					.charnum -= 1
-					if char <> 32 then .vis_chars -= 1
+					if char <> 32 orelse .args->count_whitespace then
+						.vis_chars -= 1
+					end if
 				end if
 				exit while
 			elseif .charnum >= .endchar then
