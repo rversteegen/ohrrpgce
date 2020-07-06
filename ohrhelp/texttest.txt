@@ -1,4 +1,4 @@
-${K15}Press F1 to edit, F2 for a wrapping test, F3 for a stress test.
+${K15}Press ${F2}F1${F0} to edit, ${F2}F2${F0} for a wrapping test, ${F2}F3${F0} for a stress test.
 Press ${K12}left/right/up/down${K-1} to change the limits on visible characters and lines.
 
 Font 0 is default, ${F1}here's font 1${F2} and font 2 and ${F3}font 3...${F0} ... 
