@@ -6048,6 +6048,16 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 			.y += line_height
 			'.y now points to 1 pixel past the bottom of the line fragment
 
+			if .y - line_height > seekpt.y then
+				'Checking above top here so we find out first line's line_height
+				'TEXTDBG("Above top")
+				exit while
+			end if
+			if .y > seekpt.y andalso .x > seekpt.x then
+				'TEXTDBG("Off left hand side")
+				exit while
+			end if
+
 			dim char as integer
 			dim lastx as integer = INT_MIN
 

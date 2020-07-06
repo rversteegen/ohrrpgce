@@ -342,7 +342,7 @@ Type StringCharPos
 	charnum as integer   '0-based!! offset in string; equal to len(text) if off the end
 	line as integer      'Line number (0-based)
 	vis_char as integer  'Visible (not markup or whitespace) character number (0-based).
-	exacthit as bool     'whether actually on this character, or just the nearest (eg. off end of line)
+	exacthit as bool     'whether actually on this character, or it's just the nearest (eg. off end of line)
 	pos as XYPair        'position is in screen coordinates
 	size as XYPair       'Size of the selected character
 	lineh as integer     'height of containing line fragment
