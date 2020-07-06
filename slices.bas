@@ -1534,7 +1534,8 @@ Sub DisposeTextSlice(byval sl as Slice ptr)
  sl->SliceData = 0
 end sub
 
-Sub WrapTextSlice(byval sl as Slice ptr, lines() as string)
+'OBSOLETE, don't use
+Local Sub WrapTextSlice(byval sl as Slice ptr, lines() as string)
  if sl = 0 then exit sub
  if sl->SliceData = 0 then exit sub
 
@@ -1632,6 +1633,8 @@ Sub DrawTextSlice(byval sl as Slice ptr, byval p as integer)
   exit sub
  end if
 
+ '''' The following code is obsolete ''''
+
  dim lines() as string
  WrapTextSlice sl, lines()
  dim line_starts() as integer
@@ -1679,16 +1682,18 @@ Sub NewUpdateTextSlice(byval sl as Slice ptr)
  text_layout_dimensions @retsize, args, dat->s
  sl->Height = retsize.size.h
  if dat->Wrap = NO then sl->Width = retsize.size.w
- 'Very unhappy that we have to call text_layout_dimensions twice every frame
- 'just to compute line_count. TODO: have a function to compute char/line_count instead.
+end sub
+
+'Measure a text slice when char_limit and line_limit are ignored,
+'including its size and the number of lines and characters.
+Sub MeasureUnlimitedTextSlice(sl as Slice ptr, retsize as StringSize ptr)
+ if sl = 0 orelse sl->SliceData = 0 then exit sub
+ dim args as RenderTextArgs
  GetRenderTextArgs sl, args, , NO  'limits=NO
- text_layout_dimensions @retsize, args, dat->s
- dat->line_count = retsize.lines
- dat->char_count = retsize.vis_chars
+ text_layout_dimensions retsize, args, sl->TextData->s
 end sub
 
 'Update the size of text slice. This only happens when you call ChangeTextSlice.
-'(Note: this must be called after WrapTextSlice() has set dat->line_count)
 Sub UpdateTextSlice(byval sl as Slice ptr)
  if sl = 0 then exit sub
  if sl->SliceData = 0 then exit sub
@@ -1699,6 +1704,8 @@ Sub UpdateTextSlice(byval sl as Slice ptr)
   NewUpdateTextSlice sl
   exit sub
  end if
+
+ '''' The following code is obsolete ''''
 
  '--Note that automatic setting of wrapped text height doesn't matter if this slice is set ->Fill = YES the parent fill height will override
  dim lines() as string
@@ -1726,6 +1733,7 @@ Function TextSliceCharPos(sl as Slice ptr, charnum as integer) as XYPair
  return charpos.pos
 end function
 
+'OBSOLETE, don't use
 Local Sub UpdateTextSliceHeight(byval sl as Slice ptr, lines() as string)
  dim dat as TextSliceData ptr = sl->SliceData
  dim high as integer

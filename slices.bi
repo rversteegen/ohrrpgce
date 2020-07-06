@@ -435,8 +435,7 @@ Type TextSliceData
  show_insert as bool    ' set to YES to display insertion point
  insert_tog as integer 'flash state of insertion pointer (0 or 1)
  first_line as integer 'Top-most line to show. Used for scrolling
- line_count as integer 'automatically populated when the slice changes
- char_count as integer
+ line_count as integer 'Do not use. Call MeasureTextSlice instead. (use_render_text=NO only)
 End Type
 
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!
@@ -697,6 +696,7 @@ DECLARE Sub ChangeTextSlice(byval sl as slice ptr,_
                       byval bgcol as integer=colInvalid)
 DECLARE Function GetTextSliceString(byval sl as slice ptr) as string
 DECLARE Function TextSliceCharPos(sl as Slice ptr, charnum as integer) as XYPair
+DECLARE Sub MeasureUnlimitedTextSlice(sl as Slice ptr, retsize as StringSize ptr)
 
 DECLARE Sub DisposeSpriteSlice(byval sl as slice ptr)
 DECLARE Sub DrawSpriteSlice(byval sl as slice ptr, byval p as integer)
