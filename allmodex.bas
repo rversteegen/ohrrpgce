@@ -5348,9 +5348,14 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 		line_height = .thefont->line_h
 		wrapped = NO
 		for ch = .charnum to len(z) - 1
+			dim char as integer = z[ch]
+			dim newline as bool = (char = 10 andalso .args->withnewlines)
+
 			'We keep going past endchar/char_limit until the end of the line, to figure out where to linebreak,
 			'so record state for backtracking. We might skip over ch = endchar because it's in the middle of markup.
-			if endchar_ch = -1 andalso (ch >= .endchar orelse .vis_chars >= .args->char_limit) then
+			'(Have to delay check for hitting char_limit with non-newline until below)
+			if endchar_ch = -1 andalso (ch >= .endchar orelse _
+				    (newline andalso .vis_chars >= .args->char_limit andalso .args->count_whitespace)) then
 				'TEXTDBG("hit endchar/char_limit at " & ch & ", x=" & .x)
 				endchar_ch = ch
 				endchar_outbuf_len = len(outbuf) + chars_to_add
@@ -5358,9 +5363,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				endchar_vis_chars = .vis_chars
 			end if
 
-			dim char as integer = z[ch]
-
-			if char = 10 andalso .args->withnewlines then  'newline
+			if newline then
 				'TEXTDBG("hit newline at " & ch)
 				'TEXTDBG("add " & chars_to_add & " chars before " & ch & " : '" & Mid(z, 1 + ch - chars_to_add, chars_to_add) & "'")
 				outbuf += Mid(z, 1 + ch - chars_to_add, chars_to_add)
@@ -5492,8 +5495,17 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 				lastspace_vis_chars = .vis_chars
 			end if
 			'We reach here only if not markup or a newline
-
+			'Newlines count as visible if withnewlines=NO
+			dim char_is_vis as bool = (char <> asc(" ") orelse .args->count_whitespace)
 			dim charwidth as integer = .thefont->w(char)
+
+			if endchar_ch = -1 andalso char_is_vis andalso .vis_chars >= .args->char_limit then
+				'TEXTDBG("hit char_limit at " & ch & ", x=" & .x)
+				endchar_ch = ch
+				endchar_outbuf_len = len(outbuf) + chars_to_add
+				endchar_x = .x
+				endchar_vis_chars = .vis_chars
+			end if
 
 			'End of line? (Only check after at least one character, to avoid infinite loops)
 			if .x + charwidth > .startx + .rightmargin andalso ch > initial_charnum then
@@ -5530,10 +5542,7 @@ local function layout_line_fragment(z as string, byval state as PrintStrState, b
 			.x += charwidth
 			'Add this character to outbuf. But not immediately.
 			chars_to_add += 1
-			'Newlines count as visible if withnewlines=NO
-			if char <> 32 orelse .args->count_whitespace then
-				.vis_chars += 1
-			end if
+			if char_is_vis then .vis_chars += 1
 		next
 
 		'Hit end of text, or wrapping
@@ -5881,7 +5890,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 
 		'TEXTDBG("--text_layout_dimensions-- until endchar = " & .endchar & " len " & len(text))
 
-		while .charnum <= .endchar andalso .lines < .args->line_limit andalso .vis_chars < .args->char_limit
+		while .lines < .args->line_limit
 			dim prev_charnum as integer = .charnum
 			dim wrapped as WrappedEnum
 			dim parsed_line as string = layout_line_fragment(text, state, line_width, line_height, , wrapped, reached_end)
@@ -5898,7 +5907,7 @@ sub text_layout_dimensions (retsize as StringSize ptr, args as RenderTextArgs, t
 			line_width += .thefont->size_offset.x  'A hack to ensure size same as text slices
 			maxwidth = large(maxwidth, line_width)
 
-			if .charnum >= .endchar then
+			if .charnum >= .endchar orelse .vis_chars >= .args->char_limit then
 				'TEXTDBG("exit: at endchar " & .charnum & " >= " & .endchar)
 				if reached_end then
 					'Final character was on this line (possibly as invisible whitespace at
@@ -6098,7 +6107,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 						exit while
 					end if
 					.charnum += 1
-					if char <> 32 orelse .args->count_whitespace then
+					if char <> asc(" ") orelse .args->count_whitespace then
 						.vis_chars += 1
 					end if
 				end if
@@ -6120,7 +6129,7 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 
 				if wrapped then  'This maybe be wrong. wrapped=wrappedOnWhitespace instead?
 					.charnum -= 1
-					if char <> 32 orelse .args->count_whitespace then
+					if char <> asc(" ") orelse .args->count_whitespace then
 						.vis_chars -= 1
 					end if
 				end if
