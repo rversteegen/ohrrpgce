@@ -2305,6 +2305,10 @@ FUNCTION xintgrabber (byref n as integer, pmin as integer, pmax as integer, nmin
  RETURN (old <> n)
 END FUNCTION
 
+'==========================================================================================
+'                                 Text editing (stredit)
+'==========================================================================================
+
 ' Handle all key combinations for deleting a character or word forward or backwards:
 ' Backspace, Delete, Alt/Ctrl-Backspace/Delete
 ' On Mac, Option- (which is Alt) Backspace/Delete are used instead of Ctrl-Backspace/Delete
@@ -2583,6 +2587,8 @@ FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999
 
 END FUNCTION
 
+'==========================================================================================
+
 SUB pop_warning(msg as zstring ptr, byval autoquit as bool = NO)
  'autoquit is specifically for cleanup_and_terminate and has no other use
 
@@ -2748,6 +2754,11 @@ FUNCTION prompt_for_string (byref retstring as string, caption as string, limit 
  DeleteSlice @root
 END FUNCTION
 
+
+'==========================================================================================
+'                                       TextEditor
+'==========================================================================================
+
 LOCAL FUNCTION _highlight_text(original as string, arg as any ptr) as string
  DIM col as integer = *CAST(integer ptr, arg)
  RETURN bgtag(col, original)
@@ -2790,11 +2801,29 @@ SUB advance_incremental_search(text as string, searchstring as string, byref cha
  charnum = match
 END SUB
 
-SUB show_help(helpkey as zstring ptr)
- DIM original_text as string
- original_text = load_help_file(*helpkey)
- DIM help_str as string = original_text  'The edited version
+'This slice-based text editor can be in either view or edit mode. Ctrl-E switching to editing.
+'It is the basis of the help viewer/editor.
+TYPE TextEditor EXTENDS Object
+ the_text as string       'For editing
+ helpkey as string
+ editing as bool = NO
 
+ DECLARE VIRTUAL FUNCTION can_quit_with_changes() as bool
+ DECLARE VIRTUAL FUNCTION can_switch_to_editing() as bool
+ DECLARE SUB run()
+END TYPE
+
+'Called on ESC if there are any edits; returns whether to quit.
+FUNCTION TextEditor.can_quit_with_changes() as bool
+ RETURN YES
+END FUNCTION
+
+FUNCTION TextEditor.can_switch_to_editing() as bool
+ RETURN YES
+END FUNCTION
+
+SUB TextEditor.run()
+ DIM original_text as string = the_text
  '--Construct the help UI (This will be hella easier later when the Slice Editor can save/load)
  DIM help_root as Slice Ptr
  help_root = NewSliceOfType(slContainer)
@@ -2859,7 +2888,7 @@ SUB show_help(helpkey as zstring ptr)
  WITH *help_text
   .Fill = YES
   .FillMode = sliceFillHoriz
-  ChangeTextSlice help_text, help_str, , , YES  'wrap=YES
+  ChangeTextSlice help_text, the_text, , , YES  'wrap=YES
  END WITH
  DIM animate as Slice Ptr
  animate = help_root
@@ -2874,7 +2903,6 @@ SUB show_help(helpkey as zstring ptr)
  dat = help_text->SliceData
  dat->insert = 0
 
- DIM editing as bool = NO
  DIM deadkeys as integer = 25
 
  DIM searchstring as string
@@ -2894,27 +2922,14 @@ SUB show_help(helpkey as zstring ptr)
   UpdateRootSliceSize(help_root, vpage)
 
   IF editing THEN
-   stredit(help_str, dat->insert, , help_draw_area->Height, help_text->Width)
-   ChangeTextSlice help_text, help_str
+   stredit(the_text, dat->insert, , help_draw_area->Height, help_text->Width)
+   ChangeTextSlice help_text, the_text
   END IF
 
   IF deadkeys = 0 THEN
    IF keyval(ccCancel) > 1 AND (editing OR searchstring = "") THEN
-    '--If there are any changes to the help screen, offer to save them
-    IF original_text = help_str THEN
-     EXIT DO
-    ELSE
-     'Prevent attempt to quit the program, stop and wait for response first
-     DIM quitting as bool = getquitflag()
-     setquitflag NO
-     DIM choice as integer = twochoice("Save changes to help for """ & *helpkey & """?", "Yes", "No", 0, -1)
-     IF getquitflag() THEN choice = 1  'Second attempt to quit: discard
-     IF choice <> -1 THEN
-      IF quitting THEN setquitflag
-      IF choice = 0 THEN save_help_file *helpkey, dat->s
-      EXIT DO
-     END IF
-    END IF
+    'Quitting: if there are any changes made, check whether we can leave
+    IF the_text = original_text ORELSE can_quit_with_changes() THEN EXIT DO
    END IF
 
    IF editing THEN
@@ -2922,9 +2937,9 @@ SUB show_help(helpkey as zstring ptr)
      'TODO: Previously we didn't use_render_text while editing so couldn't do text highlighting,
      'so used this old search implementation. We could now make Ctrl-S start incremental search.
      IF prompt_for_string(searchstring, "Search") THEN
-      DIM idx as integer = INSTR(dat->insert + 2, LCASE(dat->s), LCASE(searchstring))
+      DIM idx as integer = INSTR(dat->insert + 2, LCASE(the_text), LCASE(searchstring))
       IF idx = 0 THEN  'wrap
-       idx = INSTR(dat->s, searchstring)
+       idx = INSTR(the_text, searchstring)
       END IF
       IF idx THEN dat->insert = idx - 1
      END IF
@@ -2943,10 +2958,10 @@ SUB show_help(helpkey as zstring ptr)
      IF strgrabber(searchstring, 60) THEN advance_dir = 0
     END IF
     IF advance_dir <> -2 THEN
-     'ChangeTextSlice help_text, help_str  'So that TextSliceCharPos() returns the correct result
-     advance_incremental_search(help_str, searchstring, dat->insert, advance_dir, help_text)
+     'ChangeTextSlice help_text, the_text  'So that TextSliceCharPos() returns the correct result
+     advance_incremental_search(the_text, searchstring, dat->insert, advance_dir, help_text)
      DIM highlighted as string
-     highlighted = highlight_for_incremental_search(help_str, searchstring, dat->insert, search_num_matches)
+     highlighted = highlight_for_incremental_search(the_text, searchstring, dat->insert, search_num_matches)
      ChangeTextSlice help_text, highlighted
 
      IF LEN(searchstring) THEN
@@ -2960,10 +2975,10 @@ SUB show_help(helpkey as zstring ptr)
    END IF
 
    IF keyval(scCtrl) > 0 AND keyval(scE) > 1 THEN
-    IF diriswriteable(get_help_dir()) THEN
+    IF can_switch_to_editing() THEN
      editing = YES
      'Hide footer
-     help_outer_box->paddingBottom = 4
+     'help_outer_box->paddingBottom = 4
      footer_text->Visible = NO
      footer_text2->Visible = NO
 
@@ -2972,14 +2987,9 @@ SUB show_help(helpkey as zstring ptr)
      dat->show_insert = YES
 
      ChangeRectangleSlice help_box, , uilook(uiBackground), , 0
-    ELSE
-     ' It would be possible to just automatically makedir($documents_dir/ohrhelp), and warn the user that it happened
-     pop_warning "Your """ & get_help_dir() & """ folder is not writable. Try making a copy of it at """ & documents_dir & SLASH & "ohrhelp"""
     END IF
    END IF
-   IF keyval(scF1) and *helpkey <> "share_helphelp" THEN
-    show_help "share_helphelp"
-   END IF
+   IF keyval(scF1) ANDALSO LEN(helpkey) THEN show_help helpkey
    IF keyval(scF6) THEN slice_editor help_root, SL_COLLECT_EDITOR
 
    'Update scroll position (help_text->Y)
@@ -2990,7 +3000,7 @@ SUB show_help(helpkey as zstring ptr)
     ' Move cursor to location of mouse click.
     IF readmouse.buttons AND (mouseLeft OR mouseRight) THEN
      DIM curspos as StringCharPos
-     find_point_in_text @curspos, readmouse.pos, dat->s, help_text->Width, help_text->ScreenPos, fontPlain
+     find_point_in_text @curspos, readmouse.pos, the_text, help_text->Width, help_text->ScreenPos, fontPlain
      dat->insert = curspos.charnum
     END IF
 
@@ -3012,7 +3022,7 @@ SUB show_help(helpkey as zstring ptr)
    END IF
    help_text->Y = -bound(top, 0, maxy)
 
-  END IF
+  END IF  'End of deadkeys=0
   deadkeys = large(deadkeys - 1, 0)
 
   'Animate the arrival of the help screen
@@ -3044,6 +3054,8 @@ SUB show_help(helpkey as zstring ptr)
  freepage holdscreen
  DeleteSlice @help_root
 END SUB
+
+'==========================================================================================
 
 FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = YES) as string
  'FIXME: this hasn't been updated for variable res, and has heaps of code duplication with
@@ -3174,6 +3186,54 @@ FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_sa
  
  RETURN result
 END FUNCTION
+
+'==========================================================================================
+'                                        show_help
+'==========================================================================================
+
+TYPE HelpTextEditor EXTENDS TextEditor
+ original_text as string
+ editing_helpkey as string  'The help page we're viewing/editing, not what F1 brings up
+
+ DECLARE VIRTUAL FUNCTION can_quit_with_changes() as bool
+ DECLARE VIRTUAL FUNCTION can_switch_to_editing() as bool
+END TYPE
+
+'Called if there are any changes to the help screen; offer to save them
+FUNCTION HelpTextEditor.can_quit_with_changes() as bool
+ 'Prevent attempt to quit the program, stop and wait for response first
+ DIM quitting as bool = getquitflag()
+ setquitflag NO
+ DIM choice as integer = twochoice("Save changes to help for """ & editing_helpkey & """?", "Yes", "No", 0, -1)
+ IF getquitflag() THEN choice = 1  'Second attempt to quit: discard
+ IF choice <> -1 THEN
+  IF choice = 0 THEN save_help_file editing_helpkey, the_text
+  IF quitting THEN setquitflag
+  RETURN YES
+ END IF
+END FUNCTION
+
+FUNCTION HelpTextEditor.can_switch_to_editing() as bool
+ IF diriswriteable(get_help_dir()) THEN
+  RETURN YES
+ ELSE
+  ' It would be possible to just automatically makedir($documents_dir/ohrhelp), and warn the user that it happened
+  pop_warning "Your """ & get_help_dir() & """ folder is not writable. Try making a copy of it at """ & documents_dir & SLASH & "ohrhelp"""
+ END IF
+END FUNCTION
+
+'F1 help screen
+SUB show_help(helpkey as zstring ptr)
+ DIM editor as HelpTextEditor
+ editor.the_text = load_help_file(*helpkey)
+ editor.editing_helpkey = *helpkey
+ 'Don't recursively show share_helphelp
+ editor.helpkey = IIF(*helpkey = "share_helphelp", "", "share_helphelp")
+ editor.run()
+END SUB
+
+
+'==========================================================================================
 
 SUB export_string_to_file(s as string)
  DIM filename as string
