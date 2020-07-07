@@ -2373,7 +2373,7 @@ SUB handle_text_copy_paste (byref text as string, byref clip as string)
 END SUB
 
 'Returns true if the string has changed
-FUNCTION strgrabber (text as string, maxl as integer = 9999999) as bool
+FUNCTION strgrabber (byref text as string, maxlen as integer = 9999999) as bool
  STATIC clip as string
  DIM original as string = text
 
@@ -2434,32 +2434,24 @@ SUB move_cursor_vertically(text as string, byref insert as integer, move_lines a
  insert = charpos.charnum
 END SUB
 
-'Handle text editing keyboard controls, either single (height=1) or multiple lines (height>1).
+'Handle text editing keyboard controls, either single (height=0) or multiple lines (height>0).
 '(Also handles scroll wheel, but not clicking)
-'If old_mode=YES then returns the line that the cursor is on, or 0 if height=1. No return value if old_mode=NO.
-'
-'insert:      The 0-based byte position of the cursor (range 0..LEN(s)-1), and is modified byref.
+'Modifies s and insert byref.
+'insert:      The 0-based byte position of the cursor (range 0..LEN(s)-1).
 '             Set to -1 to move automatically to end of string.
 'maxlen:      Maximum length in bytes.
-'height:      If = 1 then newlines are disabled.
-'             Height of editing viewpoint in in pixels (if old_mode=NO) or lines (if old_mode=YES)
-'width:       Length of a line for wrapping, in pixels (if old_mode=NO) or characters (if old_mode=YES)
-'old_mode:    Temporary hack to support multiline_string_editor only.
+'height:      Height of editing viewpoint in in pixels. If = 0 then newlines are disabled.
+'width:       Length of a line for wrapping, in pixels
 'withtags:    Enable text markup
 'fontnum:     Initial font
-FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 1, width as integer = 9999999, old_mode as bool = NO, withtags as bool = YES, fontnum as integer = 0) as integer
- stredit = 0
-
- STATIC clip as string
-
+SUB stredit (s as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
  '--copy+paste support
+ STATIC clip as string
  handle_text_copy_paste s, clip
  s = LEFT(s, maxlen)
 
  IF insert < 0 THEN insert = LEN(s)
  insert = bound(insert, 0, LEN(s))
-
- DIM with_newlines as bool = (height > 1)
 
  '--insert cursor movement
  ' (Mac uses Option (ie ALT) instead of CTRL for moving by word, so accept that too.
@@ -2488,62 +2480,17 @@ FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999
  END IF
 
  '--up and down arrow keys
- IF height > 1 THEN
+ IF height > 0 THEN
   DIM move_lines as integer = 0
   IF keyval(ccUp) > 1 THEN move_lines = -1
   IF keyval(ccDown) > 1 THEN move_lines = 1
-
-  IF old_mode THEN
-   IF keyval(scPageUp) > 1 THEN move_lines = -(height - 2)
-   IF keyval(scPageDown) > 1 THEN move_lines = height - 2
-   move_lines += readmouse.wheel_clicks * 3
-
-   DIM wrapped as string
-   wrapped = wordwrap(s, large(1, width))
-   DIM lines() as string
-   split(wrapped, lines())
-   DIM line_starts() as integer
-   split_line_positions s, lines(), line_starts()
-
-   DIM insert_line as integer = -1
-   DIM offset_in_line as integer  '0-based
-   FOR linenum as integer = 0 TO UBOUND(lines)
-    DIM next_line as integer = IIF(linenum = UBOUND(lines), len(s) + 1, line_starts(linenum + 1))
-    IF next_line > insert THEN
-     insert_line = linenum
-     offset_in_line = insert - line_starts(linenum)
-     EXIT FOR
-    END IF
-   NEXT linenum
-   IF insert_line = -1 THEN
-    showbug "Ignorable engine bug: stredit couldn't find line"
-   END IF
-
-   IF move_lines THEN
-    insert_line = bound(insert_line + move_lines, 0, UBOUND(lines) + 1)
-    IF insert_line = UBOUND(lines) + 1 THEN
-     'Trying to move past last line: move to its end instead
-     insert = LEN(s)
-    ELSE
-     insert = line_starts(insert_line) + small(offset_in_line, LEN(lines(insert_line)))
-    END IF
-   END IF
-
-   '--set return value
-   stredit = insert_line
-
-  ELSE  'old_mode = NO
-   DIM move_pixels as integer = 0
-   IF keyval(scPageUp) > 1 THEN move_pixels = -(height - 16)
-   IF keyval(scPageDown) > 1 THEN move_pixels = height - 16
-   move_pixels += readmouse.wheel_clicks * 3 * 10
-
-   IF move_lines OR move_pixels THEN
-    move_cursor_vertically s, insert, move_lines, move_pixels, width, fontnum
-   END IF
+  DIM move_pixels as integer = 0
+  IF keyval(scPageUp) > 1 THEN move_pixels = -(height - 16)
+  IF keyval(scPageDown) > 1 THEN move_pixels = height - 16
+  move_pixels += readmouse.wheel_clicks * 3 * 10
+  IF move_lines OR move_pixels THEN
+   move_cursor_vertically s, insert, move_lines, move_pixels, width, fontnum
   END IF
-
-  '--end of special handling for up and down motion
 
   '--Home and end keys: go to previous/next newline,
   '--unless Ctrl is pressed, which is handled above
@@ -2575,7 +2522,7 @@ FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999
    pre &= charpicker()
 #ENDIF
   ELSEIF keyval(scAnyEnter) > 1 THEN
-   IF height > 1 THEN
+   IF height > 0 THEN
     pre &= CHR(10)
    END IF
   ELSE
@@ -2584,7 +2531,6 @@ FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999
  END IF
  insert = LEN(pre)
  s = LEFT(pre & post, maxlen)
-
 END FUNCTION
 
 '==========================================================================================
