@@ -6085,12 +6085,19 @@ sub find_point_in_text (retsize as StringCharPos ptr, seekpt as XYPair, text as 
 					READ_MEMBER(state, parsed_line, ch)
 				elseif char >= tcmdFirst andalso char <= tcmdLast then
 					'TEXTDBG("CMD(" & char & "): ch=" & ch & " charnum=" & .charnum)
-					if char <= tcmdLastWithArg then
+					if char = tcmdFont then
+						READ_VALUE(arg, parsed_line, ch)
+						if arg = -1 then
+							.thefont = .initial_font
+						elseif fonts(arg) then
+							.thefont = fonts(arg)
+						else
+							'This should be impossible, because layout_line_fragment has already checked this
+							showbug "find_point_in_text: NULL font!"
+						end if
+					elseif char <= tcmdLastWithArg then
 						READ_VALUE(arg, parsed_line, ch)
 						'TEXTDBG("READ_VALUE: arg=" & arg)
-						if char = tcmdFont then
-							.thefont = fonts(arg)
-						end if
 					end if
 					'All other commands: ignore
 				else
