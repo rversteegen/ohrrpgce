@@ -2805,8 +2805,10 @@ END SUB
 'It is the basis of the help viewer/editor.
 TYPE TextEditor EXTENDS Object
  the_text as string       'For editing
+ original_text as string  'An initial copy of the_text (set automatically by run())
  helpkey as string
  editing as bool = NO
+ prompt_to_save as bool
 
  DECLARE VIRTUAL FUNCTION can_quit_with_changes() as bool
  DECLARE VIRTUAL FUNCTION can_switch_to_editing() as bool
@@ -2815,7 +2817,17 @@ END TYPE
 
 'Called on ESC if there are any edits; returns whether to quit.
 FUNCTION TextEditor.can_quit_with_changes() as bool
- RETURN YES
+ IF prompt_to_save = NO THEN RETURN YES
+ 'Prevent attempt to quit the program, stop and wait for response first
+ DIM quitting as bool = getquitflag()
+ setquitflag NO
+ DIM choice as integer = twochoice("Keep changes to this text?", "Yes", "No", 0, -1)
+ IF getquitflag() THEN choice = 1  'Second attempt to quit: discard changes
+ IF choice <> -1 THEN
+  IF choice = 1 THEN the_text = original_text
+  IF quitting THEN setquitflag
+  RETURN YES
+ END IF
 END FUNCTION
 
 FUNCTION TextEditor.can_switch_to_editing() as bool
@@ -2823,7 +2835,7 @@ FUNCTION TextEditor.can_switch_to_editing() as bool
 END FUNCTION
 
 SUB TextEditor.run()
- DIM original_text as string = the_text
+ original_text = the_text
  '--Construct the help UI (This will be hella easier later when the Slice Editor can save/load)
  DIM help_root as Slice Ptr
  help_root = NewSliceOfType(slContainer)
@@ -2977,19 +2989,13 @@ SUB TextEditor.run()
    IF keyval(scCtrl) > 0 AND keyval(scE) > 1 THEN
     IF can_switch_to_editing() THEN
      editing = YES
-     'Hide footer
-     'help_outer_box->paddingBottom = 4
-     footer_text->Visible = NO
-     footer_text2->Visible = NO
-
      'Kludge: insert is actually 0-based offset, but incremental search use 1-based offset
      IF dat->insert THEN dat->insert -= 1
-     dat->show_insert = YES
-
-     ChangeRectangleSlice help_box, , uilook(uiBackground), , 0
     END IF
    END IF
    IF keyval(scF1) ANDALSO LEN(helpkey) THEN show_help helpkey
+   IF keyval(scF2) THEN export_string_to_file the_text
+   IF keyval(scF3) THEN import_string_from_file the_text
    IF keyval(scF6) THEN slice_editor help_root, SL_COLLECT_EDITOR
 
    'Update scroll position (help_text->Y)
@@ -3028,6 +3034,13 @@ SUB TextEditor.run()
   'Animate the arrival of the help screen
   animate->Y = large(animate->Y - vpages(vpage)->h \ 15, 0)
 
+  IF editing THEN
+   footer_text->Visible = NO
+   footer_text2->Visible = NO
+   dat->show_insert = YES
+   ChangeRectangleSlice help_box, , uilook(uiBackground), , 0
+  END IF
+
   copypage holdscreen, vpage
 
   ChangeTextSlice footer_text, footerstring
@@ -3055,136 +3068,14 @@ SUB TextEditor.run()
  DeleteSlice @help_root
 END SUB
 
-'==========================================================================================
-
-FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = YES) as string
- 'FIXME: this hasn't been updated for variable res, and has heaps of code duplication with
- 'show_help editing mode
- 
- '--Construct the UI (loading a slice collection might be better here? but not from the RPG file!)
- DIM root as Slice Ptr
- root = NewSliceOfType(slContainer)
- WITH *root
-  'TODO: this doesn't handle changes to window size. Have a look at
-  'how pop_warning handles this instead.
-  .Y = 200
-  .Fill = NO
-  .Size = get_resolution()
- END WITH
- DIM outer_box as Slice Ptr
- outer_box = NewSliceOfType(slContainer, root)
- WITH *outer_box
-  .paddingTop = 4
-  .paddingBottom = 4
-  .paddingLeft = 4
-  .paddingRight = 4
-  .Fill = YES
- END WITH
- DIM box as Slice Ptr
- box = NewSliceOfType(slRectangle, outer_box)
- WITH *box
-  .paddingTop = 8
-  .paddingBottom = 8
-  .paddingLeft = 8
-  .paddingRight = 8
-  .Fill = YES
-  ChangeRectangleSlice box, , uilook(uiBackground), , 0
- END WITH
- DIM text as Slice Ptr
- text = NewSliceOfType(slText, box)
- WITH *text
-  .TextData->use_render_text = NO  'Because we use first_line
-  .Fill = YES
-  ChangeTextSlice text, s, , , YES
- END WITH
- DIM animate as Slice Ptr
- animate = root
-
- '--Preserve whatever screen was already showing as a background
- DIM holdscreen as integer
- holdscreen = allocatepage
- copypage vpage, holdscreen
- copypage vpage, dpage
-
- DIM dat as TextSliceData Ptr
- dat = text->SliceData
- dat->line_limit = 18
- dat->insert = 0
- dat->show_insert = YES
-
- DIM deadkeys as integer = 25
- DIM cursor_line as integer = 0
- DIM scrollbar_state as MenuState
- scrollbar_state.size = 17
-
- '--Now loop displaying help
- setkeys YES
- DO
-  setwait 30
-  setkeys YES
-
-  DIM textstring as string = dat->s
-  cursor_line = stredit(textstring, dat->insert, , dat->line_limit, text->Width \ 8, YES, NO)  'old_mode=YES, withtags=NO
-  ChangeTextSlice text, textstring
-
-  IF keyval(ccCancel) > 1 THEN
-   '--If there are any changes to the help screen, offer to save them
-   IF s = dat->s THEN
-    EXIT DO
-   ELSEIF prompt_to_save THEN
-    DIM choice as integer = twochoice("Keep changes to this text?", "Yes", "No", 0, -1)
-    IF choice = 1 THEN dat->s = s '--don't use changes!
-    IF choice >= 0 THEN EXIT DO
-   ELSE
-    EXIT DO
-   END IF
-  END IF
-  IF deadkeys = 0 THEN 
-   IF keyval(scF1) ANDALSO helpkey <> "" THEN show_help helpkey
-   IF keyval(scF2) THEN export_string_to_file dat->s
-   IF keyval(scF3) THEN import_string_from_file dat->s
-   dat->first_line = small(dat->first_line, cursor_line - 1)
-   dat->first_line = large(dat->first_line, cursor_line - (dat->line_limit - 2))
-   dat->first_line = bound(dat->first_line, 0, large(0, dat->line_count - dat->line_limit))
-  END IF
-  deadkeys = large(deadkeys -1, 0)
-
-  'Animate the arrival of the help screen
-  animate->Y = large(animate->Y - 20, 0)
-
-  copypage holdscreen, vpage
-
-  DrawSlice root, vpage
-  
-  WITH scrollbar_state
-   .top = dat->first_line
-   .last = dat->line_count - 1
-  END WITH
-  draw_fullscreen_scrollbar scrollbar_state, , vpage
-
-  setvispage vpage
-  dowait
- LOOP
-
- '--Animate the removal of the multiline text editor
- DO
-  setkeys
-  setwait 17
-  animate->Y = animate->Y + 20
-  IF animate->Y > 200 THEN EXIT DO
-  copypage holdscreen, vpage
-  DrawSlice root, vpage
-  setvispage vpage
-  dowait
- LOOP
-
- DIM result as string
- result = dat->s
- 
- freepage holdscreen
- DeleteSlice @root
- 
- RETURN result
+FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = NO) as string
+ DIM editor as TextEditor
+ editor.the_text = s
+ editor.helpkey = helpkey
+ editor.prompt_to_save = prompt_to_save
+ editor.editing = YES
+ editor.run()
+ RETURN editor.the_text
 END FUNCTION
 
 '==========================================================================================

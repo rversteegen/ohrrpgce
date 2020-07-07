@@ -20,6 +20,7 @@ September ? 2020 [Hróðvitnir]
     * There is now a global pool of NPC definitions that can be used on
       any map to supplement the local per-map NPCs [James]
     * Outlined text slices can have a colored opaque background [Ralph]
+    * Improved fullscreen text editor (used for e.g. text slices) [Ralph]
 
    * New Plotscripting Features
     * "set timer args" [Ralph]
@@ -75,6 +76,8 @@ September ? 2020 [Hróðvitnir]
     * NPC extra data wasn't saved in saved map states (they reset to 0) [Ralph]
     * Bug #1143 4-bit BMP export with width mod 4 == 1 is broken, and
       bug #1070 Master palette export produces a semi-broken BMP file [Ralph]
+    * Custom would get stuck if you attempt to quit inside one of the fullscreen
+      text editors in Edit Distribution Info [Ralph]
 
   *** Stuff Only Developers Will Notice
     * clang can be used to compile instead of gcc. Added "compiler=clang|gcc"

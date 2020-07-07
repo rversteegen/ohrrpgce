@@ -323,7 +323,7 @@ DECLARE FUNCTION load_help_file(helpkey as string) as string
 DECLARE SUB save_help_file(helpkey as string, text as string)
 
 DECLARE SUB show_help(helpkey as zstring ptr)
-DECLARE FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = YES) as string
+DECLARE FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = NO) as string
 DECLARE SUB export_string_to_file(s as string)
 DECLARE SUB import_string_from_file(s as string)
 
