@@ -220,7 +220,7 @@ DECLARE FUNCTION install_windows_helper_app (appname as string, download_url as 
 DECLARE FUNCTION download_file (url as string, dest as string, forcefilename as string="") as bool
 DECLARE FUNCTION missing_helper_message (appname as string) as string
 
-DECLARE FUNCTION stredit (s as string, byref insert as integer, byval maxl as integer = 9999999, byval numlines as integer = 1, byval line_length as integer = 1) as integer
+DECLARE FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 1, width as integer = 9999999, old_mode as bool = NO, withtags as bool = YES, fontnum as integer = 0) as integer
 'strgrabber has separate versions in customsubs.bas and yetmore2.bas
 DECLARE FUNCTION strgrabber (s as string, maxl as integer = 9999999) as bool
 DECLARE SUB handle_text_copy_paste (byref text as string, byref clip as string)

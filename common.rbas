@@ -2396,30 +2396,80 @@ FUNCTION strgrabber (text as string, maxl as integer = 9999999) as bool
  RETURN (text <> original)
 END FUNCTION
 
-FUNCTION stredit (s as string, byref insert as integer, maxl as integer = 9999999, numlines as integer = 1, line_length as integer = 1) as integer
- 'Return value is the line that the cursor is on, or 0 if numlines=1
- 'insert is the 0-based position of the cursor (range 0..LEN(s)-1), and is modified byref. Set to -1 to move automatically to end of string
- 'maxl is maximum length in characters.
- 'numlines is number of lines visible. If > 1 then wrapping and newlines are enabled.
- 'line_length is number of characters on a line (for wrapping)
+'Move insert point in text forward/backward by move_chars characters (rather than bytes), skipping over markup.
+SUB move_cursor_by_characters(text as string, byref insert as integer, move_chars as integer, fontnum as integer = 0)
+ 'Find vis_chars offset of current insert
+ DIM args as RenderTextArgs
+ args.endchar = insert
+ args.count_whitespace = YES
+ args.fontnum = fontnum
+ 'Don't need width, wrapping should have no effect on results
+ DIM sizeinfo as StringSize
+ text_layout_dimensions @sizeinfo, args, text
+ 'Go from vis_chars back to charnum
+ args.endchar = 99999999
+ args.char_limit = sizeinfo.vis_chars + move_chars
+ text_layout_dimensions @sizeinfo, args, text
+ insert = sizeinfo.end_charnum
+END SUB
+
+'Move insert point in text vertically.
+'move_lines: -1 or 1 to move up/down a line, or 0.
+'move_pixels: additionally, move up and down by some pixels (used for page up/down)
+SUB move_cursor_vertically(text as string, byref insert as integer, move_lines as integer, move_pixels as integer, width as integer, fontnum as integer = 0)
+ 'Find position in pixels of current insert
+ DIM charpos as StringCharPos
+ find_text_char_position @charpos, text, insert, width, fontnum
+ DIM point as XYPair = charpos.pos
+ 'Move up/down and find string offset
+ point.x += charpos.size.w \ 2
+ IF move_lines < 0 THEN point.y += charpos.size.h - charpos.lineh - 1
+ IF move_lines > 0 THEN point.y += charpos.size.h + 1
+ point.y += move_pixels
+ find_point_in_text @charpos, point, text, width, , fontnum
+ insert = charpos.charnum
+END SUB
+
+'Handle text editing keyboard controls, either single (height=1) or multiple lines (height>1).
+'(Also handles scroll wheel, but not clicking)
+'If old_mode=YES then returns the line that the cursor is on, or 0 if height=1. No return value if old_mode=NO.
+'
+'insert:      The 0-based byte position of the cursor (range 0..LEN(s)-1), and is modified byref.
+'             Set to -1 to move automatically to end of string.
+'maxlen:      Maximum length in bytes.
+'height:      If = 1 then newlines are disabled.
+'             Height of editing viewpoint in in pixels (if old_mode=NO) or lines (if old_mode=YES)
+'width:       Length of a line for wrapping, in pixels (if old_mode=NO) or characters (if old_mode=YES)
+'old_mode:    Temporary hack to support multiline_string_editor only.
+'withtags:    Enable text markup
+'fontnum:     Initial font
+FUNCTION stredit (s as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 1, width as integer = 9999999, old_mode as bool = NO, withtags as bool = YES, fontnum as integer = 0) as integer
  stredit = 0
- 
+
  STATIC clip as string
 
  '--copy+paste support
  handle_text_copy_paste s, clip
- s = LEFT(s, maxl)
+ s = LEFT(s, maxlen)
 
  IF insert < 0 THEN insert = LEN(s)
  insert = bound(insert, 0, LEN(s))
+
+ DIM with_newlines as bool = (height > 1)
 
  '--insert cursor movement
  ' (Mac uses Option (ie ALT) instead of CTRL for moving by word, so accept that too.
  ' Doesn't use Option-Home/End though.)
  IF keyval(scCtrl) = 0 AND keyval(scAlt) = 0 THEN
-  IF keyval(ccLeft) > 1 THEN insert = large(0, insert - 1)
-  IF keyval(ccRight) > 1 THEN insert = small(LEN(s), insert + 1)
- ELSE 'CTRL
+  DIM move_chars as integer
+  IF keyval(ccLeft) > 1 THEN move_chars = -1
+  IF keyval(ccRight) > 1 THEN move_chars = 1
+  IF withtags THEN
+   IF move_chars THEN move_cursor_by_characters s, insert, move_chars, fontnum
+  ELSE
+   insert = bound(insert + move_chars, 0, LEN(s))
+  END IF
+ ELSE 'CTRL or ALT
   IF keyval(ccLeft) > 1 THEN 'move by word
    IF insert > 0 THEN 'searching from position -1 searches from the end
     insert = INSTRREV(s, ANY !" \n", insert - 1)  'different argument order: the FB devs, they are so funny
@@ -2434,44 +2484,61 @@ FUNCTION stredit (s as string, byref insert as integer, maxl as integer = 999999
  END IF
 
  '--up and down arrow keys
- IF numlines > 1 THEN
-  DIM wrapped as string
-  wrapped = wordwrap(s, large(1, line_length))
-  DIM lines() as string
-  split(wrapped, lines())
-  DIM line_starts() as integer
-  split_line_positions s, lines(), line_starts()
-
-  DIM insert_line as integer = -1
-  DIM offset_in_line as integer  '0-based
+ IF height > 1 THEN
   DIM move_lines as integer = 0
-  FOR linenum as integer = 0 TO UBOUND(lines)
-   DIM next_line as integer = IIF(linenum = UBOUND(lines), len(s) + 1, line_starts(linenum + 1))
-   IF next_line > insert THEN
-    insert_line = linenum
-    offset_in_line = insert - line_starts(linenum)
-    EXIT FOR
-   END IF
-  NEXT linenum
-  IF insert_line = -1 THEN
-   showbug "Ignorable engine bug: stredit couldn't find line"
-  END IF
   IF keyval(ccUp) > 1 THEN move_lines = -1
   IF keyval(ccDown) > 1 THEN move_lines = 1
-  IF keyval(scPageUp) > 1 THEN move_lines = -(numlines - 2)
-  IF keyval(scPageDown) > 1 THEN move_lines = numlines - 2
-  move_lines += readmouse.wheel_clicks * 3
-  IF move_lines THEN
-   insert_line = bound(insert_line + move_lines, 0, UBOUND(lines) + 1)
-   IF insert_line = UBOUND(lines) + 1 THEN
-    'Trying to move past last line: move to its end instead
-    insert = LEN(s)
-   ELSE
-    insert = line_starts(insert_line) + small(offset_in_line, LEN(lines(insert_line)))
+
+  IF old_mode THEN
+   IF keyval(scPageUp) > 1 THEN move_lines = -(height - 2)
+   IF keyval(scPageDown) > 1 THEN move_lines = height - 2
+   move_lines += readmouse.wheel_clicks * 3
+
+   DIM wrapped as string
+   wrapped = wordwrap(s, large(1, width))
+   DIM lines() as string
+   split(wrapped, lines())
+   DIM line_starts() as integer
+   split_line_positions s, lines(), line_starts()
+
+   DIM insert_line as integer = -1
+   DIM offset_in_line as integer  '0-based
+   FOR linenum as integer = 0 TO UBOUND(lines)
+    DIM next_line as integer = IIF(linenum = UBOUND(lines), len(s) + 1, line_starts(linenum + 1))
+    IF next_line > insert THEN
+     insert_line = linenum
+     offset_in_line = insert - line_starts(linenum)
+     EXIT FOR
+    END IF
+   NEXT linenum
+   IF insert_line = -1 THEN
+    showbug "Ignorable engine bug: stredit couldn't find line"
+   END IF
+
+   IF move_lines THEN
+    insert_line = bound(insert_line + move_lines, 0, UBOUND(lines) + 1)
+    IF insert_line = UBOUND(lines) + 1 THEN
+     'Trying to move past last line: move to its end instead
+     insert = LEN(s)
+    ELSE
+     insert = line_starts(insert_line) + small(offset_in_line, LEN(lines(insert_line)))
+    END IF
+   END IF
+
+   '--set return value
+   stredit = insert_line
+
+  ELSE  'old_mode = NO
+   DIM move_pixels as integer = 0
+   IF keyval(scPageUp) > 1 THEN move_pixels = -(height - 16)
+   IF keyval(scPageDown) > 1 THEN move_pixels = height - 16
+   move_pixels += readmouse.wheel_clicks * 3 * 10
+
+   IF move_lines OR move_pixels THEN
+    move_cursor_vertically s, insert, move_lines, move_pixels, width, fontnum
    END IF
   END IF
-  '--set return value
-  stredit = insert_line
+
   '--end of special handling for up and down motion
 
   '--Home and end keys: go to previous/next newline,
@@ -2497,14 +2564,14 @@ FUNCTION stredit (s as string, byref insert as integer, maxl as integer = 999999
  stredit_delete_keys pre, post
 
  '--adding chars
- IF LEN(pre) + LEN(post) < maxl THEN
-  IF keyval(scSpace) > 1 AND keyval(scCtrl) > 0 THEN
+ IF LEN(pre) + LEN(post) < maxlen THEN
+  IF keyval(scSpace) > 1 ANDALSO keyval(scCtrl) > 0 THEN
 #IFDEF IS_CUSTOM
    '--charlist support
    pre &= charpicker()
 #ENDIF
   ELSEIF keyval(scAnyEnter) > 1 THEN
-   IF numlines > 1 THEN
+   IF height > 1 THEN
     pre &= CHR(10)
    END IF
   ELSE
@@ -2512,8 +2579,8 @@ FUNCTION stredit (s as string, byref insert as integer, maxl as integer = 999999
   END IF
  END IF
  insert = LEN(pre)
- s = LEFT(pre & post, maxl)
- 
+ s = LEFT(pre & post, maxlen)
+
 END FUNCTION
 
 SUB pop_warning(msg as zstring ptr, byval autoquit as bool = NO)
@@ -2701,10 +2768,10 @@ FUNCTION highlight_for_incremental_search(text as string, searchstring as string
  RETURN ret
 END FUNCTION
 
-'Advances charnum (the cursor position) to a match of searchstring, and sets scroll_to_y.
+'Advances charnum (the cursor position) to a match of searchstring.
 'advance_dir is -1 or 1 to search backwards/forwards, or 0 to find next match
 'but not advancing if already at match
-SUB advance_incremental_search(text as string, searchstring as string, byref charnum as integer, advance_dir as integer, byref scroll_to_y as integer, sl as Slice ptr)
+SUB advance_incremental_search(text as string, searchstring as string, byref charnum as integer, advance_dir as integer, sl as Slice ptr)
  DIM match as integer
  IF advance_dir = -1 THEN
   'First look backwards
@@ -2721,11 +2788,6 @@ SUB advance_incremental_search(text as string, searchstring as string, byref cha
  END IF
  IF match = 0 THEN EXIT SUB
  charnum = match
-
- 'DIM charpos as XYPair = TextSliceCharPos(sl, charnum)
- DIM charpos as StringCharPos
- find_text_char_position(@charpos, text, charnum, sl->Width, fontPlain)
- scroll_to_y = charpos.pos.y
 END SUB
 
 SUB show_help(helpkey as zstring ptr)
@@ -2814,7 +2876,6 @@ SUB show_help(helpkey as zstring ptr)
 
  DIM editing as bool = NO
  DIM deadkeys as integer = 25
- DIM cursor_line as integer = 0
 
  DIM searchstring as string
  DIM default_footer as string = "Type to search"
@@ -2832,12 +2893,8 @@ SUB show_help(helpkey as zstring ptr)
   'The necessity of this would be eliminated by using a root slice set to fill (filling the screen slice)
   UpdateRootSliceSize(help_root, vpage)
 
-  DIM scroll_to_y as integer = -1
-
   IF editing THEN
-   DIM numlines as integer = help_draw_area->Height \ 10 + 1
-   cursor_line = stredit(help_str, dat->insert, , numlines, help_text->Width \ 8)
-   'The limit of 32767 chars is totally arbitrary and maybe not a good limit
+   stredit(help_str, dat->insert, , help_draw_area->Height, help_text->Width)
    ChangeTextSlice help_text, help_str
   END IF
 
@@ -2887,7 +2944,7 @@ SUB show_help(helpkey as zstring ptr)
     END IF
     IF advance_dir <> -2 THEN
      'ChangeTextSlice help_text, help_str  'So that TextSliceCharPos() returns the correct result
-     advance_incremental_search(help_str, searchstring, dat->insert, advance_dir, scroll_to_y, help_text)
+     advance_incremental_search(help_str, searchstring, dat->insert, advance_dir, help_text)
      DIM highlighted as string
      highlighted = highlight_for_incremental_search(help_str, searchstring, dat->insert, search_num_matches)
      ChangeTextSlice help_text, highlighted
@@ -2930,12 +2987,6 @@ SUB show_help(helpkey as zstring ptr)
    DIM top as integer = -help_text->Y
    DIM maxy as integer = large(0, (help_text->Height - help_draw_area->Height))
    IF editing THEN
-    'Scroll to cursor_line
-    'TODO: use text_layout_dimensions to correctly calculate the Y position of a line.
-    'However stredit does its own word wrapping assuming a 8x8 font, no markup, etc,
-    'to calculate the text position, so will need rewriting in future :(
-    scroll_to_y = cursor_line * 10
-
     ' Move cursor to location of mouse click.
     IF readmouse.buttons AND (mouseLeft OR mouseRight) THEN
      DIM curspos as StringCharPos
@@ -2953,7 +3004,9 @@ SUB show_help(helpkey as zstring ptr)
     IF keyval(scEnd) > 1      THEN top = maxy
     top += readmouse.wheel_delta \ 4
    END IF
-   IF scroll_to_y <> -1 ANDALSO (readmouse.buttons AND (mouseLeft OR mouseRight)) = 0 THEN
+
+   IF editing ANDALSO (readmouse.buttons AND (mouseLeft OR mouseRight)) = 0 THEN
+    DIM scroll_to_y as integer = TextSliceCharPos(help_text, dat->insert).y
     top = small(top, scroll_to_y - 20)
     top = large(top, scroll_to_y + 30 - help_draw_area->Height)
    END IF
@@ -3059,7 +3112,7 @@ FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_sa
   setkeys YES
 
   DIM textstring as string = dat->s
-  cursor_line = stredit(textstring, dat->insert, , dat->line_limit, text->Width \ 8)
+  cursor_line = stredit(textstring, dat->insert, , dat->line_limit, text->Width \ 8, YES, NO)  'old_mode=YES, withtags=NO
   ChangeTextSlice text, textstring
 
   IF keyval(ccCancel) > 1 THEN

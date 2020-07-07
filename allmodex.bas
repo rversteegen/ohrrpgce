@@ -5992,7 +5992,8 @@ function charsize(char as integer, fontp as Font ptr) as XYPair
 	else
 		w = fontp->w(char)
 	end if
-	return XY(w, fontp->char_h)
+	'Returning char_h here breaks move_cursor_vertically()
+	return XY(w, fontp->line_h) 'char_h)
 end function
 
 function charsize(char as integer, fontnum as integer) as XYPair
