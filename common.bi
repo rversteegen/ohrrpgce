@@ -222,7 +222,7 @@ DECLARE FUNCTION missing_helper_message (appname as string) as string
 
 DECLARE SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
 DECLARE FUNCTION strgrabber (byref text as string, maxlen as integer = 9999999) as bool
-DECLARE SUB handle_text_copy_paste (byref text as string, byref clip as string)
+DECLARE FUNCTION handle_text_copy_paste (byref text as string, byref clip as string) as bool
 
 'When to accept mouse wheel input
 ENUM WheelHandlingEnum

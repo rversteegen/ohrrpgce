@@ -2306,6 +2306,118 @@ FUNCTION xintgrabber (byref n as integer, pmin as integer, pmax as integer, nmin
 END FUNCTION
 
 '==========================================================================================
+'                                     TextUndoBuffer
+'==========================================================================================
+
+'Undo/Redo handler for text editing.
+'global_text_undo is a global instance of this that can usually be used in multiple places.
+TYPE TextUndoBuffer
+  last_string as string ptr    'Must never be dereferenced. Used to tell if editing a different string.
+  history as string vector
+  insert_history as integer vector
+  history_step as integer = 0  'Point between two elements of history, the previous (index step-1)
+                               'and next (index step). Equals v_len(history) if nothing to redo.
+  unsaved_chars as integer     'Size of unsaved edit.
+
+  DECLARE SUB wipe()
+  DECLARE SUB update(buf as string, insert as integer, chars_changed as integer = -1)
+  DECLARE SUB handle_undo_keys(byref buf as string, byref insert as integer)
+  DECLARE DESTRUCTOR()
+ PRIVATE:
+  DECLARE FUNCTION check_str_changed(buf as string, insert as integer) as bool
+END TYPE
+
+DIM SHARED global_text_undo as TextUndoBuffer
+
+DESTRUCTOR TextUndoBuffer
+ v_free insert_history
+ v_free history
+END DESTRUCTOR
+
+'Erase history
+SUB TextUndoBuffer.wipe()
+ v_new history
+ v_new insert_history
+ history_step = 0
+ unsaved_chars = 0
+END SUB
+
+FUNCTION TextUndoBuffer.check_str_changed(buf as string, insert as integer) as bool
+ IF @buf <> last_string THEN
+  last_string = @buf
+  wipe()
+  v_append history, buf
+  v_append insert_history, insert
+  history_step += 1
+  'show_overlay_message "wipe " & HEX(strptr(buf)), 0.3
+  RETURN YES
+ END IF
+END FUNCTION
+
+'Possibly add a new undo step based on the number of characters that have just been changed.
+'Save a step unconditionally if chars_changed = -1
+SUB TextUndoBuffer.update(buf as string, insert as integer, chars_changed as integer = -1)
+ IF check_str_changed(buf, insert) THEN EXIT SUB
+
+ 'IF chars_changed THEN show_overlay_message chars_changed & " +-> " & unsaved_chars & " step " & history_step &"/" & v_len(history), 0.5
+
+ unsaved_chars += chars_changed
+ IF unsaved_chars >= 6 ORELSE chars_changed = -1 THEN
+  'Throw away redo steps
+  v_resize history, history_step
+  v_resize insert_history, history_step
+  'Add undo step
+  v_append history, buf
+  v_append insert_history, insert
+  history_step += 1
+  unsaved_chars = 0
+  'show_overlay_message chars_changed & " +-> saved step " & history_step, 0.5
+ END IF
+END SUB
+
+'Ctrl-Z/Y
+SUB TextUndoBuffer.handle_undo_keys(byref buf as string, byref insert as integer)
+ IF check_str_changed(buf, insert) THEN EXIT SUB
+
+ IF keyval(scCtrl) > 0 THEN
+  IF keyval(scZ) > 1 ANDALSO history_step > 0 THEN  'Undo
+   IF unsaved_chars THEN
+    'Save current, overwriting any redo steps
+    /'
+    v_resize history, history_step
+    v_append history, buf
+    '/
+    history_step -= 1
+    IF history_step = 0 THEN 
+     buf = history[history_step]
+     insert = insert_history[history_step]
+     history_step = 1
+    ELSE
+     SWAP buf, history[history_step]
+     SWAP insert, insert_history[history_step]
+    END IF
+    unsaved_chars = 0
+   ELSE
+    'The previous state is likely the same as buf (if we just saved), so go back repeatedly
+    history_step -= 1
+    WHILE history_step > 0 ANDALSO buf = history[history_step]
+     history_step -= 1
+    WEND
+    buf = history[history_step]
+    insert = insert_history[history_step]
+    IF history_step = 0 THEN history_step = 1
+   END IF
+  END IF
+  IF keyval(scY) > 1 ANDALSO history_step < v_len(history) THEN  'Redo
+   'IF unsaved_chars THEN
+   buf = history[history_step]
+   insert = insert_history[history_step]
+   history_step += 1
+  END IF
+ END IF
+END SUB
+
+'==========================================================================================
 '                                 Text editing (stredit)
 '==========================================================================================
 
@@ -2349,7 +2461,8 @@ END SUB
 
 'Handle copy/paste edits to 'text'. Attempt to use the OS clipboard if possible,
 'otherwise use 'clip' as the clipboard.
-SUB handle_text_copy_paste (byref text as string, byref clip as string)
+'Returns true if text changed.
+FUNCTION handle_text_copy_paste (byref text as string, byref clip as string) as bool
  IF copy_keychord() THEN
   clip = text
   io_set_clipboard_text(latin1_to_utf8(text))
@@ -2368,9 +2481,11 @@ SUB handle_text_copy_paste (byref text as string, byref clip as string)
   'icon characters.
   IF LEN(*osclip) THEN clip = utf8_to_latin1(*osclip)
   DEALLOCATE osclip
+  IF text = clip THEN RETURN NO
   text = clip
+  RETURN YES
  END IF
-END SUB
+END FUNCTION
 
 'Returns true if the string has changed
 FUNCTION strgrabber (byref text as string, maxlen as integer = 9999999) as bool
@@ -2457,8 +2572,10 @@ END SUB
 SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
  '--copy+paste support
  STATIC clip as string
- handle_text_copy_paste text, clip
- text = LEFT(text, maxlen)
+ IF handle_text_copy_paste(text, clip) THEN
+  text = LEFT(text, maxlen)
+  global_text_undo.update text, insert
+ END IF
 
  IF insert < 0 THEN insert = LEN(text)
  insert = bound(insert, 0, LEN(text))
@@ -2518,8 +2635,11 @@ SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 
   '--end of special keys that only work in multiline mode
  END IF
 
+ global_text_undo.handle_undo_keys text, insert
+
  DIM pre as string = LEFT(text, insert)
  DIM post as string = RIGHT(text, LEN(text) - insert)
+ DIM as integer pre_len = LEN(pre), post_len = LEN(post)
 
  '--BACKSPACE, DELETE, ALT/CTRL+BACKSPACE/DELETE
  stredit_delete_keys pre, post
@@ -2539,8 +2659,13 @@ SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 
    pre &= getinputtext
   END IF
  END IF
+
  insert = LEN(pre)
  text = LEFT(pre & post, maxlen)
+
+ 'Calculate how much has changed, and maybe save an undo step.
+ DIM chars_changed as integer = ABS(LEN(pre) - pre_len) + ABS(LEN(post) - post_len)
+ global_text_undo.update text, insert, chars_changed
 END SUB
 
 '==========================================================================================
@@ -2791,6 +2916,7 @@ FUNCTION TextEditor.can_switch_to_editing() as bool
 END FUNCTION
 
 SUB TextEditor.run()
+ global_text_undo.wipe()
  original_text = the_text
  '--Construct the help UI (This will be hella easier later when the Slice Editor can save/load)
  DIM root_sl as Slice Ptr
