@@ -2421,17 +2421,27 @@ END SUB
 'move_lines: -1 or 1 to move up/down a line, or 0.
 'move_pixels: additionally, move up and down by some pixels (used for page up/down)
 SUB move_cursor_vertically(text as string, byref insert as integer, move_lines as integer, move_pixels as integer, width as integer, fontnum as integer = 0)
+ STATIC remember_x as integer
+ STATIC last_pos as XYPair
  'Find position in pixels of current insert
  DIM charpos as StringCharPos
  find_text_char_position @charpos, text, insert, width, fontnum
  DIM point as XYPair = charpos.pos
+ 'If we repeatedly scroll vertically, use our original x position rather than
+ 'our current one, to skip over short lines
+ IF last_pos <> point THEN
+  point.x += charpos.size.w \ 2
+  remember_x = point.x
+ ELSE
+  point.x = remember_x
+ END IF
  'Move up/down and find string offset
- point.x += charpos.size.w \ 2
  IF move_lines < 0 THEN point.y += charpos.size.h - charpos.lineh - 1
  IF move_lines > 0 THEN point.y += charpos.size.h + 1
  point.y += move_pixels
  find_point_in_text @charpos, point, text, width, , fontnum
  insert = charpos.charnum
+ last_pos = charpos.pos
 END SUB
 
 'Handle text editing keyboard controls, either single (height=0) or multiple lines (height>0).
