@@ -1248,7 +1248,9 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
 
   DIM newtext as string = text
   DIM newinsert as integer = txtdata->insert
-  stredit(newtext, newinsert, 9999, maxTextboxLines, 38)
+  'TODO: we support markup while editing, but when you leave the text editor the line
+  'breaks will change because textbox_string_to_lines splits it differently
+  stredit newtext, newinsert, 9999, maxTextboxLines*10, 38*8
   IF textbox_string_to_lines(box, newtext) THEN
    'Accepted: the new text did fit in the box
    text = newtext
