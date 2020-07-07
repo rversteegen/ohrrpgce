@@ -46,6 +46,7 @@ WHAT IS NEW?
     * New battle feature "Defector target" causes an enemy or hero to be
       targetted as if it is a member of the other team [James]
     * Outlined text slices can also have a colored opaque background [Ralph]
+    * Improved fullscreen text editor (used for e.g. text slices) [Ralph]
 
    * New Plotscripting Features
     * "dir X", "dir Y" [Ralph]
@@ -90,6 +91,8 @@ WHAT IS NEW?
       of jump/hide state [James]
     * An enemy set to "Ignored for Alone AI" would use its Alone attack list
       if it still had one ally [Ralph]
+    * Custom would get stuck if you attempt to quit inside one of the fullscreen
+      text editors in Edit Distribution Info [Ralph]
 
   *** Stuff Only Developers Will Notice
     * Source code license has been changed to Dual GPLv2+ & MIT license
