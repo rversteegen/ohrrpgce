@@ -46,7 +46,8 @@ WHAT IS NEW?
     * New battle feature "Defector target" causes an enemy or hero to be
       targetted as if it is a member of the other team [James]
     * Outlined text slices can also have a colored opaque background [Ralph]
-    * Improved fullscreen text editor (used for e.g. text slices) [Ralph]
+    * Improved fullscreen text editor (used for e.g. text slices). You can
+      use Ctrl+Z/Y to undo/redo [Ralph]
 
    * New Plotscripting Features
     * "dir X", "dir Y" [Ralph]
