@@ -220,8 +220,8 @@ DECLARE FUNCTION install_windows_helper_app (appname as string, download_url as 
 DECLARE FUNCTION download_file (url as string, dest as string, forcefilename as string="") as bool
 DECLARE FUNCTION missing_helper_message (appname as string) as string
 
-DECLARE SUB stredit (s as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
-DECLARE FUNCTION strgrabber (s as string, maxl as integer = 9999999) as bool
+DECLARE SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
+DECLARE FUNCTION strgrabber (byref text as string, maxlen as integer = 9999999) as bool
 DECLARE SUB handle_text_copy_paste (byref text as string, byref clip as string)
 
 'When to accept mouse wheel input
@@ -311,7 +311,7 @@ DECLARE FUNCTION remove_nonprintable_ascii(s as string, replacement as string = 
 DECLARE FUNCTION sanitize_script_identifier (ident as string, allow_whitespace as bool = YES) as string
 
 DECLARE FUNCTION inputfilename (query as zstring ptr, ext as zstring ptr, byref directory as string, helpkey as zstring ptr, default as zstring ptr=@"", allow_overwrite as bool=YES) as string
-DECLARE FUNCTION prompt_for_string (byref retstring as string, caption as string, limit as integer = 40) as bool
+DECLARE FUNCTION prompt_for_string (byref retstring as string, caption as string, maxlen as integer = 40) as bool
 
 DECLARE SUB set_app_dir()
 DECLARE FUNCTION get_home_dir() as string
