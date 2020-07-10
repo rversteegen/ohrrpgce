@@ -2312,107 +2312,153 @@ END FUNCTION
 'Undo/Redo handler for text editing.
 'global_text_undo is a global instance of this that can usually be used in multiple places.
 TYPE TextUndoBuffer
-  last_string as string ptr    'Must never be dereferenced. Used to tell if editing a different string.
-  history as string vector
-  insert_history as integer vector
-  history_step as integer = 0  'Point between two elements of history, the previous (index step-1)
-                               'and next (index step). Equals v_len(history) if nothing to redo.
-  unsaved_chars as integer     'Size of unsaved edit.
+  last_string as string ptr    'Must never be dereferenced! Used to tell if editing a different string.
+  'The following vectors are always the same length.
+  'N edits are stored as N+1 history steps
+  history as string vector     'Buffer states
+  endprev_insert_history as integer vector   'Insert pos after the previous edit, -1 for none
+  startnext_insert_history as integer vector 'Insert pos before the next edit, -1 for none
+  history_step as integer = -1 'Current history index. Equals v_len(history)-1 if nothing to redo.
+                               'history[history_step] equals the current buffer contents.
+  current_edit_size as integer 'Number of characters modified in history_step (inaccurate after undo/redo)
 
   DECLARE SUB wipe()
-  DECLARE SUB update(buf as string, insert as integer, chars_changed as integer = -1)
+  DECLARE SUB update(pre_insert as integer, buf as string, insert as integer, chars_changed as integer = -1)
   DECLARE SUB handle_undo_keys(byref buf as string, byref insert as integer)
   DECLARE DESTRUCTOR()
  PRIVATE:
-  DECLARE FUNCTION check_str_changed(buf as string, insert as integer) as bool
+  DECLARE SUB reinit_if_needed(buf as string, insert as integer)
+  'DECLARE SUB remove_duplicate_steps(atstep as integer)
 END TYPE
 
 DIM SHARED global_text_undo as TextUndoBuffer
 
 DESTRUCTOR TextUndoBuffer
- v_free insert_history
+ v_free endprev_insert_history
+ v_free startnext_insert_history
  v_free history
 END DESTRUCTOR
 
 'Erase history
 SUB TextUndoBuffer.wipe()
  v_new history
- v_new insert_history
- history_step = 0
- unsaved_chars = 0
+ v_new endprev_insert_history
+ v_new startnext_insert_history
+ history_step = -1
+ current_edit_size = 0
 END SUB
 
-FUNCTION TextUndoBuffer.check_str_changed(buf as string, insert as integer) as bool
+SUB TextUndoBuffer.reinit_if_needed(buf as string, insert as integer)
+ IF history_step >= v_len(history) THEN
+  showbug strprintf("Text undo: bad step %d/%d", history_step, v_len(history))
+  last_string = NULL
+ END IF
  IF @buf <> last_string THEN
   last_string = @buf
   wipe()
-  v_append history, buf
-  v_append insert_history, insert
-  history_step += 1
-  'show_overlay_message "wipe " & HEX(strptr(buf)), 0.3
-  RETURN YES
  END IF
-END FUNCTION
+ IF history_step = -1 THEN
+  'After wipe(), add initial step
+  v_append history, buf
+  v_append endprev_insert_history, -1
+  v_append startnext_insert_history, insert
+  history_step = 0
+ END IF
+END SUB
+
+/'
+SUB TextUndoBuffer.remove_duplicate_steps(atstep as integer)
+ IF (atstep > 0 ANDALSO history[atstep] = history[atstep - 1]) ORELSE _
+    (atstep < v_len(history) - 1 ANDALSO history[atstep] = history[atstep + 1]) THEN
+  v_delete_slice history, atstep, atstep + 1
+  v_delete_slice endprev_insert_history, atstep, atstep + 1
+  v_delete_slice startnext_insert_history, atstep, atstep + 1
+  IF history_step > atstep THEN history_step -= 1
+  IF atstep > 0 THEN remove_duplicate_steps atstep - 1
+ END IF
+END SUB
+'/
 
 'Possibly add a new undo step based on the number of characters that have just been changed.
-'Save a step unconditionally if chars_changed = -1
-SUB TextUndoBuffer.update(buf as string, insert as integer, chars_changed as integer = -1)
- IF check_str_changed(buf, insert) THEN EXIT SUB
+'Save a step unconditionally if chars_changed = -1.
+'It's recommended to call this even when chars_changed = 0.
+'buf is new contents after the edit, pre_insert/insert are 0-based insert
+'position before and after the edit.
+SUB TextUndoBuffer.update(pre_insert as integer, buf as string, insert as integer, chars_changed as integer = -1)
+ reinit_if_needed buf, insert
 
- 'IF chars_changed THEN show_overlay_message chars_changed & " +-> " & unsaved_chars & " step " & history_step &"/" & v_len(history), 0.5
+ 'IF chars_changed THEN show_overlay_message chars_changed & " +-> " & current_edit_size & " step " & history_step & "/" & v_len(history), 12
 
- unsaved_chars += chars_changed
- IF unsaved_chars >= 6 ORELSE chars_changed = -1 THEN
+ DIM want_new_step as bool
+ IF chars_changed ANDALSO buf <> history[history_step] THEN
+  'The first edit is from step 0 -> 1, can't append to step 0
+  IF history_step = 0 THEN want_new_step = YES
+
+  IF chars_changed < 0 THEN
+   want_new_step = YES
+  ELSE
+   'Split edits into ~12-char pieces
+   IF current_edit_size + chars_changed >= 12 THEN want_new_step = YES
+   'If you move the cursor, it's a new edit
+   IF endprev_insert_history[history_step] <> pre_insert THEN want_new_step = YES
+  END IF
+ END IF
+
+ IF want_new_step THEN
   'Throw away redo steps
-  v_resize history, history_step
-  v_resize insert_history, history_step
-  'Add undo step
-  v_append history, buf
-  v_append insert_history, insert
+  v_resize history, history_step + 1
+  v_resize endprev_insert_history, history_step + 1
+  v_resize startnext_insert_history, history_step + 1
+  'Update previous step with start of new edit group
+  startnext_insert_history[history_step] = pre_insert
+  'Add new undo step
   history_step += 1
-  unsaved_chars = 0
-  'show_overlay_message chars_changed & " +-> saved step " & history_step, 0.5
+  v_append history, buf
+  v_append endprev_insert_history, insert
+  v_append startnext_insert_history, -1
+  current_edit_size = chars_changed
+  'show_overlay_message chars_changed & " +-> saved step " & history_step & " " & v_len(history), 4
+  'remove_duplicate_steps history_step - 1
+ ELSEIF chars_changed THEN
+  'Update/append to current step
+  history[history_step] = buf
+  endprev_insert_history[history_step] = insert
+  current_edit_size += chars_changed
  END IF
 END SUB
 
 'Ctrl-Z/Y
 SUB TextUndoBuffer.handle_undo_keys(byref buf as string, byref insert as integer)
- IF check_str_changed(buf, insert) THEN EXIT SUB
+ reinit_if_needed buf, insert
 
  IF keyval(scCtrl) > 0 THEN
   IF keyval(scZ) > 1 ANDALSO history_step > 0 THEN  'Undo
-   IF unsaved_chars THEN
     'Save current, overwriting any redo steps
-    /'
-    v_resize history, history_step
-    v_append history, buf
-    '/
-    history_step -= 1
-    IF history_step = 0 THEN 
-     buf = history[history_step]
-     insert = insert_history[history_step]
-     history_step = 1
-    ELSE
-     SWAP buf, history[history_step]
-     SWAP insert, insert_history[history_step]
+    IF history[history_step] <> buf THEN
+     'Doesn't usually happen, unless buf was changed some way that didn't call update()
+     history[history_step] = buf
+     endprev_insert_history[history_step] = insert  'We don't actually know what this should be
     END IF
-    unsaved_chars = 0
-   ELSE
-    'The previous state is likely the same as buf (if we just saved), so go back repeatedly
-    history_step -= 1
+    'Skip over duplicate steps (don't usually happen)
     WHILE history_step > 0 ANDALSO buf = history[history_step]
      history_step -= 1
     WEND
     buf = history[history_step]
-    insert = insert_history[history_step]
-    IF history_step = 0 THEN history_step = 1
-   END IF
+    insert = startnext_insert_history[history_step]
+    'remove_duplicate_steps history_step
+
+    'show_overlay_message "Undo, editsize " & current_edit_size & " step " & history_step & "/" & v_len(history), 4
+    current_edit_size = 11  'Next edit will cause a new step
   END IF
-  IF keyval(scY) > 1 ANDALSO history_step < v_len(history) THEN  'Redo
-   'IF unsaved_chars THEN
+  IF keyval(scY) > 1 ANDALSO history_step < v_len(history) - 1 THEN  'Redo
+   'Skip over duplicate steps (don't usually happen)
+   WHILE history_step < v_len(history) - 1 ANDALSO buf = history[history_step]
+    history_step += 1
+   WEND
    buf = history[history_step]
-   insert = insert_history[history_step]
-   history_step += 1
+   insert = endprev_insert_history[history_step]
+   'show_overlay_message "Redo, editsize " & current_edit_size & " step " & history_step & "/" & v_len(history), 4
+   current_edit_size = 11  'Next edit will cause a new step
   END IF
  END IF
 END SUB
@@ -2570,11 +2616,12 @@ END SUB
 'withtags:    Enable text markup
 'fontnum:     Initial font
 SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 9999999, height as integer = 0, width as integer = 9999999, withtags as bool = YES, fontnum as integer = 0)
+ DIM prev_insert as integer = insert
  '--copy+paste support
  STATIC clip as string
  IF handle_text_copy_paste(text, clip) THEN
   text = LEFT(text, maxlen)
-  global_text_undo.update text, insert
+  global_text_undo.update prev_insert, text, insert
  END IF
 
  IF insert < 0 THEN insert = LEN(text)
@@ -2665,7 +2712,7 @@ SUB stredit (byref text as string, byref insert as integer, maxlen as integer = 
 
  'Calculate how much has changed, and maybe save an undo step.
  DIM chars_changed as integer = ABS(LEN(pre) - pre_len) + ABS(LEN(post) - post_len)
- global_text_undo.update text, insert, chars_changed
+ global_text_undo.update prev_insert, text, insert, chars_changed
 END SUB
 
 '==========================================================================================
@@ -2882,7 +2929,7 @@ SUB advance_incremental_search(text as string, searchstring as string, byref cha
  charnum = match
 END SUB
 
-'This slice-based text editor can be in either view or edit mode. Ctrl-E switching to editing.
+'This slice-based text editor can be in either view or edit mode. Ctrl-E switch to editing.
 'It is the basis of the help viewer/editor.
 TYPE TextEditor EXTENDS Object
  the_text as string       'For editing
