@@ -3343,14 +3343,42 @@ FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as boo
  basic_textbox "Please wait, running " & trimpath(app), uilook(uiText), vpage
  setvispage vpage, NO
 
+ waitforkeyrelease
+
+ #IF defined(__FB_64BIT__) AND defined(IS_CUSTOM)
+ 'Use our package terminal emulator, hterm
+
+ DIM hterm as string = exepath & "/hterm.app"
+ IF isdir(hterm) = 0 THEN missing_helper_message("hterm.app")
+  RETURN "Could not continue because hterm.app is missing! It should be included inside OHRRPGCE-Custom.app"
+ END IF
+
+ waitforkeyrelease
+
+ DIM cmd as string, outbuffer as string, stderr_s as string
+ cmd = "hterm """ & escape_string(escape_filename(app) & " " & args, """\") & """"
+ ' Capture stdout and stderr. TODO: make hterm copy output from the program to stdout
+ ' (note it's not possible for it to separate program stdout and stderr) so we can see
+ ' it. Currently prints nothing even if it couldn't run the program!
+ DIM res as integer = run_and_get_output(cmd, outbuffer, stderr_s)
+ 'res is < 0 if there was a problem running hterm, while > 0 are exitcodes returned from hterm,
+ 'NOT from the program.
+ 'outbuffer and stderr_s will probably be blank.
+ IF res THEN
+  IF LEN(outbuffer) = 0 THEN outbuffer = "Error code " & res
+  RETURN "Could not run " & app & !":\n" & outbuffer & " " & stderr_s
+ END IF
+
+ RETURN ""  'Success
+
+ #ELSE
+
  'Wow that's a crazy amount of indirection!
  'Running Terminal.app is the only way to get a terminal, but 'open' is for opening a file with an application only,
  'so we use an AppleScript script embedded in Terminal_wrapper.sh to run HSpeak
 
  DIM term_wrap as string = find_helper_app("Terminal_wrapper.sh")
  IF term_wrap = "" THEN RETURN missing_helper_message("Terminal_wrapper.sh")
-
- waitforkeyrelease
 
  DIM fh as integer
  DIM dummyscript as string = tmpdir + "dummyscript" & randint(10000) & ".sh"
@@ -3365,6 +3393,8 @@ FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as boo
  safe_shell escape_filename(term_wrap) + " " + escape_filename(dummyscript)
  safekill dummyscript
  RETURN ""
+
+ #ENDIF
 
 #ELSEIF defined(__FB_WIN32__)
 
@@ -3474,6 +3504,7 @@ FUNCTION find_helper_app (appname as zstring ptr, try_install as bool=NO, downlo
  #IFDEF __FB_DARWIN__
   'Inside an .app, support/ is next to the executable
   try_app_path(exepath & "/support/" & *appname)
+  try_app_path(exepath & "/" & *appname)
  #ENDIF
  #IFDEF __FB_UNIX__
   'Use the standard util "which" to search the path
