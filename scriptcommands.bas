@@ -3951,9 +3951,13 @@ SUB script_functions(byval cmdid as integer)
   scriptret = IIF(prefbit(13), 1, 0)  '"Pause on all battle menus & targeting"
  CASE 571'--set active battle pause on all menus
   setprefbit 13, retvals(0)
- CASE 572'--dissolve sprite
+ CASE 572'--dissolve sprite (sl, dissolve_type, ticks, start_tick, backwards, auto, [finish_action])
   IF valid_plotsprite(retvals(0)) THEN
-   DissolveSpriteSlice plotslices(retvals(0)), retvals(1), retvals(2), retvals(3), retvals(4), retvals(5)
+   DIM finish as DissolveFinishAction = get_optional_arg(6, dissolveFinReset)
+   IF bound_arg(retvals(1), 0, dissolveTypeMax, "dissolve type", , serrBadOp) ANDALSO _
+      bound_arg(finish, 0, dissolveFinLAST, "finish action", , serrBadOp) THEN
+    DissolveSpriteSlice plotslices(retvals(0)), retvals(1), retvals(2), retvals(3), retvals(4), retvals(5), finish
+   END IF
   END IF
  CASE 573'--cancel dissolve
   IF valid_plotsprite(retvals(0)) THEN

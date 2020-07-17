@@ -1972,8 +1972,16 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
     if .d_auto then
      .d_tick += 1
      if .d_tick > dtime then
-      .dissolving = NO
-      .d_auto = NO
+      select case .d_finish
+       case dissolveFinReset
+        .dissolving = NO
+        .d_auto = NO
+       case dissolveFinFree
+        'TODO: this should *definitely* not be done inside Draw
+       case dissolveFinStop
+        'Remain dissolved
+        .d_tick = dtime
+      end select
      end if
     end if
    end if
@@ -2331,7 +2339,7 @@ Sub ScaleSpriteSlice(sl as Slice ptr, size as XYPair)
  end with
 end sub
 
-Sub DissolveSpriteSlice(byval sl as Slice ptr, byval dissolve_type as integer, byval over_ticks as integer=-1, byval start_tick as integer=0, byval backwards as bool=NO, byval auto_animate as bool=YES)
+Sub DissolveSpriteSlice(sl as Slice ptr, dissolve_type as integer, over_ticks as integer=-1, start_tick as integer=0, backwards as bool=NO, auto_animate as bool=YES, finish_action as DissolveFinishAction=dissolveFinReset)
  if sl = 0 then debug "DissolveSpriteSlice null ptr" : exit sub
  ASSERT_SLTYPE(sl, slSprite)
  with *sl->SpriteData
@@ -2343,6 +2351,7 @@ Sub DissolveSpriteSlice(byval sl as Slice ptr, byval dissolve_type as integer, b
   .d_tick = bound(start_tick, -1, large(over_ticks + 1, 0))
   .d_back = backwards <> 0
   .d_auto = auto_animate <> 0
+  .d_finish = finish_action
  end with
 end sub
 

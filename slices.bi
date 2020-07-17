@@ -435,6 +435,14 @@ Type TextSliceData
  line_count as integer 'automatically populated when the slice changes
 End Type
 
+Enum 'DissolveFinishAction
+ dissolveFinReset = 0
+ dissolveFinFree = 1
+ dissolveFinStop = 2
+ dissolveFinLAST = 2
+End Enum
+Type DissolveFinishAction as integer
+
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!
 Type SpriteSliceData
  spritetype as SpriteType
@@ -476,6 +484,7 @@ Type SpriteSliceData
  d_back as bool ' backwards: NO dissolve away, YES dissolve back in
  d_auto as bool ' YES if the dissolve is animating automatically
                 ' (d_tick advances when drawn) (FIXME: wrong place for that)
+ d_finish as DissolveFinishAction 'What to do when an automatic dissolve finishes
 End Type
 
 'Shows the currently loaded map at the given slice pos
@@ -711,7 +720,7 @@ DECLARE Sub ChangeSpriteSlice(byval sl as slice ptr,_
                       byval flipv as integer = -2,_
                       byval trans as integer = -2)  ' All arguments default to no change
 DECLARE Sub ScaleSpriteSlice(sl as Slice ptr, size as XYPair)
-DECLARE Sub DissolveSpriteSlice(byval sl as slice ptr, byval dissolve_type as integer, byval over_ticks as integer=-1, byval start_tick as integer=0, byval backwards as bool=NO, byval auto_animate as bool=YES)
+DECLARE Sub DissolveSpriteSlice(sl as slice ptr, dissolve_type as integer, over_ticks as integer=-1, start_tick as integer=0, backwards as bool=NO, auto_animate as bool=YES, finish_action as DissolveFinishAction=dissolveFinReset)
 DECLARE Sub CancelSpriteSliceDissolve(sl as Slice ptr)
 DECLARE Function SpriteSliceIsDissolving(byval sl as slice ptr, byval only_auto as bool=YES) as bool
 DECLARE Function SpriteSliceNumFrames(sl as Slice ptr) as integer

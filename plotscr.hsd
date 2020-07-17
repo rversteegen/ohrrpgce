@@ -595,7 +595,7 @@ define function, begin
 569,camerafollowsslice,1,0       #(slice) Center camera on slice
 570,getactivebattlepauseonallmenus,0 # returns true or false based on the global bitset
 571,setactivebattlepauseonallmenus,1,0, #(true/false) change the global bitset (not saved)
-572,dissolvesprite,6,0,0,-1,0,0,1 #(slice handle, dissolve:type, ticks, start tick, backwards, auto animate)
+572,dissolvesprite,7,0,0,-1,0,0,1,0 #(slice handle, dissolve:type, ticks, start tick, backwards, auto animate, finish action)
 573,canceldissolve,1,0        #(slice handle) stop/reset dissolve
 574,spriteisdissolving,1,0    #(slice handle) return true if sprite is in the middle of a dissolve state
 575,waitfordissolve,1,0       #(slice handle) wait for an "dissolve sprite" command to finish (only if auto animate)
@@ -2244,6 +2244,9 @@ define constant, begin
 16,dissolve:fade up
 17,dissolve:blip
 -1,dissolvetime:default
+0,dissolvefinish:reset
+1,dissolvefinish:free
+2,dissolvefinish:stop
 50000,maximum global id
 99,maximum string id
  -1, ui:Background               # Background colour
