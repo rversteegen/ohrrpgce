@@ -641,8 +641,9 @@ SUB script_functions(byval cmdid as integer)
     doequip retvals(2), i, bound(retvals(1) - 1, 0, 4)
    END IF
   END IF
- CASE 32'--show backdrop
+ CASE 32'--show backdrop (id, [transparent])
   gen(genScrBackdrop) = bound(retvals(0) + 1, 0, gen(genNumBackdrops))
+  'gen(genScrBackdropTrans) = get_optional_arg(1, 0) <> 0
  CASE 33'--show map
   gen(genScrBackdrop) = 0
  CASE 34'--dismount vehicle
