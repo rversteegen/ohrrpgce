@@ -70,7 +70,7 @@ int compress_gzip(const unsigned char *in, size_t insize, unsigned char **outp, 
   out[9] = 255; //OS unknown
 
   LodePNGCompressSettings settings = lodepng_default_compress_settings;
-  settings.windowsize = maxcomp ? 32768 : 16384; // Default is only 2048, max is 32768.
+  settings.windowsize = maxcomp ? 32768 : 8192; // Default is only 2048, max is 32768.
   // LodePNG needs a windowsize of 32768 just to match gzip at default compression level.
 
   int ret;

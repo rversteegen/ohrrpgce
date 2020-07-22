@@ -7338,7 +7338,7 @@ function surface_export_png(surf as Surface ptr, filename as string, masterpal()
 	state.info_png.color.bitdepth = 8
 
 	'Default is 2048. 8192 and above are much slower, because they're size-optimised
-	state.encoder.zlibsettings.windowsize = iif(compress <= 0, 512, iif(compress >= 2, 32768, 4096))
+	state.encoder.zlibsettings.windowsize = iif(compress <= 0, 512, iif(compress >= 2, 32768, 8192))
 
 	if surf->format = SF_8bit then
 		state.info_raw.colortype = LCT_PALETTE

@@ -33,7 +33,7 @@ do
                 'For jpeg 0-100, for png 0-2
                 cmdidx += 1
                 quality = VALINT(COMMAND(cmdidx))
-                print "Quality " & quality
+                'print "Quality " & quality
         else
                 exit do
         end if
@@ -56,22 +56,27 @@ info = image_read_info(src)
 print trimpath(src) & ": " & info.info
 
 if info.supported = NO then  ' Unreadable, invalid, or unsupported
-	print "Not supported: " & info.error
-	end 1
+'	print "Not supported: " & info.error
+'	end 1
 end if
 
 dim pal(255) as RGBColor
 
-if right(dest, 7) = ".bmp.gz" then
-	dim surf as Surface ptr
-	surf = image_import_as_surface(src, YES)  'always_32bit=YES
-	if surf = 0 then fatalerror "Couldn't read file"
-	image_load_palette(src, pal())
+if right(dest, 3) = ".gz" then
+	dim indata as string
+	if image_file_type(src) = imUnknown then
+		indata = read_file(src)
+	else
+		dim surf as Surface ptr
+		surf = image_import_as_surface(src, YES)  'always_32bit=YES
+		if surf = 0 then fatalerror "Couldn't read file"
+		image_load_palette(src, pal())
 
-	dim tempfile as string = "_imageconv.bmp.tmp"
-	surface_export_bmp tempfile, surf, pal()
-	dim indata as string = read_file(tempfile)
-	kill tempfile
+		dim tempfile as string = "_imageconv.bmp.tmp"
+		surface_export_bmp tempfile, surf, pal()
+		indata = read_file(tempfile)
+		kill tempfile
+	end if
 
 	'Compress
 	dim outdata as byte ptr
