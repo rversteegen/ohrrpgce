@@ -3749,7 +3749,7 @@ FUNCTION rgfx_load_spriteset(rgfxdoc as DocPtr, sprtype as SpriteType, setnum as
     RETURN NULL
   END IF
   DIM fr as Frame ptr
-  fr = frameset_from_node(frameset_node)
+  fr = frameset_from_node(frameset_node, sprtype, setnum)
   IF fr = NULL THEN RETURN fr
 
   'Create SpriteSet

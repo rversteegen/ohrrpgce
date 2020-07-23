@@ -31,6 +31,7 @@ DECLARE FUNCTION mouseover (byval mousex as integer, byval mousey as integer, by
 
 DECLARE FUNCTION importimage_process(filename as string, pmask() as RGBcolor) as Frame ptr
 DECLARE FUNCTION importimage_importmxs(mxslump as string, imagenum as integer, srcfile as string, pmask() as RGBcolor) as bool
+DECLARE SUB importimage_delete_or_copy_external(imported as Frame ptr, srcfile as string, sprtype as SpriteType, record as integer)
 DECLARE FUNCTION importimage_change_background_color(img as Frame ptr, pal as Palette16 ptr = NULL) as bool
 DECLARE SUB select_disabled_import_colors(pmask() as RGBcolor, image as Frame ptr)
 
@@ -307,6 +308,8 @@ SUB backdrop_browser ()
 
  loadpalette pmask(), activepalette
 
+ switch_to_8bit_vpages
+
  DIM backdrops_file as string = graphics_file(rgfx_lumpnames(sprTypeBackdrop))
  DIM rgfx_doc as DocPtr = rgfx_open(backdrops_file)
  DIM backdrop as Frame ptr
@@ -341,7 +344,9 @@ SUB backdrop_browser ()
     IF srcfile <> "" THEN
      DIM imported as Frame ptr = importimage_process(srcfile, pmask())
      IF imported THEN
+      'Copy in the file if needed, or delete previous ones
       frame_assign @backdrop, imported
+      importimage_delete_or_copy_external imported, srcfile, sprTypeBackdrop, backdrop_id
       rgfx_save_spriteset rgfx_doc, backdrop, sprTypeBackdrop, backdrop_id
       SerializeBin backdrops_file, rgfx_doc
      END IF
@@ -357,6 +362,7 @@ SUB backdrop_browser ()
       frame_assign @backdrop, imported
       backdrop_id = count
       count = backdrop_id + 1
+      importimage_delete_or_copy_external imported, srcfile, sprTypeBackdrop, backdrop_id
       rgfx_save_spriteset rgfx_doc, backdrop, sprTypeBackdrop, backdrop_id
       SerializeBin backdrops_file, rgfx_doc
       mstate.need_update = YES
@@ -408,6 +414,7 @@ SUB backdrop_browser ()
  'Already saved the doc
  FreeDocument rgfx_doc
  sprite_update_cache sprTypeBackdrop
+ switch_to_8bit_vpages
 END SUB
 
 ' Display an image and select which colours in a copy
@@ -606,6 +613,18 @@ FUNCTION importimage_dither_menu(filename as string, pmask() as RGBcolor) as Fra
  switch_to_8bit_vpages
  RETURN menu.imported
 END FUNCTION
+
+SUB importimage_delete_or_copy_external(imported as Frame ptr, srcfile as string, sprtype as SpriteType, record as integer)
+ DIM basename as string
+ basename = workingdir & SLASH & trimextension(rgfx_lumpnames(sprtype)) & "_" & record & "_0"
+ safekill basename & ".jpg"
+ safekill basename & ".png"
+ IF imported->externaljpg THEN
+  DIM extn as string = justextension(srcfile)
+  IF extn = "jpeg" THEN extn = "jpg"
+  writeablecopyfile srcfile, basename & "." & extn
+ END IF
+END SUB
 
 ' Read an image file, check the bitdepth and palette and perform any necessary
 ' remapping, possibly create a new master palette (and change activepalette),

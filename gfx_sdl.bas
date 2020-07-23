@@ -576,13 +576,18 @@ END SUB
 FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval imagesz as XYPair, byval bitdepth as integer) as integer
   'debuginfo "gfx_sdl_present_internal(w=" & w & ", h=" & h & ", bitdepth=" & bitdepth & ")"
 
+  DIM skip as bool
+  dim effective_zoom as integer = zoom
+  'TODO: have to add arg to gfx_present telling the superres zoom
+  IF imagesz = framesize * 3 THEN effective_zoom = 1 : skip = YES' imagesz = framesize
+
   'variable resolution handling
   '(We also test the size of screensurface, because sometimes SDL resizes the
   'window without telling us with an event! This happens on X11 when dragging
   'the window, if we try to change window size mid-drag. In that case we try to
   'override the change, and don't set resize_requested.)
   '(screensurface may be NULL after switching back to gfx_sdl, I'm not sure why!)
-  IF screensurface = NULL ORELSE framesize <> imagesz ORELSE XY(screensurface->w, screensurface->h) <> lastwindowsize THEN
+  IF skip=NO andalso (screensurface = NULL ORELSE framesize <> imagesz ORELSE XY(screensurface->w, screensurface->h) <> lastwindowsize) THEN
     'debuginfo "gfx_sdl_present_internal: framesize changing from " & framesize & " to " & imagesz
     framesize = imagesz
     'A bitdepth of 0 indicates 'same as previous, otherwise default (native)'. Not sure if it's best to use
@@ -622,6 +627,8 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval imagesz as XYPair,
       RETURN 1
     END IF
 
+    if skip = NO then
+
     'Safety check to avoid a crash (see Warning above)
     IF screensurface->w < imagesz.w * zoom ORELSE screensurface->h < imagesz.h * zoom THEN
     'IF XY(screensurface->w, screensurface->h) \ zoom <> imagesz THEN
@@ -629,16 +636,18 @@ FUNCTION gfx_sdl_present_internal(byval raw as any ptr, byval imagesz as XYPair,
       RETURN 1
     END IF
 
+    end if
+
     IF screensurface_is_RGBColor THEN
       'Can avoid an extra copy to screenbuffer
 
       'smoothzoomblit takes the pitch in pixels, not bytes!
-      smoothzoomblit_32_to_32bit(cast(RGBcolor ptr, raw), cast(uint32 ptr, screensurface->pixels), imagesz, screensurface->pitch \ 4, zoom, smooth)
+      smoothzoomblit_32_to_32bit(cast(RGBcolor ptr, raw), cast(uint32 ptr, screensurface->pixels), imagesz, screensurface->pitch \ 4, effective_zoom, smooth)
     ELSE
       'Need to get SDL to convert from RGBColor to screen format
-      create_or_update_screenbuffer imagesz * zoom, 32
+      create_or_update_screenbuffer imagesz * effective_zoom, 32
 
-      smoothzoomblit_32_to_32bit(cast(RGBcolor ptr, raw), cast(uint32 ptr, screenbuffer->pixels), imagesz, screenbuffer->pitch \ 4, zoom, smooth)
+      smoothzoomblit_32_to_32bit(cast(RGBcolor ptr, raw), cast(uint32 ptr, screenbuffer->pixels), imagesz, screenbuffer->pitch \ 4, effective_zoom, smooth)
 
       IF SDL_BlitSurface(screenbuffer, NULL, screensurface, NULL) THEN
         debug "gfx_sdl_8bit_update_screen: SDL_BlitSurface failed: " & *SDL_GetError

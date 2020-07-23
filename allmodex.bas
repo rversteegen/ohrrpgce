@@ -1178,6 +1178,55 @@ function getvispage() as integer
 	return vpage
 end function
 
+'quick hack: This only exists because Surfaces don't support DrawOptions.scale. Probably
+'move this into surface.cpp.
+function frame_resized_32(fr as Frame ptr, zoom as integer) as Frame ptr
+	dim ret as Frame ptr
+	ret = frame_new(fr->w * zoom, fr->h * zoom, 1, NO, , YES)  'clr=NO, with_surface32=YES
+	dim src8 as ubyte ptr = fr->image
+	dim src32 as RGBcolor ptr
+	if src8 = NULL then
+		if fr->surf->format = SF_8bit then
+			src8 = fr->surf->pPaletteData
+		else
+			src32 = fr->surf->pColorData
+		end if
+	end if
+
+	dim smooth as integer = 0
+	if src8 then
+		smoothzoomblit_8_to_32bit(src8, ret->surf->pRawData, fr->size, ret->pitch, zoom, smooth, @curmasterpal(0))
+	else
+		smoothzoomblit_32_to_32bit(src32, ret->surf->pRawData, fr->size, ret->pitch, zoom, smooth)
+	end if
+
+	return ret
+end function
+
+function get_superres_page(vidpage as Frame ptr, zoom as integer = -1) as integer
+	dim byref superres_page as integer = vidpage->superres_page
+	if zoom = -1 then
+		BUG_IF(superres_page = 0, "bad call", NULL)
+		zoom = vpages(superres_page)->superres
+	end if
+	'dim fr as Frame ptr = frame_scaled32(vidpage, vidpage->w * zoom, vidpage->h * zoom, curmasterpal())
+	dim fr as Frame ptr = frame_resized_32(vidpage, zoom)
+	if superres_page = 0 then
+		fr->superres = zoom
+		fr->noresize = YES
+		superres_page = registerpage(fr)
+'?"registered " & frame_describe(fr) & " as superres for page " & frame_describe(vidpage)
+	else
+'?"[getsuper] drawing 2x " & frame_describe(vidpage)
+'?"           onto " & superres_page & " :" & frame_describe(vpages(superres_page))
+		frame_draw fr, , 0, 0, YES, vpages(superres_page)
+	end if
+	frame_unload @fr
+	frame_clear vidpage
+
+	return superres_page
+end function
+
 'Display a videopage. May modify the page!
 'Also resizes all videopages to match the window size
 'skippable: if true, allowed to frameskip this frame at high framerates
@@ -1197,6 +1246,13 @@ sub setvispage (page as integer, skippable as bool = YES)
 		exit sub
 	end if
 	update_fps_counter NO
+
+
+'?"setvispage " & page & " "
+	if vpages(page)->superres_page then
+		page = get_superres_page(vpages(page), -1)
+'?"  -> page " & page & " " & frame_describe(vpages(page))
+	end if
 
 	dim starttime as double = timer
 	if gfx_supports_variable_resolution() = NO then
@@ -1277,6 +1333,9 @@ sub setvispage (page as integer, skippable as bool = YES)
 	'resize the videopages as needed before the next frame is rendered.
 	screen_size_update
 	if log_slow then debug_if_slow(starttime, 0.005, "")
+
+'?" setvispage done: page " & page & " " & frame_describe(vpages(page))
+
 end sub
 
 'setvispage internal function for presenting a regular Frame page on the screen
@@ -9536,7 +9595,7 @@ function frame_load_4bit(filen as string, rec as integer, numframes as integer, 
 end function
 
 declare sub write_frame_node(fr as Frame ptr, fs_node as Node ptr, bits as integer)
-declare sub read_frame_node(fr as Frame ptr, fr_node as Node ptr, bitdepth as integer, byref lastid as integer)
+declare sub read_frame_node(fr as Frame ptr, fr_node as Node ptr, bitdepth as integer, byref lastid as integer, sprtype as SpriteType, setnum as integer)
 
 'Appends a new "frameset" child node storing an array of Frames and returns it.
 'TODO: Doesn't save metadata about palette or master palette
@@ -9600,7 +9659,7 @@ local sub write_frame_node(fr as Frame ptr, fs_node as Node ptr, bits as integer
 end sub
 
 'Loads an array of Frames from a "frameset" node
-function frameset_from_node(fs_node as Node ptr) as Frame ptr
+function frameset_from_node(fs_node as Node ptr, sprtype as SpriteType, setnum as integer) as Frame ptr
 	dim as integer dataformat = GetChildNodeInt(fs_node, "format")
 	dim as integer bitdepth = GetChildNodeInt(fs_node, "bits", 8)
 	dim as XYPair size
@@ -9634,7 +9693,7 @@ function frameset_from_node(fs_node as Node ptr) as Frame ptr
 	dim lastid as integer = -1
 	dim fr_node as Node ptr = FirstChild(fs_node, "frame")
 	while fr_node
-		read_frame_node(@fr[index], fr_node, bitdepth, lastid)
+		read_frame_node(@fr[index], fr_node, bitdepth, lastid, sprtype, setnum)
 		fr_node = NextSibling(fr_node, "frame")
 		index += 1
 	wend
@@ -9644,17 +9703,33 @@ end function
 
 'Loads a single "frame" node in a frameset
 'lastid: frameid for previous Frame
-local sub read_frame_node(fr as Frame ptr, fr_node as Node ptr, bitdepth as integer, byref lastid as integer)
+local sub read_frame_node(fr as Frame ptr, fr_node as Node ptr, bitdepth as integer, byref lastid as integer, sprtype as SpriteType, setnum as integer)
 	fr->frameid = GetChildNodeInt(fr_node, "id", fr->frameid)
 	ERROR_IF(fr->frameid <= lastid, "corrupt .rgfx file; frameids not in order: " & fr->frameid & " follows " & lastid)
 	lastid = fr->frameid
 
-	dim image_node as NodePtr = GetChildByName(fr_node, "image")
-	dim imdata as ubyte ptr = GetZString(image_node)
-	dim imlen as integer = GetZStringSize(image_node)
-	if imdata = NULL orelse imlen <> fr->w * fr->h * bitdepth \ 8 then
-		showerror "frame_from_node: Couldn't load image; data missing or bad length (" & imlen & " for " & fr->size & ", bitdepth=" & bitdepth & ")"
+	dim imdata as ubyte ptr
+	dim imlen as integer
+
+	dim external as NodePtr = GetChildByName(fr_node, "external")
+	if sprtype = sprTypeBackdrop andalso setnum = 2 then 'external then
+		dim surf as Surface ptr
+		'surf = image_import_as_surface("/home/ralph/ohr/testfiles/Fenrir/coldforest.png", NO)
+		surf = image_import_as_surface("/home/ralph/ohr/testfiles/Fenrir/forest_150%_sharp.png", NO)
+		init_frame_with_surface(fr, surf)
+		fr->superres = 3
+		gfx_surfaceDestroy(@surf)
 		exit sub
+	else
+		dim image_node as NodePtr = GetChildByName(fr_node, "image")
+		imlen = GetZStringSize(image_node)
+		imdata = GetZString(image_node)
+
+
+		if imdata = NULL orelse imlen <> fr->w * fr->h * bitdepth \ 8 then
+			showerror "frame_from_node: Couldn't load image; data missing or bad length (" & imlen & " for " & fr->size & ", bitdepth=" & bitdepth & ")"
+			exit sub
+		end if
 	end if
 
 	if bitdepth = 8 then
@@ -9783,7 +9858,8 @@ function frame_describe(p as Frame ptr) as string
 	return "'(0x" & hexptr(p) & ") " & p->arraylen & "*" & p->size.wh _
 	       & " offset=" & p->offset  & " img=0x" & hexptr(p->image) _
 	       & " msk=0x" & hexptr(p->mask) & " pitch=" & p->pitch & " cached=" & p->cached & " aelem=" _
-	       & p->arrayelem & " view=" & p->isview & " base=0x" & hexptr(p->base) & " refc=" & p->refcount & "' " _
+	       & p->arrayelem & " view=" & p->isview & " base=0x" & hexptr(p->base) & " refc=" & p->refcount _
+	       & " superres=" & p->superres & " superres_page=" & p->superres_page  & "' " _
 	       & temp
 end function
 
@@ -9949,6 +10025,13 @@ end sub
 ' and the dest is 32-bit.
 sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 	BUG_IF(src = NULL orelse dest = NULL, "trying to draw from/to null frame")
+
+	if src->superres andalso dest->superres = 0 then
+		dest = vpages(get_superres_page(dest, src->superres))
+'?"drawing " & frame_describe(src)
+'?"  onto  " & frame_describe(dest)
+	end if
+
 	get_cliprect(dest)  'Set clipping Frame
 
 	x = relative_pos(x, dest->w, src->w)
@@ -9998,6 +10081,7 @@ local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as 
 			end if
 		end if
 		'/
+'?"-surface blit"
 
 		draw_clipped_surf src_surface, @masterpal(0), pal, x, y, trans, dest_surface, opts
 
@@ -10054,6 +10138,7 @@ function frame_scaled32(src as Frame ptr, wide as integer, high as integer, mast
 	end if
 	dim ret as Frame ptr = frame_with_surface(temp)
 	gfx_surfaceDestroy(@temp)
+	'if src->surf = NULL then
 	return ret
 end function
 

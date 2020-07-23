@@ -60,6 +60,8 @@ Type Frame
 	                   'If this is a view, then 'image' and 'mask' mustn't be freed, but 'surf' must be.
 	noresize:1 as int32  '(Video pages only.) Don't resize this page to the window size
 	fixeddepth:1 as int32 '(Video pages only.) Not affected by switch_to_32bit/8bit_vpages: Not a render target.
+	externaljpg:1 as int32 'Stored as a separate .jpg or .png file inside the .rpg.
+	externalpng:1 as int32 'Stored as a separate .jpg or .png file inside the .rpg.
 
 	surf as Surface ptr  'If not NULL, this is a Surface-backed Frame, and image/mask are NULL,
 	                     'but all other members are correct (including .pitch), and match the Surface.
@@ -69,6 +71,9 @@ Type Frame
                                     'will need to be freed at the same time
 				    'First Frame in array only.
 	defpal as int32    'Default palette or -1 if not loaded. Only set on first frame of array!
+
+	superres as int32  'If non-zero, is a superres sprite
+	superres_page as int32  'Used by video pages only. 0 for none
 End Type
 
 ' You can declare vectors of type "Frame ptr vector".
@@ -101,6 +106,7 @@ DECLARE SUB switch_gfx (backendname as string)
 DECLARE FUNCTION allmodex_setoption(opt as string, arg as string) as integer
 DECLARE SUB flush_gfx_config_settings ()
 
+DECLARE FUNCTION get_superres_page (vidpage as Frame ptr, zoom as integer) as integer
 DECLARE SUB switch_to_32bit_vpages ()
 DECLARE SUB switch_to_8bit_vpages ()
 DECLARE FUNCTION toggle_32bit_vpages () as bool
@@ -606,7 +612,7 @@ declare function frame_load_uncached(sprtype as SpriteType, record as integer) a
 declare function frame_load_4bit(filen as string, record as integer, numframes as integer, wid as integer, hei as integer) as Frame ptr
 declare function frame_load_mxs(filen as string, record as integer) as Frame ptr
 declare function frameset_to_node(fr as Frame ptr, parent as Reload.NodePtr) as Reload.NodePtr
-declare function frameset_from_node(node as Reload.NodePtr) as Frame ptr
+declare function frameset_from_node(node as Reload.NodePtr, sprtype as SpriteType, setnum as integer) as Frame ptr
 declare function frameid_to_frame(frameset as Frame ptr, frameid as integer, fail as bool = NO) as integer
 extern "C"
 declare function frame_reference (p as Frame ptr) as Frame ptr

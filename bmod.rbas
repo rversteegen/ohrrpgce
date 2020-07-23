@@ -228,7 +228,7 @@ FUNCTION battle (byval form as integer) as bool
   '--display the backdrop and BattleSprites
   UpdateRootSliceSize bat.root_sl, page  'Match size of page, not vpage
   update_battle_slices bslot()
-  DrawSlice bat.root_sl, page
+  DrawSlice bat.root_sl, vpage
   'Not converted to slices yet
   draw_damage_text bslot(), page
 
@@ -1414,7 +1414,7 @@ SUB setup_battle_slices(byref bat as BattleState)
   '(UpdateRootSliceSize called instead)
 
   .backdrop_sl = NewSliceOfType(slSprite, .root_sl)
-  CenterSlice .backdrop_sl
+  'CenterSlice .backdrop_sl
   .battlefield_sl = NewSliceOfType(slContainer, .root_sl)
   .battlefield_sl->Fill = YES
   '.battlefield_sl->AutoSort = slAutoSortBottomY
