@@ -2578,6 +2578,8 @@ SUB move_cursor_by_characters(text as string, byref insert as integer, move_char
  insert = sizeinfo.end_charnum
 END SUB
 
+CONST NO_VALUE = INT_MIN
+
 'Move insert point in text vertically.
 'move_lines: -1 or 1 to move up/down a line, or 0.
 'move_pixels: additionally, move up and down by some pixels (used for page up/down)

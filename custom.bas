@@ -1821,6 +1821,7 @@ SUB text_test_menu
   args.char_limit = char_limit
   args.line_limit = line_limit
   args.fgcolor = uilook(uiText)
+args.count_whitespace = YES
 
   text_layout_dimensions @ssize, args, text
   drawants vpages(vpage), textpos.x, textpos.y, ssize.size.w, ssize.size.h
@@ -1832,21 +1833,34 @@ SUB text_test_menu
   find_point_in_text @curspos, mouse.pos, text, wide, textpos, 0, YES, YES
   rectangle(vpages(vpage), XY_WH(curspos.pos, curspos.size), uilook(IIF(curspos.exacthit, uiHighlight, uiHighlight2)))
 
+   args.fontnum = fontPlain
+   args.wide = wide
+   'args.endchar  = curspos.charnum
+   args.char_limit = curspos.vis_char
+   'args.debug=YES
+   DIM pos2 as StringSize
+   var ttt = timer
+   text_layout_dimensions @pos2, args, text
+'   ? "done in " & (timer - ttt) * 1e6 & "us"
+
+
   'Alternative way to get cursor position: check it matches (used text slice insert cursor)
   DIM charpos as StringCharPos
   find_text_char_position(@charpos, text, curspos.charnum, args.wide, args.fontnum)
-  DIM insert_pos as XYPair = textpos + charpos.pos
+  'DIM insert_pos as XYPair = textpos + charpos.pos
+  DIM insert_pos as XYPair = textpos + pos2.next_pos
 
   drawbox vpages(vpage), insert_pos.x, insert_pos.y, charpos.size.w, charpos.size.h, findrgb(170,90,255)
 
   rectangle 0, pBottom, rWidth, 20, uilook(uiBackground), vpage
 
   printstr CHR(3), mouse.x - 3, mouse.y - 3, vpage
+  DIM charnum as integer = pos2.end_charnum 'curspos.charnum
   DIM cursor_show as string
-  cursor_show = lpad(STR(curspos.charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & " lineh=" & curspos.lineh & ")"
+  cursor_show = lpad(STR(charnum), , 4) & " (line=" & curspos.line & " vis_char=" & curspos.vis_char & " TLD=" & pos2.vis_chars & " lineh=" & curspos.lineh & ")"
   edgeprint cursor_show, 0, pBottom - 10, uilook(uiText), vpage
   cursor_show = ""
-  DIM tpos as integer = curspos.charnum + 1  'curspos.charnum is 0-based!
+  DIM tpos as integer = charnum + 1  'curspos.charnum is 0-based!
   cursor_show &= RIGHT(LEFT(text, tpos - 1), 15)
   cursor_show &= "[" & MID(text, tpos, 1) & "]"
   cursor_show &=       MID(text, tpos + 1, 10)

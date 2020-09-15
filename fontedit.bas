@@ -27,7 +27,10 @@ SUB font_test_menu
  st.last = UBOUND(menu)
  st.size = 22
 
- DIM controls as string = "1: import from 'fonttests/testfont/', 2: import from bmp, 3: create edged font, 4: create shadow font"
+   xbload game + ".fnt", current_font(), "Font not loaded"
+   setfont current_font()
+
+ DIM controls as string = "1: import from 'fonttests/testfont/', 2: import from bmp, 3: create edged font, 4: create shadow font" & CHR(25) &CHR(26) &CHR(27)
 
  DO
   setwait 55
@@ -78,7 +81,7 @@ SUB font_test_menu
   FOR i as integer = 0 TO 15
    DIM row as string
    FOR j as integer = i * 16 TO i * 16 + 15
-    row &= CHR(j)
+    row &= j & CHR(j)
    NEXT
    IF fonts(st.pt) THEN
     printstr row, 145, 0 + i * fonts(st.pt)->line_h, vpage, YES, st.pt

@@ -5154,6 +5154,14 @@ function next_text_markup(text as string, byref offset as integer, byref tagend 
 	return NO
 end function
 
+/'
+'Offset is 1-based position in bytes
+function next_char(text as string, byref offset as integer)
+	while offset < len(text)
+ 		if text[offset] = asc("$") andalso text[offset + 1] = asc("{") then
+	wend
+end function
+'/
 type PrintStrState
 	args as RenderTextArgs ptr
 	initial_font as Font ptr   'Used when resetting thefont, = get_font(args->fontnum)
@@ -5259,6 +5267,45 @@ end destructor
 'All following tcmds must have zero arguments
 #define tcmdRepalette  18  'Call build_text_palette
 #define tcmdLast       18
+
+'5-9 unicode
+
+'14 font <arg>
+'15 size <arg>
+'16 color <arg>
+'17 bgcolor <arg>
+'18 palette <arg16>
+'19 palcycle <arg16>
+'20 rumble <arg>
+'21 wave <arg>
+'22 opacity <arg>
+'23 fade <arg>   # up or down, opacity (0-255) per char: -128 - 127
+'24 leftmargin <arg>
+'25 rightmargin <arg>
+'26 space <arg>
+'27 variant <arg> # bold/italics/underline/edged/shadow, or invert
+'28 icon
+'29 image
+
+'hline?
+'27 bold
+'28 italics
+'29 underline
+'30 invert <bold/italics/underline>
+'
+
+' 'this can only be used on varlen strings!
+' private sub append_char(z as string, char as integer)
+' 	dim len as integer = FB_STRSIZE(strptr(z)) + 1
+' 	if len <= strptr(z)->size then
+' 		z[len] = char
+' 		fb_hStrSetLength(strptr(z), len + 1)
+' 	else
+' 		'fb_StrConcatAssign(strptr(z), -1, @char, 1, 0)
+' 		z &= chr(char)
+' 	end if
+' end sub
+
 
 'Invisible argument: state. (member should not be . prefixed, unfortunately)
 'Modifies state, and appends a control sequence to the string outbuf to duplicate the change

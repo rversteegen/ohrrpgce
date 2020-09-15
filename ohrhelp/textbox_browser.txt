@@ -1,6 +1,6 @@
 Browse to pick a Text Box.
 
-You can type a Text Box's ID number to make the cursor jump to it, or tpye some text and the text boxes will be searched. The full text of the Text Box will be searched, not just the part you can see.
+You can type a Text Box's ID number to make the cursor jump to it, or type some text and the text boxes will be searched. The full text of the Text Box will be searched, not just the part you can see.
 
 Click the "+New" button or press CTRL+N to add a new Text Box.
 
