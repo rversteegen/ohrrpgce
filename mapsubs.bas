@@ -2658,12 +2658,8 @@ SUB mapedit_list_npcs_by_tile (st as MapEditState, pos as XYPair)
    npcdef = NULL
    IF state.pt > 0 AND state.pt <= UBOUND(npcrefs) THEN
     npcinst = @st.map.npc(npcrefs(state.pt))
-    IF starts_with(menu(state.pt), "Global") THEN
-     'Oh my gosh this is such a hack I hope TMC doesn't see. SHHH! Nobody tell him! 
-     npcdef = @st.global_npc_def(npcinst->id - 1)
-    ELSE
-     npcdef = @st.map.npc_def(npcinst->id - 1)
-    END IF
+'    var byref tempdef = npcdef_by_pool(st, npcinst->pool, npcinst->id - 1)
+    npcdef = @(npcdef_by_pool(st, npcinst->pool + 2, npcinst->id - 1)) 'tempdef
     boxpreview = npc_preview_text(*npcdef)
    END IF
   END IF
