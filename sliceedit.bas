@@ -30,6 +30,13 @@ ENUM HideMode
  hideLAST = 3
 END ENUM
 
+ENUM DrawRootMode
+ drawRootBox    'Draw a hollow box behind the root slice
+ drawRootRect   'Draw a uiBackground rect behind the root slice
+ drawRootOff    'Don't draw anything in the background
+ drawRootLAST = 2
+END ENUM
+
 ENUM SliceMenuItemID
  mnidText = 0            'Not editable
  mnidSlice = 1
@@ -86,6 +93,7 @@ TYPE SliceEditState
  show_ants as bool = YES   'Whether to draw a box around the selected slice
  show_sizes as bool        'Display sizes in the slice list?
  show_positions as bool    'Display screen positions in the slice list?
+ draw_behind_root as DrawRootMode 'What to draw to indicate size/pos of root
  privileged as bool        'Whether can edit properties that are normally off-limits. Non-user collections only.
 
  ' Internal state of lookup_code_grabber
@@ -179,6 +187,7 @@ DECLARE SUB AdjustSlicePosToNewParent (byval sl as Slice Ptr, byval newparent as
 DECLARE SUB SliceAdoptNiece (byval sl as Slice Ptr)
 
 'Functions only used locally
+DECLARE SUB update_draw_root (ses as SliceEditState, rootsl as Slice ptr)
 DECLARE FUNCTION find_special_lookup_code(specialcodes() as SpecialLookupCode, code as integer) as integer
 DECLARE FUNCTION lookup_code_forbidden(specialcodes() as SpecialLookupCode, code as integer) as bool
 DECLARE FUNCTION slice_editor_forbidden_search(byval sl as Slice Ptr, specialcodes() as SpecialLookupCode, errorstr as string = "") as bool
@@ -396,23 +405,24 @@ END SUB
 LOCAL FUNCTION create_draw_root (ses as SliceEditState) as Slice ptr
  'Instead of parenting to the actual screen slice, parent to a
  'fake screen slice which is the size of the ingame screen.
- 'Also, center, so that if you're running at a higher resolution than in-game, the
+ 'Also, align center-right, so that if you're running at a higher resolution than in-game, the
  'menu doesn't overlap so much.
 
  DIM use_game_res as bool = ses.collection_group_number <> SL_COLLECT_EDITOR
 
- DIM rect as RectangleSliceData
- rect.bgcol = uilook(uiBackground)
- rect.border = -2  'None
- DIM ret as Slice ptr = NewRectangleSlice(NULL, rect)
+ ' DIM rect as RectangleSliceData
+ ' rect.bgcol = 0  'None uilook(uiBackground)
+ ' rect.border = -2  'None
+ DIM ret as Slice ptr = NewSliceOfType(slRectangle)'NewRectangleSlice(NULL, rect)
  WITH *ret
   .Pos = remember_draw_root_pos
-  IF use_game_res ANDALSO gen(genResolutionX) > 0 THEN  'We might not have loaded a game yet
-   .Width = gen(genResolutionX)
-   .Height = gen(genResolutionY)
-  ELSE
-   .Size = get_resolution()
-  END IF
+  ' IF use_game_res ANDALSO gen(genResolutionX) > 0 THEN  'We might not have loaded a game yet
+  '  .Width = gen(genResolutionX)
+  '  .Height = gen(genResolutionY)
+  ' ELSE
+  '  .Size = get_resolution()
+  ' END IF
+  .CoverChildren = YES  'Same size as the root slice, which defaults to the screen size
   .AlignHoriz = alignRight
   .AlignVert = alignMiddle
   .AnchorHoriz = alignRight
@@ -422,11 +432,22 @@ LOCAL FUNCTION create_draw_root (ses as SliceEditState) as Slice ptr
  ' the top left corner of the 'screen' is visible.
  ' This is crude because the 'screen' will shift if the user resizes the window,
  ' but we can't just recenter it every tick because then F6 won't work.
- RefreshSliceScreenPos ret
+ RefreshSliceScreenPos ret  'fixme
  ret->X -= small(0, ret->ScreenX)
  ret->Y -= small(0, ret->ScreenY)
+ update_draw_root ses, ret
  RETURN ret
 END FUNCTION
+
+'Re-apply the ses.draw_behind_root setting
+LOCAL SUB update_draw_root (ses as SliceEditState, rootsl as Slice ptr)
+ IF ses.recursive THEN EXIT SUB
+ SELECT CASE ses.draw_behind_root
+  CASE drawRootOff  : ChangeRectangleSlice rootsl, , , , borderNone, transHollow
+  CASE drawRootBox  : ChangeRectangleSlice rootsl, , , findrgb(128,128,128), borderLine, transHollow
+  CASE drawRootRect : ChangeRectangleSlice rootsl, , uilook(uiBackground), , borderNone, transOpaque
+ END SELECT
+END SUB
 
 ' Edit a group of slice collections - this is the overload used by the slice editor menus in Custom.
 ' In this mode, the editor loads and saves collections to disk when you exit
@@ -832,6 +853,7 @@ SUB slice_editor_common_function_keys(byref ses as SliceEditState, edslice as Sl
  IF keyval(scF7) > 1 THEN ses.show_ants = NOT ses.show_ants
  IF keyval(scF8) > 1 THEN
   slice_editor_settings_menu ses, edslice, in_detail_editor
+  update_draw_root ses, ses.draw_root
   state.need_update = YES
  END IF
  IF keyval(scCtrl) > 0 ANDALSO keyval(scF3) > 1 THEN
@@ -1097,9 +1119,11 @@ END FUNCTION
 ' Returns false if the user cancelled rather than made a decision
 FUNCTION slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as Slice Ptr) as bool
  DIM filename as string = slice_editor_filename(ses)
+ DIM is_nonempty as bool = (edslice->NumChildren > 0 ORELSE LEN(collection_context(edslice)->name) > 0)
+
  IF ses.use_index THEN
   ' Autosave on quit, unless the collection is empty
-  IF edslice->NumChildren > 0 THEN
+  IF is_nonempty THEN
    '--save non-empty slice collections
    SliceSaveToFile edslice, filename
   ELSE
@@ -1114,7 +1138,7 @@ FUNCTION slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as 
 
   IF slice_collection_has_changed(edslice, filename) = NO THEN RETURN YES
 
-  IF edslice->NumChildren > 0 THEN
+  IF is_nonempty THEN
    'Prevent attempt to quit the program, stop and wait for response first
    DIM quitting as bool = getquitflag()
    setquitflag NO
@@ -2051,7 +2075,7 @@ FUNCTION slice_caption (byref ses as SliceEditState, edslice as Slice ptr, sl as
   s = SliceTypeName(sl) & " "
   IF ses.show_positions THEN s &= (.ScreenPos - ses.draw_root->ScreenPos)
   IF ses.show_sizes THEN s &= "(" & .Size.wh & ")"
-  IF sl = edslice AND .Lookup <> SL_ROOT THEN
+  IF sl = edslice AND .Lookup <> SL_ROOT THEN  'The in-game root slice has ROOT lookup, don't show a 2nd "[root]"
    s &= " [root]"
   END IF
   s = RTRIM(s) & "${K" & uilook(uiText) & "} "
@@ -2560,7 +2584,8 @@ SUB SliceEditSettingsMenu.update()
  END IF
 
  header "Editor Settings"
- DIM hide_captions(...) as string = {"Show menu and slices", "Hide menu background", "Hide slices", "Hide menu"}
+ DIM hide_captions(...) as string = {"Show menu and slices", "Hide menu background", "Hide slices", "Hide menu"}  'Enum HideMode
+ DIM draw_root_captions(...) as string = {"Draw box behind", "Draw rect behind", "Off"}   'Enum DrawRootMode
  IF in_detail_editor = NO THEN
   add_item 7, , "Show positions: " & yesorno(ses->show_positions)
   add_item 8, , "Show sizes: " & yesorno(ses->show_sizes)
@@ -2571,7 +2596,7 @@ SUB SliceEditSettingsMenu.update()
  END IF
  add_item 11, , safe_caption(hide_captions(), ses->hide_mode) & " (F4)"
  add_item 12, , "Show root slice: " & yesorno(ses->show_root) & " (F5)"
-'IIF(ses->show_root, "Show", "Hide") & " root slice (F5)"
+ add_item 19, , "Show root size/pos: " & draw_root_captions(ses->draw_behind_root)
  add_item 13, , "Shift viewport... (F6)"
  add_item 14, , "Show ants: " & yesorno(ses->show_ants) & " (F7)"
  'add_item 15, , "This menu (F8)"
@@ -2582,6 +2607,7 @@ SUB SliceEditSettingsMenu.update()
  IF NOT vpages_are_32bit THEN
   add_item 18, , "Blend algorithm: " & BlendAlgoCaptions(gen(gen8bitBlendAlgo)) & " (Ctrl-F4)"
  END IF
+ 'Next free ID: 20
 END SUB
 
 FUNCTION SliceEditSettingsMenu.each_tick() as bool
@@ -2636,6 +2662,8 @@ FUNCTION SliceEditSettingsMenu.each_tick() as bool
    END IF
   CASE 18  'Blend algo
    changed = intgrabber(gen(gen8bitBlendAlgo), 0, blendAlgoLAST)
+  CASE 19
+   changed = intgrabber(ses->draw_behind_root, 0, drawRootLAST)
  END SELECT
  state.need_update OR= changed
 END FUNCTION
@@ -2658,6 +2686,7 @@ END SUB
 SUB slice_editor_save_settings(byref ses as SliceEditState)
  write_config "sliceedit.show_positions", yesorno(ses.show_positions)
  write_config "sliceedit.show_sizes", yesorno(ses.show_sizes)
+ write_config "sliceedit.draw_behind_root", ses.draw_behind_root
  'While in the recursive slice editor, show_root gets set to YES by default
  IF ses.recursive = NO THEN write_config "sliceedit.show_root", yesorno(ses.show_root)
 END SUB
@@ -2665,6 +2694,8 @@ END SUB
 SUB slice_editor_load_settings(byref ses as SliceEditState)
  ses.show_positions = read_config_bool("sliceedit.show_positions", NO)
  ses.show_sizes = read_config_bool("sliceedit.show_sizes", NO)
+ ses.draw_behind_root = bound(read_config_int("sliceedit.draw_behind_root", drawRootBox), 0, drawRootLAST)
+
  'See above
  IF ses.recursive = NO THEN ses.show_root = read_config_bool("sliceedit.show_root", NO)
 END SUB
