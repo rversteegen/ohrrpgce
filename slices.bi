@@ -417,9 +417,11 @@ Type LineSliceData
 End Type
 
 Type TextSliceData
+ fontnum as integer 'Overrides outline if not 0
  col as integer
  bgcol as integer '0: transparent, 1 - 255: opaque background color, <= -1: UI color
- outline as bool
+ withtags as bool = YES  'Whether to render with text markup
+ outline as bool  'TODO: remove
  outline_backcompat as bool 'If true, bgcol ignored, always transparent. Used only in-game, not saved!
  s as string
  s_orig as string 'UNSAVED: Used when expanding ${} codes, so the codes can be re-expanded again later

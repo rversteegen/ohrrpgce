@@ -1782,6 +1782,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
      a_append menu(), " render_text: " & IIF(dat->use_render_text = 1, "Toggle", yesorno(dat->use_render_text))
      sliceed_rule rules(), "", erIntgrabber, @dat->use_render_text, -1, 1
     END IF
+    a_append menu(), " Font: " & dat->fontnum
+    sliceed_rule rules(), "text_font", erIntgrabber, @(dat->fontnum), 0, UBOUND(fonts)
     a_append menu(), " Color: " & slice_color_caption(dat->col, "Default")
     sliceed_rule rules(), "text_color", erIntgrabber, @(dat->col), LowColorCode(), 255, slgrPICKCOL
     a_append menu(), " Background Color: " & slice_color_caption(dat->bgcol, "Transparent")
@@ -1790,6 +1792,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule_tog rules(), "text_outline", @(dat->outline)
     a_append menu(), " Wrap: " & yesorno(dat->wrap)
     sliceed_rule_tog rules(), "text_wrap", @(dat->wrap)
+    a_append menu(), " Markup enabled: " & yesorno(dat->withtags)
+    sliceed_rule_tog rules(), "text_markup_enabled", @dat->withtags
     a_append menu(), " Line limit: " & IIF(dat->line_limit = -1, "None", STR(dat->line_limit))
     sliceed_rule rules(), "text_line_limit", erIntgrabber, @(dat->line_limit), -1, 99999999
     a_append menu(), " Character limit: " & IIF(dat->char_limit = -1, "None", STR(dat->char_limit))

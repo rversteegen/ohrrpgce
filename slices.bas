@@ -1575,7 +1575,10 @@ end function
 Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col as integer = 0, limits as bool = YES)
  dim dat as TextSliceData ptr = sl->TextData
  with args
+  .withtags = dat->withtags
   .fontnum = iif(dat->outline, fontEdged, fontPlain)
+  if dat->fontnum then .fontnum = dat->fontnum
+  if .fontnum > ubound(fonts) then .fontnum = 0  'Silent failure; might have loaded slices from a different game
   .fgcolor = col
   if dat->outline_backcompat then
    .bgcolor = 0  'Backcompat
@@ -1727,7 +1730,8 @@ Function TextSliceCharPos(sl as Slice ptr, charnum as integer) as XYPair
  dim dat as TextSliceData ptr = sl->SliceData
 
  dim wide as integer = TextSliceRenderTextWide(sl, dat)
- dim fontnum as integer = iif(dat->outline, fontEdged, fontPlain)
+ dim fontnum as integer = iif(dat->fontnum, dat->fontnum, iif(dat->outline, fontEdged, fontPlain))
+ if fontnum > ubound(fonts) then fontnum = 0  'Silent failure; might have loaded slices from a different game
  dim charpos as StringCharPos
  find_text_char_position(@charpos, dat->s, charnum, wide, fontnum)
  return charpos.pos
@@ -1751,30 +1755,21 @@ End Function
 
 Sub CloneTextSlice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "CloneTextSlice null ptr": exit sub
- dim dat as TextSliceData Ptr
- dat = sl->SliceData
- dim clonedat as TextSliceData Ptr
- clonedat = cl->SliceData
- with *clonedat
-  .s       = dat->s
-  .col     = dat->col
-  .outline = dat->outline
-  .wrap    = dat->wrap
-  .bgcol   = dat->bgcol
- end with
+ *sl->TextData = *cl->TextData  'Copy everything.
 end sub
 
 Sub SaveTextSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  if sl = 0 or node = 0 then debug "SaveTextSlice null ptr": exit sub
- dim dat as TextSliceData Ptr
- dat = sl->SliceData
+ dim dat as TextSliceData Ptr = sl->TextData
  SavePropAlways node, "s", dat->s
  SaveProp node, "col", dat->col
  SaveProp node, "outline", dat->outline
  SaveProp node, "wrap", dat->wrap
  SaveProp node, "bgcol", dat->bgcol
+ SaveProp node, "fontnum", dat->fontnum
  if dat->line_limit <> -1 then SavePropAlways node, "linelim", dat->line_limit
  if dat->char_limit <> -1 then SavePropAlways node, "charlim", dat->char_limit
+ if dat->withtags <> YES then  SavePropAlways node, "nomarkup", YES
 End Sub
 
 Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
@@ -1782,12 +1777,14 @@ Sub LoadTextSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dim dat as TextSliceData Ptr
  dat = sl->SliceData
  dat->s       = LoadPropStr(node, "s")
+ dat->fontnum = LoadProp(node, "fontnum")
  dat->col     = LoadProp(node, "col")
  dat->outline = LoadPropBool(node, "outline")
  dat->wrap    = LoadPropBool(node, "wrap")
  dat->bgcol   = LoadProp(node, "bgcol")
  dat->line_limit = LoadProp(node, "linelim", -1)
  dat->char_limit = LoadProp(node, "charlim", -1)
+ dat->withtags = (LoadPropBool(node, "nomarkup", NO) = NO)
  'FIXME: IF dat->outline THEN dat->bgcol = 0
 
  'Ensure that width is correct, because it's currently only set when something changes,
