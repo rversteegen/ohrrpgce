@@ -198,6 +198,7 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
  DIM c as integer
  DIM hover_char as integer
  DIM hover_draw as XYPair
+ DIM drawcol as integer   'The "color" (0 or 1) of the current stroke
 
  setkeys
  DO
@@ -227,8 +228,10 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
    IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
    IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
    IF keyval(ccRight) > 1 THEN loopvar x, 0, 7, 1
-   IF keyval(scSpace) > 1 THEN
-    setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
+   IF keyval(scSpace) > 0 THEN  'Only Space, Enter leaves edit mode
+    'On a new keypress, determine whether to add or subtract pixels
+    IF keyval(scSpace) AND 4 THEN drawcol = (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
+    setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, drawcol
     setfont fnt()
     xbsave game + ".fnt", fnt(), 2048
    END IF
