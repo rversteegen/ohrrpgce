@@ -1575,6 +1575,7 @@ end function
 Local Sub GetRenderTextArgs(sl as Slice ptr, byref args as RenderTextArgs, col as integer = 0, limits as bool = YES)
  dim dat as TextSliceData ptr = sl->TextData
  with args
+  .withtags = dat->withtags
   .fontnum = iif(dat->outline, fontEdged, fontPlain)
   .fgcolor = col
   if dat->outline_backcompat then
