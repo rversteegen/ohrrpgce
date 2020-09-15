@@ -92,7 +92,10 @@ SUB font_test_menu
 END SUB
 
 'Top-level menu
-SUB font_editor (fnt() as integer)
+SUB font_editor ()
+ DIM fnt() as integer
+ load_font fnt()
+
  DIM fonttype as fontTypeEnum = get_font_type(fnt())
 
  DIM menu(6) as string
@@ -141,7 +144,7 @@ SUB font_editor (fnt() as integer)
   IF state.pt = 5 THEN
    IF intgrabber(fonttype, ftypeASCII, ftypeLatin1) THEN
     set_font_type fnt(), fonttype
-    xbsave game + ".fnt", fnt(), 2048
+    save_font fnt()
    END IF
   END IF
 
@@ -223,7 +226,10 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
     END IF
    END IF
   ELSE ' Editing a character
-   IF keyval(ccCancel) > 1 OR keyval(scAnyEnter) > 1 THEN editing_char = NO
+   IF keyval(ccCancel) > 1 OR keyval(scAnyEnter) > 1 THEN
+    editing_char = NO
+    save_font fnt()
+   END IF
    IF keyval(ccUp) > 1 THEN loopvar y, 0, 7, -1
    IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
    IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
@@ -233,8 +239,12 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
     IF keyval(scSpace) AND 4 THEN drawcol = (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
     setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, drawcol
     setfont fnt()
-    xbsave game + ".fnt", fnt(), 2048
    END IF
+  END IF
+
+  IF keyval(scCtrl) > 0 ANDALSO keyval(scS) > 1 THEN
+   save_font fnt()
+   show_overlay_message "Saved.", 0.5
   END IF
 
   '--copy and paste support
@@ -248,7 +258,7 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
     setbit fnt(), 0, f(pt) * 64 + i, readbit(copybuf(), 0, i)
    NEXT i
    setfont fnt()
-   xbsave game + ".fnt", fnt(), 2048
+   save_font fnt()
   END IF
   '--clicking on the "Previous menu" label
   IF readmouse.release AND mouseLeft THEN
@@ -273,7 +283,6 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
     IF readmouse.buttons AND mouseLeft THEN setpix = 1
     setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, setpix
     setfont fnt()
-    xbsave game + ".fnt", fnt(), 2048
    END IF
   END IF
 
@@ -344,6 +353,9 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
   setvispage vpage
   dowait
  LOOP
+
+ 'If you click on Previous Menu you can get here without having saved yet
+ save_font fnt()
 END SUB
 
 FUNCTION edit_font_draw_point(byval pixelpos as XYPair) as XYPair
@@ -382,7 +394,7 @@ SUB fontedit_export_font(fnt() as integer)
  newfont = inputfilename("Input a filename to save to", ".ohf", "", "input_file_export_font") 
 
  IF newfont <> "" THEN
-  xbsave game & ".fnt", fnt(), 2048
+  save_font fnt()
   copyfile game & ".fnt", newfont & ".ohf"
  END IF
 
@@ -407,7 +419,7 @@ SUB fontedit_import_font(fnt() as integer)
   NEXT i
 
   '--Reload the font
-  xbload game + ".fnt", fnt(), "Can't load font"
+  load_font fnt()
   setfont fnt()
 
   '--write back the old 1-31 characters

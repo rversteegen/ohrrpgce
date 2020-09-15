@@ -9,3 +9,5 @@ When you are finished, press ENTER or ESC.
 It is generally a good idea to leave the right and bottom rows of pixels blank to prevent characters in strings of text from running together.
 
 Aside from typing them directly, you can also insert characters from your font by pressing CTRL+SPACE in any text input field, or hitting the key combination (only correct for US keyboards, sorry!) shown at the bottom of the screen.
+
+You can press CTRL-S to immediately save changes, which can be useful while using Test Game to live preview font edits.

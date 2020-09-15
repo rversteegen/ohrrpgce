@@ -6513,6 +6513,17 @@ sub setfont (ohf_font() as integer)
 	fonts(fontShadow) = font_create_shadowed(fonts(fontPlain), 1, 2)
 end sub
 
+'Load the game's font into fnt(). You still need to call setfont to use it.
+sub load_font(fnt() as integer)
+	BUG_IF(len(game) = 0, "No game loaded")
+	xbload game + ".fnt", fnt(), "Font not loaded"
+end sub
+
+sub save_font(fnt() as integer)
+	BUG_IF(len(game) = 0, "No game loaded")
+	xbsave game + ".fnt", fnt(), 2048
+end sub
+
 'NOTE: the following two functions are for the old style fonts, they will
 'be removed when switching to the new system supporting unicode fonts
 

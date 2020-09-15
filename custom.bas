@@ -532,7 +532,7 @@ SUB gfx_editor_menu()
    IF state.pt = 12 THEN backdrop_browser
    IF state.pt = 13 THEN ui_color_editor(activepalette)
    IF state.pt = 14 THEN ui_boxstyle_editor(activepalette)
-   IF state.pt = 15 THEN font_editor current_font()
+   IF state.pt = 15 THEN font_editor
    '--always resave the .GEN lump after any menu
    xbsave game + ".gen", gen(), 1000
   END IF

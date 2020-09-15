@@ -338,6 +338,8 @@ DECLARE FUNCTION just_markup(text as string) as string
 
 DECLARE FUNCTION get_font(fontnum as integer, show_err as bool = NO) as Font ptr
 
+DECLARE SUB save_font(fnt() as integer)
+DECLARE SUB load_font(fnt() as integer)
 DECLARE SUB setfont (f() as integer)
 DECLARE FUNCTION get_font_type (font() as integer) as fontTypeEnum
 DECLARE SUB set_font_type (font() as integer, ty as fontTypeEnum)
