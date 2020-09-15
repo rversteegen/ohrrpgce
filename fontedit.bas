@@ -14,6 +14,7 @@
 
 
 'Subs and functions only used here
+DECLARE SUB font_glyph_editor (fnt() as integer)
 DECLARE FUNCTION edit_font_picker_point(byval pixelpos as XYPair) as integer
 DECLARE FUNCTION edit_font_draw_point(byval pixelpos as XYPair) as XYPair
 DECLARE SUB fontedit_export_font(fnt() as integer)
@@ -90,33 +91,13 @@ SUB font_test_menu
  LOOP
 END SUB
 
+'Top-level menu
 SUB font_editor (fnt() as integer)
- DIM f(255) as integer  'Contains the character indices which should be shown (always 32-255)
- DIM copybuf(4) as integer
+ DIM fonttype as fontTypeEnum = get_font_type(fnt())
+
  DIM menu(6) as string
  DIM selectable(6) as bool
  flusharray selectable(), , YES
-
- menu(0) = "Previous Menu"
- menu(1) = "Edit Font..."
- menu(2) = "Import Font..."
- menu(3) = "Export Font..."
- selectable(4) = NO
- menu(5) = ""  'Set below
- selectable(6) = NO
-
- DIM i as integer
-
- DIM last as integer = -1
- FOR i = 32 TO 255
-  last += 1
-  f(last) = i
- NEXT i
-
- 'mode = -1: the menu
- 'mode = 0:  select a character to edit
- 'mode = 1:  editing a character
- DIM mode as integer = -1
 
  'This state is used for the menu, not the charpicker
  DIM state as MenuState
@@ -127,7 +108,83 @@ SUB font_editor (fnt() as integer)
   .size = 22
  END WITH
 
- DIM fonttype as fontTypeEnum = get_font_type(fnt())
+ menu(0) = "Previous Menu"
+ menu(1) = "Edit Font..."
+ menu(2) = "Import Font..."
+ menu(3) = "Export Font..."
+ selectable(4) = NO
+ menu(5) = ""  'Set below
+ selectable(6) = NO
+
+ setkeys
+ DO
+  setwait 55
+  setkeys
+  IF keyval(scF1) > 1 THEN show_help "fontedit"
+
+  IF keyval(ccCancel) > 1 THEN EXIT DO
+  usemenu state, selectable()
+  IF enter_space_click(state) THEN
+   IF state.pt = 0 THEN EXIT DO
+   IF state.pt = 1 THEN
+    font_glyph_editor fnt()
+    readmouse.clearclick(mouseLeft)
+   END IF
+   IF state.pt = 2 THEN
+    fontedit_import_font fnt()
+    fonttype = get_font_type(fnt())
+    state.pt = 1
+    font_glyph_editor fnt()
+   END IF
+   IF state.pt = 3 THEN fontedit_export_font fnt()
+  END IF
+  IF state.pt = 5 THEN
+   IF intgrabber(fonttype, ftypeASCII, ftypeLatin1) THEN
+    set_font_type fnt(), fonttype
+    xbsave game + ".fnt", fnt(), 2048
+   END IF
+  END IF
+
+  '--Draw screen
+  clearpage dpage
+
+  menu(5) = "Font type: "
+  IF fonttype = ftypeASCII THEN
+   menu(5) &= "ASCII"
+   menu(6) = " (Characters 127-255 are icons)"
+  ELSEIF fonttype = ftypeLatin1 THEN
+   menu(5) &= "Latin1"
+   menu(6) = " (Characters 127-160 are icons)"
+  END IF
+
+  standardmenu menu(), state, 0, 0, dpage
+
+  SWAP vpage, dpage
+  setvispage vpage
+  dowait
+ LOOP
+
+END SUB
+
+'Editor for drawing a font
+LOCAL SUB font_glyph_editor (fnt() as integer)
+ DIM menu(0) as string
+ menu(0) = "Previous Menu"  'Only one textual menu item
+ DIM tog as integer
+
+ DIM f(255) as integer  'Contains the character indices which should be shown (always 32-255)
+ DIM copybuf(4) as integer
+
+ DIM i as integer
+
+ DIM last as integer = -1
+ FOR i = 32 TO 255
+  last += 1
+  f(last) = i
+ NEXT i
+
+ 'Whether we're editing a character. If NO, selecting a character to edit
+ DIM editing_char as bool = NO
 
  DIM linesize as integer = 14
  DIM pt as integer = -1 * linesize
@@ -146,177 +203,137 @@ SUB font_editor (fnt() as integer)
  DO
   setwait 55
   setkeys
-  IF keyval(scF1) > 1 THEN show_help "fontedit"
+  IF keyval(scF1) > 1 THEN show_help "fontedit_draw"
   hover_char = edit_font_picker_point(readmouse.pos)
   hover_draw = edit_font_draw_point(readmouse.pos)
-  SELECT CASE mode
-   CASE -1 ' Main font menu
-    IF keyval(ccCancel) > 1 THEN EXIT DO
-    usemenu state, selectable()
-    IF enter_space_click(state) THEN
-     IF state.pt = 0 THEN EXIT DO
-     IF state.pt = 1 THEN
-      mode = 0
-      readmouse.clearclick(mouseLeft)
-     END IF
-     IF state.pt = 2 THEN
-      fontedit_import_font fnt()
-      fonttype = get_font_type(fnt())
-      state.pt = 1
-      mode = 0
-     END IF
-     IF state.pt = 3 THEN fontedit_export_font fnt()
+  IF editing_char = NO THEN 'Picking a character to edit
+   IF keyval(ccCancel) > 1 THEN EXIT DO 'mode = -1
+   IF keyval(ccUp) > 1 THEN pt = large(pt - linesize, -1 * linesize)
+   IF keyval(ccDown) > 1 THEN pt = small(pt + linesize, last)
+   IF keyval(ccLeft) > 1 THEN pt = large(pt - 1, 0)
+   IF keyval(ccRight) > 1 THEN pt = small(pt + 1, last)
+   IF enter_or_space() THEN
+    IF pt < 0 THEN
+     EXIT DO
+    ELSE
+     editing_char = YES
+     x = 0
+     y = 0
     END IF
-    IF state.pt = 5 THEN
-     IF intgrabber(fonttype, ftypeASCII, ftypeLatin1) THEN
-      set_font_type fnt(), fonttype
-      xbsave game + ".fnt", fnt(), 2048
-     END IF
-    END IF
-   CASE 0 'Picking a character to edit
-    IF keyval(ccCancel) > 1 THEN mode = -1
-    IF keyval(ccUp) > 1 THEN pt = large(pt - linesize, -1 * linesize)
-    IF keyval(ccDown) > 1 THEN pt = small(pt + linesize, last)
-    IF keyval(ccLeft) > 1 THEN pt = large(pt - 1, 0)
-    IF keyval(ccRight) > 1 THEN pt = small(pt + 1, last)
-    IF enter_or_space() THEN
-     IF pt < 0 THEN
-      mode = -1
-     ELSE
-      mode = 1
-      x = 0
-      y = 0
-     END IF
-    END IF
-   CASE 1 ' Editing a character
-    IF keyval(ccCancel) > 1 OR keyval(scAnyEnter) > 1 THEN mode = 0
-    IF keyval(ccUp) > 1 THEN loopvar y, 0, 7, -1
-    IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
-    IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
-    IF keyval(ccRight) > 1 THEN loopvar x, 0, 7, 1
-    IF keyval(scSpace) > 1 THEN
-     setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
-     setfont fnt()
-     xbsave game + ".fnt", fnt(), 2048
-    END IF
-  END SELECT
-  IF mode >= 0 THEN 'Stuff that happens in both picking and editing mode
-   '--copy and paste support
-   IF copy_keychord() THEN
-    FOR i = 0 TO 63
-     setbit copybuf(), 0, i, readbit(fnt(), 0, f(pt) * 64 + i)
-    NEXT i
    END IF
-   IF paste_keychord() THEN
-    FOR i = 0 TO 63
-     setbit fnt(), 0, f(pt) * 64 + i, readbit(copybuf(), 0, i)
-    NEXT i
+  ELSE ' Editing a character
+   IF keyval(ccCancel) > 1 OR keyval(scAnyEnter) > 1 THEN editing_char = NO
+   IF keyval(ccUp) > 1 THEN loopvar y, 0, 7, -1
+   IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
+   IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
+   IF keyval(ccRight) > 1 THEN loopvar x, 0, 7, 1
+   IF keyval(scSpace) > 1 THEN
+    setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
     setfont fnt()
     xbsave game + ".fnt", fnt(), 2048
    END IF
-   '--clicking on the "Previous menu" label
-   IF readmouse.release AND mouseLeft THEN
-    IF rect_collide_point(str_rect(menu(0), 0, 0), readmouse.pos) THEN
-     mode = -1
-    END IF
+  END IF
+
+  '--copy and paste support
+  IF copy_keychord() THEN
+   FOR i = 0 TO 63
+    setbit copybuf(), 0, i, readbit(fnt(), 0, f(pt) * 64 + i)
+   NEXT i
+  END IF
+  IF paste_keychord() THEN
+   FOR i = 0 TO 63
+    setbit fnt(), 0, f(pt) * 64 + i, readbit(copybuf(), 0, i)
+   NEXT i
+   setfont fnt()
+   xbsave game + ".fnt", fnt(), 2048
+  END IF
+  '--clicking on the "Previous menu" label
+  IF readmouse.release AND mouseLeft THEN
+   IF rect_collide_point(str_rect(menu(0), 0, 0), readmouse.pos) THEN
+    EXIT DO
    END IF
-   '--Clicking on a character to edit
-   IF readmouse.release AND (mouseLeft OR mouseRight) THEN
-    IF hover_char >= 0 THEN
-     pt = hover_char
-     mode = 0
-    END IF
+  END IF
+  '--Clicking on a character to edit
+  IF readmouse.release AND (mouseLeft OR mouseRight) THEN
+   IF hover_char >= 0 THEN
+    pt = hover_char
+    editing_char = NO
    END IF
-   '--Clicking on a pixel to draw
-   IF readmouse.buttons AND (mouseLeft OR mouseRight) THEN
-    IF pt >= 0 ANDALSO hover_draw.x >= 0 ANDALSO hover_draw.y >= 0 THEN
-     mode = 1
-     x = hover_draw.x
-     y = hover_draw.y
-     DIM setpix as integer = 0
-     IF readmouse.buttons AND mouseLeft THEN setpix = 1
-     setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, setpix
-     setfont fnt()
-     xbsave game + ".fnt", fnt(), 2048
-    END IF
+  END IF
+  '--Clicking on a pixel to draw
+  IF readmouse.buttons AND (mouseLeft OR mouseRight) THEN
+   IF pt >= 0 ANDALSO hover_draw.x >= 0 ANDALSO hover_draw.y >= 0 THEN
+    editing_char = YES
+    x = hover_draw.x
+    y = hover_draw.y
+    DIM setpix as integer = 0
+    IF readmouse.buttons AND mouseLeft THEN setpix = 1
+    setbit fnt(), 0, (f(pt) * 8 + x) * 8 + y, setpix
+    setfont fnt()
+    xbsave game + ".fnt", fnt(), 2048
    END IF
   END IF
 
   '--Draw screen
   clearpage dpage
 
-  IF mode = -1 THEN
-   menu(5) = "Font type: "
-   IF fonttype = ftypeASCII THEN
-    menu(5) &= "ASCII"
-    menu(6) = " (Characters 127-255 are icons)"
-   ELSEIF fonttype = ftypeLatin1 THEN
-    menu(5) &= "Latin1"
-    menu(6) = " (Characters 127-160 are icons)"
-   END IF
-
-   standardmenu menu(), state, 0, 0, dpage
-  END IF
-
-  IF mode >= 0 THEN
-   state.tog XOR= 1'keep state.tog going even though we don't call standardmenu
-   xoff = 8
-   yoff = 8
-   FOR i = 0 TO last
-    textcolor uilook(uiMenuItem), uilook(uiDisabledItem)
-    DIM cpos as XYPair = XY(xoff + (i MOD linesize) * 9, yoff + (i \ linesize) * 9)
-    IF pt >= 0 THEN
-     IF mode = 0 THEN
-      IF (i MOD linesize) = (pt MOD linesize) OR (i \ linesize) = (pt \ linesize) THEN textcolor uilook(uiMenuItem), uilook(uiHighlight)
-     END IF
-    END IF
-    IF hover_char = i THEN textcolor uilook(uiMouseHoverItem), uilook(uiSelectedDisabled)
-    IF pt = i THEN textcolor uilook(uiSelectedItem + state.tog), 0
-    printstr CHR(f(i)), cpos.x, cpos.y, dpage
-   NEXT i
-   textcolor uilook(uiMenuItem), 0
-   IF rect_collide_point(str_rect(menu(0), 0, 0), readmouse.pos) THEN
-    textcolor uilook(uiMouseHoverItem), 0
-   END IF
-   IF pt < 0 THEN textcolor uilook(uiSelectedItem + state.tog), 0
-   printstr menu(0), 8, 0, dpage
-
+  tog XOR= 1
+  xoff = 8
+  yoff = 8
+  FOR i = 0 TO last
+   textcolor uilook(uiMenuItem), uilook(uiDisabledItem)
+   DIM cpos as XYPair = XY(xoff + (i MOD linesize) * 9, yoff + (i \ linesize) * 9)
    IF pt >= 0 THEN
-    xoff = 150
-    yoff = 4
-    rectangle xoff, yoff, 160, 160, uilook(uiDisabledItem), dpage
-    FOR i = 0 TO 7
-     FOR j as integer = 0 TO 7
-      IF readbit(fnt(), 0, (f(pt) * 8 + i) * 8 + j) THEN
-       c = uilook(uiMenuItem)
-       rectangle xoff + i * 20, yoff + j * 20, 20, 20, c, dpage
-      END IF
-     NEXT j
-    NEXT i
-    IF mode = 1 THEN
-     IF readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) THEN
-      c = uilook(uiSelectedItem2)
-     ELSE
-      c = uilook(uiSelectedDisabled)
+    IF editing_char = NO THEN
+     IF (i MOD linesize) = (pt MOD linesize) OR (i \ linesize) = (pt \ linesize) THEN textcolor uilook(uiMenuItem), uilook(uiHighlight)
+    END IF
+   END IF
+   IF hover_char = i THEN textcolor uilook(uiMouseHoverItem), uilook(uiSelectedDisabled)
+   IF pt = i THEN textcolor uilook(uiSelectedItem + tog), 0
+   printstr CHR(f(i)), cpos.x, cpos.y, dpage
+  NEXT i
+  textcolor uilook(uiMenuItem), 0
+  IF rect_collide_point(str_rect(menu(0), 0, 0), readmouse.pos) THEN
+   textcolor uilook(uiMouseHoverItem), 0
+  END IF
+  IF pt < 0 THEN textcolor uilook(uiSelectedItem + tog), 0
+  printstr menu(0), 8, 0, dpage
+
+  IF pt >= 0 THEN
+   xoff = 150
+   yoff = 4
+   rectangle xoff, yoff, 160, 160, uilook(uiDisabledItem), dpage
+   FOR i = 0 TO 7
+    FOR j as integer = 0 TO 7
+     IF readbit(fnt(), 0, (f(pt) * 8 + i) * 8 + j) THEN
+      c = uilook(uiMenuItem)
+      rectangle xoff + i * 20, yoff + j * 20, 20, 20, c, dpage
      END IF
-     rectangle xoff + x * 20, yoff + y * 20, 20, 20, c, dpage
-    END IF
-    IF hover_draw.x >= 0 ANDALSO hover_draw.y >= 0 THEN
-     edgebox xoff + hover_draw.x * 20, yoff + hover_draw.y * 20, 20, 20, uilook(uiMouseHoverItem), uilook(uiSelectedItem) + state.tog, dpage, transHollow
-    END IF
-    textcolor uilook(uiText), 0
-    DIM tmp as string = "CHAR " & f(pt)
-    IF f(pt) >= &hA1 THEN tmp &= "/U+00" & HEX(f(pt))
-    printstr tmp, 12, 190, dpage
-    IF f(pt) < 32 THEN
-     printstr "RESERVED", 160, 190, dpage
+    NEXT j
+   NEXT i
+   IF editing_char THEN
+    IF readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) THEN
+     c = uilook(uiSelectedItem2)
     ELSE
-     FOR i = 2 TO 53
-      IF f(pt) = ASC(key2text(2, i)) THEN printstr "ALT+" + UCASE(key2text(0, i)), 160, 190, dpage
-      IF f(pt) = ASC(key2text(3, i)) THEN printstr "ALT+SHIFT+" + UCASE(key2text(0, i)), 160, 190, dpage
-     NEXT i
-     IF f(pt) = 32 THEN printstr "SPACE", 160, 190, dpage
+     c = uilook(uiSelectedDisabled)
     END IF
+    rectangle xoff + x * 20, yoff + y * 20, 20, 20, c, dpage
+   END IF
+   IF hover_draw.x >= 0 ANDALSO hover_draw.y >= 0 THEN
+    edgebox xoff + hover_draw.x * 20, yoff + hover_draw.y * 20, 20, 20, uilook(uiMouseHoverItem), uilook(uiSelectedItem) + tog, dpage, transHollow
+   END IF
+   textcolor uilook(uiText), 0
+   DIM tmp as string = "CHAR " & f(pt)
+   IF f(pt) >= &hA1 THEN tmp &= "/U+00" & HEX(f(pt))
+   printstr tmp, 12, 190, dpage
+   IF f(pt) < 32 THEN
+    printstr "RESERVED", 160, 190, dpage
+   ELSE
+    FOR i = 2 TO 53
+     IF f(pt) = ASC(key2text(2, i)) THEN printstr "ALT+" + UCASE(key2text(0, i)), 160, 190, dpage
+     IF f(pt) = ASC(key2text(3, i)) THEN printstr "ALT+SHIFT+" + UCASE(key2text(0, i)), 160, 190, dpage
+    NEXT i
+    IF f(pt) = 32 THEN printstr "SPACE", 160, 190, dpage
    END IF
   END IF
 
