@@ -6311,7 +6311,28 @@ function font_create_shadowed (basefont as Font ptr, xdrop as integer = 1, ydrop
 	return newfont
 end function
 
-function font_loadold1bit (fontdata as ubyte ptr) as Font ptr
+
+sub font_auto_widths(thefont as Font ptr, spacing as integer = 1)
+	dim as integer ch, x, y
+
+	for ch = 0 to 255
+		with thefont->layers(1)->chdata(ch)
+			dim as ubyte ptr sptr = thefont->layers(1)->spr->image + .offset
+
+			for x = .w - 1 to 0 step -1
+				for y = 0 to .h - 1
+					if sptr[x + y * .w] then
+						thefont->w(ch) = x + 1 + spacing
+						exit for, for
+					end if
+				next
+			next
+			' If the charcter is blank, we leave the width alone.
+		end with
+	next
+end sub
+
+function font_loadold1bit (fontdata as ubyte ptr, spacing as integer = 1) as Font ptr
 	dim newfont as Font ptr = new Font()
 
 	newfont->layers(1) = new FontLayer()
@@ -6362,8 +6383,14 @@ function font_loadold1bit (fontdata as ubyte ptr) as Font ptr
 		'maskp += 8 * 8 - 8
 	next
 
+	font_auto_widths newfont, spacing
+
 	return newfont
 end function
+
+' function font_to_old1bit (thefont as Font ptr, fnt() as integer)
+	
+' end function
 
 'Load each character from an individual BMP in a directory, falling back to some other
 'font for missing BMPs
@@ -6508,9 +6535,18 @@ sub setfont (ohf_font() as integer)
 	font_unload @fonts(fontPlain)
 	font_unload @fonts(fontEdged)
 	font_unload @fonts(fontShadow)
+	font_unload @fonts(3)
 	fonts(fontPlain) = font_loadold1bit(cast(ubyte ptr, @ohf_font(0)))
-	fonts(fontEdged) = font_create_edged(fonts(fontPlain))
-	fonts(fontShadow) = font_create_shadowed(fonts(fontPlain), 1, 2)
+	'fonts(fontEdged) = font_create_edged(fonts(fontPlain))
+	fonts(fontEdged) = font_create_shadowed(fonts(fontPlain), 1, 2)
+
+	dim fnt(1023) as integer
+	xbload "barfont.ohf", fnt(), "Font not loaded"
+	fonts(2) = font_loadold1bit(cast(ubyte ptr, @fnt(0)), 0)
+
+	xbload "prifurin Px varwidth.ohf", fnt(), "Font not loaded"
+	fonts(3) = font_loadold1bit(cast(ubyte ptr, @fnt(0)), 1)
+	fonts(3) = font_create_shadowed(fonts(3), 1, 2)
 end sub
 
 'Load the game's font into fnt(). You still need to call setfont to use it.

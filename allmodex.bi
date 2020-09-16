@@ -344,6 +344,7 @@ DECLARE SUB setfont (f() as integer)
 DECLARE FUNCTION get_font_type (font() as integer) as fontTypeEnum
 DECLARE SUB set_font_type (font() as integer, ty as fontTypeEnum)
 DECLARE SUB font_unload (fontpp as Font ptr ptr)
+DECLARE FUNCTION font_loadold1bit (fontdata as ubyte ptr, spacing as integer = 1) as Font ptr
 DECLARE FUNCTION font_create_edged (basefont as Font ptr) as Font ptr
 DECLARE FUNCTION font_create_shadowed (basefont as Font ptr, xdrop as integer = 1, ydrop as integer = 1) as Font ptr
 DECLARE FUNCTION font_loadbmps (directory as string, fallback as Font ptr = null) as Font ptr

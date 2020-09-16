@@ -28,7 +28,7 @@ SUB font_test_menu
  st.last = UBOUND(menu)
  st.size = 22
 
- DIM controls as string = "1: import from 'fonttests/testfont/', 2: import from bmp, 3: create edged font, 4: create shadow font"
+ DIM controls as string = "1: import from 'fonttests/testfont/', 2: import from bmp, 3: create edged font, 4: create shadow font, 5: load ohf"
 
  DO
   setwait 55
@@ -68,6 +68,21 @@ SUB font_test_menu
    END IF
   END IF
 
+  IF keyval(sc5) > 1 THEN
+   DIM newfont as string
+   newfont = browse(browseAny, "", "*.ohf", "browse_font")
+
+   IF newfont <> "" THEN
+    DIM newfnt(1023) as integer
+    xbload newfont, newfnt(), "Font not loaded"
+    font_unload @fonts(st.pt)
+    DIM spacing_s as string
+    prompt_for_string(spacing_s, "Spacing?")
+    fonts(st.pt) = font_loadold1bit(cast(ubyte ptr, @newfnt(0)), str2int(spacing_s))
+   END IF
+
+  END IF
+
   usemenu st
 
   clearpage vpage, findrgb(80,80,80)
@@ -93,7 +108,7 @@ END SUB
 
 'Top-level menu
 SUB font_editor ()
- DIM fnt() as integer
+ REDIM fnt(1023) as integer
  load_font fnt()
 
  DIM fonttype as fontTypeEnum = get_font_type(fnt())
@@ -212,10 +227,12 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
   hover_draw = edit_font_draw_point(readmouse.pos)
   IF editing_char = NO THEN 'Picking a character to edit
    IF keyval(ccCancel) > 1 THEN EXIT DO 'mode = -1
-   IF keyval(ccUp) > 1 THEN pt = large(pt - linesize, -1 * linesize)
-   IF keyval(ccDown) > 1 THEN pt = small(pt + linesize, last)
-   IF keyval(ccLeft) > 1 THEN pt = large(pt - 1, 0)
-   IF keyval(ccRight) > 1 THEN pt = small(pt + 1, last)
+   IF keyval(scShift) = 0 THEN
+    IF keyval(ccUp) > 1 THEN pt = large(pt - linesize, -1 * linesize)
+    IF keyval(ccDown) > 1 THEN pt = small(pt + linesize, last)
+    IF keyval(ccLeft) > 1 THEN pt = large(pt - 1, 0)
+    IF keyval(ccRight) > 1 THEN pt = small(pt + 1, last)
+   END IF
    IF enter_or_space() THEN
     IF pt < 0 THEN
      EXIT DO
@@ -230,10 +247,12 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
     editing_char = NO
     save_font fnt()
    END IF
-   IF keyval(ccUp) > 1 THEN loopvar y, 0, 7, -1
-   IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
-   IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
-   IF keyval(ccRight) > 1 THEN loopvar x, 0, 7, 1
+   IF keyval(scShift) = 0 THEN
+    IF keyval(ccUp) > 1 THEN loopvar y, 0, 7, -1
+    IF keyval(ccDown) > 1 THEN loopvar y, 0, 7, 1
+    IF keyval(ccLeft) > 1 THEN loopvar x, 0, 7, -1
+    IF keyval(ccRight) > 1 THEN loopvar x, 0, 7, 1
+   END IF
    IF keyval(scSpace) > 0 THEN  'Only Space, Enter leaves edit mode
     'On a new keypress, determine whether to add or subtract pixels
     IF keyval(scSpace) AND 4 THEN drawcol = (readbit(fnt(), 0, (f(pt) * 8 + x) * 8 + y) XOR 1)
@@ -245,6 +264,29 @@ LOCAL SUB font_glyph_editor (fnt() as integer)
   IF keyval(scCtrl) > 0 ANDALSO keyval(scS) > 1 THEN
    save_font fnt()
    show_overlay_message "Saved.", 0.5
+  END IF
+
+  IF keyval(scShift) > 0 THEN
+   DIM as integer shiftx, shifty
+   IF keyval(ccUp) > 1 THEN shifty -= 1
+   IF keyval(ccDown) > 1 THEN shifty += 1
+   IF keyval(ccLeft) > 1 THEN shiftx -= 1
+   IF keyval(ccRight) > 1 THEN shiftx += 1
+
+   FOR i = 0 TO 63
+    setbit copybuf(), 0, i, readbit(fnt(), 0, f(pt) * 64 + i)
+    setbit fnt(), 0, f(pt) * 64 + i, 0
+   NEXT i
+   FOR xx as integer = 0 TO 7
+    FOR yy as integer = 0 TO 7
+     VAR off = (xx - shiftx) * 8 + yy - shifty
+     IF off >= 0 AND off <= 63 THEN
+      setbit fnt(), 0, f(pt) * 64 + xx * 8 + yy, readbit(copybuf(), 0, off)
+     END IF
+    NEXT
+   NEXT 
+   setfont fnt()
+   save_font fnt()
   END IF
 
   '--copy and paste support
@@ -420,12 +462,14 @@ SUB fontedit_import_font(fnt() as integer)
 
   '--Reload the font
   load_font fnt()
-  setfont fnt()
 
   '--write back the old 1-31 characters
   FOR i = 1 * 4 TO 32 * 4 - 1
    fnt(i) = font_tmp(i)
   NEXT i
+
+  save_font fnt()
+  setfont fnt()
 
  END IF
 END SUB
