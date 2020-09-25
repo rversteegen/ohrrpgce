@@ -312,6 +312,9 @@ SUB edit_backcompat_bitsets()
  IF gen(genBattleMode) = 1 THEN  'turn-based
   bitname(50) = "!Non-turn attack delays can also cause turn delays"
  END IF
+ IF gen(genResolutionX) > 320 ORELSE gen(genResolutionY) > 200 THEN
+  bitname(51) = "!Battles display at 320x200"
+ END IF
  edit_global_bitsets bitname(), "share_general_game_backcompat_bitsets"
 END SUB
 

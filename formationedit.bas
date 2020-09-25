@@ -458,6 +458,13 @@ END SUB
 'Returns the formation number we were last editing.
 FUNCTION individual_formation_editor (form_id as integer = -1) as integer
 
+ DIM battleres as XYPair
+ IF prefbit(51) THEN '"Battles don't display at 320x200"
+  battleres = XY(gen(genResolutionX), gen(genResolutionY))
+ ELSE
+  battleres = XY(320, 200)
+ END IF
+
  DIM form as Formation
 
  STATIC remember_form_id as integer = 0
@@ -520,11 +527,8 @@ FUNCTION individual_formation_editor (form_id as integer = -1) as integer
     IF readmouse.dragging AND mouseLeft THEN
      .pos += (readmouse.pos - readmouse.lastpos)
     END IF
-    ' FIXME: battles are still stuck at 320x200 for the moment, but switch to this later
-    ' .pos.x = bound(.pos.x, -size.w\2, gen(genResolutionX) - size.w\2)
-    ' .pos.y = bound(.pos.y, -size.h\2, gen(genResolutionY) - size.h\2)
-    .pos.x = bound(.pos.x, -size.w\2, 320 - size.w\2)
-    .pos.y = bound(.pos.y, -size.h\2, 200 - size.h\2)
+    .pos.x = bound(.pos.x, -size.w\2, battleres.w - size.w\2)
+    .pos.y = bound(.pos.y, -size.h\2, battleres.h - size.h\2)
    END WITH
   END IF
   IF positioning_mode = NO THEN
@@ -744,7 +748,11 @@ SUB load_formation_slices(ename() as string, form as Formation, rootslice as Sli
  IF form.background < 0 THEN
   'Used by FormationPreviewer when previewing a hero formation: show a backdrop
   sl = NewSliceOfType(slRectangle)
-  sl->Size = XY(320, 200)  'TODO: update when battle resolution can be increased
+  IF prefbit(51) THEN  '"Battles don't display at 320x200"
+   sl->Size = XY(gen(genResolutionX), gen(genResolutionY))
+  ELSE
+   sl->Size = XY(320, 200)
+  END IF
   ChangeRectangleSlice sl, 0, , , borderLine, transOpaque
  ELSE
   sl = NewSliceOfType(slSprite)
@@ -753,6 +761,7 @@ SUB load_formation_slices(ename() as string, form as Formation, rootslice as Sli
  sl->Lookup = SL_FORMEDITOR_BACKDROP
  'sl->AutoSort = slAutoSortBottomY
  sl->AutoSort = slAutoSortCustom
+ 'In the form editor, show the formation at the bottom-right corner of the screen
  RealignSlice sl, alignRight, alignBottom, alignRight, alignBottom
  sl->ClampHoriz = alignLeft
  sl->ClampVert = alignTop
