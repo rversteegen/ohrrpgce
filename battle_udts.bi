@@ -90,7 +90,7 @@ TYPE BattleSprite
                          'FIXME: consume_item would probably be better as a member of the AttackState or AttackQueue later on.
   '--battle menu
   batmenu as MenuDef
-  menust as MenuState
+  menust as MenuState    '(This probably shouldn't be here, all other menu state is in BattleState)
   '--misc
   dissolve as integer      'Ticks left in death dissolving animation (for enemies).
                            'Set to 1 for dead heroes, to make them visible and use death frame, and does not count down (yuck)
@@ -320,12 +320,27 @@ TYPE BattleState
  death_mode as DeathMode
  targ as TargettingState
  atk as AttackState
+
  listslot as integer   'currently active hero spell list slot
  sptr as integer       'menu cursor for hero spell list menu
  sptr_hover as integer 'menu cursor mouse hover for the spell list
+ spell as SpellMenuState
+ spell_columns as integer
+ spell_col_width as integer  '
+ spell_box as RectType
+ spell_margin as integer
+
  item as MenuState     'menu cursor for items menu
+ iuse(inventoryMax / 16) as integer 'bitsets for whether items can be used by the current hero
  item_drag_top as integer 'used for right-drag scrolling the item menu
  item_desc as string   'description of currently selected item in item menu
+ item_scroll as MenuState
+ item_scroll_rect as RectType
+ item_columns as integer
+ item_col_width as integer
+ item_box as RectType
+ item_margin as integer
+
  caption as string          'Currently displaying caption
  caption_time as integer    'Remaining ticks before the caption is removed (0 if no caption)
  caption_delay as integer   'Remaining ticks to delay before .caption is actually made visible
@@ -353,10 +368,7 @@ TYPE BattleState
  laststun as integer
  vic as VictoryState
  rew as RewardsState
- spell as SpellMenuState
- inv_scroll as MenuState
- inv_scroll_rect as RectType
- iuse(inventoryMax / 16) as integer 'bitsets for whether items can be used by the current hero
+
  show_info_mode as integer '0=nothing, 1=show_enemy_meters, 2=display_attack_queue
  'The following don't do anything right now, but are handy to leave in
  test_view_mode as integer 'used for debugging new display stuff with F12

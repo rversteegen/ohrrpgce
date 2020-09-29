@@ -838,6 +838,7 @@ extern "C"
 'WARNING: don't pass curmasterpal() to functions from code outside allmodex.bas!
 'That will crash because it's not a dynamic array! (FB bug: in other modules, an
 'invalid blank temp array descriptor is created and passed.)
+'todo
 extern curmasterpal(255) as RGBcolor
 end extern
 

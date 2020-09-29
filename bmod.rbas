@@ -1020,7 +1020,7 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
      ELSE
       col = uilook(uiMenuItem)
      END IF
-     edgeprint .name, 128 - LEN(.name) * 8, 5 + i * 10, col, page
+     edgeprint .name, 128 + ancRight, 5 + i * 10, col, page
      '--hp--
      IF hidehp = NO THEN
       edgeprint .stat.cur.hp & "/" & .stat.max.hp, 136, hp_text_y, col, page
@@ -1057,7 +1057,7 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
    IF bat.caption_delay > 0 THEN
     bat.caption_delay -= 1
    ELSE
-    centerbox rCenter, rBottom - 14, 310, 16, 1, page
+    centerbox rCenter, rBottom - 14, rWidth - 10, 16, 1, page
     edgeprint bat.caption, pCentered, rBottom - 19, uilook(uiText), page
    END IF
   END IF
@@ -1076,11 +1076,12 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
     END IF
    END WITH
    IF bat.menu_mode = batMENUSPELL THEN '--draw spell menu
-    edgeboxstyle 5, 6, 310, 95, 0, page
+    DIM byref box as RectType = bat.spell_box
+    edgeboxstyle box, 0, page
     IF bat.sptr < 24 THEN
-     IF bat.spell.slot(bat.sptr).desc <> "" THEN rectangle 5, 74, 310, 1, boxlook(0).edgecol, page
+     IF bat.spell.slot(bat.sptr).desc <> "" THEN rectangle box.x, box.y + box.h - 27, box.w, 1, boxlook(0).edgecol, page
     END IF
-    rectangle 5, 87, 310, 1, boxlook(0).edgecol, page
+    rectangle box.x, box.y + box.h - 14, box.w, 1, boxlook(0).edgecol, page
     FOR i = 0 TO 23
      col = uilook(uiDisabledItem + bat.spell.slot(i).enable)
      bgcol = 0
@@ -1092,7 +1093,9 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
       col = mouse_hover_tinted_color(col)
      END IF
      textcolor col, bgcol
-     printstr bat.spell.slot(i).name, 16 + (i MOD 3) * 104, 8 + (i \ 3) * 8, page
+     DIM row as integer = i \ bat.spell_columns
+     DIM col as integer = i MOD bat.spell_columns
+     printstr bat.spell.slot(i).name, box.x + 11 + col * bat.spell_col_width, box.y + 2 + row * 8, page
     NEXT i
     col = uilook(uiMenuItem)
     bgcol = 0
@@ -1101,46 +1104,51 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
      col = mouse_hover_tinted_color(col)
     END IF
     textcolor col, bgcol
-    printstr bat.cancel_spell_caption, 9, 90, page
+    printstr bat.cancel_spell_caption, box.x + 4, box.y + box.high - 11, page
     textcolor uilook(uiDescription), 0
     IF bat.sptr < 24 THEN
-     printstr bat.spell.slot(bat.sptr).desc, 9, 77, page
+     printstr bat.spell.slot(bat.sptr).desc, box.x + 4, box.y + box.high - 24, page
      DIM cost_caption as string = RIGHT(bat.spell.slot(bat.sptr).cost, 30)
-     printstr cost_caption, 311 - LEN(cost_caption) * 8, 90, page
+     printstr cost_caption, box.x + box.wide - 2 + ancRight, box.y + box.high - 11, page
     END IF
    END IF
-   'if keyval(scS) > 1 then gen(genMaxInventory) += 3
-   'if keyval(scA) > 1 then gen(genMaxInventory) -= 3
+   'if keyval(scS) > 1 then gen(genMaxInventory) += bat.item_columns
+   'if keyval(scA) > 1 then gen(genMaxInventory) -= bat.item_columns
    IF bat.menu_mode = batMENUITEM THEN '--draw item menu
-    DIM inv_height as integer = small(78, 8 + ((last_inv_slot() + 1) \ 3) * 8)
-    WITH bat.inv_scroll
-     .top = INT(bat.item.top / 3)
-     .pt = INT(bat.item.pt / 3)
-     .last = INT(last_inv_slot() / 3)
+    WITH bat.item_scroll
+     .top = bat.item.top \ bat.item_columns
+     .pt = bat.item.pt \ bat.item_columns
+     .last = last_inv_slot() \ bat.item_columns
     END WITH
-    bat.inv_scroll_rect.high = inv_height - 2
-    edgeboxstyle 8, 4, 304, inv_height, 0, page
-    draw_scrollbar bat.inv_scroll, bat.inv_scroll_rect, , page
+    DIM byref box as RectType = bat.item_box
+    edgeboxstyle box, 0, page
+    draw_scrollbar bat.item_scroll, bat.item_scroll_rect, , page
     FOR i = bat.item.top TO small(bat.item.top + 26, last_inv_slot())
-     if i < lbound(inventory) or i > ubound(inventory) then continue for
+     IF i < LBOUND(inventory) OR i > UBOUND(inventory) THEN CONTINUE FOR
      col = uilook(uiDisabledItem - readbit(bat.iuse(), 0, i))
      bgcol = 0
-     IF bat.item.pt = i THEN col = uilook(uiSelectedDisabled - (2 * readbit(bat.iuse(), 0, i)) + bat.tog) : bgcol = uilook(uiHighlight)
+     IF bat.item.pt = i THEN
+      col = uilook(uiSelectedDisabled - (2 * readbit(bat.iuse(), 0, i)) + bat.tog)
+      bgcol = uilook(uiHighlight)
+     END IF
      IF bat.item.hover = i THEN col = mouse_hover_tinted_color(col)
      textcolor col, bgcol
-     printstr inventory(i).text, 20 + 96 * (i MOD 3), 8 + 8 * ((i - bat.item.top) \ 3), page
+     DIM row as integer = (i - bat.item.top) \ bat.item_columns
+     DIM col as integer = i MOD bat.item_columns
+     printstr inventory(i).text, box.x + 12 + bat.item_col_width * col, box.y + 4 + 8 * row, page
     NEXT i
-    edgeboxstyle 8, 4 + inv_height, 304, 16, 0, page
+    'Draw description/box
+    edgeboxstyle box.x, box.y + box.high, box.wide, 16, 0, page
     textcolor uilook(uiDescription), 0
-    printstr bat.item_desc, 12, 8 + inv_height, page
+    printstr bat.item_desc, box.x + 4, box.y + box.high + 4, page
    END IF
    IF bat.targ.mode > targNONE THEN
     FOR i = 0 TO 11
      WITH bslot(i)
       DIM as integer cursx, cursy
       'Subtract (-3,-6) to align at bottom-center edge of the cursor icon
-      cursx = bound(.x + .cursorpos.x + .w \ 2 - 3, 10, gen(genResolutionX) - 10)
-      cursy = bound(.y + .cursorpos.y - 6, 10, gen(genResolutionY) - 10)
+      cursx = bound(.x + .cursorpos.x + .w \ 2 - 3, 10, vpages(page)->w - 10)
+      cursy = bound(.y + .cursorpos.y - 6, 10, vpages(page)->h - 10)
       IF bat.targ.hover = i THEN
        edgeprint IIF(bat.targ.mask(i),CHR(24),"X"), cursx - 4, cursy, uilook(uiSelectedDisabled + bat.tog), page
       END IF
@@ -1965,22 +1973,45 @@ SUB reset_battle_state (byref bat as BattleState)
 
   setup_battle_slices bat
 
-  .ticks = 0
+  DIM battleres as XYPair
+  IF prefbit(51) THEN '"Battles don't display at 320x200"
+   battleres = XY(gen(genResolutionX), gen(genResolutionY))
+  ELSE
+   battleres = XY(320, 200)
+  END IF
 
-  WITH .inv_scroll
+  IF battleres.w >= 320 THEN
+   .item_margin = 8
+   .spell_margin = 8
+  ELSE
+   .item_margin = 4
+   .spell_margin = 4
+  END IF
+
+  .spell_col_width = 104
+  .spell_columns = 3
+  '.spell_columns = bound((battleres.w - .spell_margin*2 + 10) \ .spell_col_width, 1, 4)
+
+  .spell_box = XYWH(5, 6, 310, 95)
+
+  .item_col_width = 96
+  .item_columns = 3
+  '.item_columns = bound((battleres.w - .item_margin*2 + 10) \ .item_col_width, 1, 4)
+
+  'Note: unlike spell_box, the item description is drawn below the bottom of item_box
+  .item_box = XYWH(8, 4, 304, 0)  'w = battlere.w - .item_margin * 2
+  .item_box.high = small(78, 8 + ((last_inv_slot() + 1) \ .item_columns) * 8)
+
+  .item_scroll_rect = .item_box + XYWH(12, 1, -12, -2)
+  WITH .item_scroll
    .first = 0
-   .last = INT(last_inv_slot() / 3)
+   .last = last_inv_slot() \ bat.item_columns
    .size = 8
-  END WITH
-  WITH .inv_scroll_rect
-   .x = 20
-   .y = 5
-   .wide = 292
-   '.high set later
   END WITH
 
   .anim_ready = NO
   .wait_frames = 0
+  .ticks = 0
 
   .level_mp_caption = readglobalstring(160, "Level MP", 20)
   .cancel_spell_caption = readglobalstring(51, "(CANCEL)", 10)
@@ -2792,8 +2823,8 @@ SUB init_spell_menu (bat as BattleState, bslot() as BattleSprite, st() as HeroDe
      loadattackdata atk, .atk_id
      .name = atk.name
      .desc = atk.description
-     .cost = bslot_attack_cost_info(bslot(), atk, bat.hero_turn, list_type, i \ 3)
-     .enable = atk.useable_inside_battle ANDALSO atkallowed(atk, bat.hero_turn, list_type, i \ 3, bslot())
+     .cost = bslot_attack_cost_info(bslot(), atk, bat.hero_turn, list_type, i \ spellsPerLMP)
+     .enable = atk.useable_inside_battle ANDALSO atkallowed(atk, bat.hero_turn, list_type, i \ spellsPerLMP, bslot())
     END IF
     .name = rpad(.name, " ", 10)
    END WITH
@@ -2830,10 +2861,10 @@ SUB spellmenu (byref bat as BattleState, st() as HeroDef, bslot() as BattleSprit
  WITH bat
   usemenusounds
   IF carray(ccUp) > 1 THEN
-   IF .sptr > 2 THEN .sptr -= 3 ELSE .sptr = 24
+   IF .sptr > bat.spell_columns - 1 THEN .sptr -= bat.spell_columns ELSE .sptr = 24
   END IF
   IF carray(ccDown) > 1 THEN
-   IF .sptr < 24 THEN .sptr = small(.sptr + 3, 24) ELSE .sptr = 0
+   IF .sptr < 24 THEN .sptr = small(.sptr + bat.spell_columns, 24) ELSE .sptr = 0
   END IF
   IF keyval(scHome) > 1 THEN
    .sptr = 0
@@ -2842,11 +2873,11 @@ SUB spellmenu (byref bat as BattleState, st() as HeroDef, bslot() as BattleSprit
    .sptr = 24
   END IF
   IF keyval(scPageUp) > 1 THEN
-   .sptr = .sptr MOD 3
+   .sptr = .sptr MOD bat.spell_columns
   END IF
   IF .sptr < 24 THEN  'EXIT not selected
    IF keyval(scPageDown) > 1 THEN
-    .sptr = (.sptr MOD 3) + 21
+    .sptr = 24 - bat.spell_columns + (.sptr MOD bat.spell_columns)
    END IF
    IF carray(ccLeft) > 1 AND .sptr > 0 THEN
     .sptr -= 1
@@ -2864,12 +2895,15 @@ SUB spellmenu (byref bat as BattleState, st() as HeroDef, bslot() as BattleSprit
 
  IF get_gen_bool("/mouse/mouse_battles") THEN
   bat.sptr_hover = -1
-  IF rect_collide_point(Type(5, 6, 310, 95), readmouse.pos) THEN
+  IF rect_collide_point(bat.spell_box, readmouse.pos) THEN
    'In spell menu box
-   FOR i as integer = 0 to 23
-    IF rect_collide_point(XYWH(16 + (i MOD 3) * 104, 8 + (i \ 3) * 8, 104, 8), readmouse.pos) THEN bat.sptr_hover = i
+   FOR i as integer = 0 TO 23
+    DIM row as integer = i \ bat.spell_columns
+    DIM col as integer = i MOD bat.spell_columns
+    DIM itemarea as RectType = XYWH(11 + col * bat.spell_col_width, 2 + row * 8, bat.spell_col_width, 8) + bat.spell_box.xy
+    IF rect_collide_point(itemarea, readmouse.pos) THEN bat.sptr_hover = i
    NEXT i
-   IF rect_collide_point(XYWH(9, 90, 104, 8), readmouse.pos) THEN bat.sptr_hover = 24
+   IF rect_collide_point(XYWH(4, 84, bat.spell_col_width, 8) + bat.spell_box.xy, readmouse.pos) THEN bat.sptr_hover = 24
    IF bat.sptr_hover >= 0 THEN
     IF (readmouse.release AND mouseLeft) ANDALSO readmouse.drag_dist < 10 THEN
      IF bat.sptr = bat.sptr_hover ORELSE bat.sptr_hover = 24 THEN
@@ -2928,7 +2962,7 @@ SUB spellmenu (byref bat as BattleState, st() as HeroDef, bslot() as BattleSprit
    DIM atk as AttackData
    loadattackdata atk, atk_id
    DIM list_type as integer = st(bat.hero_turn).list_type(bat.listslot)
-   DIM lmp as integer = bat.sptr \ 3
+   DIM lmp as integer = bat.sptr \ spellsPerLMP
    IF atk.useable_inside_battle ANDALSO _
       atkallowed(atk, bat.hero_turn, list_type, lmp, bslot()) THEN
     '--attack is allowed
@@ -2958,15 +2992,15 @@ SUB itemmenu (byref bat as BattleState, bslot() as BattleSprite)
 
  DIM remember_pt as integer = bat.item.pt
  usemenusounds
- IF carray(ccUp) > 1 AND bat.item.pt > 2 THEN bat.item.pt = bat.item.pt - 3
- IF carray(ccDown) > 1 AND bat.item.pt <= last_inv_slot() - 3 THEN bat.item.pt = bat.item.pt + 3
+ IF carray(ccUp) > 1 AND bat.item.pt > bat.item_columns - 1 THEN bat.item.pt = bat.item.pt - bat.item_columns
+ IF carray(ccDown) > 1 AND bat.item.pt <= last_inv_slot() - bat.item_columns THEN bat.item.pt = bat.item.pt + bat.item_columns
  IF keyval(scPageUp) > 1 THEN
-  bat.item.pt -= (bat.inv_scroll.size) * 3
-  WHILE bat.item.pt < 0: bat.item.pt += 3: WEND
+  bat.item.pt -= (bat.item_scroll.size) * bat.item_columns
+  WHILE bat.item.pt < 0: bat.item.pt += bat.item_columns: WEND
  END IF
  IF keyval(scPageDown) > 1 THEN
-  bat.item.pt += (bat.inv_scroll.size) * 3
-  WHILE bat.item.pt > last_inv_slot(): bat.item.pt -= 3: WEND
+  bat.item.pt += (bat.item_scroll.size) * bat.item_columns
+  WHILE bat.item.pt > last_inv_slot(): bat.item.pt -= bat.item_columns: WEND
  END IF
  IF keyval(scHome) > 1 THEN
   bat.item.pt = 0
@@ -2986,11 +3020,12 @@ SUB itemmenu (byref bat as BattleState, bslot() as BattleSprite)
 
  bat.item.hover = -1
  IF get_gen_bool("/mouse/mouse_battles") THEN
-  DIM inv_height as integer = small(78, 8 + ((last_inv_slot() + 1) \ 3) * 8)
-  IF rect_collide_point(Type(8, 4, 304, inv_height), readmouse.pos) THEN
+  IF rect_collide_point(bat.item_box, readmouse.pos) THEN
    FOR i as integer = bat.item.top TO small(bat.item.top + 26, last_inv_slot())
-    if i < lbound(inventory) or i > ubound(inventory) then continue for
-    IF rect_collide_point(XYWH(20 + 96 * (i MOD 3), 8 + 8 * ((i - bat.item.top) \ 3), 96, 8), readmouse.pos) THEN bat.item.hover = i
+    IF i < LBOUND(inventory) OR i > UBOUND(inventory) THEN CONTINUE FOR
+    DIM col as integer = i MOD bat.item_columns
+    DIM row as integer = (i - bat.item.top) \ bat.item_columns
+    IF rect_collide_point(XYWH(12 + bat.item_col_width * col, 4 + 8 * row, 96, 8) + bat.item_box.xy, readmouse.pos) THEN bat.item.hover = i
    NEXT i
    IF bat.item.hover >= 0 THEN
     IF (readmouse.release AND mouseLeft) ANDALSO readmouse.drag_dist < 10 THEN
@@ -3023,9 +3058,9 @@ SUB itemmenu (byref bat as BattleState, bslot() as BattleSprite)
   bat.item.top += readmouse.wheel_clicks * 9
   IF old_top <> bat.item.top THEN
    'Scrolling moved top, bound top and fix pt
-   bat.item.top = bound(bat.item.top, 0, last_inv_slot() - ((bat.inv_scroll.size + 1) * 3 - 1))
-   WHILE bat.item.pt < bat.item.top : bat.item.pt += 3: WEND
-   WHILE bat.item.pt > bat.item.top + (bat.inv_scroll.size) * 3: bat.item.pt -= 3: WEND
+   bat.item.top = bound(bat.item.top, 0, last_inv_slot() - ((bat.item_scroll.size + 1) * bat.item_columns - 1))
+   WHILE bat.item.pt < bat.item.top : bat.item.pt += bat.item_columns: WEND
+   WHILE bat.item.pt > bat.item.top + (bat.item_scroll.size) * bat.item_columns: bat.item.pt -= bat.item_columns: WEND
   END IF
   
   IF do_cancel ORELSE do_pick THEN
@@ -3037,8 +3072,8 @@ SUB itemmenu (byref bat as BattleState, bslot() as BattleSprite)
  END IF '--done with mouse
 
  '--scroll when past top or bottom
- WHILE bat.item.pt < bat.item.top : bat.item.top = bat.item.top - 3 : WEND
- WHILE bat.item.pt >= bat.item.top + (bat.inv_scroll.size+1) * 3 : bat.item.top = bat.item.top + 3 : WEND
+ WHILE bat.item.pt < bat.item.top : bat.item.top = bat.item.top - bat.item_columns : WEND
+ WHILE bat.item.pt >= bat.item.top + (bat.item_scroll.size + 1) * bat.item_columns : bat.item.top = bat.item.top + bat.item_columns : WEND
 
  IF bat.item.pt > UBOUND(inventory) THEN
   debuginfo "battle item cursor out of range " & bat.item.pt & " > " & UBOUND(inventory)
