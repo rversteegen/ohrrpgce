@@ -256,6 +256,139 @@ CONST fontPlain = 0
 CONST fontEdged = 1
 CONST fontShadow = 2
 
+Enum
+	fntvUnderNone = 0   'Unspecified
+	fntvUnderPlain = 1
+	fntvUnderOutline = 2
+	fntvUnderShadow = 3
+	fntvUnderMASK = 7
+
+	fntvSizeNone = 0
+	fntvSizeSmall = 1
+	fntvSizeLarge = 2
+	fntvSizeMASK = 7
+
+	fntvSpacingNone = 0
+	fntvSpacingCompressed = 1
+	fntvSpacingWide = 2
+	fntvSpacingWider = 3
+	fntvSpacingMASK = 7
+End Enum
+
+Union FontVariant
+	Type
+		'This is a bitfield with the following bits
+		'At most one of:
+		underlayer :3 as integer  'Bottom layer: fntvUnderNone/Plain/Outline/Shadow
+		bold :1 as integer
+		italic :1 as integer
+		underlined :1 as integer
+		fixedwidth :1 as integer 'Throw away letter widths
+		spacing :3 as integer 'Letter spacing: fntvSpacingNone/Compressed/Wide/Wider
+		size :3 as integer   'Font size change: fntvSizeNone/Small/Large
+
+		reserved :5 as integer  'Not exposed
+	End Type
+	int as integer
+End Union
+
+'The variant bits that affect the upper layer of glyphs (not including character spacing)
+Dim upperlayer_glyph_mask as FontVariant
+upperlayer_glyph_mask.bold = YES
+upperlayer_glyph_mask.italic = YES
+upperlayer_glyph_mask.underlined = YES
+upperlayer_glyph_mask.size = fntvSizeMASK
+
+'The variant bits that affect the under layer of glyphs (not including character spacing)
+Dim underlayer_glyph_mask as FontVariant
+upperlayer_glyph_mask.bold = YES
+upperlayer_glyph_mask.italic = YES
+upperlayer_glyph_mask.underlined = YES
+upperlayer_glyph_mask.size = fntvSizeMASK
+upperlayer_glyph_mask.underlayer = fntvUnderMASK
+
+
+Function merge_font_variants(basevar as FontVariant, modvar as FontVariant) as FontVariant
+	dim ret as FontVariant
+	'Boolean fields can just be OR'd
+	ret.int = basevar.int or modvar.int
+	'Numeric fields need fixing
+	if modvar.underlayer then ret.underlayer = modvar.underlayer
+	if modvar.spacing then ret.spacing = modvar.spacing
+	if modvar.size then ret.size = modvar.size
+	return ret
+End Function
+
+/'
+Union FontVariant
+	Type
+		'This is a bitfield with the following bits
+		'At most one of:
+		plain :1 as integer   'Drop bottom layer (not outlined/shadowed)
+		outline :1 as integer  'Add outline bottom layer
+		shadow :1 as integer   'Add shadow bottom layer
+
+		bold :1 as integer
+		italic :1 as integer
+		underlined :1 as integer
+		fixedwidth :1 as integer 'Throw away letter widths
+		compressed :1 as integer 'Reduced letter spacing
+		wide :1 as integer       'Increased letter spacing (exclusive with compressed)
+		large :1 as integer   'Increase font size one step (exclusive with small)
+		small :1 as integer   'Decrease font size one step (exclusive with large)
+
+		reserved :5 as integer  'Not exposed
+		user1 :1 as integer   'User defined
+		user2 :1 as integer   'User defined
+		user3 :1 as integer   'User defined
+		user4 :1 as integer   'User defined
+	End Type
+	int as integer
+End Union
+'/
+
+'This holds the settings that define all the variants for a font (not just a single one),
+'which are then selected by a FontVariant
+Type FontVariantSettings
+	default_var as FontVariant
+	shadow_offset as XYPair
+	'outline_mask as integer
+
+	'Character spacing
+	compressed_spacing as integer
+	normal_spacing as integer
+	wide_spacing as integer
+	wider_spacing as integer
+End Type
+
+Type FontVariantPair
+	fontnum as integer
+	variant as FontVariant
+'	font as Font ptr
+End Type
+
+Dim fontvar_cache as HashTable 'FontVariantCacheItem
+'Dim fontglyph_cache as FontVariantCacheItem
+
+Function get_font_variant(fontnum as integer, variant as FontVariant) as Font ptr
+	dim ret as Font ptr
+	dim cachekey as FontVariantPair = {fontnum, variant}
+	'cachekey.fontnum = fontnum
+	'cachekey.variant = variant
+	ret = fontvar_cache.get(cachekey)
+	if ret then return ret
+
+	ret = get_font(fontnum)
+	if ret = NULL then return NULL
+
+	ret = create_font_variant(ret, variant)
+	fontvar_cache.set(cachekey, ret)
+	return ret
+End Function
+
+Function create_font_variant(basefont as Font ptr, variant as FontVariant) as Font ptr
+End function
+
 Type FontChar
 	offset as integer  'offset into spr->image
 	offx as byte       'Amount to offset the image when drawing, in pixels
