@@ -1423,6 +1423,17 @@ SUB io_sdl2_mouserect(byval xmin as integer, byval xmax as integer, byval ymin a
   END IF
 END SUB
 
+FUNCTION io_sdl2_poll_joysticks() as integer
+  'Locking and unlocking shouldn't really be needed, since we should only be calling
+  'io_get_joystick_state from the main thread, but it doesn't hurt
+  SDL_LockJoysticks()
+  RETURN SDL_NumJoysticks()
+END FUNCTION
+
+SUB io_sdl2_poll_joysticks_done()
+  SDL_UnlockJoysticks()
+END SUB
+
 PRIVATE FUNCTION scOHR2SDL(byval ohr_scancode as KBScancode, byval default_sdl_scancode as integer=0) as integer
  'Convert an OHR scancode into an SDL scancode
  '(the reverse can be accomplished just by using the scantrans array)
@@ -1490,6 +1501,8 @@ FUNCTION gfx_sdl2_setprocptrs() as integer
   io_getmouse = @io_sdl2_getmouse
   io_setmouse = @io_sdl2_setmouse
   io_mouserect = @io_sdl2_mouserect
+  io_poll_joysticks = @io_sdl2_poll_joysticks
+  io_poll_joysticks_done = @io_sdl2_poll_joysticks_done
   io_get_joystick_state = @io_sdl2_get_joystick_state
 
   gfx_present = @gfx_sdl2_present

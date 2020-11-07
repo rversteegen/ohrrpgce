@@ -309,6 +309,15 @@ extern Io_readjoysane as function (byval joynum as integer, byref buttons as uin
 '  3: we don't have input focus currently (temporarily can't be read)
 extern Io_get_joystick_state as function (byval joynum as integer, byval state as IOJoystickState ptr) as integer
 
+'(optional, ptr may be NULL)
+'(Poassibly) poll all joysticks, and return the number of joysticks.
+'Might also lock joystick state - if present, this should be called once before all io_get_joystick_state
+'calls, and io_poll_joysticks_done is called afterwards.
+extern io_poll_joysticks as function () as integer
+
+'(optional, ptr may be NULL)
+'If present, should be called after all io_get_joystick_state calls - may unlock joystick state.
+extern io_poll_joysticks_done as sub ()
 
 '=========================== Backend API wrappers =============================
 ' functions in allmodex.bas

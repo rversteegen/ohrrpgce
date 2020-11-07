@@ -2738,10 +2738,12 @@ sub setkeys (enable_inputtext as bool = NO)
 
 	' Get real joystick state. Do this before keyboard, because
 	' setkeys_update_keybd will call map_joystick_to_keys
+	if io_poll_joysticks then io_poll_joysticks()
 	for joynum as integer = 0 to ubound(real_input.joys)
 		real_input.joys(joynum).update_keybits joynum
 		real_input.joys(joynum).update_keydown_times real_input
 	next
+	if io_poll_joysticks_done then io_poll_joysticks_done()
 
 	' Get real keyboard state
 	real_input.kb.update_keybits
