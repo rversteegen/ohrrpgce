@@ -28,8 +28,8 @@ namespace gfx
 			bool bRefreshed;
 		};
 
-		static BOOL __stdcall EnumDevices(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef);
-		static BOOL __stdcall EnumDeviceObjects(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef);
+		static BOOL __stdcall EnumADevice(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef);
+		static BOOL __stdcall EnumADeviceObject(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef);
 	protected:
 		HWND m_hWnd;
 		BOOL m_bRefreshRequest;

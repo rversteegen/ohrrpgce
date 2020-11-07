@@ -6,13 +6,17 @@
 #pragma comment (lib, "dxguid.lib")
 using namespace gfx;
 
-BOOL Joystick::EnumDevices(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Callback called (from IDirectInput8->EnumDevices) for each game controller attached to the system
+BOOL Joystick::EnumADevice(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 {
 	if(pvRef == NULL)
 		return DIENUM_STOP;
 
-	std::list<Device>& dev = *(std::list<Device>*)pvRef;
-	std::list<Device>::iterator iter = dev.begin();
+	std::list<Device>& m_devices = *(std::list<Device>*)pvRef;
+	std::list<Device>::iterator iter = m_devices.begin();
 
 	Device newDev;
 	newDev.info = *lpddi;
@@ -27,11 +31,11 @@ BOOL Joystick::EnumDevices(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 		iter++;
 	}
 
-	dev.push_back(newDev);
+	m_devices.push_back(newDev);
 	return DIENUM_CONTINUE;
 }
 
-BOOL Joystick::EnumDeviceObjects(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
+BOOL Joystick::EnumADeviceObject(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
 {
 	IDirectInputDevice8* pJoystick = (IDirectInputDevice8*)pvRef;
 	if(lpddoi->dwType & DIDFT_AXIS)
@@ -50,19 +54,67 @@ BOOL Joystick::EnumDeviceObjects(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
 	return DIENUM_CONTINUE;
 }
 
-//COM initialization is used instead of loading the library
-Joystick::Joystick() : /*m_hLibrary(NULL), */m_hWnd(NULL), m_bRefreshRequest(FALSE)
-{
-	//m_hLibrary = LoadLibrary(TEXT("dinput8.dll"));
-}
 
-Joystick::~Joystick()
-{
-	shutdown();
+///////////////////////////////////////////////////////////////////////////////
 
-	//if(m_hLibrary)
-	//	FreeLibrary(m_hLibrary);
-	//m_hLibrary = NULL;
+
+// Called after enumerating all devices: configure the new ones
+void Joystick::configNewDevices()
+{
+	HRESULT hr = S_OK;
+	std::list<Device>::iterator iter = m_devices.begin(), iterNext;
+	while(iter != m_devices.end())
+	{
+		iterNext = iter;
+		iterNext++;
+
+		if(iter->bNewDevice) // || iter->bRefreshed)
+		{
+			std::string name = TstringToOHR(iter->info.tszProductName);
+			std::string instname = TstringToOHR(iter->info.tszInstanceName);
+			debug(errInfo, " Found %s %s type=0x%x", prodname.c_str(), instname.c_str(), iter->info.dwDevType);
+		}
+		if(iter->bNewDevice)
+		{
+			const char *errsrc;
+			iter->bNewDevice = false;
+			hr = m_dinput->CreateDevice(iter->info.guidInstance, &iter->pDevice, NULL);
+			if(FAILED(hr))
+			{
+				errsrc = "CreateDevice";
+				goto error;
+			}
+			// Foreground, so that the device input is lost when switching to another window
+			hr = iter->pDevice->SetCooperativeLevel(m_hWnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE);
+			if(FAILED(hr))
+			{
+				errsrc = "SetCooperativeLevel";
+				goto error;
+			}
+			hr = iter->pDevice->SetDataFormat(&c_dfDIJoystick);
+			if(FAILED(hr))
+			{
+				errsrc = "SetDataFormat";
+				goto error;
+			}
+			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumADeviceObject, (void*)iter->pDevice, DIDFT_PSHBUTTON | DIDFT_ABSAXIS);
+			if(FAILED(hr))
+			{
+				errsrc = "EnumObjects";
+				goto error;
+			}
+			// Don't attempt to acquire yet; won't work if the Options menu is open
+
+			debug(errInfo, " ...initialised successfully.");
+			iter = iterNext;
+			continue;
+
+		  error:
+			debug(errError, " ...but initialisation failed: %s %s", errsrc, HRESULTString(hr));
+			m_devices.erase(iter);
+		}
+		iter = iterNext;
+	}
 }
 
 // Called after configNewDevices(): remove entries from m_device that are no longer present
@@ -85,59 +137,34 @@ void Joystick::filterAttachedDevices()
 	}
 }
 
-void Joystick::configNewDevices()
+// Note: this does not re-initialise devices already known. Could need an option for that
+void Joystick::refreshEnumeration()
 {
-	HRESULT hr = S_OK;
-	const char *errsrc;
-	std::list<Device>::iterator iter = m_devices.begin(), iterNext;
-	while(iter != m_devices.end())
-	{
-		iterNext = iter;
-		iterNext++;
-		std::string name = TstringToOHR(iter->info.tszInstanceName);
+	if(m_dinput == NULL)
+		return;
+	m_bRefreshRequest = FALSE;
+	debug(errInfo, "Scanning for newly-attached joysticks");
+	m_dinput->EnumDevices( DI8DEVCLASS_GAMECTRL, (LPDIENUMDEVICESCALLBACK)EnumADevice, (void*)&m_devices, DIEDFL_ATTACHEDONLY );
+	configNewDevices();
+	filterAttachedDevices();
+}
 
-		if(iter->bNewDevice) // || iter->bRefreshed)
-			debug(errInfo, " Found %s type=0x%x", name.c_str(), iter->info.dwDevType);
-		if(iter->bNewDevice)
-		{
-			iter->bNewDevice = false;
-			hr = m_dinput->CreateDevice(iter->info.guidInstance, &iter->pDevice, NULL);
-			if(FAILED(hr))
-			{
-				errsrc = "CreateDevice";
-				goto error;
-			}
-			// Foreground, so that the device input is lost when switching to another window
-			hr = iter->pDevice->SetCooperativeLevel(m_hWnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE);
-			if(FAILED(hr))
-			{
-				errsrc = "SetCooperativeLevel";
-				goto error;
-			}
-			hr = iter->pDevice->SetDataFormat(&c_dfDIJoystick);
-			if(FAILED(hr))
-			{
-				errsrc = "SetDataFormat";
-				goto error;
-			}
-			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumDeviceObjects, (void*)iter->pDevice, DIDFT_PSHBUTTON | DIDFT_ABSAXIS);
-			if(FAILED(hr))
-			{
-				errsrc = "EnumObjects";
-				goto error;
-			}
-			// Don't attempt to acquire yet; won't work if the Options menu is open
+///////////////////////////////////////////////////////////////////////////////
 
-			debug(errInfo, " ...initialised successfully.");
-			iter = iterNext;
-			continue;
 
-		  error:
-			debug(errError, " ...but initialisation failed: %s %s", errsrc, HRESULTString(hr));
-			m_devices.erase(iter);
-		}
-		iter = iterNext;
-	}
+//COM initialization is used instead of loading the library
+Joystick::Joystick() : /*m_hLibrary(NULL), */m_hWnd(NULL), m_bRefreshRequest(FALSE)
+{
+	//m_hLibrary = LoadLibrary(TEXT("dinput8.dll"));
+}
+
+Joystick::~Joystick()
+{
+	shutdown();
+
+	//if(m_hLibrary)
+	//	FreeLibrary(m_hLibrary);
+	//m_hLibrary = NULL;
 }
 
 HRESULT Joystick::initialize(HINSTANCE hInstance, HWND hWnd)
@@ -172,17 +199,7 @@ void Joystick::shutdown()
 	m_dinput = NULL;
 }
 
-// Note: this does not re-initialise devices already known. Could need an option for that
-void Joystick::refreshEnumeration()
-{
-	if(m_dinput == NULL)
-		return;
-	m_bRefreshRequest = FALSE;
-	debug(errInfo, "Scanning for newly-attached joysticks");
-	m_dinput->EnumDevices( DI8DEVCLASS_GAMECTRL, (LPDIENUMDEVICESCALLBACK)EnumDevices, (void*)&m_devices, DIEDFL_ATTACHEDONLY );
-	configNewDevices();
-	filterAttachedDevices();
-}
+///////////////////////////////////////////////////////////////////////////////
 
 UINT Joystick::getJoystickCount()
 {
