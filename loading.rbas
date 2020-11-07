@@ -2930,7 +2930,7 @@ SUB initattackdata OVERLOAD (recbuf() as integer)
  flusharray recbuf(), UBOUND(recbuf)
  recbuf(1) = -1    '.pal = -1        (AtkDatPal)
  recbuf(314) = -1  '.wep_pal = -1    (AtkDatWepPal)
- IF getfixbit(fixAttackMultipliers) = 1 THEN
+ IF getfixbit(fixAttackMultipliers) = 1 THEN  'REMOVEME 
   'Only initialise these data fields if we are using the new format!
   recbuf(337) = 20               '.randomization = 20
   SerSingle(recbuf(), 325, 1.0)  '.acc_mult = 1.0
@@ -3188,7 +3188,7 @@ SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
 
   ' If didn't do a full upgrade, then these aren't initialised
   IF getfixbit(fixAttackMultipliers) = 0 THEN
-   .randomization = IIF(.do_not_randomize, 0, 20)
+   .randomization = IIF(.do_not_randomize, 0, 20)  'fixme
    .acc_mult = 1.0
    .dog_mult = 1.0
    .atk_mult = 1.0

@@ -144,6 +144,7 @@ CONST AtkFailSoundEffect = 154
 CONST AtkStealFailSoundEffect = 155
 CONST AtkAlignToTarget = 156
 CONST AtkSoundsAct = 157
+CONST AtkRandomization = 158
 
 'Next menu item is 158 (remember to update MnuItems)
 
@@ -217,6 +218,7 @@ CONST AtkDatWepHand1X = 317
 CONST AtkDatWepHand1Y = 318
 CONST AtkDatTurnDelay = 319
 CONST AtkDatDramaticPause = 320
+CONST AtkDatRandomization = 337
 CONST AtkDatDamageColor = 338
 CONST AtkDatTransmogRewards = 339
 CONST AtkDatCounterProvoke = 340
@@ -373,7 +375,7 @@ atk_chain_bitset_names(4) = "Invert condition"
 '----------------------------------------------------------
 DIM recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer '--stores the combined attack data from both .DT6 and ATTACK.BIN
 
-CONST MnuItems = 157
+CONST MnuItems = 158
 DIM menu(MnuItems) as string
 DIM menutype(MnuItems) as integer
 DIM menuoff(MnuItems) as integer
@@ -384,8 +386,8 @@ DIM menucapoff(MnuItems) as integer
 
 DIM capindex as integer = 0
 REDIM caption(-1 TO -1) as string
-DIM max(46) as integer
-DIM min(46) as integer
+DIM max(47) as integer
+DIM min(47) as integer
 
 'Limit(0) is not used
 
@@ -733,6 +735,10 @@ CONST AtkLimSfxOrDefault = 46
 max(AtkLimSfxOrDefault) = gen(genMaxSFX) + 1
 min(AtkLimSfxOrDefault) = -1  '0 is same as Hit sound, -1 is None
 
+CONST AtkLimRandomization = 47
+max(AtkLimRandomization) = 100
+min(AtkLimRandomization) = 0
+
 'next limit is 47 (remember to update the max() and min() dims)
 
 '----------------------------------------------------------------------
@@ -799,6 +805,13 @@ menu(AtkDamageEq) = "Damage Math:"
 menutype(AtkDamageEq) = 2000 + menucapoff(AtkDamageEq)
 menuoff(AtkDamageEq) = AtkDatDamageEq
 menulimits(AtkDamageEq) = AtkLimDamageEq
+
+
+menu(AtkRandomization) = "Damage Math:"
+menutype(AtkRandomization) =  'TODO
+menuoff(AtkRandomization) = AtkDatRandomization
+menulimits(AtkRandomization) = AtkLimRandomization
+
 
 menu(AtkAimEq) = "Aim Math:"
 menutype(AtkAimEq) = 2000 + menucapoff(AtkAimEq)
@@ -2033,7 +2046,7 @@ SUB attack_editor_build_damage_menu(recbuf() as integer, menu() as string, menut
       END IF
 
       IF attack.do_not_randomize = NO THEN
-        preview += !"\nDMG = DMG +/- 20%"
+        preview += !"\nDMG = DMG +/- " & attack.randomization & "%"
       END IF
 
       'If the attack is actually spreadable (Spread or Optional Spread)
