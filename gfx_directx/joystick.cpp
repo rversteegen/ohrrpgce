@@ -35,6 +35,8 @@ BOOL Joystick::EnumADevice(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 	return DIENUM_CONTINUE;
 }
 
+// Callback called (from IDirectInputDevice8->EnumObjects) for each abs axis on a joystick
+// Sets the desired range for the axis.
 BOOL Joystick::EnumADeviceObject(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
 {
 	IDirectInputDevice8* pJoystick = (IDirectInputDevice8*)pvRef;
@@ -91,13 +93,15 @@ void Joystick::configNewDevices()
 				errsrc = "SetCooperativeLevel";
 				goto error;
 			}
+			// Want GetDeviceState to return a DIJOYSTATE
 			hr = iter->pDevice->SetDataFormat(&c_dfDIJoystick);
 			if(FAILED(hr))
 			{
 				errsrc = "SetDataFormat";
 				goto error;
 			}
-			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumADeviceObject, (void*)iter->pDevice, DIDFT_PSHBUTTON | DIDFT_ABSAXIS);
+			// Set the desired range -1000 to 1000 on each axis
+			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumADeviceObject, (void*)iter->pDevice, DIDFT_ABSAXIS);
 			if(FAILED(hr))
 			{
 				errsrc = "EnumObjects";
