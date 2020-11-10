@@ -55,7 +55,7 @@ type JoystickInfo
 	                         'correctly if there are multiple joysticks plugged in at once).
 	                         'Unplugging and replugging a jotstick should assign a new ID.
 	model_guid(15) as ubyte  'Identifies the model of hardware. Provided by winapi and SDL2
-	name as zstring * 40     'Concatenation of manufacturer name and product name, if both available
+	name as zstring * 40     'Concatenation of product and instance name, if both available
 	num_buttons as integer   'At most 32. 0 if not known.
 	num_axes as integer      'At most 8.
 	num_hats as integer      'At most 4.
@@ -103,6 +103,8 @@ type EventEnum as integer
 enum
 	eventTerminate = 0        'Window or application close request event
 	eventFullscreened = 1     'Windowed/fullscreen state changed by WM/user. arg1 is new fullscreen state
+	eventLostJoystick = 2     'A joystick has been removed and following joysticsk have been renumbered.
+	                          'arg1 is the index of the joystick
 end enum
 
 'Allowed to be called from another thread.
@@ -310,13 +312,13 @@ extern Io_readjoysane as function (byval joynum as integer, byref buttons as uin
 extern Io_get_joystick_state as function (byval joynum as integer, byval state as IOJoystickState ptr) as integer
 
 '(optional, ptr may be NULL)
-'(Poassibly) poll all joysticks, and return the number of joysticks.
-'Might also lock joystick state - if present, this should be called once before all io_get_joystick_state
-'calls, and io_poll_joysticks_done is called afterwards.
+'(Poassibly) poll all joysticks, and return the number of joysticks. (May lock joystick state.)
+'If present, this must be called once before all io_get_joystick_state calls.
+'io_poll_joysticks_done is called afterwards.
 extern io_poll_joysticks as function () as integer
 
 '(optional, ptr may be NULL)
-'If present, should be called after all io_get_joystick_state calls - may unlock joystick state.
+'If present, must be called after all io_get_joystick_state calls. (May unlock joystick state.)
 extern io_poll_joysticks_done as sub ()
 
 '=========================== Backend API wrappers =============================

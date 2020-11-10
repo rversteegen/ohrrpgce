@@ -9,6 +9,7 @@
 #include <dinput.h>
 #include "smartptr.hpp"
 #include <list>
+#include "../gfx.h"  //For IOJoystickState
 
 namespace gfx
 {
@@ -16,16 +17,22 @@ namespace gfx
 	{
 	protected:
 		struct Device
-		{ //need to add other pertinent data
-			Device() : nButtons(0), xPos(0), yPos(0), bNewDevice(true), bRefreshed(true) {}
+		{
+			Device() : nButtonsDown(0), bEnumNewDevice(true), bEnumRefreshed(true), bIsNew(true) {}
 			~Device() {pDevice = NULL;}
 			SmartPtr<IDirectInputDevice8> pDevice;
 			DIDEVICEINSTANCE info;
-			unsigned int nButtons;
-			int xPos;
-			int yPos;
-			bool bNewDevice;
-			bool bRefreshed;
+			unsigned int nButtonsDown;
+			int nNumButtons;
+			int nNumAxes;
+			int nNumHats;
+			bool bHasForceFeedback;
+			int axes[8];     // -1000 to 1000
+			int hats[4];     // Length 4 bitvector: left=1, right=2, up=4, down=8
+			int nInstanceID; // unique ID; unplugging and replugging assigns a new ID
+			bool bIsNew;     // getState hasn't been called on this yet
+			bool bEnumNewDevice; // refreshEnumeration use only
+			bool bEnumRefreshed; // refreshEnumeration use only: this was seen during enumeration
 		};
 
 		static BOOL __stdcall EnumADevice(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef);
@@ -49,7 +56,8 @@ namespace gfx
 		void refreshEnumeration(); //refreshes the device list
 		void delayedRefreshEnumeration() { m_bRefreshRequest = TRUE; }
 		UINT getJoystickCount();
-		BOOL getState(int& nDevice, unsigned int& buttons, int& xPos, int& yPos);
+		int getState(int nDevice, IOJoystickState* pState);
+		BOOL getStateOld(int nDevice, unsigned int& buttons, int& xPos, int& yPos);
 		void poll();
 	};
 }

@@ -30,11 +30,39 @@ struct WindowState
 };
 #define WINDOWSTATE_SZ 8
 
+struct JoystickInfo
+{
+	// All of this data is optional except for num_axes, num_hats
+	int instance_id;         // Uniquely identifies a joystick. (Some backends may not be to track
+	                         // correctly if there are multiple joysticks plugged in at once).
+	                         // Unplugging and replugging a jotstick should assign a new ID.
+	char model_guid[15];     // Identifies the model of hardware. Provided by winapi and SDL2
+	char name[40];           // Concatenation of product and instance name, if both available
+	int num_buttons;         // At most 32. 0 if not known.
+	int num_axes;            // At most 8.
+	int num_hats;            // At most 4.
+	int num_balls;           // I don't actually expect we will ever use this - backend should just report balls as axes
+};
+
+struct IOJoystickState
+{
+	int structsize;          // Number of members in the struct or inside info (not counting info itself),
+	                         // set to IOJOYSTICKSTATE_SZ by both engine and backend. Always at least 11
+	unsigned int buttons_down; // Whether each button is currently down
+	unsigned int buttons_new;  // (Optional) Whether a new keypress has happened for each button, since last poll
+	int axes[8];             // Values from -1000 to 1000
+	int hats[4];             // Length 4 bitvector: left=1, right=2, up=4, down=8
+	JoystickInfo info;
+};
+#define IOJOYSTICKSTATE_SZ 11
+
 typedef void (__cdecl *FnDebug)(enum ErrorLevel errlvl, const char* message);
 
 enum EventEnum {
-	eventTerminate = 0,        //Window or application close request event
-	eventFullscreened = 1,     //Windowed/fullscreen state changed by WM/user. arg1 is new fullscreen state
+	eventTerminate = 0,      // Window or application close request event
+	eventFullscreened = 1,   // Windowed/fullscreen state changed by WM/user. arg1 is new fullscreen state
+	eventLostJoystick = 2,   // A joystick has been removed and following joysticsk have been renumbered.
+	                         // arg1 is the index of the joystick
 };
 
 //Allowed to be called from another thread.
@@ -100,7 +128,10 @@ DFI_DECLARE_CDECL( int, io_setmousevisibility, enum CursorVisibility visibility 
 DFI_DECLARE_CDECL( void, io_getmouse, int* mx, int* my, int* mwheel, int* mbuttons );
 DFI_DECLARE_CDECL( void, io_setmouse, int x, int y );
 DFI_DECLARE_CDECL( void, io_mouserect, int xmin, int xmax, int ymin, int ymax );
-DFI_DECLARE_CDECL( int, io_readjoysane, int joynum, unsigned int* buttons, int* jx, int* jy);
+DFI_DECLARE_CDECL( int, io_readjoysane, int joynum, unsigned int* buttons, int* jx, int* jy );  //obsolete
+DFI_DECLARE_CDECL( int, io_get_joystick_state, int joynum, IOJoystickState* state );
+DFI_DECLARE_CDECL( int, io_poll_joysticks );  //returns number of joysticks
+DFI_DECLARE_CDECL( void, io_poll_joysticks_done );
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////

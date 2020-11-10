@@ -28,5 +28,5 @@ namespace gfx
 
 namespace gfx
 {
-    int postevent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0);
+    int postEvent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0);
 }

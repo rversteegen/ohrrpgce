@@ -1,10 +1,18 @@
-10/18/2017
+2018/10/30
+v1.26
+
+-Added zoom and windowsize to WindowState
+-io_get_joystick_state, io_poll_joysticks
+-eventLostJoystick
+
+--------------------------------------------------
+2017/10/18
 v1.25
 
 -io_get_clipboard_text, io_set_clipboard_text
 
 --------------------------------------------------
-26/9/17
+2017/9/26
 v1.24
 
 -Bump to gfx API version 2

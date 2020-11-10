@@ -48,7 +48,7 @@ struct gfx_BackendState
 } g_State;
 
 
-int postevent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0)
+int postEvent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0)
 {
 	return g_State.PostEvent(event, arg1, arg2);
 }
@@ -688,10 +688,22 @@ DFI_IMPLEMENT_CDECL(int, gfx_SetMouse, int x, int y)
 	return g_Mouse.setPosition(x, y);
 }
 
+// Obsolete, but kept for backcompat with old engine versions
 DFI_IMPLEMENT_CDECL(int, io_readjoysane, int nDevice, unsigned int* buttons, int* x, int* y)
 {
 	g_Joystick.poll();
-	return g_Joystick.getState(nDevice, *buttons, *x, *y);
+	return g_Joystick.getStateOld(nDevice, *buttons, *x, *y);
+}
+
+DFI_IMPLEMENT_CDECL(int, io_get_joystick_state, int nDevice, IOJoystickState* state)
+{
+	// Do not poll joysticks; that is done by io_poll_joysticks instead
+	return g_Joystick.getState(nDevice, state);
+}
+
+DFI_IMPLEMENT_CDECL(int, io_poll_joysticks)
+{
+	return g_Joystick.getJoystickCount();  // also polls all joysticks
 }
 
 SIZE CalculateNativeResolutionMultiple(UINT width, UINT height, UINT targetWidth, UINT targetHeight)

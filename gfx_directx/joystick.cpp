@@ -6,6 +6,8 @@
 #pragma comment (lib, "dxguid.lib")
 using namespace gfx;
 
+static int nInstanceCounter = 0;   // For assigning Device.nInstanceID
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -21,16 +23,17 @@ BOOL Joystick::EnumADevice(LPCDIDEVICEINSTANCE lpddi, LPVOID pvRef)
 	Device newDev;
 	newDev.info = *lpddi;
 
-	while(iter != dev.end())
+	while(iter != m_devices.end())
 	{
 		if(IsEqualGUID(newDev.info.guidInstance, iter->info.guidInstance))
 		{
-			iter->bRefreshed = true;
+			iter->bEnumRefreshed = true;
 			return DIENUM_CONTINUE;
 		}
 		iter++;
 	}
 
+	newDev.nInstanceID = ++nInstanceCounter;
 	m_devices.push_back(newDev);
 	return DIENUM_CONTINUE;
 }
@@ -47,12 +50,35 @@ BOOL Joystick::EnumADeviceObject(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
 		range.diph.dwHow = DIPH_BYID;
 		range.diph.dwObj = lpddoi->dwType;
 		range.diph.dwSize = sizeof(range);
-		range.lMin = -100;
-		range.lMax = +100;
+		range.lMin = -1000;
+		range.lMax = +1000;
 
 		if(FAILED( pJoystick->SetProperty(DIPROP_RANGE, &range.diph) ))
 			return DIENUM_STOP;
+
+		// TODO: looking at src/joystick/windows/SDL_dinputjoystick.c in SDL 2,
+		// you'll see that in this callback they work out which axes are actually
+		// present, in order to number them. See the axis code in Joystick::Poll().
+		// In order to number them they check (lpddoi is named dev there)
+		// dev->guidType for each DIDFT_AXIS to find out which DIJOYSTATE member
+		// holds the value for the axis. Incomplete implementation:
+		/*
+		#define IS_GUID(guid)  !memcmp(lpddoi->guidType, guid, sizeof(lpddoi->guidType)))
+		#define ADD_AXIS(offset)  dev->axis_info[dev->nNumAxes++].off = offset
+
+		if (IS_GUID(GUID_XAxis)) ADD_AXIS(DIJOFS_X);
+		if (IS_GUID(GUID_YAxis)) ADD_AXIS(DIJOFS_Y);
+		if (IS_GUID(GUID_ZAxis)) ADD_AXIS(DIJOFS_Z);
+		if (IS_GUID(GUID_RxAxis)) ADD_AXIS(DIJOFS_RX);
+		if (IS_GUID(GUID_RyAxis)) ADD_AXIS(DIJOFS_RY);
+		if (IS_GUID(GUID_RzAxis)) ADD_AXIS(DIJOFS_RZ);
+		if (IS_GUID(GUID_Slider)) ADD_AXIS(DIJOFS_SLIDER(dev->nNumSliders++));
+		*/
 	}
+
+	// std::string objname = TstringToOHR(lpddoi->tszName);
+	// debug(errInfo, "   device has object type=0x%x %s", lpddoi->dwFlags, objname.c_str());
+
 	return DIENUM_CONTINUE;
 }
 
@@ -70,16 +96,16 @@ void Joystick::configNewDevices()
 		iterNext = iter;
 		iterNext++;
 
-		if(iter->bNewDevice) // || iter->bRefreshed)
+		if(iter->bEnumNewDevice) // || iter->bEnumRefreshed)
 		{
-			std::string name = TstringToOHR(iter->info.tszProductName);
+			std::string prodname = TstringToOHR(iter->info.tszProductName);
 			std::string instname = TstringToOHR(iter->info.tszInstanceName);
 			debug(errInfo, " Found %s %s type=0x%x", prodname.c_str(), instname.c_str(), iter->info.dwDevType);
 		}
-		if(iter->bNewDevice)
+		if(iter->bEnumNewDevice)
 		{
 			const char *errsrc;
-			iter->bNewDevice = false;
+			iter->bEnumNewDevice = false;
 			hr = m_dinput->CreateDevice(iter->info.guidInstance, &iter->pDevice, NULL);
 			if(FAILED(hr))
 			{
@@ -101,12 +127,26 @@ void Joystick::configNewDevices()
 				goto error;
 			}
 			// Set the desired range -1000 to 1000 on each axis
-			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumADeviceObject, (void*)iter->pDevice, DIDFT_ABSAXIS);
+			hr = iter->pDevice->EnumObjects((LPDIENUMDEVICEOBJECTSCALLBACK)EnumADeviceObject, (void*)iter->pDevice, DIDFT_ALL);
 			if(FAILED(hr))
 			{
 				errsrc = "EnumObjects";
 				goto error;
 			}
+			// Read properties
+			DIDEVCAPS devcaps;
+			devcaps.dwSize = sizeof(DIDEVCAPS);
+			hr = iter->pDevice->GetCapabilities(&devcaps);
+			if(FAILED(hr))
+			{
+				errsrc = "GetCapabilities";
+				goto error;
+			}
+			iter->nNumButtons = devcaps.dwButtons;
+			iter->nNumAxes = devcaps.dwAxes;  // Both absolute and relative axes
+			iter->nNumHats = devcaps.dwPOVs;
+			iter->bHasForceFeedback = !!(devcaps.dwFlags & DIDC_FORCEFEEDBACK);
+
 			// Don't attempt to acquire yet; won't work if the Options menu is open
 
 			debug(errInfo, " ...initialised successfully.");
@@ -129,14 +169,14 @@ void Joystick::filterAttachedDevices()
 	{
 		iterNext = iter;
 		iterNext++;
-		if(iter->bRefreshed == false)
+		if(iter->bEnumRefreshed == false)
 		{
 			std::string name = TstringToOHR(iter->info.tszInstanceName);
 			debug(errInfo, " Device %s disappeared", name.c_str());
 			m_devices.erase(iter);
 		}
 		else
-			iter->bRefreshed = false;
+			iter->bEnumRefreshed = false;
 		iter = iterNext;
 	}
 }
@@ -212,19 +252,55 @@ UINT Joystick::getJoystickCount()
 	return m_devices.size();
 }
 
-BOOL Joystick::getState(int &nDevice, unsigned int &buttons, int &xPos, int &yPos)
+// For io_get_joystick_state
+int Joystick::getState(int nDevice, IOJoystickState *pState)
 {
 	if(m_dinput == NULL)
-		return FALSE;
+		return 1;
 	if((UINT)nDevice >= m_devices.size() || nDevice < 0)
-		return FALSE;
+		return 1;
 
-	std::list<Device>::iterator iter = m_devices.begin();
-	for(int i = 0; i < nDevice; i++, iter++);
+	Device &dev = *std::next(m_devices.begin(), nDevice);
 
-	buttons = iter->nButtons;
-	xPos = iter->xPos;
-	yPos = iter->yPos;
+	pState->structsize = 11;  //IOJOYSTICKSTATE_SZ;
+	pState->buttons_down = dev.nButtonsDown;
+	pState->buttons_new = 0;  // Not implemented
+	memcpy(pState->axes, dev.axes, sizeof(dev.axes));
+	memcpy(pState->hats, dev.hats, sizeof(dev.hats));
+
+	pState->info.num_buttons = dev.nNumButtons;
+	pState->info.num_axes = dev.nNumAxes;
+	pState->info.num_hats = dev.nNumHats;
+	pState->info.num_balls = 0;  // We didn't bother to count these during object enumeration
+	memcpy(&pState->info.model_guid, &dev.info.guidProduct, sizeof(pState->info.model_guid));
+	pState->info.instance_id = dev.nInstanceID;
+
+	std::string prodname = TstringToOHR(dev.info.tszProductName);
+	std::string instname = TstringToOHR(dev.info.tszInstanceName);
+	snprintf(pState->info.name, sizeof(pState->info.name), "%s %s", prodname.c_str(), instname.c_str());
+
+	if(dev.bIsNew)
+	{
+		dev.bIsNew = false;
+		return -1;  //Acquired
+	}
+	return 0;  //Success
+}
+
+// For io_readjoysane
+BOOL Joystick::getStateOld(int nDevice, unsigned int &buttons, int &xPos, int &yPos)
+{
+	if(m_dinput == NULL)
+		return 1;
+	if((UINT)nDevice >= m_devices.size() || nDevice < 0)
+		return 1;
+
+	Device &dev = *std::next(m_devices.begin(), nDevice);
+
+	buttons = dev.nButtonsDown;
+	// We configured the range to -1000 - 1000; io_readjoysane expects -100 - 100
+	xPos = dev.axes[0] / 10;
+	yPos = dev.axes[1] / 10;
 	return TRUE;
 }
 
@@ -237,6 +313,7 @@ void Joystick::poll()
 
 	HRESULT hr = S_OK;
 	DIJOYSTATE js;
+	int joynum = 0;
 	std::list<Device>::iterator iter = m_devices.begin(), iterNext;
 	while(iter != m_devices.end())
 	{
@@ -274,6 +351,8 @@ void Joystick::poll()
 				{
 					debug(errInfo, "Acquiring device %s failed; dropping it: %s", name, HRESULTString(hr));
 					m_devices.erase(iter);
+					postEvent(eventLostJoystick, joynum);
+					// Don't decrement joynum
 				}
 			}
 			break;
@@ -288,13 +367,24 @@ void Joystick::poll()
 				debug(errError, "GetDeviceState(%s) failed: %s", name, HRESULTString(hr));
 				break;
 			}
-			iter->nButtons = 0x0;
+			iter->nButtonsDown = 0x0;
 			for(UINT i = 0; i < 32; i++)
-				iter->nButtons |= (js.rgbButtons[i] & 0x80) ? (0x1 << i) : 0x0;
-			iter->xPos = js.lX;
-			iter->yPos = js.lY;
-			//debug(errInfo, "%s x %d y %d buttons %u", name, iter->xPos, iter->yPos, iter->nButtons);
+				iter->nButtonsDown |= (js.rgbButtons[i] & 0x80) ? (0x1 << i) : 0x0;
+			// TODO: this numbering of axes is different from how SDL 2's DirectInput backend
+			// numbers them, which is to skip axes which don't exist. See EnumADeviceObject.
+			// However maybe they're numbered differently by other backends, including SDL 1.2's
+			// Windows Multimedia backend
+			iter->axes[0] = js.lX;
+			iter->axes[1] = js.lY;
+			iter->axes[2] = js.lZ;
+			iter->axes[3] = js.lRx;
+			iter->axes[4] = js.lRy;
+			iter->axes[5] = js.lRz;
+			iter->axes[6] = js.rglSlider[0];
+			iter->axes[7] = js.rglSlider[1];
+			debug(errInfo, "%s x %d y %d buttons %u", name, iter->axes[0], iter->axes[1], iter->nButtonsDown);
 		}
 		iter = iterNext;
+		joynum++;
 	}
 }
