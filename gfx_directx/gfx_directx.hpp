@@ -17,7 +17,6 @@ extern bool input_debug;
 
 namespace gfx
 {
-    const char *LastErrorString();
     const char *HRESULTString(HRESULT hresult);
 }
 

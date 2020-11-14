@@ -48,7 +48,7 @@ struct gfx_BackendState
 } g_State;
 
 
-int postEvent(EventEnum event, intptr_t arg1 = 0, intptr_t arg2 = 0)
+int gfx::postEvent(EventEnum event, intptr_t arg1, intptr_t arg2)
 {
 	return g_State.PostEvent(event, arg1, arg2);
 }
