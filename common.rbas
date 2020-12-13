@@ -4968,6 +4968,7 @@ IF gen(genDefCounterProvoke) = 0 THEN gen(genDefCounterProvoke) = provokeAlways
 IF getfixbit(fixDefaultDissolve) = 0 THEN
  upgrade_message "Initializing default enemy fade..."
  setfixbit(fixDefaultDissolve, 1)
+ 'It's said that gen(59) may have nonzero value due to usage sometime before 2005
  gen(genEnemyDissolve) = 0
 END IF
 
