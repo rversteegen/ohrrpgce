@@ -486,6 +486,13 @@ LOCAL SUB set_window_size(newframesize as XYPair, newzoom as integer)
     SDL_SetWindowSize(mainwindow, zoom * framesize.w, zoom * framesize.h)
     set_viewport
     recreate_screen_texture
+
+    IF recenter_window_hint THEN
+      'In SDL 1.2, we would recreate the window, which would take this hint. Here, we
+      'have to do it manually.
+
+      recenter_window_hint = NO
+    END IF
   END IF
 END SUB
 

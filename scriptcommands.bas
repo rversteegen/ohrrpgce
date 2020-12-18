@@ -4840,7 +4840,7 @@ SUB script_functions(byval cmdid as integer)
  CASE 691 '--decode trigger
   scriptret = decodetrigger(retvals(0), NO)  'showerr=NO
  CASE 692 '--get scancode name (string id, scancode, long name)
-  'TODO: doesn't support joystick scancodes
+  'TODO: doesn't support joystick scancodes'''
   IF valid_plotstr(retvals(0)) ANDALSO bound_arg(retvals(1), ccLOWEST, scJoyLAST, "keyboard scancode") THEN
    plotstr(retvals(0)).s = scancodename(retvals(1), retvals(2) <> 0)
   END IF

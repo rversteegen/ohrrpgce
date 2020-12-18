@@ -1979,6 +1979,8 @@ SUB changefoe(bat as BattleState, byval slot as integer, transmog as TransmogDat
   FOR i as integer = 1 TO 11
    change_foe_stat bspr, i, .enemy.stat.sta(i), transmog.other_stats_rule
   NEXT i
+  'TODO: we should add a separate option to tell how poison/regen/stun/mute are hanlded,
+  'for greater clarity
  END WITH
 END SUB
 

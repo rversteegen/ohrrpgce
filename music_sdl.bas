@@ -345,6 +345,7 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			exit sub
 		end if
 
+		'Warning: asking for a finite loop count > 1 is broken in all SDL_mieruntil hg c606c85 (Sep 2019)
 		Mix_PlayMusic(music_song, -1)
 		music_paused = NO
 
@@ -479,6 +480,8 @@ sub sound_init
 	music_init
 	Mix_AllocateChannels(ubound(sfx_slots) + 1)
 	if callback_set_up = NO then
+		'Note: Mix_Playing() is broken in all SDL_mixer releases if the sound effect is set to infinite loops
+		'(fixed in hg b57842d)
 		Mix_channelFinished(@SDL_done_playing)
 		callback_set_up = YES
 	end if

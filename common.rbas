@@ -3381,6 +3381,7 @@ FUNCTION spawn_and_wait (app as string, args as string, expect_exitcode_0 as boo
  CLOSE #fh
  safe_shell "chmod +x " + escape_filename(dummyscript)
  safe_shell escape_filename(term_wrap) + " " + escape_filename(dummyscript)
+ 'FIXME: we must somehow wait for Terminal.app to actually start before killing the script!
  safekill dummyscript
  RETURN ""
 

@@ -2540,7 +2540,7 @@ wait for text box # wait until the player continues</example>
 					<li>An attack with the "Force battle loss &amp; heroes run away" bit ends the battle</li>
 					<li>An attack with the "Force battle loss &amp; exit" bit ends the battle</li>
 					<li>A timer with <ref>timerflag:critical</ref> runs out and ends the battle</li>
-					<li>The end-battle-instantly debug key is used</li>
+					<li>The run-from-battle-instantly debug key is used</li>
 				</ul>
 				<note>An automatic <ref>wait</ref>(1) occurs immediately after this command.</note>
 			</description>

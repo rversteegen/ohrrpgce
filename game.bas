@@ -626,7 +626,11 @@ SetupGameSlices
 'This is called BEFORE the loop, because when the game is quit or a save is loaded, this will be called again there
 reset_game_state
 
-'===================== Stuff reinitialised each new/load-game ==================
+'===================== Stuff reinitialised every quit to titlescreen ==================
+
+'NOTE: this init code gets called only when the player dies a "reset game" or "game over"
+'happens. It does NOT get called when a game is loaded without quitting to (or past, if
+'disabled) the titlescreen.
 
 DO' This loop encloses the playable game for a specific RPG file
 
@@ -648,7 +652,7 @@ menu_set.itemfile = workingdir & SLASH & "menuitem.bin"
 REDIM remembered_menu_pts(gen(genMaxMenu))
 load_script_triggers_and_names
 
-makebackups 'make a few backup lumps
+makebackups 'make a few backup lumps FIXME
 
 gam.want.box = 0
 gam.want.door = 0
