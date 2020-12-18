@@ -54,6 +54,9 @@ December ? 2020 [Hróðvitnir]
     * "read foemap" [Ralph]
     * "breakpoint" [Ralph]
 
+    * Added ui: constants like ui:SelectedItem, which you can pass to any slice
+      command for setting a color [WIP: also add other commands]  [Ralph]
+
   *** Changes
     * NPCpush:vertical and NPCpush:horizontal script constants were swapped with
       with each other! They've been swapped the right way. This fix only takes
@@ -92,7 +95,8 @@ December ? 2020 [Hróðvitnir]
     * Transparency effects resulted in random colors (unless "update palette"
       was called) in games that didn't use the default master palette [Ralph]
     * Bug #1138 64-bit Mac builds show black screen when fullscreened, and also
-      bug #1142 possible extreme lag/freezing on 64-bit Mac [James]
+      bug #1128 SDL_mixer crash on 64-bit Mac when looping/loading a MIDI, and
+      bug #1142 possible extreme lag/freezing on 64-bit Mac [James/Ralph]
     * If you had more than about 3321 textboxes, Page Down in the textbox
       browser was broken [Ralph]
     * NPC extra data wasn't saved in saved map states (they reset to 0) [Ralph]
