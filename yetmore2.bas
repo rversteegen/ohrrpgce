@@ -458,18 +458,18 @@ IF savemask AND 32 THEN
 END IF
 END SUB
 
-SUB loadmapstate_gmap (mapnum as integer, prefix as string, dontfallback as bool = NO)
+SUB loadmapstate_gmap (gmap_() as integer, mapnum as integer, prefix as string, dontfallback as bool = NO)
  DIM fh as integer
  DIM filebase as string = mapstatetemp(mapnum, prefix)
  IF NOT isfile(filebase & "_map.tmp") THEN
-  IF dontfallback = NO THEN loadmap_gmap mapnum
+  IF dontfallback = NO THEN loadmap_gmap gmap_(), mapnum
   EXIT SUB
  END IF
  lump_reloading.gmap.dirty = NO  'Not correct, but too much trouble to do correctly
  lump_reloading.gmap.changed = NO
 
  OPENFILE(filebase & "_map.tmp", FOR_BINARY + ACCESS_READ, fh)
- GET #fh, , gmap()
+ GET #fh, , gmap_()
  CLOSE #fh
 
  gmap_updates
@@ -593,7 +593,7 @@ END SUB
 'This function is used only by the "load map state" command
 SUB loadmapstate_bitmask (mapnum as integer, loadmask as integer, prefix as string, dontfallback as bool = NO)
 IF loadmask AND 1 THEN
- loadmapstate_gmap mapnum, prefix, dontfallback
+ loadmapstate_gmap gmap(), mapnum, prefix, dontfallback
 END IF
 IF loadmask AND 2 THEN
  loadmapstate_npcl mapnum, prefix, dontfallback

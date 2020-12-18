@@ -3104,7 +3104,7 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  '--- Load new map's data
 
  'load gmap
- loadmapstate_gmap gam.map.id, "map"
+ loadmapstate_gmap gmap(), gam.map.id, "map"
 
  'Play map music
  IF readbit(gen(), genSuspendBits, suspendambientmusic) = 0 THEN

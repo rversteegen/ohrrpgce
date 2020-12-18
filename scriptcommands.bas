@@ -4992,6 +4992,15 @@ SUB script_functions(byval cmdid as integer)
   scriptwatcher gam.debug_scripts
   next_interpreter_check_time = TIMER + scriptCheckDelay
   start_fibre_timing
+ CASE 715 '--get ambient music(mapid = -1)
+  DIM map_id as integer = retvals(0)
+  IF map_id = -1 ORELSE map_id = gam.map.id THEN
+   scriptret = gmap(1) - 1
+  ELSEIF valid_map(map_id) THEN
+   DIM as TilemapInfo mapsize
+   GetTilemapInfo maplumpname(map_id, "t"), mapsize
+   scriptret = mapsize.wide
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
