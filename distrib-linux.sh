@@ -30,9 +30,11 @@ rm -f distrib/*.deb
 
 package_for_arch() {
   ARCH=$1
+  GFX=$2
+  if [ $GFX = "sdl+fb" ]
 
   echo "Building $ARCH binaries"
-  scons $SCONS_ARGS arch=$ARCH game custom hspeak unlump relump || return 1
+  scons $SCONS_ARGS arch=$ARCH gfx=$GFX game custom hspeak unlump relump || return 1
 
   echo "Packaging $ARCH binary distribution of CUSTOM"
 
@@ -100,11 +102,11 @@ package_for_arch() {
 }
 
 if [ -z "${OHR_SKIP_X86}" ] ; then
-  package_for_arch x86
+  package_for_arch_gfx x86 sdl+fb
 fi
 
 if [ -z "${OHR_SKIP_X86_64}" ] ; then
-  package_for_arch x86_64 &&
+  package_for_arch x86_64 sdl2+fb &&
   if which dpkg > /dev/null; then
     echo "Building x86_64 Debian/Ubuntu packages"
     cd linux

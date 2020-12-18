@@ -17,6 +17,13 @@ and check the buglist:
 http://hamsterrepublic.com/ohrrpgce/buglist.php
 ------------------------------------------------------------------------------
 
+2020-11-27:
+Distributing games for Debian Linux (.deb file), using ANY nightly build old or
+new will currently produce a package with wrong dependency information, meaning
+users won't be prompted to install the correct SDL2 libraries if they don't have
+them already. You might also have recently gotten errors while trying to
+distribute for Windows recently; those should be fixed.
+
 2020-11-17:
 The default graphics/music backends have changed to sdl2 on Windows and Linux/
 Unix so keep an eye out for problems.
