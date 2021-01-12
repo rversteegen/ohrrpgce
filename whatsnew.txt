@@ -67,6 +67,7 @@ January ? 2021 [Hróðvitnir]
       and 1), so you can use them for other purposes
     * The slice editor now shows the root slice of a collection by default
     * "trim string" now trims tabs and newlines too
+    * "free slice(0)" no longer shows a warning, I mean it this time!
 
   *** Bugfixes
     * "set opacity" (with opacity < 100%) didn't always turn on blending
