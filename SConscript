@@ -35,7 +35,7 @@ TRUE_CFLAGS = ['--std=gnu11']
 # Can add -fno-exceptions, but only removes ~2KB
 CXXFLAGS = '--std=c++0x -Wno-non-virtual-dtor'.split()
 # CXXLINKFLAGS are used when linking with g++
-CXXLINKFLAGS = []
+CXXLINKFLAGS = ['-Wl,-Map=exe.map']
 # FBLINKFLAGS are passed to fbc when linking with fbc
 FBLINKFLAGS = []
 # FBLINKERFLAGS are passed to the linker (with -Wl) when linking with fbc
@@ -1183,6 +1183,9 @@ common_objects = base_objects + Flatten ([commonenv.Object(a) for a in common_mo
 # Plus unique module included by utilities but not Game or Custom
 base_objects.extend (env.Object ('common_base.bas'))
 
+sq_libdir = "lib/quirrel/quirrel/lib64"
+sq_objects = [sq_libdir + '/libsquirrel_static.a', sq_libdir + '/libsqstdlib_static.a']
+
 gameenv = commonenv.Clone (VAR_PREFIX = 'game-', FBFLAGS = commonenv['FBFLAGS'] + \
                       ['-d','IS_GAME', '-m','game'])
 editenv = commonenv.Clone (VAR_PREFIX = 'edit-', FBFLAGS = commonenv['FBFLAGS'] + \
@@ -1316,6 +1319,7 @@ RELOAD2XML = env_exe ('reload2xml', source = ['reload2xml.bas'] + reload_objects
 RELOADUTIL = env_exe ('reloadutil', source = ['reloadutil.bas'] + reload_objects)
 RBTEST = env_exe ('rbtest', source = [env.RB('rbtest.rbas'), env.RB('rbtest2.rbas')] + reload_objects)
 VECTORTEST = env_exe ('vectortest', source = ['vectortest.bas'] + base_objects)
+SQTEST = env_exe ('sqtest', source = ['sqtest.bas'] + base_objects + sq_objects)
 # Compile util.bas as a main module to utiltest.o to prevent its linkage in other binaries
 UTILTEST = env_exe ('utiltest', source = env.BASMAINO('utiltest.o', 'util.bas') + base_objects_without_util)
 FILETEST = env_exe ('filetest', source = ['filetest.bas'] + base_objects)
