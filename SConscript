@@ -1567,6 +1567,9 @@ if linkgcc and not win32:
 # Note that base_objects are not built in commonenv!
 base_objects = Flatten([SrcFile(env, a) for a in base_modules])  # concatenate NodeLists
 common_objects = base_objects + Flatten([SrcFile(commonenv, a) for a in common_modules])
+
+sq_libdir = "lib/quirrel/quirrel/lib64"
+sq_objects = [sq_libdir + '/libsquirrel_static.a', sq_libdir + '/libsqstdlib_static.a']
 # Modules included by utilities but not Game or Custom
 base_objects += [SrcFile(env, 'common_base.bas'), SrcFile(env, UTIL_DATAFILES_C)]
 
@@ -1730,6 +1733,7 @@ RELOAD2XML = env_exe ('reload2xml', source = ['reload2xml.bas'] + reload_objects
 RELOADUTIL = env_exe ('reloadutil', source = ['reloadutil.bas'] + reload_objects)
 RBTEST = env_exe ('rbtest', source = [env.RB('rbtest.rbas'), env.RB('rbtest2.rbas')] + reload_objects)
 VECTORTEST = env_exe ('vectortest', source = ['vectortest.bas'] + base_objects)
+SQTEST = env_exe ('sqtest', source = ['sqtest.bas'] + base_objects + sq_objects)
 # Compile util.bas as a main module to utiltest.o to prevent its linkage in other binaries
 UTILTEST = env_exe ('utiltest', source = env.BASMAINO('utiltest.o', 'util.bas') + base_objects_without_util)
 FILETEST = env_exe ('filetest', source = ['filetest.bas'] + base_objects)
