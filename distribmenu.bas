@@ -1483,7 +1483,7 @@ SUB write_debian_binary_file (filename as string)
 END SUB
 
 SUB write_debian_control_file(controlfile as string, basename as string, pkgver as string, size_in_kibibytes as integer, byref distinfo as DistribState, deb_arch as string)
- DIM LF as string = CHR(10)
+ CONST LF as string = CHR(10)
 
  DIM author as string = distinfo.author
  IF author = "" THEN author = "Anonymous"
