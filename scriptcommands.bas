@@ -4112,12 +4112,16 @@ SUB script_functions(byval cmdid as integer)
    END WITH
   END IF
  CASE 66'--add hero
+   ? "add hero: curcmd=" & current_command_name
+
   IF bound_arg(retvals(0), 0, gen(genMaxHero), "hero ID") THEN
    DIM slot as integer = first_free_slot_in_party()
    IF slot >= 0 THEN
     addhero retvals(0), slot
+   ? "add hero: curcmd=" & current_command_name
    END IF
    scriptret = slot
+   ? "add hero " & retvals(0) &" ret " & scriptret & " slot " & slot
   END IF
  CASE 67'--delete hero (hero ID)
   IF party_size() > 1 AND retvals(0) >= 0 THEN

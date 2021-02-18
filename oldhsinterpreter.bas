@@ -59,6 +59,7 @@ DIM curcmd as ScriptCommand ptr
 
 'Returns error string on failure, NULL on success
 FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr) as zstring ptr
+? "oldscriptstate_init " & index & " " & scriptname(script->id)
  WITH scrat(index)
   'erase state, pointer, return value and depth, set id
   .state = ststart
