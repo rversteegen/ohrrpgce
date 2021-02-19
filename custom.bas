@@ -973,8 +973,8 @@ END FUNCTION
 ' Write workingdir/session_info.txt.tmp
 ' Note: we assume that whenever this is called (and sourcerpg is set) that we are
 ' loading or saving the game.
-SUB write_session_info ()
- DIM text(11) as string
+SUB write_session_info (forcequitting as bool = NO)
+ DIM text(12) as string
  text(0) = short_version
  text(1) = get_process_path(get_process_id())  'May not match COMMAND(0)
  text(2) = "# Custom pid:"
@@ -995,8 +995,23 @@ SUB write_session_info ()
   END IF
   text(10) = format_date(modified)
   text(11) = STR(modified)
+  text(12) = "Forcequit: NO"
  END IF
  lines_to_file text(), workingdir + SLASH + "session_info.txt.tmp", LINE_END
+END SUB
+
+'This modifies session_info.txt.tmp to set Forcequit=YES, while leaving the other
+'lines the same, because we aren't saving or loading the game.
+SUB write_session_info_forcequit()
+ DIM sessionfile as string
+ sessionfile = workingdir + SLASH + "session_info.txt.tmp"
+ DIM text() as string
+ lines_from_file text(), sessionfile
+ IF UBOUND(text) < 12 THEN
+  'This should never happen!
+  debug "write_session_info_forcequit ERROR: file is too short!"
+  lines_to_file text(), sessionfile, LINE_END
+ END IF
 END SUB
 
 ' Collect data about a previous (or ongoing) editing session from a dirty working.tmp
@@ -1267,7 +1282,7 @@ FUNCTION handle_dirty_workingdir (sessinfo as SessionInfo) as bool
                      "It looks like a copy of " + CUSTOMEXE + " is or was in the process of " _
                      "either unlumping a game or deleting its temporary files. " _
                      "It might have crashed, or still be running. What do you want to do?", _
-                     "Ignore", _
+                     "Ignore it (do nothing)", _
                      "Erase temporary files", _
                      0, 0)
   IF choice = 0 THEN
@@ -1317,8 +1332,8 @@ FUNCTION handle_dirty_workingdir (sessinfo as SessionInfo) as bool
 
  DIM cleanup_menu(2) as string
  cleanup_menu(0) = "DO NOTHING (ask again later)"
- cleanup_menu(1) = "RECOVER temp files as a .rpg"
- cleanup_menu(2) = "ERASE temp files"
+ cleanup_menu(1) = "RECOVER unsaved data as an .rpg"
+ cleanup_menu(2) = "ERASE unsaved data"
  DIM choice as integer
  choice = multichoice(msg, cleanup_menu(), 0, 0, helpfile, NO)  'Left justified
 
