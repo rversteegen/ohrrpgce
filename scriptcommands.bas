@@ -5045,6 +5045,25 @@ SUB script_functions(byval cmdid as integer)
  CASE 724 '--layer id under walkabouts
   'When gmap(31) = 0 then it defaults to 2, but that is enforced at loading time in gmap_updates()
   scriptret = bound(gmap(31) - 1, 0, UBOUND(maptiles))
+ CASE 725'-- lookup next slice (lookupcode, current, root)
+  
+ CASE 726'-- next slice in tree (current, root, visit children)
+  IF (retvals(0) = 0 ORELSE valid_plotslice(retvals(0))) ANDALSO _
+     (retvals(1) = 0 ORELSE valid_plotslice(retvals(1))) THEN
+   DIM root as Slice ptr
+   root = IIF(retvals(1), plotslices(retvals(1)), SliceTable.Root)
+   IF retvals(0) = 0 THEN
+    scriptret = find_plotslice_handle(root)
+   ELSE
+    scriptret = find_plotslice_handle(NextDescendent(plotslices(retvals(0)), root, retvals(2) <> 0))
+   END IF
+  END IF
+ CASE 727'-- game is focused
+  DIM winstate as WindowState ptr
+  winstate = gfx_getwindowstate()
+  IF winstate = NULL ORELSE winstate->focused THEN
+   scriptret = 1
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
