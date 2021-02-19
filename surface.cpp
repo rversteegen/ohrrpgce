@@ -773,4 +773,46 @@ int gfx_renderTriangleTextureColor_SW( VertexPTC* pTriangle, Surface* pTexture, 
 	return 0;
 }
 
+void surface_fill_transparency_for_jpeg(Surface *surf, RGBcolor colorkey) {
+	if (pSurface->format == SF_8bit)
+		// Call trans_rectangle instead.
+		return -1;
+
+	for (int blocky = 0; blocky < pSurf->height; blocky += 8) {
+		for (int blockx = 0; blockx < pSurf->width; blockx += 8) {
+			int endx = min(blockx + 8, pSurf->width);
+			int endy = min(blocky + 8, pSurf->height)
+
+			int totalR = 0, totalG = 0, totalB = 0, totalcnt = 0;
+
+			for (int y = blocky; y < endy; y++) {
+				for (int x = blockx; x < endx; x++) {
+					RGBcolor col = pSurf->pixel32(x, y);
+					if (col != colorkey) {
+						totalR += col.r;
+						totalG += col.g;
+						totalB += col.b;
+						totalcnt += 1;
+					}
+				}
+			}
+
+			if (totalcnt) {
+				totalR /= totalcnt;
+				totalG /= totalcnt;
+				totalB /= totalcnt;
+			}
+			RGBcolor replacement(totalR, totalG, totalB);
+
+			for (int y = blocky; y < endy; y++) {
+				for (int x = blockx; x < endx; x++) {
+					RGBcolor &col = pSurf->pixel32(x, y);
+					if (col == colorkey)
+						col = replacement;
+				}
+			}
+		}
+	}
+}
+
 #endif
