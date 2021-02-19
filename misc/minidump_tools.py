@@ -445,6 +445,16 @@ def _crash_summary(shortbt):
             del shortbt[:idx+1]
             deleted_frames = '...' + fr.split('(')[0]
             break
+    while len(shortbt) > 2:
+        fr = shortbt[1]
+        if 'debugc' in fr or 'showerror' in fr:
+            deleted_frames = '...' + fr.split('(')[0]
+            del shortbt[0]
+        else:
+            break
+
+    for idx, fr in enumerate(shortbt):
+        if 'showerror' in fr or (
 
     if any(fr[0] != '[' for fr in shortbt):
     #if any(':' not in fr for fr in shortbt):
