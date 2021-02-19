@@ -1661,7 +1661,7 @@ SUB distribute_game_as_mac_app (which_arch as string)
   'We rely on a quirk of the Mac Finder, which sets the +x bit on every file when extracting
   'files from a Windows/DOS .zip file. Other Mac archivers might not do this. For a solution
   'to actually create Mac .zip packages with correct file permissions from Windows, see
-  'prepare_map_app_zip()
+  'prepare_mac_app_zip()
   DIM olddir as string = CURDIR
   CHDIR apptmp
   IF create_zipfile(apptmp, destname, "*.app *.txt") = NO THEN
