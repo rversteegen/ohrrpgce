@@ -3165,10 +3165,11 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  IF afterload = YES THEN
   herow(0).xgo = 0
   herow(0).ygo = 0
-  herow(0).speed = 4
+  herow(0).speed = 4  'TODO: we shouldn't be doing this
   change_hero_speed(0, 4)
  END IF
- IF afterbat = NO AND vstate.active = YES THEN
+ IF vstate.active = YES AND gam.map.same = YES THEN
+ 'IF afterbat = NO AND vstate.active = YES THEN
   FOR i as integer = 0 TO 3
    (heroz(i)) = vstate.dat.elevation
   NEXT i

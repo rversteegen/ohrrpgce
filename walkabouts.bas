@@ -22,6 +22,7 @@
 #include "walkabouts.bi"
 
 DECLARE FUNCTION user_triggered_vehicle_use_action() as bool
+DECLARE FUNCTION vehscramble(byval target as XYPair) as bool
 
 
 '==========================================================================================
@@ -993,7 +994,7 @@ SUB update_vehicle_state ()
   vstate.init_dismount = NO
   DIM dismountpos as XYPair = herotpos(0)
   IF vstate.dat.dismount_ahead AND vstate.dat.pass_walls_while_dismounting THEN
-   '--dismount-ahead is true, dismount-passwalls is true
+   'FIXME: why do we check pass_walls_while_dismounting??
    aheadxy dismountpos, herodir(0), 1
    cropposition dismountpos.x, dismountpos.y, 1
   END IF
@@ -1021,7 +1022,6 @@ SUB update_vehicle_state ()
   settag vstate.dat.riding_tag, NO
   IF vstate.dat.dismount_ahead = YES AND vstate.dat.pass_walls_while_dismounting = NO THEN
    'FIXME: Why is this here, when dismounting is apparently also handled by vehscramble?
-   'Does this have to do with Bug 764 - "Blocked by" vehicle setting does nothing ?
    SELECT CASE herodir(0)
     CASE dirUp
      herow(0).ygo = 20
@@ -1081,7 +1081,7 @@ SUB update_vehicle_state ()
  IF vstate.active THEN npc(vstate.npc).z = heroz(0)
 END SUB
 
-FUNCTION user_triggered_vehicle_use_action() as bool
+LOCAL FUNCTION user_triggered_vehicle_use_action() as bool
  IF carray(ccUse) > 1 THEN RETURN YES
  IF get_gen_bool("/mouse/move_hero") THEN
   IF readmouse().release AND mouseLeft THEN
@@ -1162,7 +1162,8 @@ END SUB
 SUB forcedismount ()
  IF vstate.active THEN
   IF vstate.dat.dismount_ahead = YES AND vstate.dat.pass_walls_while_dismounting = NO THEN
-   '--dismount-ahead is true, dismount-passwalls is false
+   'I think we disallow  "pass walls while dismounting"
+--dismount-ahead is true, dismount-passwalls is false
    SELECT CASE herodir(0)
     CASE dirUp
      herow(0).ygo = 20
@@ -1231,8 +1232,9 @@ FUNCTION vehpass (byval n as integer, byval tile as integer, byval default as in
  RETURN v <> 0
 END FUNCTION
 
+'Causes heroes to walk on or off a vehicle
 'Returns true if the scramble is finished
-FUNCTION vehscramble(byval target as XYPair) as bool
+LOCAL FUNCTION vehscramble(byval target as XYPair) as bool
  DIM scrambled_heroes as integer = 0
  'Maybe this should actually be caterpillar_count(), so that if caterpillar
  'mode is suspended, the other heroes don't mount the vehicle?
