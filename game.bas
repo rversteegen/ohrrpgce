@@ -3136,9 +3136,7 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
 
  IF afterbat = NO THEN
   recreate_map_slices
- END IF
 
- IF afterbat = NO THEN
   gam.showtext = gam.map.name
   embedtext gam.showtext
   gam.showtext_ticks = gmap(4)
@@ -3149,15 +3147,16 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
    loadmap_npcd gam.map.id
    loadmap_npcl gam.map.id
   END IF
- END IF
 
- 'Load door locations
- DeSerDoors(game + ".dox", gam.map.door(), gam.map.id)
+  'Load door locations
+  DeSerDoors(game + ".dox", gam.map.door(), gam.map.id)
+ END IF
 
  '--- Update/clean up various state
 
  'Hero/caterpillar party and vehicle
- IF afterbat = NO AND gam.map.same = NO THEN
+ IF gam.map.same = NO THEN
+  'Might cause the hero to walk forwards a tile, but we wipe x/ygo next
   forcedismount
  END IF
  IF afterbat = NO AND afterload = NO THEN
@@ -3169,7 +3168,7 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
   herow(0).speed = 4
   change_hero_speed(0, 4)
  END IF
- IF vstate.active = YES AND gam.map.same = YES THEN
+ IF afterbat = NO AND vstate.active = YES THEN
   FOR i as integer = 0 TO 3
    (heroz(i)) = vstate.dat.elevation
   NEXT i
@@ -3181,6 +3180,7 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
   END IF
  END IF
 
+ 'FIXME: what if afterbat = YES? This looks wrong
  txt.sayer = -1
 
  'If following NPC or slice on old map, reset camera
@@ -3207,25 +3207,28 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
    trigger_script_arg 0, IIF(gam.wonbattle, 1, 0), "wonbattle"
   END IF
  END IF
+
+ IF afterbat = NO THEN
+  'For heroes, we trigger zone exit scripts for the zones the hero was inside
+  'on the previous map, and zone entry scripts for the new zones
+  FOR whoi as integer = 0 TO caterpillar_size() - 1
+   update_hero_zones whoi
+  NEXT
+
+  'For NPCs, we don't run zone exit scripts (because the NPCs no longer exist)
+  'for the previous map, but we do run the entry scripts for the new map
+  'UNLESS (unimplemented, FIXME) restoring a saved map state
+  FOR npcref as integer = 0 TO UBOUND(npc)
+   IF npc(npcref).id > 0 THEN
+    update_npc_zones npcref
+   END IF
+  NEXT
+
+  check_pathfinding_for_map_change()
+ END IF
+
  gam.map.same = NO
 
- 'For heroes, we trigger zone exit scripts for the zones the hero was inside
- 'on the previous map, and zone entry scripts for the new zones
- FOR whoi as integer = 0 TO caterpillar_size() - 1
-  update_hero_zones whoi
- NEXT
-
- 'For NPCs, we don't run zone exit scripts (because the NPCs no longer exist)
- 'for the previous map, but we do run the entry scripts for the new map
- 'UNLESS (unimplemented, FIXME) restoring a saved map state
- FOR npcref as integer = 0 TO UBOUND(npc)
-  IF npc(npcref).id > 0 THEN
-   update_npc_zones npcref
-  END IF
- NEXT
-
- check_pathfinding_for_map_change()
- 
  'DEBUG debug "end of preparemap"
 END SUB
 
