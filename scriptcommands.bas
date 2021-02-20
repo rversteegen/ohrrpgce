@@ -914,9 +914,11 @@ SUB script_functions(byval cmdid as integer)
   END IF
  CASE 267'--main menu
   scriptret = add_menu(0)
- CASE 274'--open menu
+ CASE 274'--open menu (id, allow duplicate, accept sfx)
   IF bound_arg(retvals(0), 0, gen(genMaxMenu), "menu ID") THEN
-   scriptret = add_menu(retvals(0), (retvals(1) <> 0))
+   DIM accept_sfx as bool = get_optional_arg(2, 0) <> 0
+   'Don't play sfx
+   scriptret = add_menu(retvals(0), (retvals(1) <> 0), accept_sfx)
   END IF
  CASE 275'--read menu int
   IF valid_menu_handle(retvals(0), menuslot) THEN
@@ -937,7 +939,7 @@ SUB script_functions(byval cmdid as integer)
    mstates(menuslot).need_update = YES
   END IF
  CASE 279'--create menu
-  scriptret = add_menu(-1)
+  scriptret = add_menu(-1, , NO)
   menus(topmenu).allow_gameplay = YES
  CASE 280'--close menu (menu, run close script)
   IF valid_menu_handle(retvals(0), menuslot) THEN

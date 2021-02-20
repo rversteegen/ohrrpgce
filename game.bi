@@ -28,7 +28,7 @@ declare sub usemenusounds (byval deckey as integer = ccUp, byval inckey as integ
 declare sub dotimer(timercontext as TimerContextEnum)
 declare function dotimerbattle() as integer
 
-declare function add_menu (byval record as integer, byval allow_duplicate as bool=NO) as integer
+declare function add_menu (record as integer, allow_duplicate as bool=NO, acceptsfx as bool=YES) as integer
 declare sub remove_menu (byval slot as integer, byval run_on_close as bool=YES)
 declare sub bring_menu_forward (byval slot as integer)
 declare function normal_controls_disabled () as bool

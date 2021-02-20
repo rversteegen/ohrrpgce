@@ -1066,7 +1066,6 @@ SUB update_vehicle_state ()
      CASE -1
       IF gmap(379) <= 0 THEN 'Main menu available
        add_menu 0
-       menusound gen(genAcceptSFX)
       END IF
      CASE 0
       '--dismount

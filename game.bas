@@ -788,7 +788,6 @@ DO
     trigger_script gen(genEscMenuScript), 0, NO, "", "", mainFibreGroup
    ELSEIF allowed_to_open_main_menu() THEN
     add_menu 0
-    menusound gen(genAcceptSFX)
    END IF
   END IF
  ELSE
@@ -2659,7 +2658,7 @@ end function
 
 'Returns the menu handle
 'record -1 means create a blank menu instead of loading one.
-FUNCTION add_menu (byval record as integer, byval allow_duplicate as bool=NO) as integer
+FUNCTION add_menu (record as integer, allow_duplicate as bool=NO, acceptsfx as bool=YES) as integer
  IF record >= 0 AND allow_duplicate = NO THEN
   'If adding a non-blank menu, first check if the requested menu is already open
   DIM menuslot as integer
@@ -2667,9 +2666,11 @@ FUNCTION add_menu (byval record as integer, byval allow_duplicate as bool=NO) as
   IF menuslot >= 0 THEN
    'the requested menu is already open, just bring it to the top
    bring_menu_forward menuslot
+   IF acceptsfx THEN menusound gen(genCursorSFX)
    RETURN menus(topmenu).handle
   END IF
  END IF
+ IF acceptsfx THEN menusound gen(genAcceptSFX)
  'Load the menu into a new menu slot
  topmenu += 1
  REDIM PRESERVE menus(topmenu) as MenuDef
@@ -2799,7 +2800,7 @@ SUB player_menu_keys ()
    remove_menu topmenu
    menusound gen(genCancelSFX)
    IF esc_menu >= 0 THEN
-    add_menu esc_menu
+    add_menu esc_menu, , NO
    END IF
    EXIT SUB
   END IF
