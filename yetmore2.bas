@@ -1179,8 +1179,9 @@ SUB apply_game_window_settings (reloading as bool = NO)
     user_toggled_fullscreen = NO AND running_as_slave = NO AND _
     gam.shared_fullscreen_setting = NO THEN
   DIM fullscreen as bool = read_ini_int(gam.fullscreen_config_file, "gfx.fullscreen", -2)
-  ' genFullscreen is used only if the player has never customised the setting.
+  ' genFullscreen is used only if the player has never customised the setting, and there's no global override
   debuginfo gam.fullscreen_config_file & " : gfx.fullscreen = " & fullscreen & ", genFullscreen = " & gen(genFullscreen)
+  IF fullscreen = -2 THEN fullscreen = read_ini_int(global_config_file, "gfx.fullscreen", -2)
   IF fullscreen = -2 THEN fullscreen = gen(genFullscreen)
   gfx_setwindowed(fullscreen = NO)
  ELSE
