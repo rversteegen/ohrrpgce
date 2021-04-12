@@ -2503,9 +2503,10 @@ sub KeyboardState.update_keybits()
 	end if
 	'TODO: Actually, wouldn't it make more sense to set all the combined scancodes here instead of
 	'duplicating that in all backends?
-	'These two scancodes are set here instead of in backends...
+	'These three scancodes are set here instead of in backends...
 	keys(scAnyEnter) = keys(scEnter) or keys(scNumpadEnter)
 	keys(scMeta) = keys(scLeftMeta) or keys(scRightMeta)
+	'scShiftCtrl set below
 
 	'Backends don't know about scAlt, only scUnfilteredAlt
 	keys(scAlt) = keys(scUnfilteredAlt)
@@ -2524,6 +2525,8 @@ sub KeyboardState.update_keybits()
 		keys(scLeftCtrl) and= 1
 		keys(scRightCtrl) and= 1
 	end if
+
+	keys(scShiftCtrl) = keys(scShift) or keys(scCtrl)
 
 	'Calculate new "new keypress" bit (bit 2)
 	for key as KBScancode = 0 to scLAST

@@ -162,6 +162,7 @@ static scancodenames(ccCancel to ...) as string * 18  = { _
   "Alt",                       /' 119 '/ _
   "Any Enter",                 /' 120 '/ _
   "Command/Win"                /' 121 '/ _
+  "" /' CtrlShift () '/  /' 122 '/ _
 }
 
 static joybuttonnames(128 to 147) as string * 20  = { _

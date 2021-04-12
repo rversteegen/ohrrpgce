@@ -2295,8 +2295,6 @@ Sub SpriteSliceUpdate(sl as Slice ptr)
 
    'If it's a 32-bit sprite (is converted to 32-bit when scaled)...
    if .load_asset_as_32bit orelse .scaled then
-    'Transparent 32 bit Surfaces not yet supported
-    .trans = NO
     'frame_flip_* and frame_dissolved don't support Surfaces either
     .dissolving = NO
     .flipHoriz = NO
@@ -3768,10 +3766,29 @@ Function SlicePossiblyResizable(sl as Slice ptr) as bool
    ' Resizing map slices isn't implemented.
    return NO
   case else
-   showbug "SliceResizable needs to be updated for type " & sl->SliceType
+   showbug "SlicePossiblyResizable needs to be updated for type " & sl->SliceType
    return NO
  end select
 end Function
+
+Sub SliceSetSize(sl as Slice ptr, size as XYPair)
+ select case sl->SliceType
+  case slSprite
+   if sl->size <> size then
+    sl->SpriteData->scaled = YES
+   end if
+ end select
+
+   disable_horiz_fill(sl)
+   .CoverChildren AND= NOT coverHoriz
+  END IF
+  IF dataptr = @.Height THEN
+   disable_vert_fill(sl)
+   .CoverChildren AND= NOT coverVert
+  END IF
+
+ sl->Size = size
+end Sub
 
 '=============================================================================
 '                                Slice Velocity

@@ -3555,6 +3555,9 @@ FUNCTION menu_attack_targ_picker(byval attack_id as integer, byval learn_id as i
  holdscreen = allocatepage
  copypage page, holdscreen
 
+ DIM width as integer = large(152, )
+ DIM menurect as RectType = XYWH((320 - width) \ 2 + x_offset, 8, width, 20 * active_party_slots)
+
  DIM wtog as integer
  DIM tog as integer
  DIM col as integer
@@ -3633,7 +3636,8 @@ FUNCTION menu_attack_targ_picker(byval attack_id as integer, byval learn_id as i
   IF get_gen_bool("/mouse/mouse_menus") THEN
    DIM hover as integer = -1
    FOR i as integer = 0 to 3
-    IF rect_collide_point(XYWH(84 + x_offset, 8 + 20 * i, 152, 20), readmouse.pos) THEN hover = i
+    DIM itemrect as RectType = XYWH(menurect.x, menurect.y + i * 20, menurect.w, 20)
+    IF rect_collide_point(itemrect, readmouse.pos) THEN hover = i
    NEXT i
 
    IF hover = -1 ANDALSO ((readmouse.release AND mouseLeft) ORELSE (readmouse.release AND mouseRight)) THEN

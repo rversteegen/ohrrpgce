@@ -1176,15 +1176,15 @@ DO
     END IF
    NEXT i
 
-   '#IFNDEF __FB_UNIX__
-    'common WM keys
+   'Shift/Ctrl-F# toggle layer visibility
+   IF keyval(scCtrl) > 0 ORELSE keyval(scShift) > 0 THEN
     FOR i as integer = 0 TO UBOUND(st.map.tiles)
-     IF keyval(scCtrl) > 0 AND keyval(scF1 + i) > 1 THEN
+     IF keyval(scF1 + i) > 1 THEN
       clearkey(scF1 + i)
       IF layerisenabled(st.map.gmap(), i) THEN togglelayervisible(st.visible(), i)
      END IF
     NEXT
-   '#ENDIF
+   END IF
 
    'Alt+number to toggle layer 1-10 enabled, Alt+Shift+number to toggle layer 11-15
    FOR i as integer = 1 TO small(maplayerMax, 20)

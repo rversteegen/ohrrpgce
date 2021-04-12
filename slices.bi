@@ -146,6 +146,7 @@ Enum 'SliceTypes
  slPanel
  slLayout
  slLine
+ 'Follow INSTRUCTIONS at the bottom of this file for adding a new slice type
  'Remember to update slicetype constants in plotscr.hsd
 End Enum
 
@@ -460,7 +461,8 @@ Type SpriteSliceData
  scaled as bool     'Scale the sprite to the size of the slice. 32-bit only! Cached. SEPARATE to rotozooming.
  '(experimental rotozoom options:)
  rotate as integer  'UNSAVED: Clockwise angle in degrees, normally 0-359
- zoom as single     'UNSAVED. Zoom ratio. Defaults to 1.
+ zoomx as single    'UNSAVED. Zoom ratio. Defaults to 1.
+ zoomy as single    'UNSAVED. Zoom ratio. Defaults to 1.
  rz_smooth as integer  'UNSAVED: 0-2 rotozoom smoothness. 0: none, 1: use bi-linear filtering (32-bit only)
                        '2: use scale_surface, better when shrinking (Non-rotated & 32-bit only)
 
@@ -801,11 +803,6 @@ Sub Draw<TYPENAME>Slice(byval sl as Slice ptr, byval p as integer)
 
  '''DRAWING CODE GOES HERE!
 end sub
-
-Function Get<TYPENAME>SliceData(byval sl as Slice ptr) as <TYPENAME>SliceData ptr
- if sl = 0 then return 0
- return sl->SliceData
-End Function
 
 Sub Clone<TYPENAME>Slice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "Clone<TYPENAME>Slice null ptr": exit sub

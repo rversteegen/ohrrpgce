@@ -5346,6 +5346,9 @@ FUNCTION valid_resizeable_slice(byval handle as integer, byval horiz_fill_ok as 
    RETURN NO
   END IF
 
+  'TODO: Maybe "set slice width/height" on a slice set to fill or cover should disable fill/cover
+  'instead of failing? That's how the sliceeditor works
+
   'This is only for "set slice width/height"; "fill parent" needs to do its own checks
   IF ((sl->CoverChildren AND coverHoriz) ANDALSO horiz_fill_ok = NO) ORELSE _
      ((sl->CoverChildren AND coverVert)  ANDALSO vert_fill_ok = NO) THEN

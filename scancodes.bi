@@ -163,6 +163,9 @@ CONST scWinLogo = 121
 CONST scCommand = 121
 CONST scMeta = 121
 
+'Shift or Ctrl - this is not exposed to scripting
+CONST scShiftCtrl = 122
+
 'Update scancodenames.bi if you add more
 
 'Used for size of arrays - does NOT include joystick/mouse scancodes
@@ -216,9 +219,6 @@ CONST ccLOWEST = -9
 'These are the range of scancodes which can be passed to keyval().
 CONST scKEYVAL_FIRST = ccLOWEST
 CONST scKEYVAL_LAST = scJoyLAST
-
-'The following is NOT a real scancode and in general can't be used
-CONST SftCtl = 1000  'Shift or Ctrl
 
 '------------------------------------------------------------------------------
 '                            Joystick scancodes

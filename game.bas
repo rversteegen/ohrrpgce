@@ -4500,10 +4500,10 @@ END DESTRUCTOR
 
 ' This does one of three different things; see debug_menu_functions() for that explanation.
 ' Returns whether to execute the definition of this debug function.
-' combining_scancode: either check for keyval(combining_scancode) > 1, or if 0, check keyval(scCtrl) = 0.
+' combining_scancode: either check for keyval(combining_scancode) > 1, or if 0, check keyval(scShiftCtrl) = 0.
 ' scancode: check for keyval(scancode) > 1, or no key combination if 0.
 ' menuitem: name of the menu item to add to the debug menu, or "" for none.
-FUNCTION DebugMenuDef.def(combining_scancode as integer = 0, scancode as integer = 0, menuitem as zstring ptr = @"") as bool
+FUNCTION DebugMenuDef.def(combining_scancode as KBScancode = 0, scancode as KBScancode = 0, menuitem as zstring ptr = @"") as bool
  IF menu = NULL THEN
   'Only check keys
   'FIXME: should debug menus check real_keyval instead? But then all the controls within each
@@ -4511,11 +4511,9 @@ FUNCTION DebugMenuDef.def(combining_scancode as integer = 0, scancode as integer
 
   'Check modifier keys
   IF combining_scancode = 0 THEN
-   IF keyval(scCtrl) > 0 ORELSE keyval(scShift) > 0 THEN RETURN NO
-  ELSEIF combining_scancode = SftCtl THEN
-   IF keyval(scCtrl) = 0 ANDALSO keyval(scShift) = 0 THEN RETURN NO
-  ELSEIF keyval(combining_scancode) = 0 THEN
-   RETURN NO
+   IF keyval(scShiftCtrl) > 0 THEN RETURN NO
+  ELSE
+   IF keyval(combining_scancode) = 0 THEN RETURN NO
   END IF
 
   IF scancode = 0 THEN RETURN NO
@@ -4545,7 +4543,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  IF txt.showing = NO THEN
   IF dbg.def(      , scF1, "Minimap (F1)") THEN minimap heropos(0)
 
-  IF dbg.def(SftCtl, scF1, "Teleport tool (Shft/Ctrl-F1)") THEN
+  IF dbg.def(scShiftCtrl, scF1, "Teleport tool (Shft/Ctrl-F1)") THEN
    IF teleporttool() THEN
     prepare_map
    END IF
@@ -4559,7 +4557,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
    END IF
   END IF
 
-  IF dbg.def(SftCtl, scF2, "Save menu (Shft/Ctrl-F2)") THEN
+  IF dbg.def(scShiftCtrl, scF2, "Save menu (Shft/Ctrl-F2)") THEN
    DIM slot as integer = picksave()
    IF slot >= 0 THEN savegame slot
   END IF
@@ -4576,7 +4574,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
    END IF
   END IF
 
-  IF dbg.def(SftCtl, scF3, "Load menu (Shft/Ctrl-F3)") THEN
+  IF dbg.def(scShiftCtrl, scF3, "Load menu (Shft/Ctrl-F3)") THEN
    gam.want.loadgame = pickload(NO, YES) + 1  'No New Game option, beep if the menu doesn't display
   END IF
 
@@ -4589,7 +4587,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
   gam.debug_scripts = 0
  END IF
 
- IF dbg.def(SftCtl, scF4, "View/edit slice tree (Shft/Ctrl-F4)") THEN
+ IF dbg.def(scShiftCtrl, scF4, "View/edit slice tree (Shft/Ctrl-F4)") THEN
   slice_editor SliceTable.Root
  END IF
 
@@ -4618,7 +4616,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  IF num_logged_errors THEN note = ": " & num_logged_errors & " errors" ELSE note = " log"
  IF dbg.def(      ,     , "View g_debug.txt" & note & " (S/C-F8)") THEN open_document log_dir & *app_log_filename
 
- IF dbg.def(SftCtl, scF9, IIF(scriptprofiling, "Stop", "Start") & " script profiling (S/C-F9)") THEN
+ IF dbg.def(scShiftCtrl, scF9, IIF(scriptprofiling, "Stop", "Start") & " script profiling (S/C-F9)") THEN
   scriptprofiling XOR= YES
   IF scriptprofiling THEN
    gam.showtext = "Timings will be printed to g_debug.txt"
@@ -4639,7 +4637,7 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
   gam.debug_showtags = 0
  END IF
 
- IF dbg.def(SftCtl, scF10, "Toggle script logging (S/C-F10)") THEN
+ IF dbg.def(scShiftCtrl, scF10, "Toggle script logging (S/C-F10)") THEN
   IF gam.script_log.enabled THEN
    gam.script_log.enabled = NO
    gam.showtext = "Script logging disabled."
