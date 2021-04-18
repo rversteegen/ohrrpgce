@@ -804,7 +804,7 @@ wait for hero (me) # wait until he stops</example>
 			<shortname>wait for key</shortname>
 			<description>
 				Waits for the player to press a key.
-				(Specially, new keypresses or mouse button release.)
+				(Specially, (possibly repeated) keypresses or mouse button release.)
 				<p>key</p> is an optional <ref>scancode</ref> such as a keyboard key (e.g. <tt>key:ctrl</tt>)
 				a joystick button (e.g. <tt>joy:left</tt>), or a virtual scancode such as
 				<ref>usekey</ref>.
@@ -814,7 +814,7 @@ wait for hero (me) # wait until he stops</example>
 				and also waits for a mouse click if "'any key', etc, include mouse clicks" is
 				turned on in the Mouse Controls menu.
 				<p>usekey</p> will wait for Space, Ctrl or Enter, joystick use key, and optionally left click;
-				and <p>cancelkey</p> and <p>menukey</p> (which are identical) both wait for Alt or Esc,
+				and <p>cancelkey</p> and <p>menukey</p> both wait for Alt or Esc,
 				joystick cancel, and optionally right click.
 				<lb/>
 				If and only if <tt>anykey</tt> is used, then <p>waitforkey(anykey)</p> will return the scancode of the keyboard or joystick key that was pressed,
@@ -4525,7 +4525,8 @@ end
 				<ref>usekey</ref>.
 				<lb/>
 				The <p>joystick num</p> argument is optional, and defaults to 0.
-				It's only used with joystick scancodes such as <tt>joy:button 1</tt>,
+				It's only used with joystick scancodes such as <tt>joy:button 1</tt>
+				and control scancodes like <tt>use key</tt>,
 				and tells which joystick to read: 0 is the first one, 1 is the second, etc.
 				<note>
 					This command is an alternative to <ref>keypress</ref> or <ref>newkeypress</ref>;
@@ -4562,7 +4563,8 @@ end
 				<ref>usekey</ref>.
 				<lb/>
 				The <p>joystick num</p> argument is optional, and defaults to 0.
-				It's only used with joystick scancodes such as <tt>joy:button 1</tt>,
+				It's only used with joystick scancodes such as <tt>joy:button 1</tt>
+				and control scancodes like <tt>use key</tt>,
 				and tells which joystick to read: 0 is the first one, 1 is the second, etc.
 				<note>
 					This command is an alternative to <ref>newkeypress</ref> or <ref>keyispressed</ref>;
@@ -4594,7 +4596,8 @@ end
 				<ref>usekey</ref>.
 				<lb/>
 				The <p>joystick num</p> argument is optional, and defaults to 0.
-				It's only used with joystick scancodes such as <tt>joy:button 1</tt>,
+				It's only used with joystick scancodes such as <tt>joy:button 1</tt>
+				and control scancodes like <tt>use key</tt>,
 				and tells which joystick to read: 0 is the first one, 1 is the second, etc.
 				<note>
 					This command is an alternative to <ref>keypress</ref> or <ref>keyispressed</ref>;
@@ -4620,7 +4623,8 @@ end
 			<ref>usekey</ref>.
 			<lb/>
 			The <p>joystick num</p> argument is optional, and defaults to 0.
-			It's only used with joystick scancodes such as <tt>joy:button 1</tt>,
+			It's only used with joystick scancodes such as <tt>joy:button 1</tt>
+			and control scancodes like <tt>use key</tt>,
 			and tells which joystick to read: 0 is the first one, 1 is the second, etc.
 			<lb/>
 			The result holds the same information as given by the <ref>keyispressed</ref> and <ref>keypress</ref> commands,

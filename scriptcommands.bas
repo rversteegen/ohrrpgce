@@ -541,7 +541,7 @@ SUB process_wait_conditions()
       a_script_wants_keys()
      END IF
      IF .waitarg <> scAny THEN
-      IF script_keyval(.waitarg) > 1 THEN
+      IF script_keyval(.waitarg) AND 4 THEN
        script_stop_waiting()
        EXIT SUB
       END IF

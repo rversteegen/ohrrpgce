@@ -305,8 +305,12 @@ type InputState
 	kb as KeyboardState
 	joys(3) as JoystickState
 
+	' kb(any) as KeyboardState
+	' joys(any) as JoystickState
+
 	carray(ccLOWEST to ccHIGHEST) as KeyBits  'Sum of carray() arrays for all input devices
 
+'	declare constructor ()
 	declare sub calc_carray (whichcarray() as KeyBits, repeat_wait as integer = 0, repeat_rate as integer = 0)
 	declare sub update_carray ()
 end type
@@ -1809,14 +1813,27 @@ function player_keyval(key as KBScancode, player as integer, repeat_wait as inte
 			next
 			'/
 		elseif key = scAny then
+
+			'This doesn't check all joystick buttons, only ones mapped to carray.
 			for button as integer = joyButton1 to joyLAST
 				ret or= joykeyval(button, joynum, repeat_wait, repeat_rate)
 			next
-			if player = 1 then
-				'Add keyboard scAny
-				'FIXME: this adds in scAny from all joysticks
-				ret or=  keyval_ex(key, repeat_wait, repeat_rate)
+
+			'Note: repeat_wait and repeat_rate are ignored!
+
+			if player <= 1 then
+				'Check all keyboard keys
+				'(in future, for player 1 ignore any mapped to other players?)
+				for kbkey as KBScancode = 0 to scLAST
+					select case kbkey
+						case scAny, scNumLock, scCapsLock, scScrollLock
+						case else
+							'ret or= keyval_ex(kbkey, , , real_keys)
+							ret or= inputst->kb.carray(kbkey)
+					end select
+				next
 			end if
+
 		else  'key <= ccHIGHEST
 			'TODO: This is missing repeat_wait/repeat_rate support
 			ret = inputst->joys(joynum).carray(key)
@@ -1824,6 +1841,7 @@ function player_keyval(key as KBScancode, player as integer, repeat_wait as inte
 				ret or= inputst->kb.carray(key)  'Keyboard
 			end if
 		end if
+
 	elseif key <= scLAST then  'Keyboard key
 		'Player number is ignored for now
 		ret = keyval_or_numpad_ex(key, repeat_wait, repeat_rate)
@@ -2414,6 +2432,12 @@ end sub
 constructor JoystickState()
 	init(joyLAST)
 end constructor
+
+' constructor InputState()
+' 	'Temporary
+' 	redim kb(0)
+' 	redim joy(3)
+' end constructor
 
 
 '================================== Key mappings ==========================================
