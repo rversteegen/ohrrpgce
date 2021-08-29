@@ -578,11 +578,8 @@ FUNCTION buystuff_can_show(byval slot as NodePtr, buyst as ShopBuyState) as bool
 
  IF stock = 1 THEN RETURN NO  'This item is out of stock
 
- IF buy."require_tag".exists THEN
-  IF NOT istag(tag(), buy."require_tag", YES) THEN
-   RETURN NO
-  END IF
- END IF
+ IF NOT istag(tag(), buy."require_tag".default(0), YES) THEN RETURN NO
+ IF NOT istag(tag(), buy."require_tag2".default(0), YES) THEN RETURN NO
 
  RETURN YES
 END FUNCTION
@@ -1856,15 +1853,16 @@ SUB sellstuff_refresh(byval last_stuff as integer, byval recordsize as integer, 
     thing_type   = stuffdata(o * recordsize + 17)
     num          = stuffdata(o * recordsize + 18)
     sell_req_tag = stuffdata(o * recordsize + 21)
+    sell_req_tag2= stuffdata(o * recordsize + 39)
     sell_mode    = stuffdata(o * recordsize + 26)
     sell_price   = stuffdata(o * recordsize + 27)
     IF num = inventory(i).id THEN
-     IF ABS(sell_req_tag) > 0 THEN
-      IF NOT istag(sell_req_tag, 0) THEN setbit permask(), 0, i, 1
+     IF NOT istag(sell_req_tag, YES) ORELSE NOT istag(sell_req_tag2, YES) THEN
+      setbit permask(), 0, i, 1
      END IF
-     IF thing_type = 0 THEN
+     IF thing_type = 0 THEN  'Item
       price(i) = sell_price
-      IF sell_mode = 3 THEN setbit permask(), 0, i, 1
+      IF sell_mode = 3 THEN setbit permask(), 0, i, 1   'Refuse to buy
      END IF
     END IF
    NEXT o

@@ -4912,12 +4912,13 @@ SUB load_shop_stuff(byval shop_id as integer, byval stuff_list as NodePtr)
    END IF
    buy = SetChildNode(n, "hire")
    sell = 0
-  ELSE
+  ELSE 'Type 0: Item
    n = SetChildNode(slotnode, "item", stufbuf(18))
    buy = SetChildNode(n, "buy")
    sell = SetChildNode(n, "sell")
   END IF
-  
+  'Warning: Type 2 was script which was never supported but was allowed for data entry in some ancient versions
+
   DIM sname as string
   sname = readbadbinstring(stufbuf(), 0, 16)
   SetChildNode(n, "name", sname)
@@ -4932,8 +4933,10 @@ SUB load_shop_stuff(byval shop_id as integer, byval stuff_list as NodePtr)
   SetChildNode(n, "stockidx", stufbuf(37) - 1)
   
   SetChildNode(buy, "require_tag", stufbuf(20))
+  SetChildNode(buy, "require_tag2", stufbuf(38))
   SetChildNode(buy, "set_tag", stufbuf(22))
   SetChildNode(buy, "price", stufbuf(24))
+  SetChildNode(buy, "visibility", stufbuf(40))
   append_trade_node buy, stufbuf(25), stufbuf(30)
   append_trade_node buy, stufbuf(31), stufbuf(32)
   append_trade_node buy, stufbuf(33), stufbuf(34)
@@ -4941,6 +4944,7 @@ SUB load_shop_stuff(byval shop_id as integer, byval stuff_list as NodePtr)
   
   IF sell THEN
    SetChildNode(sell, "require_tag", stufbuf(21))
+   SetChildNode(sell, "require_tag2", stufbuf(39))
    SetChildNode(sell, "set_tag", stufbuf(23))
    append_trade_node sell, stufbuf(28), stufbuf(29)
    SELECT CASE stufbuf(26)

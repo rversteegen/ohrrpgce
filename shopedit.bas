@@ -445,6 +445,9 @@ SUB shop_init_stf(byval shop_id as integer, stuf as ShopStuffState, stufbuf() as
  shop_save_stf shop_id, stuf, stufbuf()
 END SUB
 
+'TYPE MapSettingsMenu EXTENDS ModularMenu
+
+
 SUB update_shop_stuff_type(byref stuf as ShopStuffState, stufbuf() as integer, byval reset_name_and_price as bool=NO)
  '--Re-load default names and default prices
  '--also reloads all limits
