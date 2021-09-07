@@ -816,36 +816,27 @@ SUB setbatcap (bat as BattleState, cap as string, byval captime as integer, byva
  bat.caption_delay = capdelay
 END SUB
 
-'This picks out the targets which are within a 90 degree wide sector in the
-'specified direction. Returns number of in-range targets.
-FUNCTION battle_target_arrows_sector_mask (inrange() as integer, byval d as integer, byval axis as integer, bslot() as BattleSprite, targ as TargettingState, foredistance() as integer, sidedistance() as integer) as integer
- DIM as integer xdistance, ydistance, count
+'Compute foredistance (distance in forwards direction), sidedistance (the other axis) and angle (from forwards)
+SUB battle_target_arrows_compute_dists (byval d as integer, byval axis as integer, bslot() as BattleSprite, targ as TargettingState, foredistance() as integer, sidedistance() as integer, angle() as double)
+ DIM as integer xdistance, ydistance
+ ? "Distances from " & bslot(targ.pointer).pos
  FOR i as integer = 0 TO 11
   IF targ.mask(i) THEN
    ydistance = bslot(i).y - bslot(targ.pointer).y
    xdistance = bslot(i).x - bslot(targ.pointer).x
    IF axis THEN
     foredistance(i) = ydistance * d
-    sidedistance(i) = ABS(xdistance)
+    sidedistance(i) = xdistance
    ELSE
     foredistance(i) = xdistance * d
-    sidedistance(i) = ABS(ydistance)
+    sidedistance(i) = ydistance
    END IF
-   IF foredistance(i) > 0 THEN
-    'Angle in degrees from the forward direction. Always nonnegative
-    DIM angle as double = ATAN2(sidedistance(i), foredistance(i)) * 180 / M_PI
-    '? "angle from " & bslot(targ.pointer).pos & " to " & i & " " & bslot(i).pos & " is " & angle & " foredist " & foredistance(i) & " sidedist " & sidedistance(i) & IIF(angle <= 45, " IN SECTOR", "")
-    'WARNING: allowing angles >= 45 can result in unselectable targets
-    IF angle < 45 THEN
-     'To also allow targets within a 40x40 box:  ORELSE sidedistance(i) < 20
-     setbit inrange(), 0, i, 1
-     count += 1
-    END IF
-   END IF
+   'Angle in degrees from the forward direction. Always nonnegative
+   angle(i) = ABS(ATAN2(sidedistance(i), foredistance(i))) * 180 / M_PI
+   ? "...to " & bslot(i).pos & " foredist=" & foredistance(i) & " sidedist=" & sidedistance(i) & " angle=" & angle(i)
   END IF
  NEXT i
- RETURN count
-END FUNCTION
+END SUB
 
 'Move targ.pointer, the target currently selected by the player, or turn on/off optional spread.
 'axis: 0 for x (left/right), 1 for y (up/down) movement
@@ -853,9 +844,15 @@ END FUNCTION
 SUB battle_target_arrows (byval d as integer, byval axis as integer, bslot() as BattleSprite, targ as TargettingState, byval allow_spread as bool = NO)
  DIM newptr as integer = targ.pointer
 
- 'First, special case for target at same position as current:
+ DIM foredistance(11) as integer
+ DIM sidedistance(11) as integer
+ DIM angle(11) as double
+ battle_target_arrows_compute_dists d, axis, bslot(), targ, foredistance(), sidedistance(), angle()
+
+ 'First, a special case for targets at same position as current.
  'Right and Down keys loop over them from lowest to highest index, and Left and Up keys
  'from highest to lowest. Only after looping past the last one do we do normal target selection.
+ '(This is a special case because the tie-breaking depends on current targ.pointer)
  DIM idx as integer = targ.pointer
  FOR i as integer = 1 TO 11
   idx += d  'search through slots according to direction, but don't loop
@@ -867,35 +864,36 @@ SUB battle_target_arrows (byval d as integer, byval axis as integer, bslot() as 
   END IF
  NEXT
 
- 'Look for a nearby target within a 90 degree wide sector in the right direction
- DIM foredistance(11) as integer
- DIM sidedistance(11) as integer
- DIM inrange(0) as integer
- DIM best as integer = 99999
- IF battle_target_arrows_sector_mask(inrange(), d, axis, bslot(), targ, foredistance(), sidedistance()) THEN
-  'At least one target is in the sector, pick the closest
-  FOR i as integer = 0 TO 11
-   IF readbit(inrange(), 0, i) THEN
-    IF foredistance(i) < best THEN
-     best = foredistance(i)
-     newptr = i
-    END IF
-   END IF
-  NEXT i
- ELSE
-  'If there's none, allow targets which are at any angle, and pick the closest one
-  FOR i as integer = 0 TO 11
-   IF targ.mask(i) THEN
-    IF foredistance(i) > 0 THEN
-     DIM dist as integer = foredistance(i) + sidedistance(i)  'Both are non-negative
-     IF dist < best THEN
-      best = dist
-      newptr = i
-     END IF
-    END IF
-   END IF
-  NEXT i
- END IF 
+ 'Find the nearest target
+ DIM best as double = 1e99
+ FOR i as integer = 0 TO 11
+  IF targ.mask(i) = NO ORELSE foredistance(i) < 0 THEN CONTINUE FOR
+  DIM dist as double
+  IF foredistance(i) = 0 THEN
+   'Another special case: formations with targets at same X/Y coords could easily have lots of ties
+   'resulting in unselectable targets if we didn't allow selecting prev/next tied target --
+   'which we approximate by selecting prev/next target w/ same X/Y coord. (This is a good approximation
+   'because "dist = foredistance(i)" below doesn't depend on sidedistance(i).)
+   'For example if two targets share Y (and aren't far apart) then pressing DOWN iterates through
+   'them from left to right, and UP from right to left.
+   IF sidedistance(i) = 0 THEN CONTINUE FOR  'Ignore, already handled in special case above
+   IF SGN(sidedistance(i)) <> d THEN CONTINUE FOR  'Don't keep looping through them
+   IF ABS(sidedistance(i)) > gen(genResolutionY) * 0.8 THEN CONTINUE FOR  'Too far, don't jump
+   dist = -100
+  ELSEIF angle(i) <= 45 THEN
+   'Prefer for a nearby target within a 90 degree wide sector in the right direction
+   dist = foredistance(i)
+  ELSE
+   dist = 1.3 * ABS(sidedistance(i)) + 0.5 * foredistance(i)
+  END IF
+  'Break ties by sidedistance, and tiebreak in opposite order when coming from the opposite direction
+  dist += d * sidedistance(i) * 0.0001
+  ? bslot(i).pos & " dist=" & dist
+  IF dist < best THEN 'ORELSE (dist = best ANDALSO d = -1) THEN
+   best = dist
+   newptr = i
+  END IF
+ NEXT i
 
  IF newptr = targ.pointer THEN
   'Spread attack
