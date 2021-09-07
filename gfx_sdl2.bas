@@ -25,6 +25,9 @@
 
 #include "SDL2\SDL.bi"
 
+
+#define EMULATE_JOYSTICK
+
 EXTERN "C"
 
 #define KMOD_META  KMOD_GUI  'Renamed in SDL2
@@ -56,6 +59,15 @@ EXTERN "C"
 #ifndef SDL_JoystickGetDeviceInstanceID
   'SDL 2.0.6+ (Sept 2017). Not used
   declare function SDL_JoystickGetDeviceInstanceID(byval device_index as long) as SDL_JoystickID
+#endif
+#ifndef SDL_JoystickAttachVirtual
+  'SDL 2.0.14+ (Dec 2020). Used only if EMULATE_JOYSTICK defined
+  declare function SDL_JoystickAttachVirtual(byval type as SDL_JoystickType, byval naxes as long, byval nbuttons as long, byval nhats as long) as long
+  declare function SDL_JoystickDetachVirtual(byval device_index as long) as long
+  declare function SDL_JoystickIsVirtual(byval device_index as long) as SDL_bool
+  declare function SDL_JoystickSetVirtualAxis(byval joystick as SDL_Joystick ptr, byval axis as long, byval value as Sint16) as long
+  declare function SDL_JoystickSetVirtualButton(byval joystick as SDL_Joystick ptr, byval button as long, byval value as Uint8) as long
+  declare function SDL_JoystickSetVirtualHat(byval joystick as SDL_Joystick ptr, byval hat as long, byval value as Uint8) as long
 #endif
 
 
@@ -329,6 +341,10 @@ FUNCTION gfx_sdl2_init(byval terminate_signal_handler as sub cdecl (), byval win
 
   'Enable controller events, so don't have to call SDL_GameControllerUpdate
   SDL_GameControllerEventState(SDL_ENABLE)
+
+#IFDEF EMULATE_JOYSTICK
+  io_sdl2_add_virtual_joystick
+#ENDIF
 
   ret &= " (" & SDL_NumJoysticks() & " joysticks) Driver:" & *SDL_GetCurrentVideoDriver() & " (Drivers:"
   FOR i as integer = 0 TO SDL_GetNumVideoDrivers() - 1
@@ -1143,8 +1159,12 @@ LOCAL SUB update_state()
   SDL_PumpEvents()
   update_mouse()
   gfx_sdl2_process_events()
+#IFDEF EMULATE_JOYSTICK
+  io_sdl2_update_virtual_joystick
+#ENDIF
 END SUB
 
+'
 SUB io_sdl2_pollkeyevents()
   'might need to redraw the screen if exposed
 /'

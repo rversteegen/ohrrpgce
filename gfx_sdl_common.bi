@@ -25,4 +25,9 @@ DECLARE FUNCTION IO_SDL(get_joystick_state)(byval joynum as integer, byval state
 DECLARE FUNCTION instance_to_joynum(instance_id as integer) as integer
 DECLARE FUNCTION sdl2_joy_button_press(btn as integer, instance_id as integer) as bool
 
+#if defined(EMULATE_JOYSTICK)
+DECLARE SUB io_sdl2_add_virtual_joystick
+DECLARE SUB io_sdl2_update_virtual_joystick
+#endif
+
 EXTERN joystickinfo(maxJoysticks - 1) as JoystickInfo

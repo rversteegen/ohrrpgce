@@ -50,6 +50,8 @@ END SUB
 'Return -1 if not found
 LOCAL FUNCTION instance_to_joynum(instance_id as integer) as integer
   FOR joynum as integer = 0 TO UBOUND(joystickinfo)
+    'This could also be implemented using SDL_JoystickGetDeviceInstanceID without having to
+    'have opened the joystick
     IF joystickinfo(joynum).instance_id = instance_id THEN RETURN joynum
   NEXT
   RETURN -1
@@ -296,5 +298,86 @@ FUNCTION sdl2_joy_button_press(btn as integer, instance_id as integer) as bool
   joystickbuttons(joynum) OR= 1 SHL (ohr_gamepad_buttons(btn) - 1)
   RETURN YES
 END FUNCTION
+
+
+#ifdef EMULATE_JOYSTICK
+
+EXTERN "C"
+
+DIM SHARED virtual_joynum as integer
+
+SUB io_sdl2_add_virtual_joystick
+  'The number of hats is used as an ID number
+  STATIC joyid as integer
+  joyid += 1
+  DIM joynum as integer = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_UNKNOWN, 6, 13, joyid)
+  'Open as a SDL_JOYSTICK_TYPE_GAMECONTROLLER and it'll be
+  'reported as that, but then we need to use SDL_CONTROLLER_BUTTON_*
+  'rather than OHR button numbering in io_sdl2_update_virtual_joystick
+
+  show_overlay_message "Added joynum " & joynum, 2
+END SUB
+
+SUB io_sdl2_update_virtual_joystick
+  DIM kb as const ubyte ptr = SDL_GetKeyboardState(NULL)
+
+  IF kb[SDL_SCANCODE_RCTRL] THEN
+    IF kb[SDL_SCANCODE_KP_PLUS] THEN io_sdl2_add_virtual_joystick
+    'IF kb[SDL_SCANCODE_KP_MINUS] THEN io_sdl2_subtract_virtual_joystick
+    IF kb[SDL_SCANCODE_PAGEUP] ANDALSO virtual_joynum > 0 THEN
+      virtual_joynum -= 1
+      show_overlay_message "Selected joynum " & virtual_joynum, 1
+    END IF
+    IF kb[SDL_SCANCODE_PAGEDOWN] ANDALSO virtual_joynum < SDL_NumJoysticks() - 1 THEN
+      virtual_joynum += 1
+      show_overlay_message "Selected joynum " & virtual_joynum, 1
+    END IF
+    IF kb[SDL_SCANCODE_KP_MINUS] THEN
+      IF SDL_JoystickIsVirtual(virtual_joynum) THEN
+        SDL_JoystickDetachVirtual(virtual_joynum)
+        show_overlay_message "Removed joystick " & virtual_joynum, 2
+      ELSE
+        show_overlay_message "Joystick " & virtual_joynum & " is not virtual/doesn't exist", 2
+      END IF
+    END IF
+  END IF
+
+  IF SDL_JoystickIsVirtual(virtual_joynum) = NO THEN EXIT SUB
+  DIM joy as SDL_Joystick ptr = SDL_JoystickOpen(virtual_joynum)
+  IF joy = NULL THEN EXIT SUB
+
+  DIM as integer x, y
+  IF kb[SDL_SCANCODE_KP_4] THEN x = -1
+  IF kb[SDL_SCANCODE_KP_6] THEN x =  1
+  IF kb[SDL_SCANCODE_KP_8] THEN y = -1
+  IF kb[SDL_SCANCODE_KP_5] THEN y =  1
+  SDL_JoystickSetVirtualAxis(joy, axisX, x * 32767)
+  SDL_JoystickSetVirtualAxis(joy, axisY, y * 32767)
+  SDL_JoystickSetVirtualButton(joy, joyLeftStick - 1, kb[SDL_SCANCODE_KP_1])
+
+  SDL_JoystickSetVirtualButton(joy, joyA - 1, kb[SDL_SCANCODE_KP_0])
+  SDL_JoystickSetVirtualButton(joy, joyB - 1, kb[SDL_SCANCODE_KP_PERIOD])
+  SDL_JoystickSetVirtualButton(joy, joyX - 1, kb[SDL_SCANCODE_KP_2])
+  SDL_JoystickSetVirtualButton(joy, joyY - 1, kb[SDL_SCANCODE_KP_3])
+
+  SDL_JoystickSetVirtualButton(joy, joyBack - 1, kb[SDL_SCANCODE_KP_MINUS])
+  SDL_JoystickSetVirtualButton(joy, joyGuide - 1, kb[SDL_SCANCODE_KP_PLUS])
+  SDL_JoystickSetVirtualButton(joy, joyStart - 1, kb[SDL_SCANCODE_KP_ENTER])
+
+  SDL_JoystickSetVirtualButton(joy, joyL1 - 1, kb[SDL_SCANCODE_KP_7])
+  SDL_JoystickSetVirtualButton(joy, joyR1 - 1, kb[SDL_SCANCODE_KP_9])
+  SDL_JoystickSetVirtualButton(joy, joyL2 - 1, kb[SDL_SCANCODE_KP_DIVIDE])
+  SDL_JoystickSetVirtualButton(joy, joyR2 - 1, kb[SDL_SCANCODE_KP_MULTIPLY])
+
+  'SDL_JoystickSetVirtualAxis(joy, SDL_CONTROLLER_AXIS_TRIGGERLEFT, IIF(kb[SDL_SCANCODE_KP_DIVIDE], 32767, 0))
+  'SDL_JoystickSetVirtualAxis(joy, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, IIF(kb[SDL_SCANCODE_KP_MULTIPLY], 32767, 0))
+
+  SDL_JoystickClose joy
+
+END SUB
+
+END EXTERN
+
+#endif
 
 #endif  'USE_SDL2
