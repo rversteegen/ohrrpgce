@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <wchar.h>
 
-//uint32_t decode_utf8_char(uint32_t* state, uint32_t* codep, uint32_t byte);
 int utf8_length(const unsigned char* s);
 wchar_t *utf8_decode(const unsigned char *input, int *length);
+int utf8_decode_char(const unsigned char **input);
 int utf8_offset(const char *s, int charnum);
 int utf8_charnum(const char *s, int offset);
 int utf8_charlen(uint32_t ch);

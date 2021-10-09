@@ -1,10 +1,10 @@
-// OHRRPGCE - Minimal set of wchar_t <-> UTF8 Unicode routines
+// OHRRPGCE - Minimal set of UTF8 Unicode decoding & encoding routines
 //
 // This file is placed under the following license:
 //
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-// Copyright (c) 2012,2016-2018 Ralph Versteegen
+// Copyright (c) 2012,2016-2018,2021 Ralph Versteegen
 // UTF8 encoder based on cutef8 by Jeff Bezanson, placed in the public
 // domain Fall 2005. https://github.com/JeffBezanson/cutef8
 //
@@ -67,7 +67,7 @@ static const uint8_t utf8d[] = {
 // decoded and *codep holds the codepoint, if *state is UTF8_REJECT the
 // sequence is invalid (and *state stays that way), otherwise in the middle
 // of a character.
-static uint32_t decode_utf8_char(uint32_t* state, uint32_t* codep, uint32_t byte) {
+static uint32_t decode_utf8_byte(uint32_t* state, uint32_t* codep, uint32_t byte) {
 	uint32_t type = utf8d[byte];
 
 	*codep = (*state != UTF8_ACCEPT) ?
@@ -78,6 +78,25 @@ static uint32_t decode_utf8_char(uint32_t* state, uint32_t* codep, uint32_t byte
 	return *state;
 }
 
+// Returns next codepoint, and advances the input ptr. Stops at a NUL byte and returns 0.
+// Returns -1 on an invalid byte sequence, but advances past it.
+int utf8_decode_char(const unsigned char **input) {
+	if (!input | !*input) return 0;
+
+	uint32_t codepoint = 0;
+	uint32_t state = UTF8_ACCEPT;
+	unsigned char ch = **input;
+
+	while (ch) {
+		decode_utf8_byte(&state, &codepoint, ch);
+		ch = *++*input;
+		if (state == UTF8_ACCEPT)
+			return codepoint;
+		if (state == UTF8_REJECT)
+			return -1;
+	}
+	return 0;
+}
 
 // In codepoints. Returns negative value if invalid (actually position of bad character)
 int utf8_length(const unsigned char* s) {
@@ -88,7 +107,7 @@ int utf8_length(const unsigned char* s) {
 	int count = 0;
 
 	for (count = 0; *s; ++s) {
-		if (decode_utf8_char(&state, &codepoint, *s) == UTF8_ACCEPT)
+		if (decode_utf8_byte(&state, &codepoint, *s) == UTF8_ACCEPT)
 			count += 1;
 		if (state == UTF8_REJECT)
 			return -2 - count;
@@ -115,7 +134,7 @@ wchar_t *utf8_decode(const unsigned char *input, int *length) {
 
 	if (input) {
 		while (*input) {
-			if (decode_utf8_char(&state, &codepoint, *input++) == UTF8_ACCEPT) {
+			if (decode_utf8_byte(&state, &codepoint, *input++) == UTF8_ACCEPT) {
 				if (codepoint > WCHAR_MAX)
 					codepoint = L'?';
 
