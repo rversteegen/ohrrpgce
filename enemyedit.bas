@@ -1412,26 +1412,45 @@ END SUB
 '                               Foemap Stats Menu
 '==============================================================================
 
-TYPE FoemapStatsMenu EXTENDS ModularMenu
- foemap as TileMap ptr
+
+TYPE FormationStatsMenu EXTENDS ModularMenu
  enemies(any) as EnemyDef ptr  'Cache
+
+ 'Expected items per encounter
+ drops(gen(genMaxItem)) as double
+ steals(gen(genMaxItem)) as double
+ unlimited_steal(gen(genMaxItem)) as bool  'At least one enemy allowing unlimited stealing
+
+ 'The following is not used in inheriting classes
+ formid as integer
+
+ 'The following are used only in FoemapStatsMenu, but it's easier to put them here
  from_level as integer = 0
  to_level as integer = 1
  exp_mult_percent as integer = -1  '-1 is default, 0-100 is 0.00 to 1.00
  num_heroes as integer = 1
+
 
  DECLARE DESTRUCTOR()
  DECLARE SUB clear_cache()
  DECLARE SUB update()
  DECLARE FUNCTION each_tick() as bool
  DECLARE FUNCTION get_enemy(eid as integer) byref as EnemyDef
+ DECLARE SUB tally_enemy(enemy as EnemyDef, weight as double)
+ DECLARE SUB add_menu_items()
 END TYPE
 
-DESTRUCTOR FoemapStatsMenu()
+TYPE FoemapStatsMenu EXTENDS FormationStatsMenu
+ foemap as TileMap ptr
+
+ DECLARE SUB update()
+END TYPE
+
+DESTRUCTOR FormationStatsMenu()
  clear_cache
 END DESTRUCTOR
 
-SUB FoemapStatsMenu.clear_cache()
+SUB FormationStatsMenu.clear_cache()
  FOR i as integer = 0 TO UBOUND(this.enemies)
   DELETE this.enemies(i)
  NEXT
@@ -1439,7 +1458,7 @@ SUB FoemapStatsMenu.clear_cache()
 END SUB
 
 'Load an EnemyDef with caching
-FUNCTION FoemapStatsMenu.get_enemy(eid as integer) byref as EnemyDef
+FUNCTION FormationStatsMenu.get_enemy(eid as integer) byref as EnemyDef
  REDIM PRESERVE this.enemies(gen(genMaxEnemy))
  DIM byref eptr as EnemyDef ptr = this.enemies(eid)
  IF eptr = NULL THEN
@@ -1448,6 +1467,31 @@ FUNCTION FoemapStatsMenu.get_enemy(eid as integer) byref as EnemyDef
  END IF
  RETURN *eptr
 END FUNCTION
+
+'Add an enemy to the tally
+SUB FormationStatsMenu.tally_enemy(enemy as EnemyDef, weight as double)
+ WITH enemy.reward
+  drops(.item) += weight * .item_rate / 100
+  IF .item_rate < 100 THEN
+   drops(.rare_item) += weight * (1. - .item_rate / 100) * .rare_item_rate / 100
+  END IF
+ END WITH
+
+ WITH enemy.steal
+  IF .thievability >= 0 THEN  'Not disabled
+  IF .item_rate > 0 THEN
+   unlimited_steal(.item) OR= (.thievability = 1)
+  END IF
+  steals(.item) += weight * .item_rate / 100
+  IF .item_rate < 100 THEN
+   IF .rare_item_rate > 0 THEN
+    unlimited_steal(.rare_item) OR= (.thievability = 1)
+   END IF
+   steals(.rare_item) += weight * (1. - .item_rate / 100) * .rare_item_rate / 100
+  END IF
+ END IF
+END WITH
+END SUB
 
 SUB FoemapStatsMenu.update()
  ' First count occurrences of each form set in the foemap
@@ -1512,6 +1556,13 @@ SUB FoemapStatsMenu.update()
  NEXT
  IF have_any = NO THEN add_item -1, 0, "(None)"
  have_any = NO
+
+/'
+ FormationSetStatsMenu.update()
+END SUB
+
+SUB FormationSetStatsMenu.update()
+'/
 
  header " Formations"
  add_item , , " ID |   XP   |  Gold  |   Enemies", NO, NO
@@ -1586,14 +1637,6 @@ SUB FoemapStatsMenu.update()
   END IF
  NEXT
 
- 'Expected items per encounter
- DIM drops(gen(genMaxItem)) as double
- DIM steals(gen(genMaxItem)) as double
- DIM unlimited_steal(gen(genMaxItem)) as bool  'At least one enemy allowing unlimited stealing
- 'Total rewards for formations
- DIM xp(gen(genMaxFormation)) as integer
- DIM gold(gen(genMaxFormation)) as integer
-
  header " Enemies"
  add_item , , "               |  Steps /  |  % of   | Avg num  |    In", NO, NO
  add_item , , "               | encounter | battles | / battle | formations", NO, NO
@@ -1610,27 +1653,7 @@ SUB FoemapStatsMenu.update()
                               @shortname[0], enctr_steps, enctr_percent, enemy_weights(eid), _
                               @enemy_formations(eid)[0])
 
-   WITH enemy.reward
-    drops(.item) += enemy_weights(eid) * .item_rate / 100
-    IF .item_rate < 100 THEN
-     drops(.rare_item) += enemy_weights(eid) * (1. - .item_rate / 100) * .rare_item_rate / 100
-    END IF
-   END WITH
-
-   WITH enemy.steal
-    IF .thievability >= 0 THEN  'Not disabled
-     IF .item_rate > 0 THEN
-      unlimited_steal(.item) OR= (.thievability = 1)
-     END IF
-     steals(.item) += enemy_weights(eid) * .item_rate / 100
-     IF .item_rate < 100 THEN
-      IF .rare_item_rate > 0 THEN
-       unlimited_steal(.rare_item) OR= (.thievability = 1)
-      END IF
-      steals(.rare_item) += enemy_weights(eid) * (1. - .item_rate / 100) * .rare_item_rate / 100
-     END IF
-    END IF
-   END WITH
+   tally_enemy enemy, enemy_weights(eid)
   END IF
  NEXT
  IF have_any = NO THEN add_item -1, 0, "(None)"
@@ -1691,15 +1714,49 @@ SUB FoemapStatsMenu.update()
   END IF
  END IF
 
- have_any = NO
+ 'Add items and steals
+ add_menu_items()   'FormationStatsMenu.add_menu_items()
+END SUB
+
+SUB FormationStatsMenu.update()
+ add_item -2, , "Previous Menu"
+
+ DIM form as Formation
+ LoadFormation form, this.formid
+
+ DIM exper as integer
+ DIM gold as integer
+
+ FOR slot as integer = 0 TO UBOUND(form.slots)
+  WITH form.slots(slot)
+   IF .id >= 0 THEN
+    DIM byref enemy as EnemyDef = get_enemy(.id)
+    exper += enemy.reward.exper
+    gold += enemy.reward.gold
+
+    tally_enemy enemy, 1.0
+   END IF
+  END WITH
+ NEXT
+
+ add_spacer
+ add_item , , "Experience: " & exper & "  Gold: " & gold
+ add_item , , "(Excluding spawns & transmogrification)"
+ add_spacer
+
+ add_menu_items
+END SUB
+
+SUB FormationStatsMenu.add_menu_items()
+ DIM have_any as bool = NO
 
  header " Items (drops)"
  add_item , , "             |  Avg num per battle", NO, NO
  FOR iid as integer = 0 TO gen(genMaxItem)
-  IF drops(iid) > 0. THEN
+  IF this.drops(iid) > 0. THEN
    have_any = YES
    DIM itname as string = readitemname(iid)
-   add_item 3, iid, strprintf("%3d %-8s | %5.3f", iid, @itname[0], drops(iid))
+   add_item 3, iid, strprintf("%3d %-8s | %5.3f", iid, @itname[0], this.drops(iid))
   END IF
  NEXT
  IF have_any = NO THEN add_item -1, 0, "(None)"
@@ -1709,22 +1766,20 @@ SUB FoemapStatsMenu.update()
  add_item , , "             |  Avg num per battle", NO, NO
  DIM have_unlimited_steal as bool
  FOR iid as integer = 0 TO gen(genMaxItem)
-  IF steals(iid) > 0. THEN
+  IF this.steals(iid) > 0. THEN
    have_any = YES
    DIM itname as string = readitemname(iid)
-   add_item 3, iid, strprintf("%3d %-8s | %5.3f %c", iid, @itname[0], steals(iid), _
-                              IIF(unlimited_steal(iid), ASC("+"), ASC(" ")))
-   have_unlimited_steal OR= unlimited_steal(iid)
+   add_item 3, iid, strprintf("%3d %-8s | %5.3f %c", iid, @itname[0], this.steals(iid), _
+                              IIF(this.unlimited_steal(iid), ASC("+"), ASC(" ")))
+   have_unlimited_steal OR= this.unlimited_steal(iid)
   END IF
  NEXT
  IF have_unlimited_steal THEN add_item -1, 0, "(+: unlimited stealing possible)"
  IF have_any = NO THEN add_item -1, 0, "(None)"
  have_any = NO
-
- this.state.last = UBOUND(this.menu)
 END SUB
 
-FUNCTION FoemapStatsMenu.each_tick() as bool
+FUNCTION FormationStatsMenu.each_tick() as bool
  DIM changed as bool
 
  DIM itemtype as integer = this.itemtypes(this.state.pt)
@@ -1765,6 +1820,15 @@ FUNCTION FoemapStatsMenu.each_tick() as bool
 
  this.state.need_update = changed
 END FUNCTION
+
+SUB formation_stats_menu(formid as integer, title as string)
+ DIM menu as FormationStatsMenu
+ menu.formid = formid
+ menu.title = title
+ menu.helpkey = "formation_stats"
+ menu.run()
+ menu.clear_cache()
+END SUB
 
 SUB foemap_stats_menu(foemap as TileMap, title as string)
  DIM menu as FoemapStatsMenu
