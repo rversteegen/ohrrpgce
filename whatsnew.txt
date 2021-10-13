@@ -18,6 +18,8 @@ WHAT IS NEW?
     * Removed the 1MB limit on size of sound effects, because you likely don't
       care about a pause when loading them
     * Can press shift+F# instead of ctrl+F# in the map editor to show/hide layers
+    * An additional attack cost option for an attack to cost some
+      amount of any stat [Ralph]
 
    * New Plotscripting Features
     * "dir X", "dir Y" [Ralph]

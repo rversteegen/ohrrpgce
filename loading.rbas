@@ -3044,6 +3044,8 @@ SUB loadattackdata (byref atkdat as AttackData, byval index as integer)
  atkdat.id = index
 END SUB
 
+'We only have a sub to convert from an array to AttackData, not vice versa,
+'as Custom stores attack data in an array while editing.
 SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
  WITH atkdat
   .name = readbadbinstring(buf(), 24, 10, 1)
@@ -3060,6 +3062,8 @@ SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
   .mp_cost = buf(8)
   .hp_cost = buf(9)
   .money_cost = buf(10)
+  .stat_cost = buf(348)
+  .stat_cost_amount = buf(349)
   .extra_damage = buf(11)
   .attacker_anim = buf(14)
   .attack_anim = buf(15)

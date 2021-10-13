@@ -15,6 +15,8 @@ Finally, if an attack is in a FF1-style level-MP spell list, it will also cost l
 
 HP Cost: This is how much self-damage the attacker does when using the attack. A positive number does damage, a negative number cures.
 
+Cost to stat: In addition to the older HP and MP cost settings, you can set a cost to any other stat. Positive values decrease a stat, negative increase. You can also set this to HP or MP, making it add to the above HP and MP costs. The MP~ stat does NOT affect a cost to MP, however! You can also "cost" the attacker's poison, regen, stun or mute registers. When set to a register, positive values make you more poisoned, stunned, etc. Negative values make you less poisoned, etc, (but can't cure above maximum) and mean the attack can only be used if you are poisoned, regened, etc. (It doesn't make sense to cost negative stun register!)
+
 Gold Cost: If the attack is used by the hero, this is the amount of money the party will lose. A positive number loses money, and a negative number gains money. This has no effect when used by an enemy.
 
 Item 1,2,3: Here you can specify up to 3 items that are required for this attack to be used. You can think of these items as "Ammunition" for the attack.

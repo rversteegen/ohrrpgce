@@ -234,6 +234,18 @@ SUB subtract_attack_costs(attack as AttackData, attackerslot as integer, byref b
    triggerfade attackerslot, bslot()
  END IF
 
+ '--other stats
+ IF attack.stat_cost_amount <> 0 THEN
+  WITH bslot(bat.acting).stat.cur
+   IF attack.stat_cost > statLast THEN
+    'Registers  (FIXME)
+    .sta(attack.stat_cost) = large(.sta(attack.stat_cost) - attack.stat_cost_amount, 0)
+   ELSE
+    .sta(attack.stat_cost) = large(.sta(attack.stat_cost) - attack.stat_cost_amount, 0)
+   END IF
+  END WITH
+ END IF
+
  '--ditto for money
  IF attack.money_cost <> 0 THEN
    gold = large(gold - attack.money_cost, 0)

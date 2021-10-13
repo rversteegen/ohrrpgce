@@ -640,7 +640,7 @@ SUB battle_attack_do_inflict(byval targ as integer, byval tcount as integer, byr
   checkTagCond attack.tagset(1), atktagOnMiss
  END IF
  triggerfade targ, bslot()
- IF bslot(targ).stat.cur.hp > 0 THEN
+ IF bslot(targ).stat.cur.hp > 0 THEN  'FIXME
   '---REVIVE---
   bslot(targ).vis = YES
   bslot(targ).dissolve = 0
@@ -2645,7 +2645,7 @@ SUB enemy_ai (byref bat as BattleState, bslot() as BattleSprite, formdata as For
    ELSE
     'this attack is unusable
     atk_id = 0
-    IF bslot(bat.enemy_turn).stat.cur.mp - atk.mp_cost < 0 THEN
+    IF bslot(bat.enemy_turn).stat.cur.mp - atk.mp_cost < 0 THEN   'FIXME
      'inadequate MP was the reason for the failure
      'MP-idiot loses its turn
      IF bslot(bat.enemy_turn).mp_idiot = YES THEN

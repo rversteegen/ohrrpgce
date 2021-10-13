@@ -143,8 +143,10 @@ CONST AtkFailSoundEffect = 154
 CONST AtkStealFailSoundEffect = 155
 CONST AtkAlignToTarget = 156
 CONST AtkSoundsAct = 157
+CONST AtkStatCost = 158
+CONST AtkStatCostAmount = 159
 
-'Next menu item is 158 (remember to update MnuItems)
+'Next menu item is 160 (remember to update MnuItems)
 
 
 '--Offsets in the attack data record (combined DT6 + ATTACK.BIN)
@@ -226,6 +228,8 @@ CONST AtkDatXOffset = 344
 CONST AtkDatYOffset = 345
 CONST AtkDatHorizAlign = 346
 CONST AtkDatVertAlign = 347
+CONST AtkDatStatCost = 348
+CONST AtkDatStatCostAmount = 349
 
 'anything past this requires expanding the data
 
@@ -378,7 +382,7 @@ DIM recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer '--stores the combined
 STATIC copy_recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer
 STATIC have_copy as bool
 
-CONST MnuItems = 157
+CONST MnuItems = 159
 DIM menu(MnuItems) as string
 DIM menutype(MnuItems) as integer
 DIM menuoff(MnuItems) as integer
@@ -554,6 +558,7 @@ CONST AtkLimHitX = 17
 max(AtkLimHitX) = 20
 min(AtkLimHitX) = 1
 
+'This is redundant to menutype 16, stat names
 CONST AtkLimTargStat = 18
 max(AtkLimTargStat) = 15
 menucapoff(AtkTargStat) = capindex
@@ -829,6 +834,16 @@ menu(AtkMoneyCost) = money_name() & " Cost:"
 menutype(AtkMoneyCost) = 0
 menuoff(AtkMoneyCost) = AtkDatMoneyCost
 menulimits(AtkMoneyCost) = AtkLimInt
+
+menu(AtkStatCost) = "Cost to stat:"
+menutype(AtkStatCost) = 16  'ID of stat or register
+menuoff(AtkStatCost) = AtkDatStatCost
+menulimits(AtkStatCost) = AtkLimTargStat
+
+menu(AtkStatCostAmount) = "  Cost:"
+menutype(AtkStatCostAmount) = 0  'int
+menuoff(AtkStatCostAmount) = AtkDatStatCostAmount
+menulimits(AtkStatCostAmount) = AtkLimInt
 
 menu(AtkExtraDamage) = "Extra Damage:"
 menutype(AtkExtraDamage) = 17 'int%
@@ -1205,17 +1220,19 @@ targMenu(3) = AtkTargSetting
 targMenu(4) = AtkPreferTarg
 targMenu(5) = AtkPrefTargStat
 
-DIM costMenu(9) as integer
+DIM costMenu(11) as integer
 costMenu(0) = AtkBackAct
 costMenu(1) = AtkMPCost
 costMenu(2) = AtkHPCost
-costMenu(3) = AtkMoneyCost
-costMenu(4) = AtkItem1
-costMenu(5) = AtkItemCost1
-costMenu(6) = AtkItem2
-costMenu(7) = AtkItemCost2
-costMenu(8) = AtkItem3
-costMenu(9) = AtkItemCost3
+costMenu(3) = AtkStatCost
+costMenu(4) = AtkStatCostAmount
+costMenu(5) = AtkMoneyCost
+costMenu(6) = AtkItem1
+costMenu(7) = AtkItemCost1
+costMenu(8) = AtkItem2
+costMenu(9) = AtkItemCost2
+costMenu(10) = AtkItem3
+costMenu(11) = AtkItemCost3
 
 DIM chainMenu(24) as integer
 chainMenu(0) = AtkBackAct

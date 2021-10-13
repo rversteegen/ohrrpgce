@@ -721,6 +721,8 @@ Type AttackData
 	mp_cost as integer
 	hp_cost as integer
 	money_cost as integer
+	stat_cost as integer   'Index of the stat, or -1 for none
+	stat_cost_amount as integer   'Amount to decrement the stat
 	extra_damage as integer
 	attacker_anim as AttackerAnimation
 	attack_anim as AttackAnimation
