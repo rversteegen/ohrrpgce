@@ -6431,7 +6431,21 @@ FUNCTION get_layer_tileset(layer as integer, gmap() as integer) as integer
  END IF
  RETURN tileset
 END FUNCTION
+/'
+FUNCTION get_layer_drawoptions(layer as integer, gmap() as integer) as DrawOptions
+ DIM opts as DrawOptions
+ opts.with_blending = cbool(gmap(idx) AND 256)
+ opts.opacity = gmap(idx + 1) / 255
+ RETURN opts
+END FUNCTION
 
+SUB set_layer_drawoptions(layer as integer, gmap() as integer, opts as DrawOptions)
+ idx = 100 + layer * 2
+' IF opts.with_blending THEN
+ gmap(idx) = IIF(opts.with_blending, 256, 0) + opts.blend_mode
+ gmap(idx + 1) = opts.opacity * 255
+END SUB
+'/
 SUB loadmaptilesets (tilesets() as TilesetData ptr, gmap() as integer, resetanimations as bool = YES)
 'tilesets() may contain already loaded tilesets. In this case, we can reuse them
 '(Actually, whether they get reused, and therefore whether the animation state is preserved, depends on
