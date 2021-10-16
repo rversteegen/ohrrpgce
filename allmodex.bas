@@ -10180,6 +10180,72 @@ function frame_scaled32(src as Frame ptr, wide as integer, high as integer, mast
 	return ret
 end function
 
+'TODO: how this should work: split the image into contiguous pieces of 2-5 pixels each, using a deterministic/seeded random algo.
+'These pieces then are translated from original position, and also preferably transformed to look like they're spinning.
+'Pieces from near the center are shot out faster. They decelerate and fall over time.
+'Also need to have pieces disappear somehow.
+
+function frame_dissolved_explode(byval spr as frame ptr, byval tlength as integer, byval t as integer, byval style as integer) as frame ptr
+	dim ret as Frame ptr
+
+	ret = frame_new(spr->w * 2, spr->h * 2, , YES)
+	if ret = 0 then return 0
+
+	dim as integer offx, offy
+	offx = spr->w / 2
+	offy = spr->h / 2
+	ret->offset.x = -offx
+	ret->offset.y = -offy
+
+	dim mult as integer
+	mult = (1 + t / tlength) * 1024
+	dim as integer multx, multy
+	multx = mult
+
+
+	dim as integer srcx, srcy
+
+
+	for srcy = 0 to spr->h - 1 step 2
+		multy = mult
+		dim srcline as ubyte ptr = @spr->image[srcy * spr->pitch]
+		for srcx = 0 to spr->w - 1
+			dim as integer destx, desty
+			'Offset from centre of source
+			dim as integer cx, cy
+
+			cx = srcx - offx 'spr->w / 2)
+			cy = srcy - offy 'spr->h / 2)
+			multx = mult + (offx - abs(cx)) * 8
+			multy = mult + (offy - abs(cy)) * 8
+			destx = (ret->w shr 1) + (cx * multx) shr 10
+			desty = (ret->h shr 1) + (cy * multy) shr 10
+			
+			if destx >= 0 and destx < ret->w - 2 and desty >= 0 and desty < ret->h - 2 then
+				dim destline as ubyte ptr = @ret->image[desty * ret->pitch]
+				destline[destx]              = srcline[srcx]
+				destline[destx + 1]          = srcline[srcx + 1]
+				destline[destx + ret->pitch] = srcline[srcx + spr->pitch]
+			end if
+		next
+	next
+	return ret
+end function
+
+' 11
+' 133
+' 223
+' 233
+' 44
+' 4
+
+' AA||
+'  AA||
+' AA||
+'  &&
+'   &&
+'  &&
+
 'Public:
 ' Returns a copy of a sprite in the midst of a given fade or distort effect.
 ' This only supports a subset of effects; frame_draw_dissolved should normally be used instead.
@@ -10194,6 +10260,12 @@ function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, sty
 	if t > tlength then return frame_duplicate(spr, YES)
 	'Return copy. (Actually Melt otherwise has very slight distortion on frame 0.)
 	if t <= 0 then return frame_duplicate(spr)
+
+	' Certain animations create larger Frames
+	select case style
+		case dissolveExplode
+			return frame_dissolved_explode(spr, tlength, t, style)
+	end select
 
 	'by default, sprites use colourkey transparency instead of masks.
 	'We could easily not use a mask here, but by using one, this function can be called on 8-bit graphics
