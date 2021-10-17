@@ -53,6 +53,9 @@ WHAT IS NEW?
       [James]
     * --hsargs commandline arg to pass extra args to HSpeak when using Custom to
       import scripts from the commandline [Ralph]
+    * "Battles display at 320x200" backcompatibility bit (default on) which you
+      can turn off to make battles run at a higher resolution, but with graphical
+      glitches when things move on/off-screen. [Ralph]
 
    * New Plotscripting Features
     * "dir X", "dir Y" [Ralph]

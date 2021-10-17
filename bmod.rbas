@@ -66,6 +66,7 @@ DECLARE SUB check_battle_debug_keys (bat as BattleState, bslot() as BattleSprite
 DECLARE SUB dump_bslot(bat as BattleState, bslot() as BattleSprite, formdata as Formation)
 DECLARE SUB battle_cleanup(byref bat as BattleState, bslot() as BattleSprite, battle_result as bool)
 DECLARE SUB battle_init(byref bat as BattleState, bslot() as BattleSprite)
+DECLARE SUB battle_setup_page(byref page as integer, byref using_compatpage as bool)
 DECLARE SUB battle_background_anim(byref bat as BattleState, formdata as Formation)
 DECLARE FUNCTION battle_run_away(byref bat as BattleState, bslot() as BattleSprite) as bool
 DECLARE SUB battle_animate_running_away (bslot() as BattleSprite)
@@ -171,7 +172,9 @@ FUNCTION battle (byval form as integer) as bool
  lastformation = form
 
  battle_init bat, bslot()
- DIM page as integer = compatpage()
+ DIM page as integer
+ DIM using_compatpage as bool
+ battle_setup_page page, using_compatpage  'Passed byref
 
  'fade to near white
  fadeout uilook(uiFadeoutEnterBattle)
@@ -265,8 +268,8 @@ FUNCTION battle (byval form as integer) as bool
   '-------------------- Draw the screen --------------------
 
   'compatpage is a view onto vpage, but vpage might change, so recreate every tick
-  freepage page
-  page = compatpage()
+  'And "Battles display at 320x200" prefbit might also change!
+  battle_setup_page page, using_compatpage  'Passed byref
 
   clearpage vpage
   '--display the backdrop and BattleSprites
@@ -279,6 +282,7 @@ FUNCTION battle (byval form as integer) as bool
 
   '--display menus and meters
   battle_display bat, bslot(), st(), page
+  IF gam.debug_showtags THEN tagdisplay page
   
   IF bat.vic.state = vicEXITDELAY THEN bat.vic.state = vicEXIT
   IF bat.vic.state > vicNONE THEN show_victory bat, bslot(), page
@@ -329,7 +333,7 @@ FUNCTION battle (byval form as integer) as bool
  LOOP
 
  battle_cleanup bat, bslot(), result
- freepage page
+ IF using_compatpage THEN freepage page
  evalherotags
  evalitemtags
  IF formdata.victory_tag THEN
@@ -342,6 +346,16 @@ FUNCTION battle (byval form as integer) as bool
  setkeys  'This only seems to matter in some contexts, such as triggered from a textbox
  RETURN result
 END FUNCTION
+
+SUB battle_setup_page(byref page as integer, byref using_compatpage as bool)
+ IF using_compatpage THEN freepage page
+ using_compatpage = NOT prefbit(53) '"!Battles display at 320x200"
+ IF using_compatpage THEN
+  page = compatpage()
+ ELSE
+  page = vpage
+ END IF
+END SUB
 
 'Note: most initialisation code is actually in battle_loadall.
 SUB battle_init(byref bat as BattleState, bslot() as BattleSprite)
@@ -1157,7 +1171,6 @@ SUB battle_display (byref bat as BattleState, bslot() as BattleSprite, st() as H
    END IF
   END IF
  END IF'--end if bat.vic.state = vicNONE
- IF gam.debug_showtags THEN tagdisplay page
 END SUB
 
 SUB battle_meters (byref bat as BattleState, bslot() as BattleSprite, formdata as Formation)
@@ -2658,7 +2671,12 @@ SUB reset_battle_state (byref bat as BattleState)
 
   setup_battle_slices bat
 
-  .ticks = 0
+  DIM battleres as XYPair
+  IF prefbit(53) THEN '"Battles don't display at 320x200"
+   battleres = XY(gen(genResolutionX), gen(genResolutionY))
+  ELSE
+   battleres = XY(320, 200)
+  END IF
 
   WITH .inv_scroll
    .first = 0
@@ -2674,6 +2692,7 @@ SUB reset_battle_state (byref bat as BattleState)
 
   .anim_ready = NO
   .wait_frames = 0
+  .ticks = 0
 
   .level_mp_caption = readglobalstring(160, "Level MP", 20)
   .cancel_spell_caption = readglobalstring(51, "(CANCEL)", 10)

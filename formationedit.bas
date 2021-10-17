@@ -459,6 +459,7 @@ TYPE FormationEditor EXTENDS ModularMenu
  bgwait as integer
  bgctr as integer
  remem_pt as integer       'Remember state.pt of top menu while in positioning_mode
+ battleres as XYPair       'The resolution battles run at
 
  preview_music as bool
  last_music as integer = -1
@@ -486,6 +487,11 @@ FUNCTION individual_formation_editor (form_id as integer = -1) as integer
  END IF
 
  DIM editor as FormationEditor
+ IF prefbit(53) THEN '"Battles don't display at 320x200"
+  editor.battleres = XY(gen(genResolutionX), gen(genResolutionY))
+ ELSE
+  editor.battleres = XY(320, 200)
+ END IF
  editor.menuopts.edged = YES
  editor.preview_music = read_config_bool("formedit.preview_music", NO)
 
@@ -560,11 +566,8 @@ SUB FormationEditor.each_tick_positioning_mode()
   IF readmouse.dragging AND mouseLeft THEN
    .pos += (readmouse.pos - readmouse.lastpos)
   END IF
-  ' FIXME: battles are still stuck at 320x200 for the moment, but switch to this later
-  ' .pos.x = bound(.pos.x, -size.w\2, gen(genResolutionX) - size.w\2)
-  ' .pos.y = bound(.pos.y, -size.h\2, gen(genResolutionY) - size.h\2)
-  .pos.x = bound(.pos.x, -size.w\2, 320 - size.w\2)
-  .pos.y = bound(.pos.y, -size.h\2, 200 - size.h\2)
+  .pos.x = bound(.pos.x, -size.w\2, battleres.w - size.w\2)
+  .pos.y = bound(.pos.y, -size.h\2, battleres.h - size.h\2)
  END WITH
 END SUB
 
@@ -754,24 +757,35 @@ SUB load_formation_slices(ename() as string, form as Formation, rootslice as Sli
  DIM sl as Slice ptr
  DeleteSlice rootslice
 
- ' Root is backdrop
+ ' Root
+ sl = NewSliceOfType(slContainer)
+ *rootslice = sl
+ IF prefbit(53) THEN  '"Battles don't display at 320x200"
+  sl->Size = XY(gen(genResolutionX), gen(genResolutionY))
+ ELSE
+  sl->Size = XY(320, 200)
+ END IF
+ sl->Clip = YES  'Trim off parts of the backdrop that are too large
+ 'In the form editor, show the formation at the bottom-right corner of the screen
+ RealignSlice sl, alignRight, alignBottom, alignRight, alignBottom
+ sl->ClampHoriz = alignLeft
+ sl->ClampVert = alignTop
+
+ ' Backdrop
+
  IF form.background < 0 THEN
   'Used by FormationPreviewer when previewing a hero formation: show a backdrop
-  sl = NewSliceOfType(slRectangle)
-  sl->Size = XY(320, 200)  'TODO: update when battle resolution can be increased
+  sl = NewSliceOfType(slRectangle, *rootslice)
   ChangeRectangleSlice sl, 0, , , borderLine, transOpaque
+  sl->Fill = YES
  ELSE
-  sl = NewSliceOfType(slSprite)
+  sl = NewSliceOfType(slSprite, *rootslice)
   ChangeSpriteSlice sl, sprTypeBackdrop, form.background
  END IF
  sl->Lookup = SL_FORMEDITOR_BACKDROP
  'sl->AutoSort = slAutoSortBottomY
  sl->AutoSort = slAutoSortCustom
- RealignSlice sl, alignRight, alignBottom, alignRight, alignBottom
- sl->ClampHoriz = alignLeft
- sl->ClampVert = alignTop
-
- *rootslice = sl
+ CenterSlice sl
 
  ' Heroes
  FOR i as integer = 0 TO 3

@@ -313,6 +313,9 @@ SUB edit_backcompat_bitsets()
   bitname(50) = "!Non-turn attack delays can also cause turn delays"
  END IF
  bitname(54) = "!Disable cost checking for autotarget spells in random spell lists"
+ IF gen(genResolutionX) > 320 ORELSE gen(genResolutionY) > 200 THEN
+  bitname(55) = "!Battles display at 320x200"
+ END IF
  edit_global_bitsets bitname(), "share_general_game_backcompat_bitsets"
 END SUB
 
