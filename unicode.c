@@ -389,3 +389,161 @@ int wstring_to_latin1(const wchar_t *input, unsigned char *output, int outsize) 
 	*output = '\0';
         return ret;
 }
+
+
+//////////////////////////// SCU8 Compression scheme ///////////////////////////
+
+
+// The following is INCOMPLETE documentation of the uses of special characters 0-31
+// in the font.
+//  0: Bit 0 indicates whether a Latin-1 font
+//  1: Used as x (times) symbol in shops
+
+
+// input is ccu8 encoded, output is utf8 encoded
+// Returns 1 if the string ended in the middle of a multibyte code
+int ccu8_decode(const char *input, char **output) {
+	if (!input || !output) return 2;
+	int outlen = 0;
+	int alloc = 31;
+	*output = malloc(alloc + 1);
+
+	int codebase = 128;
+	int end = input + strlen(input);
+	int ch;
+	while ((ch = *input)) {
+		int jump = false;
+		// 22-28 are same as 15-21 but cause a codebase jump
+		if (22 <= ch && ch <= 27) {
+			jump = true;
+			ch -= 7;
+		}
+
+		if (ch == 15) {  // 8-bit fixed/absolute (icons)
+			if (input + 1 >= end) return 1;
+			ch = *++input;
+			if (ch >= 32) {
+				ch -= 32;
+				ch = ch < 128 ? 128 + ch : (0xE000 + (ch - 128));
+			}
+		} else if (ch == 16) {  // 16-bit absolute
+			if (input + 2 >= end) return 1;
+			ch = input[1] + (input[2] << 8);
+			input += 2;
+		} else if (ch == 17) {  // 24-bit absolute
+			if (input + 3 >= end) return 1;
+			ch = input[1] + (input[2] << 8) + (input[3] << 16);
+			input += 3;
+		} else if (ch >= 18 && ch <= 21) {  //10-bit relative
+			// A character in range codebase-512 to codebase+511+128, or if that
+			// includes characters below 128, range 128 to 128+1023+128
+			if (input + 1 >= end) return 1;
+			int range_start = codebase - 512;
+			if (range_start < 128)
+				range_start = 128;
+			range_start += (ch - 18) << 8;
+			// Skip over characters accessible with 7-bit relative codes
+			if (range_start >= codebase)
+				range_start += 128;
+			ch = range_start + *++input;
+		}
+		// ch 22 to 27
+			// Never happens: handled above
+		else if (ch >= 128) {  // 7-bit relative
+			ch = codebase + (ch - 128);
+		}
+
+		if (jump) {
+                        // Some scripts, such as Hiragana and Katakana, are aligned to a multiple
+                        // of 32 rather than 128
+			codebase = (ch & ~31) - 32;
+			if (newcodebase < 128)
+				newcodebase = 128;
+		}
+
+		if (ch > 0x10ffff) return 3;
+		if (outlen > alloc + 4) {
+			alloc *= 2;
+			*output = realloc(*output, alloc + 1);
+		}
+		outlen += utf8_encode_char(*output + outlen, ch);
+		input++;
+	}
+	return 0;
+}
+
+#define out(ch)  (*output)[outlen++] = ch
+
+// input is utf8, output is ccu8
+int ccu8_encode(const char *input, char **output) {
+	if (!input || !output) return 2;
+	int outlen = 0;
+	int alloc = 31;
+	*output = malloc(alloc + 1);
+
+	int codebase = 128;
+	int ch = utf8_decode_char(&input);
+	int next = utf8_decode_char(&input);  // Doesn't go past the NUL
+	while (ch) {
+		int nextcodebase = (ch & ~31) - 32;
+		if (nextcodebase < 128)
+			nextcodebase = 128;
+
+		int offset = ch - codebase;
+		if (ch < 15 || ch >= 32 && ch < 128) {
+			out(ch);
+		} else if (offset >= 0 && offset < 128) {
+			out(128 + offset);
+		} else {
+			int jump = 0;
+			// This is not the optimal choice for whether to jump
+			//if (next >= nextcodebase && next < nextcodebase + 128)
+			if (next >= 128 && abs(next - nextcodebase) < abs(next - codebase))
+				jump = 6;
+
+			// 10-bit relative
+			int range_start = codebase - 512;
+			if (range_start < 128)
+				range_start = 128;
+			if (ch >= range_start && ch < range_start + 1024 + 128) {
+				int offset = ch - range_start;
+				if (ch >= codebase)
+					offset -= 128;
+				out(18 + jump + (offset >> 8));
+				out(offset & 255);
+			// 8-bit fixed
+			} else if (ch < 32) {
+				jump = 0;
+				out(15);
+				out(ch);
+			} else if (ch >= 128 && ch < 256) {
+				out(15 + jump);
+				out(32 + (ch - 128));
+			} else if (ch >= 0xe000 && ch < 0xe060) {
+				out(15 + jump);
+				out(32 + 128 + (ch - 0xe000));
+			// 16 or 24-bit absolute
+			} else if (ch <= 0x10ffff) {
+				out((ch <= 0xffff ? 16 : 17) + jump);
+				out(ch & 0xff);
+				out((ch >> 8) & 0xff);
+				if (ch > 0xffff)  // 24-bit absolute
+					out(ch >> 16);
+			} else {
+				return 1;
+			}
+
+			if (jump)
+				codebase = nextcodebase;
+		}
+
+		if (outlen > alloc + 4) {
+			alloc *= 2;
+			*output = realloc(*output, alloc + 1);
+		}
+		ch = next;
+		next = utf8_decode_char(&input);
+	}
+	return 0;
+}
+#undef out
