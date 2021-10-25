@@ -560,6 +560,11 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice Ptr)
   'This must be after the strgrabber above so that can handle text input
   slice_editor_common_function_keys ses, edslice, state, NO  'F, R, V, F4, F6, F7, F8, F10, Ctrl+F3, Ctrl+F4
 
+  IF keyval(scI) > 1 ANDALSO ses.curslice ANDALSO ses.curslice->Template THEN
+   CloneTemplate ses.curslice
+   state.need_update = YES
+  END IF
+
   #IFDEF IS_GAME
    IF keyval(scF1) > 1 THEN show_help "sliceedit_game"
   #ELSE
