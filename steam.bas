@@ -1,6 +1,10 @@
+#include "util.bi"
 #include "common_base.bi"
 #include "steam.bi"
 #include "steam_internal.bi"
+#ifdef IS_GAME
+    #include "yetmore2.bi"  'exitprogram
+#endif
 
 dim shared steamworks_handle as any ptr = null
 
@@ -92,17 +96,26 @@ function initialize_steam() as boolean
     MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_SetAchievement)
     MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_ClearAchievement)
     MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_StoreStats)
-    
+
+    dim fail as boolean
     if SteamAPI_Init() = false then
         debug "unable to initialize steamworks"
+        fail = true
+    end if
+
+    if fail then
         uninitialize_Steam()
         return false
     end if
 
-    ' todo: is this necessary?
-    ' if SteamAPI_RestartAppIfNecessary( ourAppId ) <> false then
-    '     debug "Steam seems to want to restart the application for some reason"
-    ' end if
+    #ifdef IS_GAME
+        'Even if init fails, this seems to work
+        dim appid as integer = 480
+        if SteamAPI_RestartAppIfNecessary(appid) then
+            debuginfo "Steam requested to restart the application"
+            exitprogram NO, 0
+        end if
+    #endif
 
     SteamAPI_ManualDispatch_Init()
 
