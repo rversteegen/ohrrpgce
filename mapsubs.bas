@@ -5392,22 +5392,27 @@ END SUB
 '==========================================================================================
 
 SUB show_minimap(st as MapEditState)
+ DIM msg as string = "Press Any Key. See F1 to change style"
  DIM algorithm as MinimapAlgorithmEnum
- IF keyval(scRightShift) > 0 THEN
+ IF keyval(scUp) > 0 THEN
   algorithm = minimapMajority
- ELSEIF keyval(scContext) > 0 THEN
+  msg = "Style: Pick most common color"
+ ELSEIF keyval(scLeft) > 0 THEN
   algorithm = minimapScatter
- ELSEIF keyval(scLeftShift) > 0 THEN
+  msg = "Style: Pick random color"
+ ELSEIF keyval(scRight) > 0 THEN
   algorithm = minimapScaledQuant
- ELSEIF keyval(scUp) > 0 THEN
+  msg = "Style: Smoothly scaled down (256 color)"
+ ELSEIF keyval(scDown) > 0 THEN
   algorithm = minimapScaledDither
+  msg = "Style: Smoothly scaled down & dithered (256 color)"
  ELSE
   switch_to_32bit_vpages()
   algorithm = minimapScaled
  END IF
 
  'Because people very often take screenshots of the minimap, hide after a second
- show_overlay_message "Press Any Key", 1.
+ show_overlay_message msg, 1.
 
  DO
   DIM minimap as Frame Ptr
@@ -5419,6 +5424,7 @@ SUB show_minimap(st as MapEditState)
 
   IF waitforanykey(YES) <> scResize THEN EXIT DO   'wait_for_resize=YES
  LOOP
+ IF keyval(scF1) > 1 THEN show_help "mapedit_minimap"
 
  switch_to_8bit_vpages()
 END SUB
