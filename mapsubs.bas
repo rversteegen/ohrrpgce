@@ -5399,6 +5399,8 @@ SUB show_minimap(st as MapEditState)
   algorithm = minimapScatter
  ELSEIF keyval(scLeftShift) > 0 THEN
   algorithm = minimapScaledQuant
+ ELSEIF keyval(scUp) > 0 THEN
+  algorithm = minimapScaledDither
  ELSE
   switch_to_32bit_vpages()
   algorithm = minimapScaled

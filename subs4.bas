@@ -1275,6 +1275,7 @@ SUB GeneralSettingsMenu.update()
   CASE minimapScatter :  tmp &= "Pick random color"
   CASE minimapMajority : tmp &= "Pick most common color"
   CASE minimapScaledQuant : tmp &= "Smoothly scaled down (256 color)"
+  CASE minimapScaledDither : tmp &= "Smoothly scaled down & dithered (256 color)"
  END SELECT
  add_item , , tmp
  gen_int genMinimapAlgorithm, 0, minimapLAST

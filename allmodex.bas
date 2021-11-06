@@ -8241,6 +8241,8 @@ function quantize_surface(byref surf as Surface ptr, pal() as RGBcolor, options 
 		'This is not the same as options.dither_maxerror = 0, because it
 		'uses nearcolor, which is slower but maybe slightly better results,
 		'compared to the less "perceptual" comparison done in lib/gif.h.
+		'...unless options.to_master is true, in which case this should be
+		'the same as options.dither_maxerror = 0.
 		quantize_surface_threshold(surf, ret, pal(), options, YES)
 	end if
 

@@ -125,7 +125,8 @@ ENUM MinimapAlgorithmEnum
  minimapScatter  'Original, noisy minimap algorithm - randomly pick a color
  minimapMajority 'Approximately selects the most common color for each pixel
  minimapScaledQuant 'minimapScaled but quantised to an 8 bit Frame.
- minimapLAST = 3
+ minimapScaledDither 'minimapScaled but quantised with dithering to an 8 bit Frame.
+ minimapLAST = minimapScaledDither - 1
 END ENUM
 
 DECLARE_VECTOR_OF_TYPE(TileMap ptr, TileMap_ptr)

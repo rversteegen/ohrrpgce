@@ -1941,20 +1941,25 @@ LOCAL FUNCTION minimap_pixel_scatter(x as integer, y as integer, fraction as sin
 END FUNCTION
 
 'quant: whether to return 8-bit Frame insteaad of 32-bit one.
-LOCAL FUNCTION minimap_tile_scaled(composed_tile as Frame ptr, zoom as integer, quant as bool) as Frame ptr
+LOCAL FUNCTION minimap_tile_scaled(composed_tile as Frame ptr, zoom as integer, algorithm as MinimapAlgorithmEnum) as Frame ptr
  DIM as Surface ptr composed_surf, scaled
  composed_surf = frame_to_surface32(composed_tile, master())
  scaled = surface_scale(composed_surf, zoom, zoom)
  gfx_surfaceDestroy(@composed_surf)
 
  DIM scaledfr as Frame ptr
- IF quant THEN
-  DIM opts as QuantizeOptions
-  opts.to_master = YES  'Use nearcolor_fast
-  scaledfr = quantize_surface(scaled, master(), opts)  'Frees scaled
- ELSE
+ IF algorithm = minimapScaled THEN
   scaledfr = frame_with_surface(scaled)
   gfx_surfaceDestroy(@scaled)
+ ELSE  'minimapScaledQuant or minimapScaledDither
+  DIM opts as QuantizeOptions
+  opts.to_master = YES  'Use nearcolor_fast (currently no effect when dithering)
+  IF algorithm = minimapScaledDither THEN
+   opts.dither = YES
+   'Use a low dither amount to reduce bleed (which could create misleading minimap artifacts!)
+   opts.dither_maxerror = 24
+  END IF
+  scaledfr = quantize_surface(scaled, master(), opts)  'Frees scaled
  END IF
  RETURN scaledfr
 END FUNCTION
@@ -2018,8 +2023,8 @@ FUNCTION MinimapGenerator.run(runtime as double) as Frame ptr
 
    draw_layers_at_tile(composed_tile, tiles, tilesets, tx, ty, pmapptr)
 
-   IF algorithm = minimapScaled ORELSE algorithm = minimapScaledQuant THEN
-    DIM tile as Frame ptr = minimap_tile_scaled(composed_tile, zoom, (algorithm = minimapScaledQuant))
+   IF algorithm = minimapScaled ORELSE algorithm >= minimapScaledQuant THEN 'inc. minimapScaledDither
+    DIM tile as Frame ptr = minimap_tile_scaled(composed_tile, zoom, algorithm)
     frame_draw tile, master(), NULL, tx * zoom, ty * zoom, NO, minimap   'master() not used
     frame_unload @tile
    ELSE
