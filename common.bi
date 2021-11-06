@@ -126,7 +126,7 @@ ENUM MinimapAlgorithmEnum
  minimapMajority 'Approximately selects the most common color for each pixel
  minimapScaledQuant 'minimapScaled but quantised to an 8 bit Frame.
  minimapScaledDither 'minimapScaled but quantised with dithering to an 8 bit Frame.
- minimapLAST = minimapScaledDither - 1
+ minimapLAST = minimapScaledDither
 END ENUM
 
 DECLARE_VECTOR_OF_TYPE(TileMap ptr, TileMap_ptr)
