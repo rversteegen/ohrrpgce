@@ -1,4 +1,4 @@
-'OHRRPGCE - Classes for additional slice types
+'OHRRPGCE - Classes for additional slice types or subtype
 '(C) Copyright 1997-2020 James Paige, Ralph Versteegen, and Hamster Republic Productions
 'Please read LICENSE.txt for GPL License details and disclaimer of liability
 
@@ -269,3 +269,12 @@ sub GraphSlice.mouse_over()
  showx = x(besti)
  showy = y(besti)
 end sub
+
+
+'==============================================================================
+'                                   Minimap slices
+'==============================================================================
+
+function create_minimap_slice(retvals(0), retvals(1), retvals(2), algorithm) as Slice ptr
+
+end function

@@ -5068,6 +5068,13 @@ SUB script_functions(byval cmdid as integer)
   scriptret = get_global_sfx_volume * 255
  CASE 726 '--set global sound volume (volume)
   set_global_sfx_volume bound(retvals(0), 0, 255) / 255
+ CASE 727 '--create minimap (width, height, zoom, style)
+  DIM algorithm as MinimapAlgorithmEnum = retvals(3)
+  IF algorithm = -1 THEN algorithm = gen(genMinimapAlgorithm)
+  IF bound_arg(algorithm, 0, minimapLAST, "minimap:... constant", , serrBadOp) THEN
+   sl = create_minimap_slice(retvals(0), retvals(1), retvals(2), algorithm)
+   scriptret = find_plotslice_handle(sl)
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands

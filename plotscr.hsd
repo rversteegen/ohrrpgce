@@ -753,6 +753,7 @@ define function, begin
 724,layeridunderwalkabouts,0  # Get ID number of map layer under the walkabouts in the current map
 725,getglobalsoundvolume,0    # Get the sfx volume setting (0-255)
 726,setglobalsoundvolume,1,192 # Get sfx volume (0-255); default to 75% (default initial sfx volume)
+727,createminimap,4,0,0,0,-1  # Create a sprite slice containing a minimap (width, height, zoom, style)
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
@@ -2327,6 +2328,11 @@ define constant, begin
  -54, ui:MPBarFlash              # MP bar flash colour (when higher than max)
 0,pool:local
 1,pool:global
+0,minimap:Smooth
+1,minimap:Scatter
+2,minimap:MostCommon
+3,minimap:Smooth8bit
+4,minimap:Smooth8bitDithered
 end
 
 #<SLICE LOOKUP CODES>
