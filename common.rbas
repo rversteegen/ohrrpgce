@@ -1969,13 +1969,17 @@ FUNCTION minimap_zoom_amount(mapsize as XYPair, margin as XYPair = XY(0,0)) as i
  RETURN bound(small(fraction.w, fraction.h), 1, 20)
 END FUNCTION
 
-CONSTRUCTOR MinimapGenerator (tiles_arr() as TileMap, tilesets_arr() as TilesetData ptr, pmapptr_in as TileMap ptr = NULL, zoom_in as integer = -1, algorithm_in as MinimapAlgorithmEnum = minimapScaled)
+CONSTRUCTOR MinimapGenerator (tiles_arr() as TileMap, tilesets_arr() as TilesetData ptr, pmapptr_in as TileMap ptr = NULL, zoom_in as integer = -1, algorithm_in as MinimapAlgorithmEnum = minimapScaled, keep_32bit as bool = NO)
  'zoom = 1 is unzoomed, zoom = 20 is 1 pixel per tile.
  'If zoom is -1, calculate and store it
 
  pmapptr = pmapptr_in
  algorithm = algorithm_in
- IF vpages_are_32bit = NO ANDALSO algorithm = minimapScaled THEN algorithm = minimapScaledQuant
+ IF keep_32bit THEN
+  IF algorithm >= minimapScaledQuant THEN algorithm = minimapScaled
+ ELSE
+  IF vpages_are_32bit = NO ANDALSO algorithm = minimapScaled THEN algorithm = minimapScaledQuant
+ END IF
 
  'Currently, tilesets arrays are always dimmed to maplayerMax
  BUG_IF(UBOUND(tilesets_arr) < UBOUND(tiles_arr), "tilesets array short")
@@ -2051,6 +2055,31 @@ FUNCTION MinimapGenerator.run(runtime as double) as Frame ptr
  '? "createminimap (algorithm " & algorithm & ") in " & drawtime & " -- " & (1e6 * drawtime / minimap->w / minimap->h)  & "us/pix"
 
  RETURN minimap
+END FUNCTION
+
+FUNCTION MinimapGenerator.get_scaled_down(new_size as XYPair) as Frame ptr
+ 'First scale it
+ DIM scaled as Frame ptr = frame_scaled32(minimap, new_size.w, new_size.h, master())
+
+ 'Then quantize
+ final_algorithm = algorithm
+ IF vpages_are_32bit = NO ANDALSO algorithm = minimapScaled THEN algorithm = minimapScaledQuant
+
+
+ ELSE  'minimapScaledQuant or minimapScaledDither
+  DIM opts as QuantizeOptions
+  opts.to_master = YES  'Use nearcolor_fast (currently no effect when dithering)
+  IF algorithm = minimapScaledDither THEN
+   opts.dither = YES
+   'Use a low dither amount to reduce bleed (which could create misleading minimap artifacts!)
+   opts.dither_maxerror = 24
+  END IF
+  scaledfr = quantize_surface(scaled, master(), opts)  'Frees scaled
+
+
+ RETURN scaled
+
+
 END FUNCTION
 
 FUNCTION MinimapGenerator.finished() as bool
