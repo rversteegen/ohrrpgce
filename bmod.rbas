@@ -4023,7 +4023,7 @@ SUB setup_targetting (byref bat as BattleState, bslot() as BattleSprite)
 END SUB
 
 FUNCTION valid_statnum(byval statnum as integer, context as string) as bool
- RETURN bound_arg(statnum, 0, 15, "stat number", context, serrError)
+ RETURN bound_arg(statnum, 0, 15, "stat number", context, serrBadData)
 END FUNCTION
 
 FUNCTION check_attack_chain(byref ch as AttackDataChain, byref bat as BattleState, bslot() as BattleSprite) as bool

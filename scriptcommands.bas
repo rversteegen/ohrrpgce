@@ -5084,7 +5084,7 @@ SUB script_functions(byval cmdid as integer)
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
   scripterr "Unsupported script command " & cmdid & " " & commandname(cmdid) & ". " _
-            "Try downloading the latest version of the OHRRPGCE.", serrError
+            "Try downloading the latest version of the OHRRPGCE.", serrBadData
 
  END SELECT
 END SUB

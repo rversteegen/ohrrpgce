@@ -510,7 +510,7 @@ WITH scriptinsts(index)
  '-- Load the script (or return the reference if already loaded)
  .scr = loadscript(n)
  IF .scr = NULL THEN
-  scripterr "Failed to load " + *scripttype + " script " & n & " " & scriptname(n), serrError
+  scripterr "Failed to load " + *scripttype + " script " & n & " " & scriptname(n), serrBadData
   RETURN rsFail
  END IF
  IF scriptprofiling THEN .scr->numcalls += 1
@@ -533,7 +533,7 @@ WITH scriptinsts(index)
 
  DIM errstr as zstring ptr = oldscriptstate_init(index, .scr)
  IF errstr <> NULL THEN
-  scripterr "Failed to load " + *scripttype + " script " & n & " " & scriptname(n) & ", " & *errstr, serrError
+  scripterr "Failed to load " + *scripttype + " script " & n & " " & scriptname(n) & ", " & *errstr, serrBadData
   RETURN rsFail
  END IF
 
@@ -578,7 +578,7 @@ LOCAL FUNCTION loadscript_open_script (n as integer, expect_exists as bool = YES
    scriptfile = workingdir & SLASH & n & ".hsx"
    IF NOT isfile(scriptfile) THEN
     IF expect_exists THEN
-     scripterr "script " & n & " " & scriptname(n) & " does not exist. (Maybe it was renamed, and the script trigger needs to be updated?)", serrError
+     scripterr "script " & n & " " & scriptname(n) & " does not exist. (Maybe it was renamed, and the script trigger needs to be updated?)", serrBadData
     END IF
     RETURN 0
    END IF
@@ -639,7 +639,7 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   .hash = 0
   'minimum length of a valid 16-bit .hsx
   IF LOF(fh) < 10 THEN
-   scripterr "script " & id & " corrupt (too short: " & LOF(fh) & " bytes)", serrError
+   scripterr "script " & id & " corrupt (too short: " & LOF(fh) & " bytes)", serrBadData
    DELETE ret
    RETURN NULL
   END IF
@@ -649,7 +649,7 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   .headerlen = skip
 
   IF skip < 4 THEN
-   scripterr "script " & id & " is corrupt (header length " & skip & ")", serrError
+   scripterr "script " & id & " is corrupt (header length " & skip & ")", serrBadData
    DELETE ret
    RETURN NULL
   END IF
@@ -677,7 +677,7 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
    .scrformat = 0
   END IF
   IF .scrformat > CURRENT_HSZ_VERSION THEN
-   scripterr "script " & id & " is in an unsupported format. Try using an up-to-date OHRRPGCE version.", serrError
+   scripterr "script " & id & " is in an unsupported format. Try using an up-to-date OHRRPGCE version.", serrBadData
    DELETE ret
    RETURN NULL
   END IF
@@ -704,7 +704,7 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
    GET #fh, 15, shortvar
    .nestdepth = shortvar
    IF .nestdepth > maxScriptNesting THEN
-    scripterr "Corrupt or unsupported script data with nestdepth=" & .nestdepth & "; should be impossible", serrError
+    scripterr "Corrupt or unsupported script data with nestdepth=" & .nestdepth & "; should be impossible", serrBadData
    END IF
   ELSE
    .nestdepth = 0
@@ -719,7 +719,7 @@ LOCAL FUNCTION loadscript_read_header(fh as integer, id as integer) as ScriptDat
   .size = (LOF(fh) - skip) \ wordsize
 
   IF .strtable < 0 OR .strtable > .size THEN
-   scripterr "Script " & id & " corrupt; bad string table offset", serrError
+   scripterr "Script " & id & " corrupt; bad string table offset", serrBadData
    DELETE ret
    RETURN NULL
   END IF
@@ -739,7 +739,7 @@ LOCAL FUNCTION loadscript_read_data(header as ScriptData ptr, fh as integer) as 
   IF .scrformat >= 1 THEN wordsize = 4 ELSE wordsize = 2
   .ptr = allocate(.size * sizeof(integer))
   IF .ptr = 0 THEN
-   scripterr "Could not allocate memory to load script", serrError
+   scripterr "Could not allocate memory to load script", serrBadData
    RETURN NO
   END IF
 
@@ -754,7 +754,7 @@ LOCAL FUNCTION loadscript_read_data(header as ScriptData ptr, fh as integer) as 
 
   'Sanity check: root node is a do()
   IF .size < 3 ORELSE (.ptr[0] <> 2 OR .ptr[1] <> 0 OR .ptr[2] < 0) THEN
-   scripterr "Script " & .id & " corrupt; does not start with do()", serrError
+   scripterr "Script " & .id & " corrupt; does not start with do()", serrBadData
    RETURN NO
   END IF
  END WITH
@@ -1293,7 +1293,7 @@ FUNCTION script_string_constant(scriptinsts_slot as integer, offset as integer) 
  WITH *scriptinsts(scriptinsts_slot).scr
   DIM stringp as integer ptr = .ptr + .strtable + offset
   IF .strtable + offset >= .size ORELSE .strtable + (stringp[0] + 3) \ 4 >= .size THEN
-   scripterr "script data corrupt: illegal string offset", serrError
+   scripterr "script data corrupt: illegal string offset", serrBadData
   ELSE
    RETURN read32bitstring(stringp)
   END IF
@@ -1433,7 +1433,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
 
  recursivecall += 1
 
- IF errorlevel = serrError THEN e = "Script data may be corrupt or unsupported:" + CHR(10) + e
+ IF errorlevel = serrBadData THEN e = "Script data may be corrupt or unsupported:" + CHR(10) + e
 
  e = e + CHR(10) + CHR(10) + "  Call chain (current script last):" + CHR(10) + script_call_chain()
  split(wordwrap(e, large(80, vpages(vpage)->w - 16) \ 8), errtext())
@@ -1447,7 +1447,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
 
  append_menu_item menu, "Ignore once", 0
  append_menu_item menu, "Ignore permanently", 3
- IF errorlevel < serrError THEN
+ IF errorlevel < serrBadData THEN
   append_menu_item menu, "Hide all " & *scripterr_names(errorlevel) & " messages", 8
  END IF
  append_menu_item menu, "Hide all script errors", 1
@@ -1492,7 +1492,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
     CASE 0 'ignore
      EXIT DO
     CASE 1 'hide all errors (but not engine bugs)
-     err_suppress_lvl = serrError
+     err_suppress_lvl = serrBadData
      EXIT DO
     CASE 2
      killscriptthread

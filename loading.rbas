@@ -3479,8 +3479,8 @@ END SUB
 
 ' Append a new animation, from a "anim" node
 SUB load_animation_node(animnode as Node ptr, sprset as SpriteSet ptr)
-  IF animnode."name".exists = NO THEN reporterr "Bad animation data: name missing", serrError : EXIT SUB
-  IF animnode."ops".exists = NO THEN reporterr "Unsupported animation data: 'ops' missing", serrError : EXIT SUB
+  IF animnode."name".exists = NO THEN reporterr "Bad animation data: name missing", serrBadData : EXIT SUB
+  IF animnode."ops".exists = NO THEN reporterr "Unsupported animation data: 'ops' missing", serrBadData : EXIT SUB
 
   DIM anim as Animation ptr
   anim = sprset->new_animation(animnode."name".string, animnode."variant".string.default(""))
@@ -3496,7 +3496,7 @@ SUB load_animation_node(animnode as Node ptr, sprset as SpriteSet ptr)
       END IF
     NEXT
     IF optype = -1 THEN
-      reporterr "Unsupport animation data: unknown anim op " & NodeName(op), serrError
+      reporterr "Unsupport animation data: unknown anim op " & NodeName(op), serrBadData
       EXIT SUB
     END IF
 
@@ -3635,14 +3635,14 @@ END SUB
 'Opens a rgfx document and checks it's in order
 FUNCTION rgfx_open(filename as string, expect_exists as bool = NO, options as Reload.LoadOptions = optNone) as DocPtr
   IF real_isfile(filename) = NO THEN
-    IF expect_exists THEN reporterr filename & " not found", serrError
+    IF expect_exists THEN reporterr filename & " not found", serrBadData
     RETURN NULL
   END IF
 
   DIM doc as DocPtr
   doc = LoadDocument(filename, options)
   IF doc = NULL THEN
-    reporterr "Couldn't open graphics file " & filename, serrError
+    reporterr "Couldn't open graphics file " & filename, serrBadData
     RETURN NULL
   END IF
 
@@ -3662,7 +3662,7 @@ FUNCTION rgfx_open(filename as string, expect_exists as bool = NO, options as Re
       END IF
     END IF
   END IF
-  reporterr "Unsupported graphics file " & trimpath(filename) & " - " & errmsg, serrError
+  reporterr "Unsupported graphics file " & trimpath(filename) & " - " & errmsg, serrBadData
   FreeDocument doc
   RETURN NULL
 END FUNCTION
@@ -3761,7 +3761,7 @@ FUNCTION rgfx_load_spriteset(rgfxdoc as DocPtr, sprtype as SpriteType, setnum as
   ' Frames (only part that isn't optional)
   frameset_node = GetChildByName(ss_node, "frameset")
   IF frameset_node = NULL THEN
-    reporterr "Can't load sprite " & setnum & ": missing frameset data", serrError
+    reporterr "Can't load sprite " & setnum & ": missing frameset data", serrBadData
     RETURN NULL
   END IF
   DIM fr as Frame ptr

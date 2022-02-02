@@ -467,8 +467,7 @@ Enum 'scriptErrEnum
   serrBound = 4      'warning on auto-bound() argument  (used to be suppressed in old games)
   serrBadOp = 5      'bad argument/operation       (not suppressed by default)
   serrMajor = 6      'errors too big to ignore, eg interpreter can't continue or can't load script
-  serrError = 7      'corrupt script data/unimplemented feature
-                     'TODO: rename serrError to serrCorruption
+  serrBadData = 7    'corrupt script data/unimplemented feature
 End Enum
 
 Type DirNum as integer

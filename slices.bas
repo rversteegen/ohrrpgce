@@ -2211,7 +2211,7 @@ Sub LoadSpriteSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat = sl->SliceData
  dat->spritetype = LoadProp(node, "sprtype")
  if dat->spritetype < sprTypeFirst or dat->spritetype > sprTypeLastPickable then
-  reporterr "LoadSpriteSlice: Unknown type " & dat->spritetype, serrError
+  reporterr "LoadSpriteSlice: Unknown type " & dat->spritetype, serrBadData
  end if
  dat->record     = LoadProp(node, "rec")
  dat->paletted   = sprite_sizes(dat->spritetype).paletted
@@ -4561,7 +4561,7 @@ Function SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_h
  dim typestr as string = LoadPropStr(node, "type")
  dim typenum as SliceTypes = SliceTypeByName(typestr)
  if typenum = slInvalid then
-  reporterr "Could not load slice: unknown type " & typestr, serrError
+  reporterr "Could not load slice: unknown type " & typestr, serrBadData
   typenum = slContainer
   ret = NO
  end if
@@ -4569,7 +4569,7 @@ Function SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_h
  if len(classname) then
   'ClassSlice. Currently, Class slices are always of subtype slSpecial, but might not be true in future?
   if InitClassSliceByName(sl, classname) = NO then
-   reporterr "Could not load slice: unknown class " & classname, serrError
+   reporterr "Could not load slice: unknown class " & classname, serrBadData
    typenum = slContainer
    ret = NO
   end if

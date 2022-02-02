@@ -162,13 +162,9 @@ DO
     '--evaluate function, math, script, whatever
     '--scriptret would be set here, pushed at return
     SELECT CASE curcmd->kind
-     CASE tystop
-      scripterr "stnext encountered noop " & curcmd->value & " at " & .ptr & " in " & nowscript, serrError
-      killallscripts
-      EXIT DO
      CASE tymath, tyfunct
       IF curcmd->argc > maxScriptArgs THEN
-       scripterr "More command arguments than supported", serrError
+       scripterr "More command arguments than supported", serrBadData
        killallscripts
        EXIT DO
       END IF
@@ -281,7 +277,7 @@ DO
       END IF
       GOTO interpretloop 'new WITH pointer
      CASE ELSE
-      scripterr "illegal kind " & curcmd->kind & " " & curcmd->value & " in stnext", serrError
+      scripterr "illegal kind " & curcmd->kind & " " & curcmd->value & " in stnext", serrBadData
       killallscripts
       EXIT DO
     END SELECT
@@ -619,7 +615,7 @@ si.stackbase = stackposition(scrst)
 checkoverflow(scrst, curcmd->argc + 5)
 
 IF curcmd->kind <> tyflow THEN
- scripterr "Root script command not flow, but " & curcmd->kind, serrError
+ scripterr "Root script command not flow, but " & curcmd->kind, serrBadData
  si.state = sterror
 END IF
 END SUB
@@ -675,7 +671,7 @@ SELECT CASE cmdptr->kind
   IF curcmd->argc = 0 THEN EXIT SUB
   GOTO quickrepeat
  CASE ELSE
-  scripterr "Illegal statement type " & cmdptr->kind, serrError
+  scripterr "Illegal statement type " & cmdptr->kind, serrBadData
   si.state = sterror
   EXIT SUB
 END SELECT
@@ -875,7 +871,7 @@ SUB scriptmath
    END IF
   'When adding more math types remember to update mathname() in scriptstate
   CASE ELSE
-   scripterr "unsupported math function id " & curcmd->value, serrError
+   scripterr "unsupported math function id " & curcmd->value, serrBadData
  END SELECT
 END SUB
 
