@@ -369,7 +369,7 @@ DECLARE FUNCTION should_hide_hero_stat OVERLOAD (byval hero_id as integer, byval
 DECLARE FUNCTION find_on_word_boundary_excluding(haystack as string, needle as string, excludeword as string) as integer
 DECLARE FUNCTION find_on_word_boundary(haystack as string, needle as string) as integer
 
-DECLARE FUNCTION str_rect(s as string, byval x as integer, byval y as integer) as RectType
+DECLARE FUNCTION str_rect(s as string, byval xy as RelPosXY, fontnum as integer = fontPlain, page as integer = -1) as RectType
 
 DECLARE FUNCTION gamepad_virtual_keyboard OVERLOAD (default_str as string, max_length as integer=-1, byval multi_player as integer=-1) as string
 DECLARE FUNCTION gamepad_virtual_keyboard OVERLOAD (arr as ArrowSet, default_str as string, max_length as integer=-1) as string

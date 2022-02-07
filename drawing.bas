@@ -432,7 +432,7 @@ LOCAL SUB select_disabled_import_colors(pmask() as RGBcolor, image as Frame ptr)
   mouse = readmouse()
   WITH mouse
    IF .release AND mouseleft THEN
-    IF rect_collide_point(str_rect("Previous Menu", 0, 0), .pos) THEN
+    IF rect_collide_point(str_rect("Previous Menu", XY(0, 0)), .pos) THEN
      EXIT DO
     ELSE
      DIM rect as RectType
@@ -941,7 +941,7 @@ SUB tile_anim_set_range(tastuf() as integer, byval taset as integer, byval tiles
   IF keyval(ccLeft) > 1 THEN tastuf(0 + 20 * taset) = large(tastuf(0 + 20 * taset) - 1, 0)
   IF keyval(ccRight) > 1 THEN tastuf(0 + 20 * taset) = small(tastuf(0 + 20 * taset) + 1, 112)
   WITH readmouse
-   over_esc = rect_collide_point(str_rect("ESC when done", 0, 0), .pos)
+   over_esc = rect_collide_point(str_rect("ESC when done", XY(0, 0)), .pos)
    IF (.release AND mouseleft) ANDALSO over_esc THEN
     EXIT DO
    ELSEIF (.buttons AND mouseLeft) ANDALSO .pos < XY(320, 200) THEN
