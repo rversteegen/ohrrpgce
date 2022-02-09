@@ -10440,6 +10440,28 @@ write pass block(15,3,none)
 		</command>
 
 		<section title="Tile Animations">
+		<command id="animatedtile">
+			<canon>animated tile (tile number, pattern, layer)</canon>
+			<shortname>animated tile</shortname>
+			<description>
+				Calculate the tile ID of an animated tile.
+				Tiles in the tile editor have IDs 0-159, while animated tiles have IDs 160 and up.
+				You place an animated tile on the map by passing its ID to <ref>writemapblock</ref>
+				(see the example).
+				<p>tile number</p> is the tile ID as shown in the tileset editor, or it can
+				even be the ID of an animated tile: this can be used to
+				swap from one animation pattern to the other.
+				<lb/>
+				<p>pattern</p> is the animation pattern number, 0 for the first one, 1 for the second.
+				<lb/>
+				<p>layer</p> is the number of the layer, 0 and up. It tells which tileset to use.
+			</description>
+			<seealso>
+				<ref>currentdisplaytile</ref>
+			</seealso>
+		</command>
+
+
 		<command id="currentdisplaytile">
 			<canon>current display tile (tile number, layer)</canon>
 			<shortname>current display tile</shortname>

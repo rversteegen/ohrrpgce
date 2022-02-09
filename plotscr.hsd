@@ -756,6 +756,7 @@ define function, begin
 727,healparty,1,-2            # Restore active party's HP & MP ([revive dead heroes])
 728,setheroautobattle,2,0,0   # Change a hero's auto battle setting
 729,getheroautobattle,1,0     # Return true if the hero is set to auto battle
+730,animatedtile,3,0,0,0
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end

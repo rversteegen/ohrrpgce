@@ -876,20 +876,27 @@ SUB script_functions(byval cmdid as integer)
   loadmap_bitmask gam.map.id, retvals(0)
  CASE 248'--delete map state
   deletemapstate gam.map.id, retvals(0), "map"
- CASE 253'--set tile animation offset
+ CASE 253'--set tile animation offset(pattern, offset, [layer])
   retvals(2) = get_optional_arg(2, 0)
   IF (retvals(0) = 0 OR retvals(0) = 1) AND valid_map_layer(retvals(2), serrBound) THEN
    tilesets(retvals(2))->anim(retvals(0)).cycle = retvals(1) MOD 160
   END IF
- CASE 254'--get tile animation offset
+ CASE 254'--get tile animation offset(pattern, [layer])
   retvals(1) = get_optional_arg(1, 0)
   IF (retvals(0) = 0 OR retvals(0) = 1) AND valid_map_layer(retvals(1), serrBound) THEN
    scriptret = tilesets(retvals(1))->anim(retvals(0)).cycle
   END IF
- CASE 255'--animation start tile
+ CASE 255'--animation start tile(tile, [layer])
   retvals(1) = get_optional_arg(1, 0)
   IF (retvals(0) >= 0 AND retvals(0) < 256) AND valid_map_layer(retvals(1), serrBound) THEN
    scriptret = tile_anim_deanimate_tile(retvals(0), tilesets(retvals(1))->tastuf())
+  END IF
+ CASE 730'--animated tile(tile, pattern, layer)
+  IF (retvals(0) >= 0 AND retvals(0) < 256) ANDALSO valid_map_layer(retvals(2)) THEN
+   'Returns -1 if invalid
+   scriptret = tile_anim_animate_tile(retvals(0), retvals(1), tilesets(retvals(2))->tastuf())
+  ELSE
+   scriptret = -1
   END IF
  CASE 258'--check hero wall
   IF valid_hero_caterpillar_rank(retvals(0)) THEN
