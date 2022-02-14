@@ -33,6 +33,7 @@ DECLARE SUB textbox_appearance_editor (byref box as TextBox, byref st as Textbox
 DECLARE SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB textbox_position_portrait (byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr)
 DECLARE SUB textbox_seek(byref box as TextBox, byref st as TextboxEditState)
+DECLARE FUNCTION seek_textbox(start_id as integer, search as string) as integer
 DECLARE SUB textbox_create_from_box (byval template_box_id as integer=0, byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB textbox_create_from_box_and_load (byval template_box_id as integer=0, byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB textbox_link_to_new_box_and_load (byval template_box_id as integer=0, byref box as TextBox, byref st as TextboxEditState)
@@ -106,7 +107,7 @@ END FUNCTION
 'whichbox is the box to edit, -1 for default, or past last textbox to add a new
 'one. Returns -1 if cancelled add-new, or else last box edited.
 '(See also FnEditor)
-FUNCTION text_box_editor(whichbox as integer = -1) as integer
+FUNCTION text_box_editor_old(whichbox as integer = -1) as integer
  DIM box as TextBox
  DIM st as TextboxEditState
  WITH st
@@ -323,6 +324,179 @@ FUNCTION text_box_editor(whichbox as integer = -1) as integer
  RETURN st.id
 END FUNCTION
 
+TYPE TextBoxEditor EXTENDS EditorKit
+ STATIC style_clip as integer = 0
+ box as TextBox
+ st as TextboxEditState
+END TYPE
+
+FUNCTION text_box_editor(whichbox as integer = -1) as integer
+ DIM editor as TextBoxEditor
+ DIM byref st as TextboxEditState = editor.st
+ 
+ 'Set st.id: textbox to edit
+ STATIC remember_box_id as integer = 1
+ DIM
+ IF whichbox <= -1 THEN
+  st.id = small(remember_box_id, gen(genMaxTextBox))
+ ELSE
+  st.id = small(whichbox, gen(genMaxTextBox) + 1)
+  IF st.id > gen(genMaxTextBox) THEN
+   IF yesno("Add new text box?") THEN
+    gen(genMaxTextBox) = st.id
+    textbox_create_from_box 0, editor.box, st
+   ELSE
+    RETURN -1
+   END IF
+  END IF
+ END IF
+
+ st.rootsl = NewSlice()
+ st.rootsl->Width = gen(genResolutionX)
+ st.rootsl->Height = gen(genResolutionY)
+ st.viewport_page = gameres_page()
+
+ editor.helpkey = "textbox_main"
+
+ editor.setup_record_switching st.id, gen(genMaxTextBox), , "Text Box"
+ editor.setup_cropafter game & ".say", curbinsize(binSAY)
+ editor.run()
+
+ DeleteSlice @st.rootsl
+ freepage st.viewport_page
+ remember_box_id = st.id
+ RETURN st.id
+END FUNCTION
+
+SUB TextBoxEditor.draw_underlays()
+ textbox_edit_preview box, st, dpage, 96
+
+ textcolor uilook(uiText), uilook(uiHighlight)
+ printstr "+ to copy", 248, 0, vpage
+ printstr "ALT+C copy style", 192, 8, vpage
+ IF style_clip > 0 THEN printstr "ALT+V paste style", 184, 16, vpage
+
+ base.draw_underlays
+END SUB
+
+SUB each_tick
+
+ IF selected_id <> 6 ANDALSO selected_id <> 7 THEN
+  IF keyval(scAlt) > 0 AND keyval(scC) > 1 THEN style_clip = st.id
+  IF keyval(scAlt) > 0 AND keyval(scV) > 1 THEN
+   IF style_clip > gen(genMaxTextBox) THEN
+    visible_debug "Oops! Text box " & style_clip & " doesn't exist, so we can't paste its style"
+    style_clip = 0
+   ELSE
+    IF yesno("Copy box " & style_clip & "'s style to this box?") THEN
+     textbox_copy_style_from_box style_clip, box, st
+     SaveTextBox box, st.id
+     textbox_edit_load box, st
+    END IF
+   END IF
+  END IF
+  IF (keyval(scPlus) > 1 OR keyval(scNumpadPlus) > 1) AND gen(genMaxTextBox) < maxMaxTextbox THEN
+   IF yesno("Create a textbox like this one?") THEN
+    textbox_create_from_box_and_load st.id, box, st
+   END IF
+  END IF
+ END IF
+
+END SUB
+
+SUB TextBoxEditor.define_items()
+ 
+ def_record_switcher iif(st.id = 0, "[template]", "")
+
+ IF defitem_act("Edit Text") THEN textbox_line_editor box, st
+ IF defitem_act("Edit Conditionals") THEN textbox_conditionals box
+ IF defitem_act("Edit Choices") THEN textbox_choice_editor box, st
+ IF defitem_act("Box Appearance & Sounds") THEN textbox_appearance_editor box, st
+
+ defitem "After:"  '6 'box_after
+ SELECT CASE box.after_tag
+  CASE 0
+   set_caption "None Selected..."
+  CASE -1
+   IF box.after >= 0 THEN
+    set_caption "Box " & box.after
+   ELSE
+    set_caption "script " & scriptname(ABS(box.after))
+   END IF
+  CASE ELSE
+   IF box.after >= 0 THEN
+    set_caption "Box " & box.after & " (conditional)"
+   ELSE
+    set_caption "script " & scriptname(ABS(box.after)) & " (conditional)"
+   END IF
+ END SELECT
+ IF box.after THEN
+  'uilook(uiDisabledItem)
+  set_tooltip textbox_condition_short_caption(box.after_tag)
+ ELSE
+  'uilook(uiDisabledItem)
+  set_tooltip "+/INSERT/ENTER/Ctrl" & CHR(27,ASC("/"),26) & ": link to textbox"
+ END IF
+ IF process THEN
+  IF keyval(scPlus) > 1 OR keyval(scNumpadPlus) > 1 THEN
+   IF yesno("Create and link to new a textbox like this one?") THEN
+    textbox_link_to_new_box_and_load st.id, box, st
+   END IF
+  ELSEIF keyval(scInsert) > 1 ANDALSO yesno("Create and link to a new textbox?") THEN
+   textbox_link_to_new_box_and_load 0,     box, st
+  ELSEIF keyval(scAlt) = 0 THEN  'Ignore alt+left/right keypresses
+   ' Ctrl+Left/Right links to previous/next box. We actually let scrintgrabber
+   ' handle that, by starting at box.after. So continuing to press Ctrl+Left/Right works.
+   IF keyval(scCtrl) > 0 AND box.after = 0 THEN
+    IF keyval(ccLeft) > 1 OR keyval(ccRight) > 1 THEN box.after = st.id
+   END IF
+   IF scrintgrabber(box.after, 0, gen(genMaxTextbox), ccLeft, ccRight, -1, plottrigger) THEN
+    textbox_set_after_textbox box, box.after
+    SaveTextBox box, st.id
+    update_textbox_editor_main_menu box, st.menu()
+   END IF
+  END IF
+ END IF
+ IF activate THEN
+  DIM want_scriptbrowse as bool = NO
+  IF box.after > 0 THEN
+   '--Go to Next textbox
+   switch_record box.after
+  ELSEIF box.after < 0 THEN
+   want_scriptbrowse = YES
+  ELSE
+   DIM choices(...) as string = { _
+       "A new text box with default style", "A new text box with this style", "A script" _
+       }
+   DIM choice as integer = multichoice("Link to what after this text box?", choices())
+   IF choice = 0 THEN textbox_link_to_new_box_and_load 0,     box, st
+   IF choice = 1 THEN textbox_link_to_new_box_and_load st.id, box, st
+   IF choice = 2 THEN want_scriptbrowse = YES
+  END IF
+  IF want_scriptbrowse THEN
+   DIM temptrig as integer = ABS(box.after)
+   scriptbrowse temptrig, plottrigger, "textbox plotscript"
+   textbox_set_after_textbox box, -temptrig
+   edited = YES
+   'update_textbox_editor_main_menu box, st.menu()
+   'state.need_update = YES
+  END IF
+ END IF
+
+
+
+ defstring "Text Search:", st.search, 38
+ IF activate THEN switch_record(seek_textbox, st.id, st.search) 'Returns st.id if not found
+
+ IF defitem_act("Connected Boxes...") THEN textbox_connections box, st
+ IF defitem_act("Export text boxes...") THEN textbox_edit_exporter
+ IF defitem_act("Import text boxes...") THEN
+  textbox_edit_importer
+  load
+ END IF
+
+
+end sub
 
 '========================= Textbox Conditionals Editor ========================
 
@@ -901,6 +1075,7 @@ SUB TextboxAppearanceEditor.load()
  ' and slices are (instead) loaded in define_items
  textbox_edit_load *boxp, *st
  'music_stop
+ state.need_update = YES
 END SUB
 
 SUB TextboxAppearanceEditor.draw_underlays()
@@ -1025,6 +1200,25 @@ SUB textbox_seek(byref box as TextBox, byref st as TextboxEditState)
   st.id += 1
  LOOP
 END SUB
+
+'Starting from the textbox after start_id, look a textbox containing 'search',
+'case-insensitively.
+'Returns start_id if not found.
+FUNCTION seek_textbox(start_id as integer, search as string) as integer
+ DIM box as TextBox
+ DIM id as integer = start_id
+ DO
+  loopvar id, 0, gen(genMaxTextBox)
+  IF id = start_id THEN
+   notification "Not found.", YES  'shrink=YES
+   RETURN id
+  END IF
+  LoadTextBox box, id
+  FOR i as integer = 0 TO UBOUND(box.text)
+   IF INSTR(UCASE(box.text(i)), UCASE(search)) > 0 THEN RETURN id
+  NEXT i
+ LOOP
+END FUNCTION
 
 
 '==============================================================================
