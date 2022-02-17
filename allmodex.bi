@@ -622,7 +622,7 @@ declare sub frame_unload (p as Frame ptr ptr)
 end extern
 declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, page as integer, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
-declare sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+declare sub frame_draw overload (src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, style as integer) as Frame ptr
 declare sub frame_draw_dissolved (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, tlength as integer, tick as integer, style as integer)
 declare function default_dissolve_time(style as integer, w as integer, h as integer) as integer

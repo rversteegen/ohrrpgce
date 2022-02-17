@@ -2021,7 +2021,7 @@ FUNCTION MinimapGenerator.run(runtime as double) as Frame ptr
 
    IF algorithm = minimapScaled ORELSE algorithm = minimapScaledQuant THEN
     DIM tile as Frame ptr = minimap_tile_scaled(composed_tile, zoom, (algorithm = minimapScaledQuant))
-    frame_draw tile, master(), NULL, tx * zoom, ty * zoom, NO, minimap   'master() not used
+    frame_draw tile, NULL, NULL, tx * zoom, ty * zoom, NO, minimap
     frame_unload @tile
    ELSE
 

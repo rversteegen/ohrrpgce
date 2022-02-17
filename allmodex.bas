@@ -65,7 +65,7 @@ declare sub _frame_copyctor cdecl(dest as Frame ptr ptr, src as Frame ptr ptr)
 declare sub init_frame_with_surface(ret as Frame ptr, surf as Surface ptr)
 declare sub reload_global_animations(def_anim as SpriteSet ptr, sprtype as SpriteType)
 
-declare sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+declare sub frame_draw_internal(src as Frame ptr, masterpal as RGBPalette ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare sub draw_clipped(src as Frame ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions)
 declare sub draw_clipped_scaled(src as Frame ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions)
 declare sub draw_clipped_surf(src as Surface ptr, master_pal as RGBcolor ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Surface ptr, opts as DrawOptions = def_drawoptions)
@@ -8879,7 +8879,7 @@ local sub draw_clipped_scaled(src as Frame ptr, pal as Palette16 ptr = NULL, x a
 end sub
 
 ' Blit a Surface with setclip clipping.
-local sub draw_clipped_surf(src as Surface ptr, master_pal as RGBcolor ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool, dest as Surface ptr, opts as DrawOptions)
+local sub draw_clipped_surf(src as Surface ptr, masterpal as RGBPalette ptr, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool, dest as Surface ptr, opts as DrawOptions)
 
 	dim byref cliprect as ClipState = get_cliprect()
 
@@ -8899,7 +8899,8 @@ local sub draw_clipped_surf(src as Surface ptr, master_pal as RGBcolor ptr, pal 
 
 	dim destRect as SurfaceRect = (x, y, cliprect.r, cliprect.b)
 
-	if gfx_surfaceCopy(@srcRect, src, master_pal, pal, trans, @destRect, dest, opts) then
+	'Note masterpal can be NULL, in which case @masterpal->col is NULL
+	if gfx_surfaceCopy(@srcRect, src, @masterpal->col, pal, trans, @destRect, dest, opts) then
 		debug "gfx_surfaceCopy error"
 	end if
 end sub
@@ -10087,7 +10088,7 @@ sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palet
 	frame_draw_internal src, masterpal(), pal, x, y, trans, dest, opts
 end sub
 
-local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+local sub frame_draw_internal(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, x as integer, y as integer, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 
 	if (src->surf andalso src->surf->format <> SF_8bit) orelse _
 	   (dest->surf andalso dest->surf->format <> SF_8bit) then
@@ -10127,7 +10128,7 @@ local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as 
 		end if
 		'/
 
-		draw_clipped_surf src_surface, @masterpal(0), pal, x, y, trans, dest_surface, opts
+		draw_clipped_surf src_surface, masterpal, pal, x, y, trans, dest_surface, opts
 
 		/'
 	cleanup:
