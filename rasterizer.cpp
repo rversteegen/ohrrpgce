@@ -550,3 +550,44 @@ void QuadRasterizer::drawQuadTextureColor(const VertexPTC *pQuad, const Surface 
 	for (int i = 0; i < 4; i++)
 		drawTriangleTextureColor(&triangles[i*3], pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
 }
+
+/*
+void calcraster() {
+	// vertexOrder[0] is the top-most
+	int vertexOrder[2];
+
+	// <s>Sort input vertices</s>
+	Vertex sortedVertices[2];
+
+	// Generate edges from vertices, sorting them into two lists: left and right,
+	// while clipping each one to the clip rect (throw away ones outside it), interpolating
+	// to new end points.
+	// Throw away horizontal edges, they do nothing.
+	// Get first two edges, left and right. Should have same start y
+	// Raster a trapezoid.
+	// Advance one or both, repeat.
+
+	bool leftSide = mainEdge.leftOf(sortedVertices[1]);
+	LineSegment mainEdge(sortedVertices[0], sortedVertices[2]);
+	for (int sideI = 0; sideI <= 1; sideI++) {  // Vertex index which starts the sideEdge
+		LineSegment sideEdge(sortedVertices[sideI], sortedVertices[sideI + 1]);
+
+		int row = max(clipRgn.top, sortedVertices[sideI].y);  //triangleRgn.top)  //max???
+		int rowEnd = min(clipRgn.bottom, sortedVertices[sideI + 1].y); //triangleRgn.bottom);
+
+		for (; row < rowEnd; row++) {
+			Vertex leftVertex = mainEdge.interpolate(row), rightVertex = sideEdge.interpolate(row);
+
+			if (leftSide)
+				std::swap(a, b);
+
+			//perform horizontal clipping
+			if(leftVertex.pos.x > clipRgn.right || rightVertex.pos.x < clipRgn.left)
+				continue;
+
+
+			rasterRow(a, b);
+		}
+	}
+}
+*/
