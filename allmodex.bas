@@ -10154,8 +10154,10 @@ end sub
 
 ' Draw a Frame with position and transformation specified by an AffineTransform.
 ' Supports 8 & 32-bit Frames, including alpha channels. (Respects opts.alpha_channel.)
+' masterpal() and pal only used if src is 8-bit. pal can be NULL. (masterpal() should be length 257!)
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity.
-' Does not support masks on 8-bit Frames, or color_key0 on 32-bit Frames.
+' Does not support opts.scale
+' Does not support masks on 8-bit Frames, or trans (color_key0 transparency) on 32-bit Frames.
 ' Does not support opts.alpha_channel=NO when using opacity/argbModifier.a or vertex alpha.
 ' Optionally, can pass in an array of 4 colours (clockwise from bottomleft) to interpolate
 ' colour (and alpha) modulation across the image.
@@ -10707,10 +10709,40 @@ function default_dissolve_time(style as integer, w as integer, h as integer) as 
 	end select
 end function
 
+'Drops mask!
+function frame_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, transf as AffineTransform, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL) as Frame ptr
+	dim with_surface32 as bool = (src->surf <> NULL andalso src->surf->format = SF_32bit)
+	if opts.argbModifier.col <> -1 orelse vertex_cols <> NULL then with_surface32 = YES
+
+	'dim as integer minx, maxx, miny, maxy, i
+	dim as XYPair boundmin = (INT_MAX, INT_MAX), boundmax = (INT_MIN, INT_MIN)
+	for i as integer = 0 to 2
+		dim v as Float2 = transf.vertices(i)
+		boundmin = small(boundmin, XY(floor(v.x), floor(v.y)))
+		boundmax = large(boundmax, XY(ceil(v.x), ceil(v.y)))
+	next
+	for i as integer = 0 to 2
+		transf.vertices(i) -= boundmin
+	next
+	dim size as XYPair = boundmax - boundmin + 1
+
+	dim ret as Frame ptr
+	ret = frame_new(size.w, size.h, 1, YES, NO, with_surface32)
+	'opts.write_mask = YES
+	frame_draw_transformed src, masterpal(), pal, transf, NO, ret, opts, vertex_cols
+	return ret
+end function
+
 'Returns a scaled+rotated copy.
 'See also rotozoom_transform + frame_draw_transformed.
 'Note: Frame masks are not supported, so can't rotate a dissolved sprite
-function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, zoomx as double, zoomy as double, smooth as integer = 0) as Frame ptr
+function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, zoomx as double, zoomy as double, smooth as integer = 0, pos as Float2 = XYF(0,0)) as Frame ptr
+
+	dim transf as AffineTransform
+	rotozoom_transform transf, src->size, , pos, angle, XYF(zoomx, zoomy)
+	return frame_transformed(src, curmasterpal(), pal, transf)
+
+/'
 	dim as Surface ptr in_surf, out_surf
 	dim as Surface temp_surf = any
 	if smooth > 0 andalso vpages_are_32bit then
@@ -10741,6 +10773,7 @@ function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as 
 	gfx_surfaceDestroy(@in_surf)
 	gfx_surfaceDestroy(@out_surf)
 	return ret
+'/
 end function
 
 'Used by frame_flip_horiz and frame_flip_vert

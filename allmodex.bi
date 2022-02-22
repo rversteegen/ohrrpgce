@@ -630,10 +630,12 @@ declare sub rectangle_transformed(cols() as RGBcolor, transf as AffineTransform,
 
 declare sub rotozoom_transform(byref result as AffineTransform, size as XYPair, center as Float2 ptr = NULL, pos as Float2, angle as double, zoom as Float2)
 
+declare function frame_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, transf as AffineTransform, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL) as Frame ptr
+declare function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, hzoom as double, vzoom as double, smooth as integer = 0, pos as Float2 = XYF(0,0)) as Frame ptr
+
 declare function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, style as integer) as Frame ptr
 declare sub frame_draw_dissolved (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, tlength as integer, tick as integer, style as integer)
 declare function default_dissolve_time(style as integer, w as integer, h as integer) as integer
-declare function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, hzoom as double, vzoom as double, smooth as integer = 0) as Frame ptr
 declare sub frame_flip_horiz(spr as Frame ptr)
 declare sub frame_flip_vert(spr as Frame ptr)
 declare function frame_rotated_90(spr as Frame ptr) as Frame ptr
