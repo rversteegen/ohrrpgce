@@ -21,6 +21,7 @@ Type Palette16
 	numcolors as int32
 	refcount as int32 'Always >= 1 (palcache counts as a reference). Can not be NOREFC.
 	palnum as int32   '>= 0: numbered palette, cached. -1: not loaded from file, uncached.
+			  'INT_MAX: identity/master palette, cached.
 	col(255) as ubyte 'indices into the master palette
 End Type
 

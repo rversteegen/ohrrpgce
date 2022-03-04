@@ -3329,6 +3329,7 @@ LOCAL SUB Palette16_save_to_PAL(pal as Palette16 ptr, fname as string, pal_num a
 END SUB
 
 SUB Palette16_save(pal as Palette16 ptr, pal_num as integer)
+ IF pal_num < 0 THEN EXIT SUB  'Can't save identity palette
  Palette16_save_to_PAL pal, game & ".pal", pal_num
  Palette16_update_cache pal_num
  #IFDEF IS_CUSTOM

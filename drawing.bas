@@ -134,16 +134,22 @@ END SUB
 ' Save current palette and load another one. When palchange=0, just saves current
 SUB changepal OVERLOAD (ss as SpriteEditState, palchange as integer)
  palette16_save ss.palette, ss.pal_num
+ 'Master palette (palette -2) is treated as -1 for editing
+ DIM palint as integer = IIF(ss.pal_num = -2, -1, ss.pal_num)
  'Note: bounding to gen(genMaxPal) would do nothing, because the
  'sprite editor increases gen(genMaxPal) whenever you reach the end
- ss.pal_num = bound(ss.pal_num + palchange, 0, 32767)
+ palint = bound(palint + palchange, -1, 32767)
+ ss.pal_num = IIF(palint = -1, -2, palint)
  palette16_unload @ss.palette
  ss.palette = palette16_load(ss.pal_num, , , NO)  'expect_exists=NO
 END SUB
 
 FUNCTION pal_num_intgrabber (ss as SpriteEditState, lesskey as KBScancode=ccLeft, morekey as KBScancode=ccRight) as bool
  DIM old as integer = ss.pal_num
- IF intgrabber(ss.pal_num, 0, gen(genMaxPal) + 1, lesskey, morekey) THEN
+ 'Master palette (palette -2) is treated as -1 for editing
+ DIM palint as integer = IIF(ss.pal_num = -2, -1, ss.pal_num)
+ IF intgrabber(palint, -1, gen(genMaxPal) + 1, lesskey, morekey) THEN
+  ss.pal_num = IIF(palint = -1, -2, palint)
   palette16_save ss.palette, old
   palette16_unload @ss.palette
   ss.palette = palette16_load(ss.pal_num, , , NO)  'expect_exists=NO
@@ -2492,11 +2498,11 @@ SUB spriteedit_display(ss as SpriteEditState)
  spriteedit_draw_sprite_area ss, ss.sprite, ss.palette, dpage
 
  ss.curcolor = ss.palette->col(ss.palindex)   'Is this necessary?
- rectangle 247 + ((ss.curcolor - ((ss.curcolor \ 16) * 16)) * 4), 0 + ((ss.curcolor \ 16) * 6), 5, 7, uilook(uiText), dpage
- DIM as integer i, o
- FOR i = 0 TO 15
-  FOR o = 0 TO 15
-   rectangle 248 + (i * 4), 1 + (o * 6), 3, 5, o * 16 + i, dpage
+ rectangle 247 + (ss.curcolor MOD 16) * 4), 0 + ((ss.curcolor \ 16) * 6), 5, 7, uilook(uiText), dpage
+ DIM as integer row, col
+ FOR row = 0 TO 15
+  FOR col = 0 TO 15
+   rectangle 248 + (col * 4), 1 + (row * 6), 3, 5, row * 16 + col, dpage
   NEXT o
  NEXT i
 
@@ -2513,7 +2519,11 @@ SUB spriteedit_display(ss as SpriteEditState)
    ss.showcolnum -= 1
   END IF
  ELSE
-  paldisplay = " Pal" & rlpad(STR(ss.pal_num), " ", 3, 4)
+  IF ss.pal_num = -2 THEN
+   paldisplay = " Master"
+  ELSE
+   paldisplay = " Pal" & rlpad(STR(ss.pal_num), " ", 3, 4)
+  END IF
  END IF
  printstr paldisplay, 243, 100, dpage
 
@@ -3554,14 +3564,16 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
  IF keyval(scTilde) > 1 THEN ss.hidemouse = ss.hidemouse XOR YES
 
  ' Changing the index in the 16 color palette
- IF keyval(scComma) > 1 AND ss.palindex > 0 THEN
-  ss.palindex -= 1
+ DIM incval as integer
+ IF keyval(scComma) > 1  THEN incval = -1
+ IF keyval(scPeriod) > 1 THEN incval = 1
+ IF keyval(scK) > 1      THEN incval = -16  'Does nothing if only 16 colours
+ IF keyval(scL) > 1      THEN incval = 16
+ IF incval THEN
+  loopvar ss.palindex, 0, ss.palette->numcolors - 1, incval
   ss.showcolnum = COLORNUM_SHOW_TICKS
  END IF
- IF keyval(scPeriod) > 1 AND ss.palindex < 15 THEN
-  ss.palindex += 1
-  ss.showcolnum = COLORNUM_SHOW_TICKS
- END IF
+
  IF ss.zonenum = 2 THEN
   IF ss.mouse.buttons > 0 THEN
    ss.palindex = small(ss.zone.x \ 4, 15)

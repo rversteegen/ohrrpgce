@@ -1492,19 +1492,34 @@ FUNCTION pal16browse (curpal as integer, sprite as Frame ptr, show_default as bo
 
  DIM as integer i, j
 
+ 'Display the Default palette option above the Master (identity) option, because it's optional.
+ 'So internally in this menu we use identity = -1, default = -2
+ IF curpal = -2 THEN
+  curpal = -1
+ ELSEIF curpal = -1 THEN
+  curpal = -2
+ END IF
+
  DIM state as MenuState
  state.need_update = YES
  state.top = curpal - 1
- state.first = -1
  state.spacing = 20
  state.autosize = YES
  
+ DIM as integer cancelpt, defaultpt
  IF show_default THEN
+  cancelpt = -3
+  defaultpt = -2
+  state.first = -3
+ ELSE
+  cancelpt = -2
+  defaultpt = INT_MIN
   state.first = -2
  END IF
- 
+ 'identity palette is -1
+
  DIM stateOpts as MenuOptions
- stateOpts.itemspacing = 12
+ stateOpts.itemspacing = 20 - 8
 
  '--Find last palette which is not blank
  loadrecord buf(), game + ".pal", 8, 0
@@ -1519,7 +1534,7 @@ FUNCTION pal16browse (curpal as integer, sprite as Frame ptr, show_default as bo
  'We actually want to be able to browse past the last palette to the first empty palette
  state.last += 1
 
- state.pt = bound(curpal, IIF(show_default, -1, 0), state.last)
+ state.pt = bound(curpal, IIF(show_default, -2, -1), state.last)
  correct_menu_state state
 
  DIM last_size as integer = state.size
@@ -1591,28 +1606,39 @@ FUNCTION pal16browse (curpal as integer, sprite as Frame ptr, show_default as bo
    IF cur_slot = state.hover THEN textcolor uilook(uiMouseHoverItem), 0
    IF cur_slot = state.pt THEN textcolor uilook(uiSelectedItem + state.tog), 0
    SELECT CASE cur_slot
-    CASE state.first 'Might be -1 or -2 depending on whether default is displayed
+    CASE cancelpt
      printstr "Cancel", 4, 5 + sloty, dpage
-    CASE -1
+    CASE defaultpt
      printstr "Default", 4, 5 + sloty, dpage
-    CASE IS >= 0
-     DIM txtwidth as integer = 8 + large(16, textwidth(STR(cur_slot)))
+    CASE ELSE 'IS >= 0
+     DIM txt as string
+     IF cur_slot = -1 THEN txt = "Master" ELSE txt = STR(cur_slot)
+     DIM txtwidth as integer = 8 + large(16, textwidth(txt))
+
+     'Draw box
      DIM border_col as integer
      IF cur_slot = state.hover THEN border_col = uilook(uiMouseHoverItem)
      IF cur_slot = state.pt THEN border_col = uilook(uiMenuitem)
      edgebox txtwidth - 1, 1 + sloty, 114, 18, uilook(uiBackground), border_col, dpage
-     FOR j = 0 TO 15
-      IF pal16(i) THEN
+
+     'Draw palette
+     DIM bar_thickness as integer = large(1, 16*5 / pal16(i)->numcolors)
+     DIM spacing as integer = large(1, 16*7 / pal16(i)->numcolors)
+     IF pal16(i) THEN
+      FOR j = 0 TO pal16(i)->numcolors - 1
        DIM c as integer = pal16(i)->col(j)
-       rectangle txtwidth + j * 7, 2 + sloty, 5, 16, c, dpage
-      END IF
-     NEXT j
+       rectangle txtwidth + j * spacing, 2 + sloty, bar_thickness, 16, c, dpage
+      NEXT j
+     END IF
+
+     'Draw spriteset
      IF cur_slot <> state.pt THEN
       IF pal16(i) THEN
        pal16browse_draw_spriteset sprite, pal16(i), txtwidth + 150, sloty, dpage
       END IF
      END IF
-     printstr STR(cur_slot), 4, 5 + sloty, dpage
+
+     printstr txt, 4, 5 + sloty, dpage
    END SELECT
   NEXT i
   IF state.pt >= 0 THEN '--draw the selected spriteset last, on top of all others
@@ -1634,7 +1660,14 @@ FUNCTION pal16browse (curpal as integer, sprite as Frame ptr, show_default as bo
  FOR i = 0 TO 100
   palette16_unload @pal16(i)
  NEXT
- RETURN curpal
+
+ IF curpal = -2 THEN
+  RETURN -1  'Default
+ ELSEIF curpal = -1 THEN
+  RETURN -2  'Master
+ ELSE
+  RETURN curpal
+ END IF
 END FUNCTION
 
 ' Number of steps before a random formation triggers

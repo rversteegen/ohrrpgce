@@ -10975,7 +10975,7 @@ end sub
 
 'Completely empty the Palette16 cache
 local sub Palette16_empty_cache()
-	for idx as integer = 0 to ubound(palcache)
+	for idx as integer = lbound(palcache) to ubound(palcache)
 		'Palettes in the cache but unused have refc=1
 		if palcache(idx) andalso palcache(idx)->refcount <> 1 then
 			debugc errBug, "Palette16 leak/bad refc: " & palette16_describe(palcache(idx))
@@ -11015,13 +11015,13 @@ function Palette16_new_from_indices(pal() as integer) as Palette16 ptr
 	return ret
 end function
 
-'Loads and returns a palette from the current game (resolving -1 to default palette),
+'Loads and returns a palette from the current game (resolving -1 to default palette and -2 to the identity palette),
 'returning a blank palette if it didn't exist.
 '(Note that the blank palette isn't put in the cache, so if that palette is later
 'added to the game, it won't auto-update.)
 'autotype, spr: spriteset type and id, for default palette lookup.
 function Palette16_load(num as integer, autotype as SpriteType = sprTypeInvalid, spr as integer = 0, expect_exists as bool = YES) as Palette16 ptr
-	if num <= -1 then
+	if num = -1 then
 		if autotype = sprTypeInvalid then
 			return 0
 		end if
@@ -11029,7 +11029,7 @@ function Palette16_load(num as integer, autotype as SpriteType = sprTypeInvalid,
 		'Returns num = -1 if the defpal file is missing
 	end if
 
-	if num >= 0 andalso num <= ubound(palcache) then
+	if (num >= 0 andalso num <= ubound(palcache)) orelse num = -2 then
 		palcache(num)->refcount += 1
 		return palcache(num)
 	end if
@@ -11039,9 +11039,10 @@ function Palette16_load(num as integer, autotype as SpriteType = sprTypeInvalid,
 		' Avoids debug noise when default palette load fails because of a non-existant defpal file
 		debug "failed to load palette " & num
 	end if
-	' Is it a problem that this isn't put in the cache, so you can load
-	' this palette multiple times and get different ptrs?
-	return Palette16_new()
+
+	'Return identity palette
+	palcache(-2)->refcount += 1
+	return palcache(-2)
 end function
 
 'Open a .PAL file and pass back file handle, number of palettes, header size.
@@ -11083,7 +11084,10 @@ local sub palette16_fill_cache()
 	seek #fh, 1 + headersize
 
 	if numpalettes >= 1 then
-		redim preserve palcache(large(ubound(palcache), numpalettes - 1))
+		redim preserve palcache(-2 to large(ubound(palcache), numpalettes - 1))
+		palcache(-2) = palette16_new_identity(256)  'Master palette
+		palcache(-2)->palnum = INT_MAX
+		'palcache(-1) is not used
 		for idx as integer = 0 to numpalettes - 1
 			if palcache(idx) = NULL then
 				seek #fh, 1 + headersize + 16 * idx
@@ -11103,7 +11107,7 @@ sub palette16_reload_cache()
 	debug_if_slow(starttime, 0.1, "")
 end sub
 
-'Loads and returns a palette from a .pal file. num can not be -1.
+'Loads and returns a palette from a .pal file. num can not be -1 or -2.
 'Returns NULL if the palette doesn't exist!
 function palette16_load_pal_uncached(fil as string, num as integer) as Palette16 ptr
 	BUG_IF(num < 0, "negative pal num", NULL)
@@ -11168,7 +11172,7 @@ sub Palette16_update_cache(record as integer)
 
 	if record > ubound(palcache) then
 		palette16_fill_cache
-	else
+	elseif record >= 0 then   'Not identity/master palette
 		oldpal = palcache(record)
 		newpal = palette16_load_pal_uncached(graphics_file("pal"), record)
 
