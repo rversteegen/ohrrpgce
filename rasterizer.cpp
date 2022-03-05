@@ -1,5 +1,5 @@
 /* OHRRPGCE - software 3D rasterizer
- * (C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+ * (C) Copyright 1997-2022 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
  * Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
  *
  * This 3D triangle and quad rasterizer was written by Jay Tennant.
@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <cmath>
+#include <cfloat>
 #include "rasterizer.hpp"
 #include "blend.h"
 #include "errorlog.h"
@@ -81,13 +82,20 @@ bool LineSegment::intersects(float *pIntersection, float YIntercept)
 }
 
 // Calculate the bounding box
-template <class T_VertexType>
-void TriRasterizer::calculateTriangleRect(const T_VertexType* pTriangle, ClippingRectF &clipOut)
+// szvertex is the stride between Positions, in bytes
+void calculatePolygonRect(const Position* pVertices, int nVertices, size_t szVertex, ClippingRectF& clipOut)
 {
-	clipOut.left   = min(min(pTriangle[0].pos.x, pTriangle[1].pos.x), pTriangle[2].pos.x);
-	clipOut.top    = min(min(pTriangle[0].pos.y, pTriangle[1].pos.y), pTriangle[2].pos.y);
-	clipOut.right  = max(max(pTriangle[0].pos.x, pTriangle[1].pos.x), pTriangle[2].pos.x);
-	clipOut.bottom = max(max(pTriangle[0].pos.y, pTriangle[1].pos.y), pTriangle[2].pos.y);
+	clipOut.left   = FLT_MAX;
+	clipOut.top    = FLT_MAX;
+	clipOut.right  = FLT_MIN;
+	clipOut.bottom  = FLT_MIN;
+	for (int i = 0; i < nVertices; i++) {
+		clipOut.left   = min(clipOut.left,   pVertices->x);
+		clipOut.right  = max(clipOut.right,  pVertices->x);
+		clipOut.top    = min(clipOut.top,    pVertices->y);
+		clipOut.bottom = max(clipOut.bottom, pVertices->y);
+		pVertices = (Position*)((char*)pVertices + szVertex);
+	}
 }
 
 template <class T_VertexType>
@@ -401,7 +409,7 @@ bool TriRasterizer::drawSetup(T_VertexType *pTriangle, SurfaceRect *pRectDest, S
 	clipRgn.bottom = min((float)pRectDest->bottom + 1.0f, pSurfaceDest->height - 0.4f);
 
 	ClippingRectF triangleRgn;
-	calculateTriangleRect(pTriangle, triangleRgn);
+	calculatePolygonRect(&pTriangle[0].pos, 3, sizeof(T_VertexType), triangleRgn);
 
 	//test whether triangle is inside clipping region at all
 	if(triangleRgn.left > clipRgn.right || triangleRgn.right < clipRgn.left || triangleRgn.top > clipRgn.bottom || triangleRgn.bottom < clipRgn.top)

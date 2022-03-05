@@ -1,5 +1,5 @@
 /* OHRRPGCE - Surfaces, part of the graphics API
- * (C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+ * (C) Copyright 1997-2022 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
  * Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
  */
 

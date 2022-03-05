@@ -1,5 +1,5 @@
 /* OHRRPGCE - software 3D rasterizer private API
- * (C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+ * (C) Copyright 1997-2022 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
  * Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
  *
  * By Jay Tennant 5/30/11
@@ -23,13 +23,6 @@ public:
 	//Color sample(const Surface* pTexture, FPInt u, FPInt v) const {return ( (pTexture->format == SF_8bit) ? sample8bit(pTexture, u, v) : sample32bit(pTexture, u, v) );}
 	static uint8_t sample8bit(const Surface* pTexture, FPInt u, FPInt v);
 	static Color sample32bit(const Surface* pTexture, FPInt u, FPInt v);
-};
-
-struct ClippingRectF
-{
-	float left, top, right, bottom;
-	//FPInt left, top, right, bottom;
-	//ClippingRect() : left(0), top(0), right(0), bottom(0) {}
 };
 
 template <class T_VertexType>
@@ -73,8 +66,6 @@ class TriRasterizer
 {
 protected:
 	//Tex2DSampler m_sampler;
-	template <class T_VertexType>
-	void calculateTriangleRect(const T_VertexType* pTriangle, ClippingRectF& clipOut);
 	template <class T_VertexType>
 	void calculateRasterPixels(const Surface* pSurfaceDest, const T_VertexType* pTriangle, ClippingRectF& clipRgn, ClippingRectF& triangleRgn, std::queue< DrawingRange<T_VertexType> >& rasterLinesOut);
 	template <class T_VertexType>

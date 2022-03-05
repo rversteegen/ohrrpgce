@@ -223,10 +223,18 @@ struct VertexPTC
 	operator IncType() const { return IncType{pos, tex, col}; }
 };
 
-//The following interface is implemented in surface.cpp
+struct ClippingRectF
+{
+	float left, top, right, bottom;
+	//FPInt left, top, right, bottom;
+	//ClippingRect() : left(0), top(0), right(0), bottom(0) {}
+};
+
 extern "C"
 {
+	void calculatePolygonRect(const Position* pVertices, int nVertices, size_t szVertex, ClippingRectF& clipOut);
 
+	//The following C API wrappers are in surface.cpp
 	void gfx_renderQuadColor_SW( VertexPC* pQuad, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts );
 	void gfx_renderQuadTexture_SW( VertexPT* pQuad, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts );
 	void gfx_renderQuadTextureColor_SW( VertexPTC* pQuad, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts );
