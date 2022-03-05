@@ -528,6 +528,16 @@ FUNCTION initialize_stock OVERLOAD (shop_id as integer, stockidx as integer, thi
  RETURN stock
 END FUNCTION
 
+/'
+SUB reset_stock()
+  IF .thingtype < 0 THEN  'Needs (re-)initialising
+   .thingtype = thingtype
+   .thingid = thingid
+   .stock = initial_stock
+  END IF
+END SUB
+'/
+
 'Initialises or resets an element of gam.stock() as needed, and returns its value.
 FUNCTION initialize_stock(shop_id as integer, slot as NodePtr) as integer
  DIM thing as NodePtr

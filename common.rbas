@@ -7054,6 +7054,7 @@ END FUNCTION
 '=========================================================================================
 
 FUNCTION SpriteSize.lastrec() as integer
+ IF genmax = -1 THEN RETURN 0  'sprTypeFrame
  RETURN gen(genmax) + genmax_offset
 END FUNCTION
 

@@ -119,6 +119,7 @@ TYPE SliceEditState
  expand_extra as bool
  expand_sort as bool
  expand_meta as bool
+ expand_transform as bool
 
  tool as SliceTool = SliceTool.pick
  focus as SliceEditorFocus        'What gets keyboard input. focusMenu or focusPicker only.
@@ -182,6 +183,8 @@ ENUM EditRuleMode
   erStrgrabber        'Press ENTER for full-screen text editor
   erToggle            'Edits bools (4 bytes)
   erToggleBoolean     'Edits booleans (1 byte)
+  erSinglegrabber     'Edits single floats
+  erDoublegrabber     'Edits double floats
   erPercentgrabber    'Edits doubles
   erSinglePercentgrabber 'Edits singles
   erLookupgrabber
@@ -197,14 +200,14 @@ TYPE EditRule
   helpkey as zstring ptr 'Suffix appended to "sliceedit_" to get the full helpkey
 END TYPE
 
-TYPE VariantType
+UNION VariantType
  int as integer       'Also used for byte, ubyte
  ssizet as ssize_t
  boolean as boolean
  single as single
  double as double
  as_any as byte
-END TYPE
+END UNION
 
 DIM SHARED dummyvar as VariantType
 
@@ -249,6 +252,7 @@ CONST slgrEXTRAEDITOR = 16384
 CONST slgrEXTRA = 32768
 CONST slgrVELOCITY = 1 shl 16
 CONST slgrTARGET = 1 shl 17
+CONST slgrUPDATESPRITETRANSFORM = 1 shl 18
 '--This system won't be able to expand forever ... :(
 
 '==============================================================================
@@ -281,7 +285,7 @@ DECLARE SUB slice_editor_refresh (byref ses as SliceEditState, edslice as Slice 
 DECLARE SUB slice_editor_refresh_append (byref ses as SliceEditState, id as SliceMenuItemID, caption as string, sl as Slice ptr = 0, indent as integer = 0, icon_group_x as integer = 0)
 DECLARE SUB slice_editor_refresh_recurse (ses as SliceEditState, byref indent as integer, edslice as Slice Ptr, sl as Slice Ptr, hidden_slice as Slice Ptr)
 DECLARE SUB slice_editor_invalidate_ptrs (byref ses as SliceEditState)
-DECLARE SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr)
+DECLARE SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as any ptr)
 DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as Slice Ptr)
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
@@ -865,9 +869,10 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
     CASE SliceTool.resize
      IF ses.curslice THEN
       'While holding Ctrl/Alt arrow keys act on the menu
+      DIM prevsize as XYPair = ses.curslice->Size
       IF altctrl = 0 ANDALSO xy_grabber(ses.curslice->Size, speed, drag_buttons) THEN
-       slice_edit_updates ses.curslice, @ses.curslice->Width
-       slice_edit_updates ses.curslice, @ses.curslice->Height
+       slice_edit_updates ses.curslice, @ses.curslice->Width, @prevsize.w
+       slice_edit_updates ses.curslice, @ses.curslice->Height, @prevsize.h
        state.need_update = YES
       END IF
      ELSE
@@ -1881,7 +1886,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
     DIM expand as bool
     expand = .expand_dimensions OR .expand_visible OR .expand_alignment OR _
              .expand_special OR .expand_padding OR .expand_movement OR .expand_sort OR _
-             .expand_meta OR .expand_extra
+             .expand_meta OR .expand_extra OR .expand_transform
     expand XOR= YES
     .expand_dimensions = expand
     .expand_visible = expand
@@ -1892,6 +1897,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
     .expand_movement = expand
     .expand_meta = expand
     .expand_extra = expand
+    .expand_transform = expand
    END WITH
    state.need_update = YES
   END IF
@@ -1995,18 +2001,23 @@ END SUB
 'Called after *dataptr is modified, which is one of the members of sl, in order
 'to perform any special resulting updates.
 'It's simpler to do updates once, here, if there are multiple places a piece of data is changed.
-SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr)
+SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as any ptr = NULL)
+ DIM prevvar as VariantType ptr = prevval
  WITH *sl
-  'Stop filling and covering when trying to edit the size
+  'Stop filling and covering when trying to edit the size, and scale sprite slices
   IF dataptr = @.Width THEN
    disable_horiz_fill(sl)
    .CoverChildren AND= NOT coverHoriz
    IF sl->SliceType <> slLine THEN sl->Width = large(0, sl->Width)
+   'If both Height and Width change at once we must use the current Height rather than
+   'the actual original because we call HandleSliceSizeChange twice (see its docs).
+   HandleSliceSizeChange sl, XY(prevvar->int, sl->Height)
   END IF
   IF dataptr = @.Height THEN
    disable_vert_fill(sl)
    .CoverChildren AND= NOT coverVert
    IF sl->SliceType <> slLine THEN sl->Height = large(0, sl->Height)
+   HandleSliceSizeChange sl, XY(sl->Width, prevvar->int)
   END IF
   'NOTE: Sprite slices can't be resized, unless they Fill Parent.
   'That restriction is actually enforced in LoadSpriteSliceImage rather than in sliceedit;
@@ -2036,6 +2047,7 @@ SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr)
 END SUB
 
 SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
+ DIM prevval as VariantType
  DIM rule as EditRule = rules(state.pt)
  DIM set_default as bool
  IF rule.default <> 0 ANDALSO (keyval(scDelete) OR keyval(scBackspace)) > 0 THEN
@@ -2045,6 +2057,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
  SELECT CASE rule.mode
   CASE erIntgrabber
    DIM n as integer ptr = rule.dataptr
+   prevval.int = *n
    IF set_default THEN
     *n = rule.default
    ELSEIF intgrabber(*n, rule.lower, rule.upper, , , , , NO) THEN  'Don't autoclamp
@@ -2054,6 +2067,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   CASE erBytegrabber
    DIM n as byte ptr = rule.dataptr
    DIM dat as integer = *n
+   prevval.int = dat
    IF set_default THEN
     *n = rule.default
    ELSEIF intgrabber(dat, rule.lower, rule.upper, , , , , NO) THEN  'Don't autoclamp
@@ -2064,6 +2078,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   CASE erUbytegrabber
    DIM n as ubyte ptr = rule.dataptr
    DIM dat as integer = *n
+   prevval.int = dat
    IF set_default THEN
     *n = rule.default
    ELSEIF intgrabber(dat, rule.lower, rule.upper, , , , , NO) THEN  'Don't autoclamp
@@ -2073,6 +2088,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   CASE erEnumgrabber
    ' In 64 bit builds, enums are 64 bit.
    DIM n as ssize_t ptr = rule.dataptr
+   prevval.ssizet = *n
    IF set_default THEN
     *n = rule.default
    ELSEIF intgrabber(*n, cast(ssize_t, rule.lower), cast(ssize_t, rule.upper), , , , , NO) THEN  'Don't autoclamp
@@ -2080,6 +2096,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    END IF
   CASE erToggle
    DIM n as integer ptr = rule.dataptr
+   prevval.int = *n
    IF set_default THEN
     *n = rule.default
    ELSEIF boolgrabber(*n, state) THEN
@@ -2087,6 +2104,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    END IF
   CASE erToggleBoolean
    DIM n as boolean ptr = rule.dataptr
+   prevval.boolean = *n
    IF booleangrabber(*n, state) THEN
     state.need_update = YES
    END IF
@@ -2103,14 +2121,25 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
      state.need_update = YES
     END IF
    END IF
+  CASE erDoublegrabber
+   DIM n as double ptr = rule.dataptr
+   prevval.double = *n
+   state.need_update OR= float_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
+  CASE erSinglegrabber
+   DIM n as single ptr = rule.dataptr
+   prevval.double = *n
+   state.need_update OR= float_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
   CASE erPercentgrabber
    DIM n as double ptr = rule.dataptr
+   prevval.double = *n
    state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
   CASE erSinglePercentgrabber
    DIM n as single ptr = rule.dataptr
+   prevval.single = *n
    state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
   CASE erLookupgrabber
    DIM n as integer ptr = rule.dataptr
+   prevval.int = *n
    state.need_update OR= lookup_code_grabber(*n, ses, rule.lower, rule.upper)
  END SELECT
 
@@ -2154,13 +2183,12 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   END IF
   IF switchtype THEN
    ReplaceSliceType sl, NewSliceOfType(slice_type)
-   slice_edit_updates sl, @sl->SliceType
+   slice_edit_updates sl, @sl->SliceType, @dummyvar.as_any
   END IF
  END IF
  IF rule.group AND slgrPICKXY THEN
   IF enter_space_click(state) THEN
    slice_editor_xy @sl->Pos, @sl->Size, sl, ses.draw_root, ses.show_ants, "Hold CTRL to adjust size"
-
    state.need_update = YES
   END IF
  END IF
@@ -2197,7 +2225,13 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
  IF rule.group AND slgrUPDATESPRITE THEN
   IF state.need_update THEN
    'state.need_update is cleared at the top of the loop
-   SpriteSliceUpdate sl
+   UpdateSpriteSliceImage sl
+  END IF
+ END IF
+ IF rule.group AND slgrUPDATESPRITETRANSFORM THEN
+  IF state.need_update THEN
+   'state.need_update is cleared at the top of the loop
+   UpdateSpriteSliceTransform sl
   END IF
  END IF
  IF rule.group AND slgrBROWSESPRITEASSET THEN
@@ -2291,7 +2325,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   ' Because we bypass ChangeTextSlice (really ought to change that)
   IF sl->SliceType = slText THEN UpdateTextSlice sl
 
-  slice_edit_updates sl, rule.dataptr
+  slice_edit_updates sl, rule.dataptr, @prevval.as_any
  END IF
 
  ' Update transient editing state
@@ -2334,6 +2368,7 @@ SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Sli
   'The following calls to slice_edit_updates only do something if x/y are focussl->Width/Height.
   'Perfectly harmless otherwise.
   DIM byref pair as XYPair = *IIF(altmode, xy2, xy1)
+  DIM prevval as XYPair = pair
   IF (readmouse.buttons OR readmouse.release) AND mouseLeft THEN
    IF readmouse.dragging = NO THEN
     drag_initial_pair = pair 'readmouse.pos - focussl->ScreenPos
@@ -2342,16 +2377,17 @@ SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Sli
     'wouldn't work to resize the slice so its corner is at the mouse position. Just
     'adjust by the drag amount.
     pair = drag_initial_pair + (readmouse.pos - readmouse.clickstart)
-    slice_edit_updates focussl, @pair.x
-    slice_edit_updates focussl, @pair.y
+    slice_edit_updates focussl, @pair.x, @prevval.x
+    slice_edit_updates focussl, @pair.y, @prevval.y
    END IF
   ELSE
    altmode = xy2 <> NULL ANDALSO keyval(scCtrl) > 0
+
+   IF keyval(ccUp)    > 0 THEN pair.y -= speed : slice_edit_updates focussl, @pair.y, @prevval.y
+   IF keyval(ccRight) > 0 THEN pair.x += speed : slice_edit_updates focussl, @pair.x, @prevval.x
+   IF keyval(ccDown)  > 0 THEN pair.y += speed : slice_edit_updates focussl, @pair.y, @prevval.y
+   IF keyval(ccLeft)  > 0 THEN pair.x -= speed : slice_edit_updates focussl, @pair.x, @prevval.x
   END IF
-  IF keyval(ccUp)    > 0 THEN pair.y -= speed : slice_edit_updates focussl, @pair.y
-  IF keyval(ccRight) > 0 THEN pair.x += speed : slice_edit_updates focussl, @pair.x
-  IF keyval(ccDown)  > 0 THEN pair.y += speed : slice_edit_updates focussl, @pair.y
-  IF keyval(ccLeft)  > 0 THEN pair.x -= speed : slice_edit_updates focussl, @pair.x
   draw_background vpages(dpage), bgChequer
   'Invisible slices won't be updated by DrawSlice
   RefreshSliceTreeScreenPos focussl
@@ -2647,26 +2683,47 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
 
     sliceed_add_blend_edit_rules ses, menu(), rules(), @dat->drawopts
 
-    IF ses.privileged THEN
-     'None of these actually need slgrUPDATESPRITE, but it's the right thing to do.
-     a_append menu(), " Rotation: " & dat->rotate & " degrees"
-     sliceed_rule rules(), "sprite_rotate", erIntGrabber, @(dat->rotate), 0, 359, slgrUPDATESPRITE
-     a_append menu(), " Zoom: " & format_percent(dat->zoom)
-     sliceed_rule_single rules(), "sprite_zoom", erSinglePercentgrabber, @(dat->zoom), -2000, 2000, slgrUPDATESPRITE
+    sliceed_header menu(), rules(), "[Sprite transformations]", @ses.expand_transform
 
-     IF dat->rotate ORELSE dat->zoom <> 1. THEN
-      STATIC SmoothCapts(2) as zstring ptr = {@"None", @"Smooth", @"Smoother (scale_surface)"}
-      DIM msg as string = safe_captionz(SmoothCapts(), dat->rz_smooth)
-      IF dat->rz_smooth ANDALSO vpages_are_32bit = NO THEN msg &= " (ignored: Ctrl-3 to switch to 24bit)"
-      a_append menu(), "  Smoothing: " & msg
-      sliceed_rule rules(), "sprite_smooth_rotozoom", erIntGrabber, @(dat->rz_smooth), 0, 2, slgrUPDATESPRITE
-     END IF
+    'a_append menu(), "Y: " & fgtag(uilook(uiDisabledItem), "0 (filling)")
+    ' a_append menu(), " Position vertices..."
+    ' sliceed_rule_none rules(), "vertices", slgrMOVEVERTICES
+
+    a_append menu(), "Transformed: " & dat->is_transformed & " Use transform:  " & dat->use_transform & " RZ params: " &  dat->use_rz_params
+    sliceed_rule_none rules(), ""
+
+    if dat->use_rz_params = NO then
+     if dat->is_transformed = NO then
+      PrepareSpriteRZTransform(sl, YES)
+     end if
+    end if
+
+    a_append menu(), " Rotation: " & format_float(dat->rz_angle) & " degrees"
+    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), 0, 360, slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Scale X: " & format_percent(dat->rz_scale.x)
+    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Scale Y: " & format_percent(dat->rz_scale.y)
+    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Origin X: " & format_float(dat->rz_origin.x)
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Origin Y: " & format_float(dat->rz_origin.y)
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+
+    IF ses.privileged THEN
+     STATIC SmoothCapts(2) as zstring ptr = {@"None", @"Smooth (Unimpl)", @"Smoother (scale_surface)"}
+     DIM msg as string = safe_captionz(SmoothCapts(), dat->rz_smooth)
+     IF dat->rz_smooth ANDALSO vpages_are_32bit = NO THEN msg &= " (ignored: Ctrl-3 to switch to 24bit)"
+     a_append menu(), "  Smoothing: " & msg
+     sliceed_rule rules(), "sprite_smooth_rotozoom", erIntGrabber, @(dat->rz_smooth), 0, 2, slgrUPDATESPRITE
+     a_append menu(), " Cache scaled: " & yesorno(dat->rz_cache_scaled)
+     sliceed_rule_tog rules(), "sprite_cache_scaled", @(dat->rz_cache_scaled), slgrUPDATESPRITE
     END IF
 
-    a_append menu(), " Flip horiz.: " & yesorno(dat->flipHoriz)
-    sliceed_rule_tog rules(), "sprite_flip", @(dat->flipHoriz),   'slgrUPDATESPRITE
-    a_append menu(), " Flip vert.: " & yesorno(dat->flipVert)
-    sliceed_rule_tog rules(), "sprite_flip", @(dat->flipVert),   'slgrUPDATESPRITE
+    a_append menu(), " Flip horiz.: " & yesorno(dat->rz_flip_horiz)
+    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_horiz), slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Flip vert.: " & yesorno(dat->rz_flip_vert)
+    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_Vert), slgrUPDATESPRITETRANSFORM
+
     a_append menu(), " Dissolving: " & yesorno(dat->dissolving)
     sliceed_rule_tog rules(), "sprite_dissolve", @(dat->dissolving)
     IF dat->dissolving THEN
@@ -2683,10 +2740,6 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
      'TODO: need to set d_time to 0 to reset the animation if it's already finished, when this is changed to YES
      'a_append menu(), "  Animate: " & yesorno(dat->d_auto)
      'sliceed_rule_tog rules(), "sprite_d_auto", @(dat->d_auto)
-    END IF
-    IF ses.privileged THEN
-     a_append menu(), " Scaled: " & yesorno(dat->scaled)
-     sliceed_rule_tog rules(), "sprite_scaled", @(dat->scaled), slgrUPDATESPRITE
     END IF
 
    CASE slGrid
@@ -3745,6 +3798,8 @@ SUB SliceEditSettingsMenu.update()
 'IIF(ses->show_root, "Show", "Hide") & " root slice (F5)"
  add_item 13, , "Shift viewport... (F6)"
  add_item 14, , "Show ants: " & yesorno(ses->show_ants) & " (F7)"
+'"scroll into view"
+'"text sice"
  'add_item 15, , "This menu (F8)"
 #IFDEF IS_CUSTOM
  add_item 16, , "Global Editor Options (F9)"

@@ -1,5 +1,5 @@
 'OHRRPGCE - Slices
-'(C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+'(C) Copyright 1997-2022 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
 'Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
 
 #ifndef SLICES_BI
@@ -8,6 +8,7 @@
 #include "udts.bi"
 #include "common.bi"
 #include "reload.bi"
+#include "allmodex.bi"
 
 'Uncomment to enable double-checking of slice creation and deletion.
 'This is mainly only useful to find leaked slices.
@@ -202,6 +203,7 @@ Enum 'SliceTypes
  slLayout
  slLine
  slLAST = slLine
+ 'Follow INSTRUCTIONS at the bottom of this file for adding a new slice type
  'Remember to update slicetype constants in plotscr.hsd
  slAddCollection      'Not a real type, used only by slice_edit_detail_browse_slicetype
 End Enum
@@ -334,6 +336,8 @@ Type Slice
     End Type
     Size as XYPair
   End Union
+
+  ScreenOffset as XYPair   'An extra offset
 
   Visible as boolean
   'A slice is shown if Visible=YES and it's not a template (or template_slices_shown=YES)
@@ -519,35 +523,65 @@ Type SpriteSliceData
                            '(The string memory is owned by this slice. Used a string ptr
                            'to minimise overhead for non-asset slices.)
  load_asset_as_32bit as bool
- record as integer  'Spriteset number. Meaningless if spritetype is sprTypeFrame
- frame as integer   'Currently displaying frame number. Must be 0 if spritetype is sptTypeFrame
- paletted as bool   'UNSAVED: YES: 4-bit, NO: 8-bit  (could remove this when 256-colour palettes added, or change meaning)
- pal as integer     '(UNSAVED if unpaletted) Set pal to -1 for the default. Ignored for unpaletted.
-                    '-2 if using a custom Palette16 ptr (sprTypeFrame only).
- trans as bool      'Draw with color 0 as transparent?
- loaded as bool     'UNSAVED: Set to NO to force a re-load on the next draw
- img_gen as integer        'UNSAVED: Equals .original_img->generation unless the spriteset has changed (e.g. modified
+ record as integer         'Spriteset number. Meaningless if spritetype is sprTypeFrame
+ frame as integer          'Currently displaying frame number. Must be 0 if spritetype is sprTypeFrame
+ paletted as bool = YES    'UNSAVED: YES: 4-bit, NO: 8-bit (could remove this when 256-colour palettes added, or change meaning)
+ pal as integer = -1       'Set pal to -1 for the default. Ignored if paletted=NO (and won't be saved).
+                           '-2 if using a custom Palette16 ptr (sprTypeFrame only).
+ trans as bool = YES       'Draw with color 0 as transparent?
+
+ loaded as bool            'UNSAVED: Set to NO to force a re-load on the next draw
+ img_gen as integer        'UNSAVED: Equals .originl_img->generation unless the spriteset has changed (e.g. modified
                            'during live-previewing), indicating LoadSpriteSliceImage needs to update.
- img as GraphicPair        'UNSAVED: Image and palette, possibly a cached pre-scaled copy (.scaled).
+ img as GraphicPair        'UNSAVED: Image and palette, possibly a cached pre-scaled copy (rz_cache_scaled).
                            'img.pal = NULL for unpaletted sprites.
                            'Will be loaded automatically by DrawSpriteSlice calling LoadSpriteSliceImage
- original_img as Frame ptr 'UNSAVED: The image without any preprocessing. Same as img.sprite unless .scaled
+ original_img as .Frame ptr'UNSAVED: The image without any preprocessing. Same as img.sprite unless rz_cache_scaled
                            'is used. NULL if and only if .img.sprite is NULL. Also refcounted.
+                           '(SpriteSliceData.frame shadows Frame type)
+
 
  'Transformations
- flipHoriz as bool  'NO normal, YES horizontally flipped
- flipVert as bool   'NO normal, YES vertically flipped
- scaled as bool     'Scale the sprite to the size of the slice. 32-bit only! Cached. SEPARATE to rotozooming.
- '(experimental rotozoom options:)
- rotate as integer  'UNSAVED: Clockwise angle in degrees, normally 0-359
- zoom as single     'UNSAVED. Zoom ratio. Defaults to 1.
- rz_smooth as integer  'UNSAVED: 0-2 rotozoom smoothness. 0: none, 1: use bi-linear filtering (32-bit only)
-                       '2: use scale_surface, better when shrinking (Non-rotated & 32-bit only)
+ transform as Quad         'Normalized; see NormalizeSliceTransform
+ is_transformed as bool    'False if .transform isn't used (it is considered uninitialised) and the transformation
+                           'described by rz* params is trivial and can be ignored. E.g. rotation by 360°.
+                           'Should be toggled only by calling UpdateSpriteIsTransformed.
+ use_transform as bool     'True if should be drawn using .transform. Normally same as .is_transformed except
+                           'when rz_cache_scaled=YES it's possible that use_transform=NO while is_transformed=YES
+                           'because img.sprite is prescaled, and no further transform may be needed.
+
+ 'fixedsize as bool        '[Unimplemented: always false] If true, the size of the slice isn't changed when the
+                           'sprite's size is modified (in the sprite editor) or when the spriteset is changed to
+                           'one with a different size; instead the sprite is transform is scaled to match the
+                           'size.
+
+ rz_smooth as integer      'UNSAVED: 0-2 rotozoom smoothing method. 0: none, 1: (unimplemented, was use bi-linear
+                           'filtering --32-bit only) 2: use scale_surface, better when shrinking (32-bit only), but
+                           'currently requires rz_cache_scaled = YES
+ rz_cache_scaled as bool   'UNSAVED: rz_smooth=2 only. Pre-compute (cache) the scaling, store it in
+                           '.img.sprite. TODO: Not shared between sprite slices, unless they're cloned!
+                           'FIXME: causes the scaled slice size to be rounded to the nearest pixel.
+ 'rz_cache_scaled_need_update as bool   'If might need to regenerate the scaled image
+ 'The following parameters may be used to (re)compute .transform only if .use_rz_params is true,
+ 'otherwise a custom transform is in use and it shouldn't be overwritten, and the following are just
+ 'descriptions of its properties.
+ use_rz_params as bool = NO 'Regardless of .is_transformed, tells both whether rz_* parameters are initialised
+                           'and whether they are in use rather than a manually-set .transform.
+                           'If .is_transformed=NO and .use_rz_params=YES then rz params describes a trivial
+                           'transform (unless rz_cache_scaled=YES). If .is_transformed=YES and .use_rz_params=NO
+                           'then only .transform & .rz_flip_horiz/vert are initialised.
+ rz_flip_horiz as bool     'Horizontally flipped (before rotation). Note: always considered initialised even when
+                           'use_rz_params=NO, although may not be true, because they are still used for flipping.
+ rz_flip_vert as bool      'Vertically flipped. As above.
+ 'basesize as Float2       'Frame size times rz_scale
+ rz_scale as Float2        'Ratio to scale the Frame's width/height (before rotation)
+ rz_angle as single        'Clockwise angle in degrees, normally 0-359
+ rz_origin as Float2       'Point (after flipping but before scaling) around which to rotate and scale
 
  'Blending/transparency settings
  'drawopts.scale and drawopts.write_mask are unused.
  drawopts as DrawOptions = def_drawoptions
-
+'
  'dissolve state data
  dissolving as boolean
  d_back as boolean ' backwards: NO dissolve away, YES dissolve back in
@@ -686,6 +720,10 @@ DECLARE Sub SliceClamp(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr)
 
 DECLARE Function SliceLegalCoverModes(sl as Slice ptr) as CoverModes
 DECLARE Function SlicePossiblyResizable(sl as Slice ptr) as bool
+DECLARE Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
+DECLARE Sub SetSliceSize(sl as Slice ptr, size as XYPair)
+
+DECLARE Sub RotozoomSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), drop_offset as bool = NO, smooth as integer = 0, cache_scaled as bool = NO)
 
 DECLARE Function SliceXAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceYAnchor(byval sl as Slice Ptr) as integer
@@ -726,7 +764,7 @@ DECLARE FUNCTION SliceLookupCodename OVERLOAD (code as integer, slicelookup() as
 
 Extern "C"
 
-'slice accessors
+'Slice accessors (trivial)
 DECLARE Function SliceGetParent( byval s as Slice ptr ) as Slice ptr
 DECLARE Function SliceGetFirstChild( byval s as Slice ptr ) as Slice ptr
 DECLARE Function SliceGetLastChild( byval s as Slice ptr ) as Slice ptr
@@ -794,7 +832,8 @@ DECLARE Sub DrawSpriteSlice(byval sl as slice ptr, byval p as integer)
 DECLARE Sub LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO)
 DECLARE Sub SetSpriteToAsset(sl as Slice ptr, assetfile as string, warn_if_missing as bool = YES)
 DECLARE Sub SetSpriteToFrame(sl as slice ptr, fr as Frame ptr, pal16 as Palette16 ptr = NULL, pal as integer = -2)
-DECLARE Sub SpriteSliceUpdate(sl as Slice ptr)
+DECLARE Sub UpdateSpriteSliceImage(sl as Slice ptr)
+DECLARE Sub UpdateSpriteSliceTransform(sl as Slice ptr, drop_offset as bool = NO)
 DECLARE Function NewSpriteSlice(byval parent as Slice ptr, byref dat as SpriteSliceData) as slice ptr
 DECLARE Sub ChangeSpriteSlice(byval sl as slice ptr,_
                       byval spritetype as SpriteType = sprTypeInvalid,_
@@ -804,7 +843,11 @@ DECLARE Sub ChangeSpriteSlice(byval sl as slice ptr,_
                       byval fliph as integer = -2,_
                       byval flipv as integer = -2,_
                       byval trans as integer = -2)  ' All arguments default to no change
+DECLARE Sub PrepareSpriteRZTransform(sl as Slice ptr, use_rz as integer = -2)  'EnsureSpriteTransformInit
+DECLARE Sub ResetSpriteTransform(sl as Slice ptr)
 DECLARE Sub ScaleSpriteSlice(sl as Slice ptr, size as XYPair)
+DECLARE Sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), drop_offset as bool = NO, smooth as integer = 0, cache_scaled as bool = NO)
+DECLARE Sub SetSpriteFlipped(sl as Slice ptr, fliph as bool, flipv as bool)
 DECLARE Sub DissolveSpriteSlice(byval sl as slice ptr, byval dissolve_type as integer, byval over_ticks as integer=-1, byval start_tick as integer=0, byval backwards as bool=NO, byval auto_animate as bool=YES)
 DECLARE Sub CancelSpriteSliceDissolve(sl as Slice ptr)
 DECLARE Function SpriteSliceIsDissolving(byval sl as slice ptr, byval only_auto as bool=YES) as bool
@@ -895,11 +938,6 @@ Sub Draw<TYPENAME>Slice(byval sl as Slice ptr, byval p as integer)
 
  '''DRAWING CODE GOES HERE!
 end sub
-
-Function Get<TYPENAME>SliceData(byval sl as Slice ptr) as <TYPENAME>SliceData ptr
- if sl = 0 then return 0
- return sl->SliceData
-End Function
 
 Sub Clone<TYPENAME>Slice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "Clone<TYPENAME>Slice null ptr": exit sub

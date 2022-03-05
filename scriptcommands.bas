@@ -2549,14 +2549,10 @@ SUB script_commands(byval cmdid as integer)
   END IF
  CASE 372 '--set slice width
   sl = get_arg_resizeable_slice(0, NO, YES)
-  IF sl THEN
-   sl->Width = retvals(1)
-  END IF
+  IF sl THEN SetSliceSize sl, XY(retvals(1), sl->Height)
  CASE 373 '--set slice height
   sl = get_arg_resizeable_slice(0, YES, NO)
-  IF sl THEN
-   sl->Height = retvals(1)
-  END IF
+  IF sl THEN SetSliceSize sl, XY(sl->Width, retvals(1))
  CASE 374 '--get rect style
   sl = get_arg_rectsl(0)
   IF sl THEN
@@ -2653,12 +2649,12 @@ SUB script_commands(byval cmdid as integer)
  CASE 390 '--sprite is horiz flipped
   sl = get_arg_spritesl(0)
   IF sl THEN
-   scriptret = IIF(sl->SpriteData->flipHoriz, 1, 0)
+   scriptret = IIF(sl->SpriteData->rz_flip_horiz, 1, 0)
   END IF
  CASE 391 '--sprite is vert flipped
   sl = get_arg_spritesl(0)
   IF sl THEN
-   scriptret = IIF(sl->SpriteData->flipVert, 1, 0)
+   scriptret = IIF(sl->SpriteData->rz_flip_vert, 1, 0)
   END IF
  CASE 392 '--set top padding
   sl = get_arg_slice(0)
@@ -5341,6 +5337,59 @@ SUB script_commands(byval cmdid as integer)
   scriptret = IIF(sys = "SWITCH", 1, 0)
 
 
+  CASE 730 '--scale slice(sl, scalex, scaley)  or  scale slice(sl, scale)
+  'Currently implemented for sprites only, RotozoomSlice shows an error for other types
+   sl = get_arg_slice(0)
+   IF sl THEN
+    DIM as integer scalex = retvals(1), scaley = retvals(2)
+    IF scaley = INT_MIN THEN scaley = scalex
+    RotozoomSlice sl, , , XYF(0.01 * scalex, 0.01 * scaley)
+   END IF
+
+
+  CASE 731 '--rotate slice(sl, angle, change xy)
+  'Currently implemented for sprites only, RotozoomSlice shows an error for other types
+   sl = get_arg_slice(0)
+   IF sl THEN
+    DIM drop_offset as bool = (retvals(2) = 0)
+    RotozoomSlice sl, retvals(1), , , drop_offset
+   END IF
+
+  CASE 732 '--rotate slice about(sl, angle, x, y)
+   sl = get_arg_spritesl(0)
+   IF sl THEN
+    DIM as integer scalex = retvals(1), scaley = retvals(2)
+    IF scaley = INT_MIN THEN scaley = scalex
+    RotozoomSlice sl, retvals(1), XYF(retvals(2), retvals(3))
+   END IF
+
+  CASE 733 '--reset slice transform(sl)
+   sl = get_arg_spritesl(0)
+   IF sl THEN ResetSpriteTransform(sl)
+
+  CASE 734 '--set slice vertices(sl, topright.x, topright.y, bottomleft.x, bottomleft.y, [bottomright.x, bottomright.y])
+   sl = get_arg_spritesl(0)
+   IF sl THEN
+    'SetSpriteSliceTransformed sl, NO   'Set use_rz_params = NO
+    PrepareSpriteRZTransform sl, NO   'Set use_rz_params = NO
+    WITH *sl->SpriteData.transform
+     .topleft = XYF(0, 0)
+     .topright = XYF(retvals(1), retvals(2))
+     .bottomleft = XYF(retvals(3), retvals(4))
+     IF retvals(5) = INT_MIN THEN
+      'Form a parallelogram
+      .bottomright = XYF(.bottomleft.x + .topright.x, .bottomleft.y + .topright.y)
+     ELSE
+      .bottomright = XYF(retvals(4), retvals(5))
+     END IF
+    END WITH
+    UpdateSpriteSliceTransform sl
+   END IF
+
+
+
+
+
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
   scripterr "Unsupported script command " & cmdid & " " & commandname(cmdid) & ". " _
@@ -5713,6 +5762,9 @@ FUNCTION get_arg_resizeable_slice(byval argno as integer, byval horiz_fill_ok as
    END IF
    RETURN NULL
   END IF
+
+  'TODO: Maybe "set slice width/height" on a slice set to fill or cover should disable fill/cover
+  'instead of failing? That's how the sliceeditor works
 
   'This is only for "set slice width/height"; "fill parent" needs to do its own checks
   IF ((sl->CoverChildren AND coverHoriz) ANDALSO horiz_fill_ok = NO) ORELSE _
