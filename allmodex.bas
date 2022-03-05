@@ -10820,21 +10820,36 @@ sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf
 	gfx_renderQuadColor(@vertices(0), @destrect, dest_surface, @opts)
 end sub
 
+sub flip_transform(byref transf as Quad, flip_horiz as bool, flip_vert as bool)
+	if flip_horiz then
+		swap transf.topleft.x, transf.topright.x
+		swap transf.bottomleft.x, transf.bottomright.x
+	end if
+	if flip_vert then
+		swap transf.topleft.y,  transf.bottomleft.y
+		swap transf.topright.y, transf.bottomright.y
+	end if
+end sub
+
 'Calculate a Quad for a frame/slice of given 'size' by first stretching by 'scale',
-'then rotating `angle` degrees clockwise about `center` (defaults of center of `size`),
+'then rotating `angle` degrees clockwise about `origin` (defaults to center of `size`),
 'then translating by `pos`. (Does NOT support RelPosXY)
 'This can achieve any affine transform.
 '(The Float2 args are passed byref but not modified)
-sub rotozoom_transform(byref result as Quad, size as XYPair, center as Float2 ptr = NULL, pos as Float2, angle as double, zoom as Float2)
-	dim _center as Float2 = any
-	if center = NULL then
-		_center = XYF(size.x / 2, size.y / 2)
-		center = @_center
+sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 ptr = NULL, pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+	dim _origin as Float2 = any
+	if origin = NULL then
+		_origin = XYF(size.x / 2, size.y / 2)
+		origin = @_origin
 	end if
+	'if .flip_horiz then origin.x = size.x - origin.x
+	'if .flip_vert  then origin.y = size.y - origin.y
 	dim baserect as Quad
-	vec2GenerateCorners @baserect.vertices(0), 4, size, *center
+	vec2GenerateCorners @baserect.vertices(0), 4, size, *origin
+	flip_transform baserect, flip_horiz, flip_vert
+
 	dim matrix as Float3x3
-	matrixLocalTransform @matrix, angle * -M_PI / 180, zoom, pos
+	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos
 	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 end sub
 
