@@ -58,9 +58,9 @@ union AffineTransform {
 		float2 bottomleft;
 		float2 topleft;
 		float2 topright;
-		//float2 bottomright;
+		float2 bottomright;
 	};
-	float2 vertices[3];
+	float2 vertices[4];
 };
 
 

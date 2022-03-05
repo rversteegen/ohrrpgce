@@ -10743,8 +10743,9 @@ sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL,
 		vertices(0).pos = offset + .bottomleft - 0.001
 		vertices(1).pos = offset + .topleft - 0.001
 		vertices(2).pos = offset + .topright - 0.001
-		'vertices(3).pos = offset + .bottomright - 0.001
-		vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
+		vertices(3).pos = offset + .bottomright - 0.001
+		'Parallelogram:
+		'vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
 	end with
 
 	'Get Surface shims around Frames as needed
@@ -10800,8 +10801,9 @@ sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf
 		vertices(0).pos = offset + .bottomleft - 0.001
 		vertices(1).pos = offset + .topleft - 0.001
 		vertices(2).pos = offset + .topright - 0.001
-		'vertices(3).pos = offset + .bottomright - 0.001
-		vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
+		vertices(3).pos = offset + .bottomright - 0.001
+		'Parallelogram:
+		'vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
 	end with
 	for i as integer = 0 to 3
 		vertices(i).col = cols(i)
@@ -10829,12 +10831,11 @@ sub rotozoom_transform(byref result as AffineTransform, size as XYPair, center a
 		_center = XYF(size.x / 2, size.y / 2)
 		center = @_center
 	end if
-	dim vertices(3) as Float2
-	vec2GenerateCorners @vertices(0), 4, size, *center
+	dim baserect as AffineTransform
+	vec2GenerateCorners @baserect.vertices(0), 4, size, *center
 	dim matrix as Float3x3
 	matrixLocalTransform @matrix, angle * -M_PI / 180, zoom, pos
-	'Only first 3 vertices
-	vec2Transform @result.vertices(0), 3, @vertices(0), 3, matrix
+	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 end sub
 
 'Return a copy of a single Frame or a Frame array, each frame clipped or extended.

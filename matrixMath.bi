@@ -27,14 +27,15 @@ TYPE Float3x3
   _31 as single : _32 as single : _33 as single
 END TYPE
 
+'Only actually describes an affine transformation if a parallelogram
 UNION AffineTransform
 	TYPE
 		bottomleft as Float2
 		topleft as Float2
 		topright as Float2
-		'bottomright as Float2
+		bottomright as Float2
 	END TYPE
-	vertices(2) as Float2
+	vertices(3) as Float2
 END UNION
 
 EXTERN "C"
