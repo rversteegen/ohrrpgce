@@ -289,7 +289,7 @@ inline bool readTexel(Color &srcColor, const Surface *pTexture, const TexCoordIn
 }
 
 //Assumes that if pTexture is 8bit a palette is passed in
-void TriRasterizer::rasterTexture(const DrawingRange<VertexPT> &range, const Surface *restrict pTexture, const RGBPalette *restrict pPalette, Surface *restrict pSurfaceDest, DrawOptions *restrict pOpts, int alpha)
+void TriRasterizer::rasterTexture(const DrawingRange<VertexPT> &range, const Surface *restrict pTexture, const RGBPalette *restrict pPalette, const Palette16 *restrict pPal8, Surface *restrict pSurfaceDest, DrawOptions *restrict pOpts, int alpha)
 {
 	Color srcColor, destColor, finalColor;
 	int startx, finishx, y;
@@ -319,8 +319,12 @@ void TriRasterizer::rasterTexture(const DrawingRange<VertexPT> &range, const Sur
 			// Fast path: can copy 8-bit indices without going to 32-bit and back
 			for (int x = startx; x <= finishx; x++, pDest8++, point += pointInc) {
 				uint8_t index = Tex2DSampler::sample8bit(pTexture, point.tex.u, point.tex.v);
-				if (index != colorKey)
-					*pDest8 = index;
+				if (index != colorKey) {
+					if (pPal8)
+						*pDest8 = pPal8->col[index];
+					else
+						*pDest8 = index;
+				}
 			}
 		} else {
 			int tog = (startx ^ y) & 1; //Ideally would use x,y relative to topleft of the quad instead
@@ -465,9 +469,11 @@ void TriRasterizer::drawTriangleColor(VertexPC *pTriangle, SurfaceRect *pRectDes
 	}
 }
 
+// pPal8 may be NULL, but if it's used it must also be passed as an unrolled pPalette,
+// rather than passing the master palette!
 // pOpts->argbModifier is not supported, drawTriangleTextureColor must be used for it
 // (maybe a fast path should be added for it?)
-void TriRasterizer::drawTriangleTexture(VertexPT *pTriangle, const Surface *pTexture, const RGBPalette *pPalette, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
+void TriRasterizer::drawTriangleTexture(VertexPT *pTriangle, const Surface *pTexture, const RGBPalette *pPalette, const Palette16* pPal8, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
 {
 	if(pSurfaceDest == NULL || pTriangle == NULL || pTexture == NULL || pOpts == NULL)
 		return;
@@ -488,15 +494,16 @@ void TriRasterizer::drawTriangleTexture(VertexPT *pTriangle, const Surface *pTex
 
 	//rasterize the polygon
 	while (!rasterLines.empty()) {
-		rasterTexture(rasterLines.front(), pTexture, pPalette, pSurfaceDest, &opts, alpha);
+		rasterTexture(rasterLines.front(), pTexture, pPalette, pPal8, pSurfaceDest, &opts, alpha);
 		rasterLines.pop();
 	}
 }
 
 // Doesn't support pOpts->alpha_channel = false when using opacity/argbModifier.a or vertex alpha.
 // FIXME: Modifies pTriangle!
-void TriRasterizer::drawTriangleTextureColor(VertexPTC *pTriangle, const Surface *pTexture, const RGBPalette *pPalette, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
+void TriRasterizer::drawTriangleTextureColor(VertexPTC *pTriangle, const Surface *pTexture, const RGBPalette *pPalette, const Palette16* pPal8, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
 {
+	(void)pPal8;  // No fast path that uses it
 	if(pSurfaceDest == NULL || pTriangle == NULL || pTexture == NULL || pOpts == NULL)
 		return;
 
@@ -563,7 +570,7 @@ void QuadRasterizer::drawQuadColor(const VertexPC *pQuad, SurfaceRect *pRectDest
 		drawTriangleColor(&triangles[i*3], pRectDest, pSurfaceDest, pOpts);
 }
 
-void QuadRasterizer::drawQuadTexture(const VertexPT *pQuad, const Surface *pTexture, const RGBPalette *pPalette, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
+void QuadRasterizer::drawQuadTexture(const VertexPT *pQuad, const Surface *pTexture, const RGBPalette *pPalette, const Palette16* pPal8, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
 {
 	if( pQuad == NULL )
 		return;
@@ -571,10 +578,10 @@ void QuadRasterizer::drawQuadTexture(const VertexPT *pQuad, const Surface *pText
 	generateTriangles(pQuad, triangles);
 
 	for (int i = 0; i < 4; i++)
-		drawTriangleTexture(&triangles[i*3], pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+		drawTriangleTexture(&triangles[i*3], pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }
 
-void QuadRasterizer::drawQuadTextureColor(const VertexPTC *pQuad, const Surface *pTexture, const RGBPalette *pPalette, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
+void QuadRasterizer::drawQuadTextureColor(const VertexPTC *pQuad, const Surface *pTexture, const RGBPalette *pPalette, const Palette16* pPal8, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
 {
 	if( pQuad == NULL )
 		return;
@@ -582,5 +589,5 @@ void QuadRasterizer::drawQuadTextureColor(const VertexPTC *pQuad, const Surface 
 	generateTriangles(pQuad, triangles);
 
 	for (int i = 0; i < 4; i++)
-		drawTriangleTextureColor(&triangles[i*3], pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+		drawTriangleTextureColor(&triangles[i*3], pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }

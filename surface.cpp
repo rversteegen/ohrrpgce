@@ -711,22 +711,22 @@ void gfx_renderQuadColor_SW( VertexPC* pQuad, SurfaceRect* pRectDest, Surface* p
 	g_rasterizer.drawQuadColor(pQuad, pRectDest, pSurfaceDest, pOpts);
 }
 
-void gfx_renderQuadTexture_SW( VertexPT* pQuad, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
-	g_rasterizer.drawQuadTexture(pQuad, pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+void gfx_renderQuadTexture_SW( VertexPT* pQuad, Surface* pTexture, RGBPalette* pPalette, Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
+	g_rasterizer.drawQuadTexture(pQuad, pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }
 
-void gfx_renderQuadTextureColor_SW( VertexPTC* pQuad, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
-	g_rasterizer.drawQuadTextureColor(pQuad, pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+void gfx_renderQuadTextureColor_SW( VertexPTC* pQuad, Surface* pTexture, RGBPalette* pPalette, Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
+	g_rasterizer.drawQuadTextureColor(pQuad, pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }
 
 void gfx_renderTriangleColor_SW( VertexPC* pTriangle, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
 	g_rasterizer.drawTriangleColor(pTriangle, pRectDest, pSurfaceDest, pOpts);
 }
 
-void gfx_renderTriangleTexture_SW( VertexPT* pTriangle, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
-	g_rasterizer.drawTriangleTexture(pTriangle, pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+void gfx_renderTriangleTexture_SW( VertexPT* pTriangle, Surface* pTexture, RGBPalette* pPalette, Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
+	g_rasterizer.drawTriangleTexture(pTriangle, pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }
 
-void gfx_renderTriangleTextureColor_SW( VertexPTC* pTriangle, Surface* pTexture, RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
-	g_rasterizer.drawTriangleTextureColor(pTriangle, pTexture, pPalette, pRectDest, pSurfaceDest, pOpts);
+void gfx_renderTriangleTextureColor_SW( VertexPTC* pTriangle, Surface* pTexture, RGBPalette* pPalette, Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts ) {
+	g_rasterizer.drawTriangleTextureColor(pTriangle, pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }

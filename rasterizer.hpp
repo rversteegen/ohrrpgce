@@ -72,12 +72,12 @@ protected:
 	bool drawSetup(T_VertexType *pTriangle, SurfaceRect *pRectDest, Surface *pSurfaceDest, std::queue< DrawingRange< T_VertexType > > &rasterLines);
 	bool simplifyDrawOptions(DrawOptions &opts, int &alpha);
 	void rasterColor(const DrawingRange<VertexPC>& range, Surface* pSurfaceDest, DrawOptions* pOpts);
-	void rasterTexture(const DrawingRange<VertexPT>& range, const Surface* pTexture, const RGBPalette* pPalette, Surface* pSurfaceDest, DrawOptions* pOpts, int alpha);
+	void rasterTexture(const DrawingRange<VertexPT>& range, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, Surface* pSurfaceDest, DrawOptions* pOpts, int alpha);
 	void rasterTextureColor(const DrawingRange<VertexPTC>& range, const Surface* pTexture, const RGBPalette* pPalette, Surface* pSurfaceDest, DrawOptions* pOpts);
 public:
 	void drawTriangleColor(VertexPC* pTriangle, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
-	void drawTriangleTexture(VertexPT* pTriangle, const Surface* pTexture, const RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
-	void drawTriangleTextureColor(VertexPTC* pTriangle, const Surface* pTexture, const RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
+	void drawTriangleTexture(VertexPT* pTriangle, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
+	void drawTriangleTextureColor(VertexPTC* pTriangle, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
 };
 
 // Note: QuadRasterizer should not have state, so that g_rasterizer global is threadsafe
@@ -88,8 +88,8 @@ protected:
 	void generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles);
 public:
 	void drawQuadColor(const VertexPC* pQuad, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
-	void drawQuadTexture(const VertexPT* pQuad, const Surface* pTexture, const RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
-	void drawQuadTextureColor(const VertexPTC* pQuad, const Surface* pTexture, const RGBPalette* pPalette, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
+	void drawQuadTexture(const VertexPT* pQuad, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
+	void drawQuadTextureColor(const VertexPTC* pQuad, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
 };
 
 #endif

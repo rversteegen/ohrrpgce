@@ -10778,9 +10778,9 @@ sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL,
 			ptcvertices(i).pos = vertices(i).pos
 			ptcvertices(i).col = vertex_cols[i]
 		next
-		gfx_renderQuadTextureColor(@ptcvertices(0), src_surface, masterpal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTextureColor(@ptcvertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 	else
-		gfx_renderQuadTexture(@vertices(0), src_surface, masterpal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTexture(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 	end if
 	def_drawoptions.color_key0 = NO
 end sub
