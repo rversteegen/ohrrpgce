@@ -10717,7 +10717,7 @@ local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as 
 	if subtimer then gfx_op_timer.substop subtimer
 end sub
 
-' Draw a Frame with position and transformation specified by an AffineTransform.
+' Draw a Frame with position and transformation specified by a Quad.
 ' Pass at most one of masterpal or pal (neither to use the current master palette).
 ' Supports 8 & 32-bit Frames, including alpha channels. (Respects opts.alpha_channel.)
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity.
@@ -10725,7 +10725,7 @@ end sub
 ' Does not support opts.alpha_channel=NO when using opacity/argbModifier.a or vertex alpha.
 ' Optionally, can pass in an array of 4 colours (clockwise from bottomleft) to interpolate
 ' colour (and alpha) modulation across the image.
-sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), transf as AffineTransform, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
+sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), transf as Quad, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
 	dim vertices(3) as VertexPT
 	'Clockwise from bottom-left
 	vertices(0).tex.u = 0
@@ -10789,7 +10789,7 @@ end sub
 ' Draw a paralleogram with a colour gradient between its corners.
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity
 ' opts.alpha_channel ignored.
-sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as AffineTransform, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as Quad, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 	BUG_IF(ubound(cols) <> 3, "expect 4 colors")
 
 	dim vertices(3) as VertexPC
@@ -10820,18 +10820,18 @@ sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf
 	gfx_renderQuadColor(@vertices(0), @destrect, dest_surface, @opts)
 end sub
 
-'Calculate an AffineTransform of a slice of given 'size' by first stretching by 'zoom',
+'Calculate a Quad for a frame/slice of given 'size' by first stretching by 'scale',
 'then rotating `angle` degrees clockwise about `center` (defaults of center of `size`),
 'then translating by `pos`. (Does NOT support RelPosXY)
 'This can achieve any affine transform.
 '(The Float2 args are passed byref but not modified)
-sub rotozoom_transform(byref result as AffineTransform, size as XYPair, center as Float2 ptr = NULL, pos as Float2, angle as double, zoom as Float2)
+sub rotozoom_transform(byref result as Quad, size as XYPair, center as Float2 ptr = NULL, pos as Float2, angle as double, zoom as Float2)
 	dim _center as Float2 = any
 	if center = NULL then
 		_center = XYF(size.x / 2, size.y / 2)
 		center = @_center
 	end if
-	dim baserect as AffineTransform
+	dim baserect as Quad
 	vec2GenerateCorners @baserect.vertices(0), 4, size, *center
 	dim matrix as Float3x3
 	matrixLocalTransform @matrix, angle * -M_PI / 180, zoom, pos

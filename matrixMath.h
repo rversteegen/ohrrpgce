@@ -53,7 +53,7 @@ struct float3x3 {
 	      _31, _32, _33;
 };
 
-union AffineTransform {
+union Quad {
 	struct {
 		float2 bottomleft;
 		float2 topleft;

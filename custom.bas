@@ -1694,7 +1694,7 @@ SUB quad_transforms_menu ()
   normdrawtime.stop()
 
   mathtime.start()
-  dim transf as AffineTransform
+  dim transf as Quad
   rotozoom_transform transf, sprpair.sprite->size, , position, angle, scale
   mathtime.stop()
 
@@ -1755,7 +1755,7 @@ FUNCTION rotozoom_test_with (img as GraphicPair, rotate as double, zoomx as doub
   WHILE TIMER - rztime < 3e-3
    IF raster THEN
     DIM position as Float2 = (vpages(vpage)->w / 2, vpages(vpage)->h / 2 - 50)
-    DIM transf as AffineTransform
+    DIM transf as Quad
     rotozoom_transform transf, img.sprite->size, , position, rotate, XYF(zoomx, zoomy)
     frame_draw_transformed img.sprite, , img.pal, , transf, trans, vpages(vpage)
 
