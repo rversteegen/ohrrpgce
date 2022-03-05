@@ -457,7 +457,7 @@ dim shared textbg as integer
 'In 32-bit mode, displaypal is never used; in 8-bit mode, displaypal gets faded in and out.
 dim shared displaypal(0 to 256) as RGBcolor   'Current display palette; in 8-bit mode includes screen fades
 extern "C"
-dim shared curmasterpal(0 to 256) as RGBcolor 'Palette at last setpal/fadein, excludes any screen fades
+dim curmasterpal(0 to 256) as RGBcolor 'Palette at last setpal/fadein, excludes any screen fades
 end extern
 
 dim shared updatepal as bool             'setpal called, load new palette at next setvispage
@@ -10718,13 +10718,14 @@ local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as 
 end sub
 
 ' Draw a Frame with position and transformation specified by an AffineTransform.
+' Pass at most one of masterpal or pal (neither to use the current master palette).
 ' Supports 8 & 32-bit Frames, including alpha channels. (Respects opts.alpha_channel.)
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity.
 ' Does not support masks on 8-bit Frames, or color_key0 on 32-bit Frames.
 ' Does not support opts.alpha_channel=NO when using opacity/argbModifier.a or vertex alpha.
 ' Optionally, can pass in an array of 4 colours (clockwise from bottomleft) to interpolate
 ' colour (and alpha) modulation across the image.
-sub frame_draw_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, transf as AffineTransform, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
+sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), transf as AffineTransform, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
 	dim vertices(3) as VertexPT
 	'Clockwise from bottom-left
 	vertices(0).tex.u = 0
@@ -10737,12 +10738,12 @@ sub frame_draw_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Pal
 	vertices(3).tex.v = 1
 	with transf
 		'Shift vertices slightly to avoid almost-horizontal or -vertical edges
-		'cutting through going exactly through a row/column of pixel centers,
+		'cutting through a row/column of pixel centers,
 		'which causes artifacts (not a rasterizer bug, will happen in OpenGL too)
-		vertices(0).pos = .bottomleft - 0.01
-		vertices(1).pos = .topleft - 0.01
-		vertices(2).pos = .topright - 0.01
-		'vertices(3).pos = .bottomright - 0.01
+		vertices(0).pos = offset + .bottomleft - 0.001
+		vertices(1).pos = offset + .topleft - 0.001
+		vertices(2).pos = offset + .topright - 0.001
+		'vertices(3).pos = offset + .bottomright - 0.001
 		vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
 	end with
 
@@ -10752,8 +10753,11 @@ sub frame_draw_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Pal
 	dim dest_surface as Surface ptr = surface_shim(dest, @tempdest_surface)
 	if src_surface = 0 orelse dest_surface = 0 then return
 
-	'Convert from pal (which may be NULL) to a 256-color palette
-	dim gfxpal as RGBPalette ptr = unrollPalette16(pal, @masterpal(0))
+	dim scratchpal as RGBPalette = any
+	if masterpal = NULL then
+		'Convert from pal to a 256-color palette (scratchpal), or returns masterpal if pal is NULL
+		masterpal = unrollPalette16(pal, @curmasterpal(0), @scratchpal)
+	end if
 
 	dim byref cliprect as ClipState = get_cliprect(dest)
 	dim destrect as SurfaceRect = (cliprect.l, cliprect.t, cliprect.r, cliprect.b)
@@ -10774,9 +10778,9 @@ sub frame_draw_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Pal
 			ptcvertices(i).pos = vertices(i).pos
 			ptcvertices(i).col = vertex_cols[i]
 		next
-		gfx_renderQuadTextureColor(@ptcvertices(0), src_surface, gfxpal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTextureColor(@ptcvertices(0), src_surface, masterpal, @destrect, dest_surface, @opts)
 	else
-		gfx_renderQuadTexture(@vertices(0), src_surface, gfxpal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTexture(@vertices(0), src_surface, masterpal, @destrect, dest_surface, @opts)
 	end if
 	def_drawoptions.color_key0 = NO
 end sub
@@ -10784,16 +10788,19 @@ end sub
 ' Draw a paralleogram with a colour gradient between its corners.
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity
 ' opts.alpha_channel ignored.
-sub rectangle_transformed(cols() as RGBcolor, transf as AffineTransform, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as AffineTransform, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 	BUG_IF(ubound(cols) <> 3, "expect 4 colors")
 
 	dim vertices(3) as VertexPC
 	'Clockwise from bottom-left
 	with transf
-		vertices(0).pos = .bottomleft - 0.01
-		vertices(1).pos = .topleft - 0.01
-		vertices(2).pos = .topright - 0.01
-		'vertices(3).pos = .bottomright - 0.01
+		'Shift vertices slightly to avoid almost-horizontal or -vertical edges
+		'cutting through a row/column of pixel centers,
+		'which causes artifacts (not a rasterizer bug, will happen in OpenGL too)
+		vertices(0).pos = offset + .bottomleft - 0.001
+		vertices(1).pos = offset + .topleft - 0.001
+		vertices(2).pos = offset + .topright - 0.001
+		'vertices(3).pos = offset + .bottomright - 0.001
 		vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
 	end with
 	for i as integer = 0 to 3

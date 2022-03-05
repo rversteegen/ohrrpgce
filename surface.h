@@ -171,7 +171,7 @@ extern DrawOptions def_drawoptions;
 	int gfx_paletteDestroy_SW( RGBPalette** ppPaletteIn );
 	int gfx_paletteUpdate_SW( RGBPalette* pPaletteIn );
 
-	RGBPalette* unrollPalette16( Palette16* pPal8, RGBcolor* pPalette );
+	RGBPalette* unrollPalette16( Palette16* pPal8, RGBcolor* pPalette, RGBPalette* pScratch );
 
 	// Function pointers to the selected implementation
 	extern int (*gfx_surfaceCreate)( int32_t width, int32_t height, enum SurfaceFormat format, enum SurfaceUsage usage, Surface** ppSurfaceOut );

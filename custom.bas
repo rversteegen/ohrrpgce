@@ -1701,11 +1701,11 @@ SUB quad_transforms_menu ()
   qdrawtime.start()
   select case drawmode
    case 0:
-    frame_draw_transformed sprpair.sprite, master(), sprpair.pal, transf, YES, vpages(vpage), drawopts
+    frame_draw_transformed sprpair.sprite, , sprpair.pal, , transf, YES, vpages(vpage), drawopts
    case 1:
-    frame_draw_transformed sprpair.sprite, master(), sprpair.pal, transf, YES, vpages(vpage), drawopts, @cols(0)
+    frame_draw_transformed sprpair.sprite, , sprpair.pal, , transf, YES, vpages(vpage), drawopts, @cols(0)
    case 2:
-    rectangle_transformed cols(), transf, vpages(vpage), drawopts
+    rectangle_transformed cols(), , transf, vpages(vpage), drawopts
   end select
   qdrawtime.stop()
 
@@ -1757,7 +1757,7 @@ FUNCTION rotozoom_test_with (img as GraphicPair, rotate as double, zoomx as doub
     DIM position as Float2 = (vpages(vpage)->w / 2, vpages(vpage)->h / 2 - 50)
     DIM transf as AffineTransform
     rotozoom_transform transf, img.sprite->size, , position, rotate, XYF(zoomx, zoomy)
-    frame_draw_transformed img.sprite, master(), img.pal, transf, trans, vpages(vpage)
+    frame_draw_transformed img.sprite, , img.pal, , transf, trans, vpages(vpage)
 
    ELSE
     gfx_surfaceDestroy(@out_surf)

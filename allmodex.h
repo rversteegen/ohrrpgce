@@ -65,7 +65,7 @@ uint8_t nearcolor_fast(RGBcolor col);
 uint8_t nearcolor_master(RGBcolor col, int firstindex);
 
 // Master palette
-extern RGBcolor curmasterpal[256];
+extern RGBcolor curmasterpal[257];
 
 #ifdef __cplusplus
 }

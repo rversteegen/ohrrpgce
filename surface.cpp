@@ -621,7 +621,8 @@ int gfx_surfaceCopy_SW( SurfaceRect* pRectSrc, Surface* pSurfaceSrc, RGBcolor* p
 		}
 
 		// Form a temp palette to avoid double-indirection on every pixel
-		RGBcolor *restrict pal32 = unrollPalette16(pPal8, pPalette)->col;
+		RGBPalette scratchPal;
+		RGBcolor *restrict pal32 = unrollPalette16(pPal8, pPalette, &scratchPal)->col;
 
 		if (pOpts->color_key0) {
 			for (int itY = 0; itY < itY_max; itY++) {
@@ -675,14 +676,14 @@ int gfx_paletteFromRGB_SW( RGBcolor* pColorsIn, RGBPalette** ppPaletteOut )
 //Produce a temporary palette from a Palette16
 //Hack: pPalette can be either a RGBPalette* or a RGBcolor[256]; it's assumed it's actually
 //a RGBPalette* if pPal8==NULL!
-RGBPalette* unrollPalette16(Palette16* pPal8, RGBcolor* pPalette) {
-	static RGBPalette temppal;
+//scratch is an allocated but uninitialised temporary RGBPalette.
+RGBPalette* unrollPalette16(Palette16* pPal8, RGBcolor* pPalette, RGBPalette* pScratch) {
 	if (pPal8) {
 		for (int idx = 0; idx < pPal8->numcolors; idx++) {
-			temppal.col[idx] = pPalette[pPal8->col[idx]];
+			pScratch->col[idx] = pPalette[pPal8->col[idx]];
 		}
-		temppal.from_backend = NO;
-		return &temppal;
+		pScratch->from_backend = NO;
+		return pScratch;
 	} else {
 		return (RGBPalette*)pPalette;
 	}

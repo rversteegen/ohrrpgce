@@ -680,8 +680,8 @@ end extern
 declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, page as integer, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
-declare sub frame_draw_transformed(src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, transf as AffineTransform, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
-declare sub rectangle_transformed(cols() as RGBcolor, transf as AffineTransform, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
+declare sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0),  transf as AffineTransform, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
+declare sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as AffineTransform, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 
 declare sub rotozoom_transform(byref result as AffineTransform, size as XYPair, center as Float2 ptr = NULL, pos as Float2, angle as double, zoom as Float2)
 

@@ -251,7 +251,7 @@ extern "C"
 	declare function gfx_paletteDestroy_SW ( byval ppPaletteIn as RGBPalette ptr ptr ) as integer
 	declare function gfx_paletteUpdate_SW ( byval pPaletteIn as RGBPalette ptr ) as integer
 
-	declare function unrollPalette16( byval pPal8 as Palette16Fwd ptr, byval pPalette as RGBcolor ptr ) as RGBPalette ptr
+	declare function unrollPalette16( byval pPal8 as Palette16Fwd ptr, byval pPalette as RGBcolor ptr, byval pScratch as RGBPalette ptr ) as RGBPalette ptr
 
 	declare sub gfx_renderQuadColor_SW ( byval pQuad as VertexPC ptr, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr, byval pOpts as DrawOptions ptr )
 	declare sub gfx_renderQuadTexture_SW ( byval pQuad as VertexPT ptr, byval pTexture as Surface ptr, byval pPalette as RGBPalette ptr, byval pRectDest as SurfaceRect ptr, byval pSurfaceDest as Surface ptr, byval pOpts as DrawOptions ptr )
