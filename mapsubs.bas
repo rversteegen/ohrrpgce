@@ -6404,7 +6404,9 @@ SUB update_edit_npc (npcdata as NPCType, ed as NPCEditState, gmap() as integer, 
   END SELECT
   ed.menu_append 18, " Pathfinding rule: " & obs_caption
  END IF
- ed.menu_append  3, "Move Speed " & npcdata.speed
+ ed.menu_append  3, "Move Speed " & format_float(npcdata.speed)
+' ed.menu_append 99, " Units " & iif(pixpsec_units, "pixels per second", "pixels per tick")
+
  ed.menu_append 15, "Movement Zone:" & editnpc_zone_caption(npcdata.defaultzone, gmap(32), zmap)
  ed.menu_append 16, "Avoidance Zone:" & editnpc_zone_caption(npcdata.defaultwallzone, gmap(33), zmap)
  ed.menu_append 17, "Ignore Passmap: " & yesorno(npcdata.ignore_passmap)

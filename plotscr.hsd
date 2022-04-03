@@ -791,6 +791,26 @@ script,setNPCspeed,hsd:who,hsd:newspeed=4,begin
  alterNPC(hsd:who,NPCstat:movespeed,hsd:newspeed)
 end
 
+
+script,getNPCpixspeed,hsd:who,begin
+ return(readNPC(hsd:who,NPCstat:movespeedpps))
+end
+
+
+script, pixpersec, px
+end
+
+script, pixpertick, px
+end
+
+script, tickspertile, tick,
+end
+
+script, mstickspertile, tick,
+end
+
+
+
 script, npc copy number, hsd:npc, begin
   variable(hsd:id, hsd:copy, hsd:ref)
   hsd:id := get NPC ID(hsd:npc)

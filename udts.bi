@@ -265,6 +265,7 @@ TYPE NPCType
   palette as integer = -1 '+1
   movetype as integer    '+2
   speed as integer = 4   '+3  real speed, not value in .d
+  speed as single
   textbox as integer     '+4
   facetype as integer    '+5
   item as integer        '+6
