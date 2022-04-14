@@ -2817,6 +2817,8 @@ wait for text box # wait until the player continues</example>
 					The game will instantly transition to the title screen (or load menu, if the title is disabled)
 					without a screen fade.
 					So you probably want to call <ref>fadescreenout</ref> beforehand.
+					If both the title screen and load menu are disabled then this will
+					fade out before exiting the program.
 				</note>
 				<note>
 					By using <ref>resetgame</ref> or <ref>loadfromslot</ref> instead,

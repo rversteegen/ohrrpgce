@@ -766,6 +766,7 @@ define function, begin
 736,showvalueofinternal,-1    # "show value of" is translated to this
 737,resetenemydata,2,0,0      # Reset one element of an enemy's data (enemy id, data index)
 738,resetenemyname,1,0        # Reset enemy name to original (enemy id)
+739,exitgame,1,1              # Exit the program (whether to fade out)
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 

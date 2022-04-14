@@ -5147,6 +5147,13 @@ SUB script_functions(byval cmdid as integer)
    END IF
   NEXT
   gam.showstring = result
+ CASE 739 '--exit game(fade out)
+  'Even if returning to a previous rungame then would be good if disabling fading works
+  'this isn't going to work for fading out...
+  gam.want.exit = YES
+ CASE 740 '--exit program(fade out)
+  'Override "run game"'s 'return' arg
+  gam.want.exit = YES
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
