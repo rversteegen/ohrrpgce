@@ -245,3 +245,4 @@ Weak/Strong Stat: This only applies if you have chosen "weakest" "strongest" "we
 
 
 Note that if the attack is used as part of a chain, and both the target class and the target setting are the same as the previous attack, and the preferred target is "Default" then the attack will use the exact same target as the previous attack.
+As an exception, if either of the attack's target settings are "Random Roulette" then the attack will ALWAYS retarget; make use of Stored Targets to avoid this.

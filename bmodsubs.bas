@@ -1748,6 +1748,8 @@ FUNCTION find_preferred_target(tmask() as bool, byval who as integer, atk as Att
  DIM search as integer
  DIM found as integer
  DIM prefstat as integer
+ DIM choices as integer vector  'bslot() indices of the targets we should pick from.
+ v_new choices
  
  IF atk.prefer_targ_stat = 0 THEN
   'Weak/Strong pref stat defaults to target stat
@@ -1759,13 +1761,13 @@ FUNCTION find_preferred_target(tmask() as bool, byval who as integer, atk as Att
  SELECT CASE atk.prefer_targ ' Preferred target type
 
  CASE 0 '--Default
-  IF is_hero(who) THEN
+  IF is_hero(who) THEN  'if player controlled
    atk.prefer_targ = 1 ' heroes default to first target
    IF atk.targ_set = 3 THEN
     'unless the target setting is random roulette, in which case random
     atk.prefer_targ = 4
    END IF
-  ELSEIF is_enemy(who) THEN
+  ELSEIF is_enemy(who) THEN  'else
    atk.prefer_targ = 4 ' enemies default to a random target
   END IF
   found = find_preferred_target(tmask(), who, atk, bslot())
@@ -1774,6 +1776,7 @@ FUNCTION find_preferred_target(tmask() as bool, byval who as integer, atk as Att
 
  CASE 1 '--First
   'special handling for heroes using attacks that target all/all-including-dead
+ 'fixme: pick first foe instead
   IF is_hero(who) AND (atk.targ_class = 3 OR atk.targ_class = 14) THEN
    FOR i = 4 to 11
     IF tmask(i) THEN RETURN i
@@ -1785,14 +1788,16 @@ FUNCTION find_preferred_target(tmask() as bool, byval who as integer, atk as Att
   END IF
 
  CASE 2 '--Closest
-  best = -1
-  found = 200000
+  found = 999999
   FOR i = 0 TO 11
    IF tmask(i) THEN
     search = quick_battle_distance(who, i, bslot())
     IF search < found THEN
-     best = i
      found = search
+     v_new choices
+    END IF
+    IF search <= found THEN
+     v_append choices, i
     END IF
    END IF
   NEXT i

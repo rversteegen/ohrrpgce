@@ -844,8 +844,9 @@ SUB battle_spawn_on_hit(byval targ as integer, byref bat as BattleState, bslot()
  END WITH
 END SUB
 
+'Called each tick for player targetting controls (whenever a player-controlled hero/enemy needs
+'to pick a target)
 SUB battle_targetting(byref bat as BattleState, bslot() as BattleSprite)
- 'Not just for heroes anymore!
 
  DIM do_cancel as bool = NO
  DIM do_pick as bool = NO
