@@ -775,6 +775,7 @@ end
 
 #--------------------------------------------------------------------------
 # soft coded functions
+#736,mouseinwindow,0           # The mouse is over the game's window
 
 script,walkherotoX,hsd:who,hsd:n,begin
 if (hsd:n<<heroX(hsd:who)) then(walk hero(hsd:who,west,heroX(hsd:who)--hsd:n))

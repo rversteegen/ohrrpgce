@@ -5174,6 +5174,19 @@ SUB script_functions(byval cmdid as integer)
  END SELECT
 END SUB
 
+ ' CASE 736 '--mouse in window
+
+ '  'Unlike windowisfocused this is nearly right for telling whether the game
+ '  'should display a mouse cursor (or do hover effects) but not correct when dragging off window.
+ '  'Returns false if the mouse is over the window decoration.
+ '  'Behaviour while dragging the mouse offwindow is backend-independent.
+ '  'Most of the backends clamp the mouse position to the window (gfx_fb slightly doesn't).
+ '  'TODO: make them (actually just SDL/SDL2/directx) report actual mouse position during drags
+ '  'and add either a backcompat bit or a command to toggle whether games get positions off the window.
+ '  'TODO: rename WindowState.mouse_over to .mouse_focus
+
+ '  scriptret = readmouse().active
+
 
 '==========================================================================================
 '                                     Music commands
