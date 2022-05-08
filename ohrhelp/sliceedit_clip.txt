@@ -2,7 +2,7 @@ If a slice is configured to clip its children, child slices will be clipped at t
 
 That means that parts (or all) of child slices won't be drawn. (Another way to prevent children from going out-of-bounds is to Clamp them to their parent.)
 
-When a Panel or Grid slice is set to clip, each child is clipped to its own cell/panel of the Grid/Panel, instead of the whole parent slice.
+When a Panel or Grid slice is set to clip, each child is clipped to its own cell/panel of the Grid/Panel, instead of the whole parent slice. Layout slices don't do that.
 
 Also, marking a slice as clipping is a potential speed-up, by telling the engine that if it isn't visible then its children can't be either, so they can be skipped entirely when drawing or looking for slice collisions.
 (Note that if the slice isn't drawn then slice autosorting might not happen.)
