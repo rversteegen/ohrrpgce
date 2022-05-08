@@ -815,7 +815,7 @@ menutype(AtkName) = 6
 menuoff(AtkName) = AtkDatName
 menulimits(AtkName) = AtkLimStr10
 
-menu(AtkAppearAct) = "Appearance..."
+menu(AtkAppearAct) = "Appearance and Delays..."
 menutype(AtkAppearAct) = 1
 
 menu(AtkSoundsAct) = "Sounds..."
