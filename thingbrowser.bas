@@ -23,7 +23,7 @@
 
 '-----------------------------------------------------------------------
 
-Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=NO, editor_func as FnThingBrowserEditor=0, byval edit_by_default as bool=YES, byval skip_zero as bool=NO) as integer
+Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=NO, editor_func as FnThingBrowserEditor=0, byval edit_by_default as bool=YES, byval skip_zero as bool=NO, byref remem_id as integer=0) as integer
  dim result as integer = start_id
  this.or_none = or_none
  this.skip_zero = skip_zero
@@ -85,7 +85,10 @@ Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=
  ps.m = root
  ps.cur = top_left_plank(ps)
  dim orig_cur as slice ptr = 0
- if focus_plank_by_extra_id(ps, , start_id, thinglist) then
+ if start_id = -1 then
+  focus_plank_by_extra_id(ps, , remem_id, thinglist)
+  'Don't set orig_cur, we don't want to highlight it
+ elseif focus_plank_by_extra_id(ps, , start_id, thinglist) then
   orig_cur = ps.cur
  end if
  DrawSlice root, vpage
@@ -308,7 +311,7 @@ Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=
   end if
 
   'Iterate over all the planks to run their each_tick sub  
-  REDIM planks(any) as Slice Ptr
+  redim planks(any) as Slice ptr
   find_all_planks ps, ps.m, planks()
   for i as integer = 0 to ubound(planks)
    each_tick_each_plank planks(i)
@@ -334,6 +337,7 @@ Function ThingBrowser.browse(byref start_id as integer=0, byval or_none as bool=
   setvispage vpage
   dowait
  loop
+ remem_id = ps.cur->Extra(0)  '0 if Back/New/Filter are selected
  leave_browser
  setkeys
  freepage holdscreen

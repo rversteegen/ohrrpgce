@@ -24,8 +24,9 @@ DECLARE SUB item_editor_init_new(itembuf() as integer)
 DECLARE SUB item_editor_stat_bonuses(itembuf() as integer)
 
 SUB item_editor ()
+ STATIC remem_id as integer
  DIM itemb as ItemBrowser
- itemb.browse(-1, , @individual_item_editor)
+ itemb.browse(-1, , @individual_item_editor, , , remem_id)
 END SUB
 
 ' an FnEditor

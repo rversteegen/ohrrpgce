@@ -83,11 +83,12 @@ DIM SHARED browse_default as string
 
 
 SUB textbox_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM b as TextboxBrowser
-  b.browse(-1, , @text_box_editor)
+  b.browse(-1, , @text_box_editor, , , remem_id)
  ELSE
-  text_box_editor 0
+  text_box_editor remem_id
  END IF
 END SUB
 

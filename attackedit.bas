@@ -249,11 +249,12 @@ CONST AtkDatChangeFlipped = 351
 'anything past this requires expanding the data
 
 SUB attack_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM attackb as AttackBrowser
-  attackb.browse(-1, , @attack_editor)
+  attackb.browse(-1, , @attack_editor, , , remem_id)
  ELSE
-  attack_editor 0
+  attack_editor remem_id
  END IF
 END SUB
 

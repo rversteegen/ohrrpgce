@@ -79,11 +79,12 @@ END SUB
 '==========================================================================================
 
 SUB formation_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM b as FormationBrowser
-  b.browse(-1, , @individual_formation_editor)
+  b.browse(-1, , @individual_formation_editor, , , remem_id)
  ELSE
-  individual_formation_editor 0
+  individual_formation_editor remem_id
  END IF
 END SUB
 

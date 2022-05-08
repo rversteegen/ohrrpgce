@@ -55,11 +55,12 @@ SUB update_enemy_editor_for_elementals(recbuf() as integer, caption() as string,
 END SUB
 
 SUB enemy_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM b as EnemyBrowser
-  b.browse(-1, , @enemy_editor)
+  b.browse(-1, , @enemy_editor, , , remem_id)
  ELSE
-  enemy_editor 0
+  enemy_editor remem_id
  END IF
 END SUB
 

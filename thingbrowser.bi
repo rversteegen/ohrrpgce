@@ -15,7 +15,7 @@ Type FnThingBrowserEditor as function(record as integer) as integer
 
 Type ThingBrowser extends Object
  'Displays the browser, and retuns the selected result (or start_id if canceled)
- declare function browse(byref start_id as integer=0, byval or_none as bool=NO, editor_func as FnThingBrowserEditor=0, byval edit_by_default as bool=YES, byval skip_zero as bool=NO) as integer
+ declare function browse(byref start_id as integer=0, byval or_none as bool=NO, editor_func as FnThingBrowserEditor=0, byval edit_by_default as bool=YES, byval skip_zero as bool=NO, byref remem_id as bool=0) as integer
 
  declare virtual sub build_thing_list()
  declare function check_plank_filter(byval sl as Slice Ptr) as bool

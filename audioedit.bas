@@ -294,11 +294,12 @@ END SUB
 '==========================================================================================
 
 SUB song_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM b as SongBrowser
-  b.browse(-1, , @importsong)
+  b.browse(-1, , @importsong, , , remem_id)
  ELSE
-  importsong 0
+  importsong remem_id
  END IF
  music_stop
 END SUB
@@ -649,11 +650,12 @@ END SUB
 '==========================================================================================
 
 SUB sfx_editor_main ()
+ STATIC remem_id as integer
  IF read_config_bool("thingbrowser.enable_top_level", YES) THEN
   DIM b as SfxBrowser
-  b.browse(-1, , @importsfx)
+  b.browse(-1, , @importsfx, , , remem_id)
  ELSE
-  importsfx 0
+  importsfx remem_id
  END IF
 END SUB
 
