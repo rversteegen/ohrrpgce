@@ -46,6 +46,7 @@ END FUNCTION
 
 '(Re-)initialise menu state, preserving .pt if valid
 '.pt is moved to a selectable menu item.
+'Alternatively can use correct_menu_state if don't have the menu items.
 SUB init_menu_state (byref state as MenuState, menu() as SimpleMenuItem, menuopts as MenuOptions = MenuOptions())
  WITH state
   DIM position_was_known as bool = .position_known
@@ -80,6 +81,7 @@ END SUB
 
 '(Re-)initialise menu state, preserving .pt if valid
 '.pt is moved to a selectable menu item.
+'Alternatively can use correct_menu_state if don't have the menu items.
 '
 'menu may in fact be a vector of any type inheriting from BasicMenuItem.
 'menu's typetable tells the size in bytes of each menu item
@@ -202,13 +204,17 @@ SUB mouse_update_selection (state as MenuState)
 END SUB
 
 ' This does a subset of what usemenu does, call this after modifying .pt, .last, .first or .size
-' if not immediately calling usemenu.
+' if not immediately calling usemenu. E.g. on first entering a menu.
 SUB correct_menu_state (state as MenuState)
  WITH state
   IF .empty() THEN
    .pt = .first - 1
   ELSE
    .pt = bound(.pt, .first, .last)
+  END IF
+  IF .size = 0 THEN
+   'Guess pos=0,0
+   calc_menu_rect state, MenuOptions(), XY(0, 0)
   END IF
  END WITH
  correct_menu_state_top state
@@ -222,6 +228,20 @@ SUB correct_menu_state_top (state as MenuState)
   .top = large(small(.top, .last - .size), .first)
   ' Selected item must be visible (unless the menu is empty)
   IF .pt_valid() THEN .top = bound(.top, .pt - .size, .pt)
+ END WITH
+END SUB
+
+' Move .pt and .top
+' Real menuopts needed for accuracy
+SUB center_menu_on_item(byref state as MenuState, pt as integer, menuopts as MenuOptions = MenuOptions())
+ WITH state
+  IF .size = 0 THEN
+   'Guess pos=0,0
+   calc_menu_rect state, menuopts, XY(0, 0)
+  END IF
+  .pt = pt
+  .top = pt - .size \ 2
+  correct_menu_state state
  END WITH
 END SUB
 
@@ -1008,6 +1028,7 @@ FUNCTION getmenuname(byval record as integer) as string
 END FUNCTION
 
 '(Re-)initialise menu state, preserving .pt if valid
+'Alternatively can use correct_menu_state if don't have the menu items.
 SUB init_menu_state (byref state as MenuState, menu() as string, menuopts as MenuOptions)
  WITH state
   IF .size = 0 THEN .autosize = YES

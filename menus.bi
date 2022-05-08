@@ -15,6 +15,7 @@ DECLARE SUB init_menu_state OVERLOAD (byref state as MenuState, menu() as string
 DECLARE SUB append_simplemenu_item (byref menu as SimpleMenuItem vector, caption as zstring ptr, byval unselectable as bool = NO, byval col as integer = 0, byval dat as integer = 0, byval where as integer = -1)
 DECLARE SUB correct_menu_state (state as MenuState)
 DECLARE SUB correct_menu_state_top (state as MenuState)
+DECLARE SUB center_menu_on_item(byref state as MenuState, pt as integer, menuopts as MenuOptions = MenuOptions())
 DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
 DECLARE FUNCTION usemenu OVERLOAD (byref pt as integer, byref top as integer, byval first as integer, byval last as integer, byval size as integer, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
 DECLARE FUNCTION usemenu OVERLOAD (state as MenuState, byval menudata as BasicMenuItem vector, byval deckey as KBScancode = ccUp, byval inckey as KBScancode = ccDown) as bool
