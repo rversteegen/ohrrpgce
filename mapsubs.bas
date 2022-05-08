@@ -338,10 +338,13 @@ SUB map_picker ()
  menuopts.highlight_selection = YES
  menuopts.drawbg = YES
  menuopts.fullscreen_scrollbar = YES
+ STATIC remem_id as integer
+ DIM map_id as integer
 
  DIM previewer as MapPreviewer
 
  make_map_picker_menu topmenu(), state
+ center_menu_on_item state, remem_id + 1, menuopts
 
  switch_to_32bit_vpages
  setkeys YES
@@ -355,7 +358,7 @@ SUB map_picker ()
    select_on_word_boundary_excluding topmenu(), selectst, state, "map"
    state.need_update = YES
   END IF
-  DIM map_id as integer = state.pt - 1
+  map_id = state.pt - 1
 
   'Regenerate minimap on window resize, but only if zoom changes
   IF UpdateScreenSlice() THEN previewer.update(map_id, NO)
@@ -391,6 +394,7 @@ SUB map_picker ()
   setvispage vpage
   dowait
  LOOP
+ remem_id = map_id
  switch_to_8bit_vpages
 END SUB
 
