@@ -158,8 +158,13 @@ CONST AtkEffectsAct = 159
 CONST AtkChangeTurncoat = 160
 CONST AtkChangeDefector = 161
 CONST AtkChangeFlipped = 162
+CONST AtkAnimHeader = 163
+CONST AtkWeaponHeader = 164
+CONST AtkDelayHeader = 165
+CONST AtkCaptionHeader = 166
 
-'Next menu item is 163 (remember to update MnuItems)
+
+'Next menu item is 167 (remember to update MnuItems)
 
 
 '--Offsets in the attack data record (combined DT6 + ATTACK.BIN)
@@ -405,7 +410,7 @@ DIM recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer '--stores the combined
 STATIC copy_recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer
 STATIC have_copy as bool
 
-CONST MnuItems = 162
+CONST MnuItems = 166
 DIM menu(MnuItems) as string
 DIM menutype(MnuItems) as integer
 DIM menuoff(MnuItems) as integer
@@ -840,6 +845,9 @@ menutype(AtkChainAct) = 1
 menu(AtkBitAct) = "Bitsets..."
 menutype(AtkBitAct) = 1
 
+menu(AtkAnimHeader) = "Animations"
+menutype(AtkAnimHeader) = 15 'header
+
 menu(AtkPic) = "Picture:"
 menutype(AtkPic) = 0
 menuoff(AtkPic) = AtkDatPic
@@ -903,12 +911,12 @@ menutype(AtkExtraDamage) = 17 'int%
 menuoff(AtkExtraDamage) = AtkDatExtraDamage
 menulimits(AtkExtraDamage) = AtkLimExtraDamage
 
-menu(AtkChainTo) = "  Attack:"
+menu(AtkChainTo) = "Attack:"
 menutype(AtkChainTo) = 7 '--special class for showing an attack name
 menuoff(AtkChainTo) = AtkDatChainTo
 menulimits(AtkChainTo) = AtkLimChainTo
 
-menu(AtkChainRate) = "  Rate:"
+menu(AtkChainRate) = "Rate:"
 menutype(AtkChainRate) = 17
 menuoff(AtkChainRate) = AtkDatChainRate
 menulimits(AtkChainRate) = AtkLimChainRate
@@ -922,6 +930,9 @@ menu(AtkAnimAttack) = "Attack Animation:"
 menutype(AtkAnimAttack) = 2000 + menucapoff(AtkAnimAttack)
 menuoff(AtkAnimAttack) = AtkDatAnimAttack
 menulimits(AtkAnimAttack) = AtkLimAnimAttack
+
+menu(AtkDelayHeader) = "Delays"
+menutype(AtkDelayHeader) = 15 'header
 
 IF gen(genBattleMode) = 0 THEN  'Active-turn
  menu(AtkDelay) = "Delay Ticks Before Attack:"
@@ -942,6 +953,9 @@ menu(AtkTargStat) = "Target Stat:"
 menutype(AtkTargStat) = 2000 + menucapoff(AtkTargStat)
 menuoff(AtkTargStat) = AtkDatTargStat
 menulimits(AtkTargStat) = AtkLimTargStat
+
+menu(AtkCaptionHeader) = "Caption"
+menutype(AtkCaptionHeader) = 15 'header
 
 menu(AtkCaption) = "Caption:"
 menutype(AtkCaption) = 3'goodstring
@@ -1061,7 +1075,7 @@ menutype(AtkPrefTargStat) = 2000 + menucapoff(AtkPrefTargStat)
 menuoff(AtkPrefTargStat) = AtkDatPrefTargStat
 menulimits(AtkPrefTargStat) = AtkLimPrefTargStat
 
-menu(AtkChainMode) = "  Condition:"
+menu(AtkChainMode) = "Condition:"
 menutype(AtkChainMode) = 2000 + menucapoff(AtkChainMode)
 menuoff(AtkChainMode) = AtkDatChainMode
 menulimits(AtkChainMode) = AtkLimChainMode
@@ -1076,20 +1090,20 @@ menutype(AtkChainVal2) = 18 'skipper
 menuoff(AtkChainVal2) = AtkDatChainVal2
 menulimits(AtkChainVal2) = AtkLimChainVal2
 
-menu(AtkChainBits) = "  Option bitsets..."
+menu(AtkChainBits) = "Option bitsets..."
 menutype(AtkChainBits) = 1
 
-menu(AtkElseChainTo) = "  Attack:"
+menu(AtkElseChainTo) = "Attack:"
 menutype(AtkElseChainTo) = 7 '--special class for showing an attack name
 menuoff(AtkElseChainTo) = AtkDatElseChainTo
 menulimits(AtkElseChainTo) = AtkLimChainTo
 
-menu(AtkElseChainRate) = "  Rate:"
+menu(AtkElseChainRate) = "Rate:"
 menutype(AtkElseChainRate) = 20 'Hacky specific type
 menuoff(AtkElseChainRate) = AtkDatElseChainRate
 menulimits(AtkElseChainRate) = AtkLimChainRate
 
-menu(AtkElseChainMode) = "  Condition:"
+menu(AtkElseChainMode) = "Condition:"
 menutype(AtkElseChainMode) = 2000 + menucapoff(AtkChainMode)
 menuoff(AtkElseChainMode) = AtkDatElseChainMode
 menulimits(AtkElseChainMode) = AtkLimChainMode
@@ -1104,29 +1118,29 @@ menutype(AtkElseChainVal2) = 18'skipper
 menuoff(AtkElseChainVal2) = AtkDatElseChainVal2
 menulimits(AtkElseChainVal2) = AtkLimElseChainVal2
 
-menu(AtkElseChainBits) = "  Option bitsets..."
+menu(AtkElseChainBits) = "Option bitsets..."
 menutype(AtkElseChainBits) = 1
 
-menu(AtkChainHeader) = "[Regular Chain]"
-menutype(AtkChainHeader) = 18'skipper
+menu(AtkChainHeader) = "Regular Chain"
+menutype(AtkChainHeader) = 15 'header
 
-menu(AtkElseChainHeader) = "[Else-Chain]"
-menutype(AtkElseChainHeader) = 18'skipper
+menu(AtkElseChainHeader) = "Else-Chain"
+menutype(AtkElseChainHeader) = 15 'header
 
-menu(AtkInsteadChainHeader) = "[Instead-Chain]"
-menutype(AtkInsteadChainHeader) = 18'skipper
+menu(AtkInsteadChainHeader) = "Instead-Chain"
+menutype(AtkInsteadChainHeader) = 15 'header
 
-menu(AtkInsteadChainTo) = "  Attack:"
+menu(AtkInsteadChainTo) = "Attack:"
 menutype(AtkInsteadChainTo) = 7 '--special class for showing an attack name
 menuoff(AtkInsteadChainTo) = AtkDatInsteadChainTo
 menulimits(AtkInsteadChainTo) = AtkLimChainTo
 
-menu(AtkInsteadChainRate) = "  Rate:"
+menu(AtkInsteadChainRate) = "Rate:"
 menutype(AtkInsteadChainRate) = 17
 menuoff(AtkInsteadChainRate) = AtkDatInsteadChainRate
 menulimits(AtkInsteadChainRate) = AtkLimChainRate
 
-menu(AtkInsteadChainMode) = "  Condition:"
+menu(AtkInsteadChainMode) = "Condition:"
 menutype(AtkInsteadChainMode) = 2000 + menucapoff(AtkChainMode)
 menuoff(AtkInsteadChainMode) = AtkDatInsteadChainMode
 menulimits(AtkInsteadChainMode) = AtkLimChainMode
@@ -1141,7 +1155,7 @@ menutype(AtkInsteadChainVal2) = 18'skipper
 menuoff(AtkInsteadChainVal2) = AtkDatInsteadChainVal2
 menulimits(AtkInsteadChainVal2) = AtkLimInsteadChainVal2
 
-menu(AtkInsteadChainBits) = "  Option bitsets..."
+menu(AtkInsteadChainBits) = "Option bitsets..."
 menutype(AtkInsteadChainBits) = 1
 
 menu(AtkChainBrowserAct) = "Browse chain..."
@@ -1183,7 +1197,7 @@ menulimits(AtkCounterProvoke) = AtkLimCounterProvoke
 menu(AtkTriggerElementalCounters) = " Never trigger elemental counterattacks:"
 menutype(AtkTriggerElementalCounters) = 7000 + 87  'Attack bit 87
 
-menu(AtkElementFailAct) = "Elemental failure conditions..."
+menu(AtkElementFailAct) = "Elemental Failure Conditions..."
 menutype(AtkElementFailAct) = 1
 
 menu(AtkElementalFailHeader) = "Fail when target's damage..."
@@ -1195,14 +1209,17 @@ FOR i = 0 TO small(maxElements, gen(genNumElements)) - 1
  menuoff(AtkElementalFails + i) = AtkDatElementalFail + i * 3
 NEXT
 
-menu(AtkElemBitAct) = "Elemental bits..."
+menu(AtkElemBitAct) = "Elemental Bits..."
 menutype(AtkElemBitAct) = 1
 
-menu(AtkDamageBitAct) = "Damage bitsets..."
+menu(AtkDamageBitAct) = "Damage Bitsets..."
 menutype(AtkDamageBitAct) = 1
 
 menu(AtkBlankMenuItem) = ""
 menutype(AtkBlankMenuItem) = 18  'skip
+
+menu(AtkWeaponHeader) = "Weapon "
+menutype(AtkWeaponHeader) = 15 'header
 
 menu(AtkWepPic) = "Weapon Picture:"
 menutype(AtkWepPic) = 26
@@ -1214,10 +1231,10 @@ menutype(AtkWepPal) = 12
 menuoff(AtkWepPal) = AtkDatWepPal
 menulimits(AtkWepPal) = AtkLimPal16
 
-menu(AtkWepHand0) = "Weapon handle for first frame"
+menu(AtkWepHand0) = "First Frame Weapon Handle..."
 menutype(AtkWepHand0) = 1
 
-menu(AtkWepHand1) = "Weapon handle for second frame"
+menu(AtkWepHand1) = "Second Frame Weapon Handle..."
 menutype(AtkWepHand1) = 1
 
 menu(AtkTurnDelay) = "Delay Turns Before Attack:"
@@ -1306,7 +1323,7 @@ costMenu(7) = AtkItemCost2
 costMenu(8) = AtkItem3
 costMenu(9) = AtkItemCost3
 
-DIM chainMenu(24) as integer
+DIM chainMenu(25) as integer
 chainMenu(0) = AtkBackAct
 chainMenu(1) = AtkChainBrowserAct
 chainMenu(2) = AtkChainHeader
@@ -1330,8 +1347,9 @@ chainMenu(19) = AtkInsteadChainBits
 chainMenu(20) = AtkInsteadChainMode
 chainMenu(21) = AtkInsteadChainVal1
 chainMenu(22) = AtkInsteadChainVal2
-chainMenu(23) = AtkCounterProvoke
-chainMenu(24) = AtkTriggerElementalCounters
+chainMenu(23) = AtkBlankMenuItem
+chainMenu(24) = AtkCounterProvoke  'FIXME
+chainMenu(25) = AtkTriggerElementalCounters
 
 DIM tagMenu(6) as integer
 tagMenu(0) = AtkBackAct
@@ -1961,22 +1979,20 @@ SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integ
   FOR i as integer = 2 TO UBOUND(workmenu)
    workmenu(i) = AtkBlankMenuItem
   NEXT
+  DIM idx as integer
+
   workmenu(0) = AtkBackAct
+
   workmenu(1) = AtkPic
   workmenu(2) = AtkPal
-  workmenu(3) = AtkAnimAttack
-  workmenu(4) = AtkAnimPattern
-  workmenu(5) = AtkAnimAttacker
-  workmenu(6) = AtkAlignToTarget
-  workmenu(7) = AtkDelay
-  workmenu(8) = AtkTurnDelay
-  workmenu(9) = AtkDramaticPause
-  workmenu(10) = AtkCaption
-  workmenu(11) = AtkCapTime
-  workmenu(12) = AtkCaptDelay
-  workmenu(13) = AtkDamageColor
-  'Be careful when adding new menu items here. See that more are sometimes apended below
-  state.last = 13
+  idx = 3
+
+  workmenu(idx+1) = AtkAnimHeader
+  workmenu(idx+2) = AtkAnimAttack
+  workmenu(idx+3) = AtkAnimPattern
+  workmenu(idx+4) = AtkAlignToTarget
+  workmenu(idx+5) = AtkAnimAttacker
+  idx += 6
 
   DIM anim as integer = recbuf(AtkDatAnimAttacker)
   IF     anim = atkrAnimStrike _
@@ -1985,16 +2001,30 @@ SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integ
   ORELSE anim = atkrAnimTeleport _
   ORELSE anim = atkrAnimStandingStrike _
   THEN
-   workmenu(15) = AtkWepPic
-   state.last = 15
+   workmenu(idx+1) = AtkWeaponHeader
+   workmenu(idx+2) = AtkWepPic
+   idx += 3
    IF recbuf(AtkDatWepPic) > 0 THEN
-    workmenu(16) = AtkWepPal
-    workmenu(17) = AtkWepHand0
-    workmenu(18) = AtkWepHand1
-    state.last = 18
+    workmenu(idx  ) = AtkWepPal
+    workmenu(idx+1) = AtkWepHand0
+    workmenu(idx+2) = AtkWepHand1
+    idx += 3
    END IF
   END IF
-   
+
+  workmenu(idx+1) = AtkDelayHeader
+  workmenu(idx+2) = AtkDelay
+  workmenu(idx+3) = AtkTurnDelay
+  workmenu(idx+4) = AtkDramaticPause
+
+  workmenu(idx+6) = AtkCaptionHeader
+  workmenu(idx+7) = AtkCaption
+  workmenu(idx+8) = AtkCaptDelay
+  workmenu(idx+9) = AtkCapTime
+  'Blank line
+  workmenu(idx+11) = AtkDamageColor
+  state.last = idx + 9
+
   state.top = 0
   state.need_update = YES
 END SUB
@@ -2367,7 +2397,8 @@ END SUB
 SUB flexmenu_update_selectable(workmenu() as integer, menutype() as integer, selectable() as bool)
  REDIM selectable(UBOUND(workmenu))
  FOR i as integer = 0 TO UBOUND(workmenu)
-  selectable(i) = menutype(workmenu(i)) <> 18  'skippable
+  DIM mtype as integer = menutype(workmenu(i))
+  selectable(i) = mtype <> 15 ANDALSO mtype <> 18  'Not header or skippable
  NEXT
 END SUB
 
@@ -2456,10 +2487,10 @@ FUNCTION editflexmenu (state as MenuState, nowindex as integer, menutype() as in
 '           12=defaultable positive int >=0 is int, -1 is "default"
 '           13=Default zero int >0 is int, 0 is "default"  (see also type 26)
 '           14=sound effect + 1 (0=default, -1=none)
-'           15=UNUSED
+'           15=header (highlighted caption which is skipped by the cursor). See also skipper
 '           16=stat (numbered the same way as BattleStatsSingle.sta())
 '           17=int with a % sign after it
-'           18=skipper (caption which is skipped by the cursor)
+'           18=skipper (caption which is skipped by the cursor). See also header
 '           19=ticks (with seconds estimate)
 '           20=Else-Chain Rate hack (clumsy hack to force myself to do this elegantly in editedit --James)
 '           21=set tag, excluding special tags
@@ -2500,7 +2531,7 @@ DIM changed as bool = NO
 DIM s as string
 
 SELECT CASE menutype(nowindex)
- CASE 0, 8, 12 TO 17, 19, 20, 23, 24, 25, 3000 TO 3999, 8000 TO 8999' integers
+ CASE 0, 8, 12, 13, 14, 16, 17, 19, 20, 23, 24, 25, 3000 TO 3999, 8000 TO 8999' integers
   changed = intgrabber(datablock(menuoff(nowindex)), mintable(menulimits(nowindex)), maxtable(menulimits(nowindex)))
  CASE 1000 TO 2999' captioned integers
   changed = intgrabber(datablock(menuoff(nowindex)), mintable(menulimits(nowindex)), maxtable(menulimits(nowindex)))
@@ -2639,10 +2670,10 @@ SUB updateflexmenu (mpointer as integer, nowmenu() as string, nowdat() as intege
 '           12=defaultable positive int >=0 is int, -1 is "default"
 '           13=Default zero int >0 is int, 0 is "default"  (see also type 26)
 '           14=sound effect + 1 (0=default, -1=none)
-'           15=UNUSED
+'           15=header (highlighted caption which is skipped by the cursor). See also skipper
 '           16=stat (numbered the same way as BattleStatsSingle.sta())
 '           17=int with a % sign after it
-'           18=skipper (caption which is skipped by the cursor)
+'           18=skipper (caption which is skipped by the cursor). See also header
 '           19=ticks (with seconds estimate)
 '           20=Else-Chain Rate hack (clumsy hack to force myself to do this elegantly in editedit --James)
 '           21=set tag, excluding special tags
@@ -2744,7 +2775,8 @@ FOR i = 0 TO size
     ELSE
       datatext = (dat - 1) & " (" + getsfxname(dat - 1) + ")"
     END IF
-  CASE 15 '--UNUSED
+  CASE 15 '--header
+   nowmenu(i) = fgtag(uilook(eduiHeading), " " + nowmenu(i))
   CASE 16 '--stat
     datatext = battle_statnames(dat)
   CASE 17 '--int%
@@ -3139,66 +3171,66 @@ SUB update_attack_editor_for_chain (byval mode as integer, byref caption1 as str
    min2 = -32768
    menutype2 = 18'skipper
   CASE 1 '--tagcheck
-   caption1 = "    if Tag:"
+   caption1 = "  if Tag:"
    max1 = max_tag()
    min1 = -max_tag()
    menutype1 = 2
-   caption2 = "    and Tag:"
+   caption2 = "  and Tag:"
    max2 = max_tag()
    min2 = -max_tag()
    menutype2 = 2
   CASE 2 TO 19 ' stat checks
    SELECT CASE mode
-    CASE 2 TO 5, 16: caption1 = "    if attacker"
-    CASE 6 TO 9: caption1 = "    if any target's"
-    CASE 10 TO 15: caption1 = "    if all targets'"
-    CASE 17: caption1 = "    Stat: attacker's"
-    CASE 18: caption1 = "    Stat: max any target's"
-    CASE 19: caption1 = "    Stat: min all targets'"
+    CASE 2 TO 5, 16: caption1 = "  if attacker"
+    CASE 6 TO 9: caption1 = "  if any target's"
+    CASE 10 TO 15: caption1 = "  if all targets'"
+    CASE 17: caption1 = "  Stat: attacker's"
+    CASE 18: caption1 = "  Stat: max any target's"
+    CASE 19: caption1 = "  Stat: min all targets'"
    END SELECT
    max1 = 15
    min1 = 0
    menutype1 = 16 'stat
    SELECT CASE mode
     CASE 2,6,10
-     caption2 = "    is >"
+     caption2 = "  is >"
      max2 = 32767
      min2 = -32767
      menutype2 = 0
     CASE 3,7,11
-     caption2 = "    is <"
+     caption2 = "  is <"
      max2 = 32767
      min2 = -32767
      menutype2 = 0
     CASE 4,8,12
-     caption2 = "    is >"
+     caption2 = "  is >"
      max2 = 32767
      min2 = 0
      menutype2 = 17 'int%
     CASE 5,9,13
-     caption2 = "    is <"
+     caption2 = "  is <"
      max2 = 32767
      min2 = 0
      menutype2 = 17 'int%
     CASE 14
-     caption2 = "    is > attacker"
+     caption2 = "  is > attacker"
      max2 = 15
      min2 = 0
      menutype2 = 16 ' stat
     CASE 15
-     caption2 = "    is < attacker"
+     caption2 = "  is < attacker"
      max2 = 15
      min2 = 0
      menutype2 = 16 ' stat
     CASE 16
-     caption2 = "    is < attacker"
+     caption2 = "  is < attacker"
      max2 = 15
      min2 = 0
      menutype2 = 16 ' stat
     CASE 17, 18, 19
      'DIM statname as string = LEFT(battle_statnames(stat), 8)
-     'caption2 = "    from 0% at " & statname & "=0 to " & rate & "% at " & statname & " >="
-     caption2 = "    from 0% at stat=0 to " & rate & "% at stat>=$$"
+     'caption2 = "  from 0% at " & statname & "=0 to " & rate & "% at " & statname & " >="
+     caption2 = "  from 0% at stat=0 to " & rate & "% at stat>=$$"
      max2 = 32767
      min2 = 1
      menutype2 = 0

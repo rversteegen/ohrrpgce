@@ -405,13 +405,18 @@ End Function
 
 Sub ThingBrowser.loop_sprite_helper(byval plank as Slice Ptr, byval min as integer, byval max as integer, byval delay as integer=1)
  'A crude and simple animation helper for sprites in planks.
+ 'delay is the number of extra ticks; delay 1 means 2 ticks per frame
  'Uses the Extra(1) slot to manage the animation speed.
  'FIXME: rip this all out and replace it when the new animation system is ready
  dim spr as Slice Ptr = LookupSlice(SL_EDITOR_THINGBROWSER_PLANK_SPRITE, plank)
  if spr then
-  loopvar spr->Extra(1), 0, delay
-  if spr->Extra(1) = 0 then
-   loopvar spr->SpriteData->frame, min, max
+  dim waitticks as integer = spr->Extra(1)
+  loopvar waitticks, 0, delay
+  spr->Extra(1) = waitticks
+  if waitticks = 0 then
+   dim framenum as integer = spr->SpriteData->frame
+   loopvar framenum, min, max
+   ChangeSpriteSlice spr, , , , framenum
   end if
  end if
 End Sub
@@ -1203,7 +1208,7 @@ Constructor HeroSpriteBrowser()
 End Constructor
 
 Sub HeroSpriteBrowser.each_tick_selected_plank(byval plank as Slice Ptr)
- loop_sprite_helper plank, 0, 1
+ loop_sprite_helper plank, 0, 1, 2
 End Sub
 
 'WALKABOUT
@@ -1216,7 +1221,7 @@ Function WalkaboutSpriteBrowser.sprite_frame() as integer
 End Function
 
 Sub WalkaboutSpriteBrowser.each_tick_selected_plank(byval plank as Slice Ptr)
- loop_sprite_helper plank, 4, 5
+ loop_sprite_helper plank, 0, 7, 2
 End Sub
 
 'PORTRAIT
@@ -1235,7 +1240,7 @@ Constructor AttackSpriteBrowser()
 End Constructor
 
 Sub AttackSpriteBrowser.each_tick_each_plank(byval plank as Slice Ptr)
- loop_sprite_helper plank, 0, 2
+ loop_sprite_helper plank, 0, 2, 2
 End Sub
 
 'WEAPON
@@ -1244,7 +1249,7 @@ Constructor WeaponSpriteBrowser()
 End Constructor
 
 Sub WeaponSpriteBrowser.each_tick_selected_plank(byval plank as Slice Ptr)
- loop_sprite_helper plank, 0, 1
+ loop_sprite_helper plank, 0, 1, 2
 End Sub
 
 'BACKDROP

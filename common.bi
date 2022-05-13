@@ -343,6 +343,7 @@ DECLARE FUNCTION load_help_file(helpkey as string, byref success as bool = NO) a
 DECLARE SUB expand_help(byref helptext as string, helpkey as string)
 DECLARE SUB save_help_file(helpkey as string, text as string)
 
+
 DECLARE SUB show_help(helpkey as zstring ptr)
 DECLARE FUNCTION multiline_string_editor(s as string, helpkey as string="", prompt_to_save as bool = YES) as string
 DECLARE SUB export_string_to_file(s as string)

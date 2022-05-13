@@ -101,6 +101,7 @@ DECLARE SUB spriteset_resize_menu_rebuild(byref root as Slice ptr, ss as Frame p
 
 ' Locals
 DIM SHARED ss_save as SpriteEditStatic
+DIM SHARED remember_tileset_id as integer
 
 WITH ss_save
  .tool = draw_tool
@@ -190,10 +191,11 @@ SUB import_export_tilesets ()
  DIM mstate as MenuState
  mstate.size = 24
  mstate.last = UBOUND(menu)
+ DIM pt as integer = remember_tileset_id 'backdrop number
  DIM menuopts as MenuOptions
  menuopts.edged = YES
  menu(0) = "Return to Main Menu"
- menu(1) = CHR(27) + "Browse 0" + CHR(26)
+ menu(1) = CHR(27) & "Browse " & pt & CHR(26)
  menu(2) = "Replace current tileset"
  menu(3) = "Append a new tileset"
  menu(4) = "Disable palette colors for import"
@@ -202,7 +204,6 @@ SUB import_export_tilesets ()
  menu(7) = "Remap transparent color"
  menu(8) = "Full screen view"
  DIM srcfile as string
- DIM pt as integer = 0 'backdrop number
  DIM byref count as integer = gen(genMaxTile)
 
  ' FIXME: We still use vpages(2) to store the tileset, and also if it is resized
@@ -272,13 +273,14 @@ SUB import_export_tilesets ()
   END IF  '--end enter_space_click()
   clearpage dpage
   frame_draw_with_background vpages(2), , 0, 0, bgcolor, chequer_scroll, vpages(dpage)
-  IF mstate.pt <> 8 THEN
+  IF mstate.pt <> 8 THEN  'Not "Full screen view"
    standardmenu menu(), mstate, 0, 0, dpage, menuopts
   END IF
   SWAP vpage, dpage
   setvispage vpage
   IF dowait THEN chequer_scroll += 1
  LOOP
+ remember_tileset_id = pt
  unlock_page_size 2
  clearpage 2
  sprite_update_cache sprTypeTileset
@@ -751,7 +753,7 @@ DIM chequer_scroll as integer
 
 DIM state as MenuState
 state.top = -1
-state.pt = -1
+state.pt = remember_tileset_id
 state.first = -1
 state.last = gen(genMaxTile)
 state.autosize = YES
@@ -817,6 +819,7 @@ DO
  setvispage vpage
  dowait
 LOOP
+remember_tileset_id = state.pt
 clearpage 3
 clearpage 2
 clearpage 1

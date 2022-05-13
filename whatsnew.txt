@@ -152,7 +152,7 @@ WHAT IS NEW?
     * Crash reporting on Windows stopped working for a while, aside from the
       manual email fallback [Ralph]
     * "load map state" to load tile & wallmaps from a custom state ID usually
-      wrongly complained about wrong map size [Ralph]
+      wrongly failed with a wrong map size error [Ralph]
     * Deleting all party heroes showed a BUG error. It's OK momentarily [Ralph]
 
   *** Stuff Only Developers Will Notice

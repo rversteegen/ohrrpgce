@@ -204,7 +204,7 @@ SUB mouse_update_selection (state as MenuState)
 END SUB
 
 ' This does a subset of what usemenu does, call this after modifying .pt, .last, .first or .size
-' if not immediately calling usemenu. E.g. on first entering a menu.
+' if not immediately calling usemenu.
 SUB correct_menu_state (state as MenuState)
  WITH state
   IF .empty() THEN

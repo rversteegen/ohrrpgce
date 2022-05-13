@@ -352,7 +352,7 @@ TYPE BattleState
         { ({0,0,1,1,2,2,-1}), _
           ({2,2,1,1,0,0,-1}), _
           ({0,0,1,1,2,2,1,1,0,0,-1}), _
-          ({-1,-1}) }
+          ({-1,-1}) }       'Random. Starting with -1 means random frame
  backdrop_sl as Slice ptr
  curbg as integer      'Current background
  bg_tick as integer    'Number of ticks since last background frame change
