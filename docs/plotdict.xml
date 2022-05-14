@@ -169,7 +169,7 @@ same level.)
 	~ Monorail guy, Simpsons
 
 -->
-<plotscript version="wip" datecode="2022-01-30">
+<plotscript version="wip" datecode="2022-05-14">
 
 	<section title="Declarations">
 		<command id="plotscript">
@@ -4718,6 +4718,47 @@ end
 
 	</section>		<!--Enemy and Formation Data-->
 
+	<section title="Attack Data">
+		<description>
+			Commands for reading attack data.
+			To actually use an attack from a script see <ref>mapcure</ref>.
+		</description>
+
+		<command id="readattackdata">
+			<canon>read attack data (attack, whichdata)</canon>
+			<shortname>read attack data</shortname>
+			<description>
+				Reads an element of an attack definition.
+				<p>attack</p> is one of the <p>atk:name</p> constants from your .hsi file.
+				<p>whichdata</p> is one of the <ref>attackdataconstants</ref>.
+				<note>
+					If you want to use this command with attack ID numbers, you must add 1 to the ID number.
+				</note>
+			</description>
+		</command>
+
+		<command id="getattackname">
+			<alias>readattackname</alias>
+			<shortname>get attack name</shortname>
+		</command>
+		<command id="readattackname">
+			<canon>read attack name (ID, attack)</canon>
+			<shortname>read attack name</shortname>
+			<description>This command will take the name of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
+			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
+			<note>This command replaces the old <p>get attack name</p> which required you to use <p>atk:name -- 2</p> or the attack id number <p>-- 1</p></note>
+			</description>
+		</command>
+		<command id="getattackcaption">
+			<canon>get attack caption (ID, attack)</canon>
+			<shortname>get attack caption</shortname>
+			<description>This command will take the caption of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
+			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
+			</description>
+		</command>
+
+	</section>
+
 	<section title="Getting Player Input">
 		<command id="pickhero">
 			<canon>pick hero (message, skip if alone)</canon>
@@ -5523,25 +5564,9 @@ get hero name (1, find hero (leader))
 			<shortname>get map name</shortname>
 			<description>This command will take the name of map #<p>map</p> and stick it in string #<p>ID</p>, overwriting its contents.</description>
 		</command>
-		<command id="getattackname">
-			<alias>readattackname</alias>
-			<shortname>get attack name</shortname>
-		</command>
-		<command id="readattackname">
-			<canon>read attack name (ID, attack)</canon>
-			<shortname>read attack name</shortname>
-			<description>This command will take the name of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
-			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
-			<note>This command replaces the old <p>get attack name</p> which required you to use <p>atk:name -- 2</p> or the attack id number <p>-- 1</p></note>
-			</description>
-		</command>
-		<command id="getattackcaption">
-			<canon>get attack caption (ID, attack)</canon>
-			<shortname>get attack caption</shortname>
-			<description>This command will take the caption of <p>attack</p> and stick it in string #<p>ID</p>, overwriting its contents. Use the <p>atk:name</p> constants from your HSI file.
-			<note>If you want to use this command with attack ID numbers, you must add 1 to the ID number.</note>
-			</description>
-		</command>
+		<reference ref="getattackname" />
+		<reference ref="readattackname" />
+		<reference ref="getattackcaption" />
 		<command id="getsongname">
 			<canon>get song name (ID, song)</canon>
 			<shortname>get song name</shortname>
@@ -12832,6 +12857,118 @@ run key            # Alias for 'flee key'
 				<shortname>song: same as map</shortname>
 			</altcommand>
 			<description>Used with <ref>setformationsong</ref> and <ref>getformationsong</ref> to indicate an enemy formation which uses the same music as the map. Used by <ref>setambientmusic</ref> and <ref>getambientmusic</ref> for a map that continues with the last map's music.</description>
+		</command>
+
+		<command id="attackdataconstants">
+			<canon>Attack data constants</canon>
+			<shortname>attack data constants</shortname>
+			<description>
+				Constants which can be used with <ref>readattackdata</ref>.
+				<ul>
+					<li><p>attack:picture</p></li>
+					<li><p>attack:target stat</p></li>
+					<li><p>attack:palette</p></li>
+					<li><p>attack:weapon picture</p></li>
+					<li><p>attack:weapon palette</p></li>
+					<li><p>attack:anim pattern</p></li>
+					<li><p>attack:target class</p></li>
+					<li><p>attack:target setting</p></li>
+					<li><p>attack:damage math</p></li>
+					<li><p>attack:aim math</p></li>
+					<li><p>attack:base attack</p></li>
+					<li><p>attack:base defense</p></li>
+					<li><p>attack:mp cost</p></li>
+					<li><p>attack:hp cost</p></li>
+					<li><p>attack:money cost</p></li>
+					<li><p>attack:extra damage</p></li>
+					<li><p>attack:attacker anim</p></li>
+					<li><p>attack:delay - in ticks</p></li>
+					<li><p>attack:turn delay</p></li>
+					<li><p>attack:hits</p></li>
+					<li><p>attack:prefer target</p> - One of the values:
+					<ul>
+						<li>0 - Default</li>
+						<li>1 - First</li>
+						<li>...</li>
+					</ul>
+					</li>
+					<li><p>attack:prefer target stat</p></li>
+					<li><p>attack:dramatic pause - in ticks</p></li>
+					<li><p>attack:caption time</p></li>
+					<li><p>attack:caption delay</p></li>
+					<li><p>attack:sound effect</p></li>
+					<li><p>attack:learn sound effect</p></li>
+					<li><p>attack:base accuracy</p></li>
+					<li><p>attack:base dodge</p></li>
+					<li><p>attack:randomization</p></li>
+					<li><p>attack:damage color</p></li>
+					<li><p>attack:target offset x</p></li>
+					<li><p>attack:target offset y</p></li>
+					<li><p>attack:target align h</p></li>
+					<li><p>attack:target align v</p></li>
+					<li><p>attack:change control</p></li>
+					<li><p>attack:change turncoat</p></li>
+					<li><p>attack:change defector</p></li>
+				</ul>
+				Attack Bitsets (have value <tt>true</tt> or <tt>false</tt>):
+				<ul>
+					<li><p>attack:cure</p></li>
+					<li><p>attack:divide spread</p></li>
+					<li><p>attack:absorb</p></li>
+					<li><p>attack:unreversible picture</p></li>
+					<li><p>attack:can steal item</p></li>
+					<!--
+					<li>attack:elemental damage # will not work for now</li>
+					<li>attack:cannot target enemy slot # will not work for now</li>
+					<li>attack:cannot target hero slot # will not work for now</li>
+					-->
+					<li><p>attack:ignore extra hits</p></li>
+					<li><p>attack:erase rewards</p></li>
+					<li><p>attack:show damage without inflicting</p></li>
+					<li><p>attack:store target</p></li>
+					<li><p>attack:delete stored targets</p></li>
+					<li><p>attack:auto target</p></li>
+					<li><p>attack:show name</p></li>
+					<li><p>attack:dont display damage</p></li>
+					<li><p>attack:dont display miss</p></li>
+					<li><p>attack:dont display fail</p></li>
+					<li><p>attack:reset target stat</p></li>
+					<li><p>attack:allow excess cure</p></li>
+					<li><p>attack:useable outside battle</p></li>
+					<li><p>attack:useable inside battle</p></li>
+					<li><p>attack:damage can be zero</p></li>
+					<li><p>attack:force run</p></li>
+					<li><p>attack:force victory</p></li>
+					<li><p>attack:force battle exit</p></li>
+					<li><p>attack:mutable</p></li>
+					<li><p>attack:fail if target poison</p></li>
+					<li><p>attack:fail if target stun</p></li>
+					<li><p>attack:fail if target mute</p></li>
+					<li><p>attack:percent damage not set</p></li>
+					<li><p>attack:no chain on fail</p></li>
+					<li><p>attack:reset poison</p></li>
+					<li><p>attack:reset regen</p></li>
+					<li><p>attack:reset stun</p></li>
+					<li><p>attack:reset mute</p></li>
+					<li><p>attack:cancel targets attack</p></li>
+					<li><p>attack:no cancel by attacks</p></li>
+					<li><p>attack:no spawn on attack</p></li>
+					<li><p>attack:no spawn on kill</p></li>
+					<li><p>attack:check costs as item</p></li>
+					<li><p>attack:recheck costs after delay</p></li>
+					<li><p>attack:target no flinch</p></li>
+					<li><p>attack:no exceed target stat</p></li>
+					<li><p>attack:delay non blocking</p></li>
+					<li><p>attack:no trigger elemental counters</p></li>
+					<li><p>attack:poison is negative regen</p></li>
+					<li><p>attack:always hide attacker</p></li>
+					<li><p>attack:always unhide attacker</p></li>
+					<li><p>attack:blocking counterattack</p></li>
+					<li><p>attack:empty target readymeter</p></li>
+					<li><p>attack:fill target readymeter</p></li>
+					<li><p>attack:fail if target regen</p></li>
+				</ul>
+			</description>
 		</command>
 	</section>
 </plotscript>

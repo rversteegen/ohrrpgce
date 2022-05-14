@@ -204,7 +204,7 @@ function toggleContent(target) {
 </head>
 <body>
 <h1>Plotscripting Dictionary</h1>
-<h2>For the next WIP OHRRPGCE version (nightly build 2022-01-30)</h2>
+<h2>For the next WIP OHRRPGCE version (nightly build 2022-05-14)</h2>
 <p>This is the documentation for all <a href="https://rpg.hamsterrepublic.com/ohrrpgce/Plotscripting">plotscripting</a> commands.
 				In addition to reading this document, we also recommend you check out the
 				<a href="https://rpg.hamsterrepublic.com/ohrrpgce/Plotscripting_Tutorial">Plotscripting Tutorial</a>
@@ -388,6 +388,10 @@ function toggleContent(target) {
 		<ul></ul>
 </li>
 </ul>
+</li>
+		<li>
+<a href="#Attack%20Data">Attack Data</a><br>
+		<ul></ul>
 </li>
 		<li>
 <a href="#Getting%20Player%20Input">Getting Player Input</a><br>
@@ -665,6 +669,7 @@ function toggleContent(target) {
 		<a href="#about-appendnumber">append number (ID, number, min length, pad with zeros)</a><br>
 		<a href="#about-asciifromstring">ascii from string (ID, position)</a><br>
 		<a href="#about-assert">assert (expression)</a><br>
+		<a href="#about-attackdataconstants">Attack data constants</a><br>
 		<a href="#about-autonumber">autonumber</a><br>
 		<a href="#about-autosave">autosave</a><br>
 		<a href="#about-autovirtualgamepad">auto virtual gamepad</a><br>
@@ -1209,6 +1214,7 @@ function toggleContent(target) {
 		<a href="#about-randomenemiesaresuspended">random enemies are suspended</a><br>
 		<a href="#about-randomformation">random formation (formation set)</a><br>
 		<a href="#about-rankincaterpillar">rank in caterpillar (who)</a><br>
+		<a href="#about-readattackdata">read attack data (attack, whichdata)</a><br>
 		<a href="#about-readattackname">read attack name (ID, attack)</a><br>
 		<a href="#about-readcolor">read color (index, element)</a><br>
 		<a href="#about-readenemydata">read enemy data (enemyid, data)</a><br>
@@ -8955,6 +8961,76 @@ end
 		<hr>
 		</div>
 		<div class="section">
+<a name="Attack%20Data"></a>
+		<h3>
+<span class="backlink"></span>Attack Data</h3>
+		<a href="#Categories" class="backlink">[Back to top-level index]</a><p>
+			Commands for reading attack data.
+			To actually use an attack from a script see <a href="#about-mapcure" class="ref">map cure</a>.
+		</p>
+<div class="select-content-shown" id="Attack Data-index">
+<button onclick="toggleContent(this);"><span class="content-shown">Hide command index</span><span class="content-hidden">Show command index</span></button><ul><div class="content-shown">
+		<a href="#about-readattackdata">read attack data (attack, whichdata)</a><br>
+		<a href="#about-readattackname">get attack name</a><br>
+		<a href="#about-readattackname">read attack name (ID, attack)</a><br>
+		<a href="#about-getattackcaption">get attack caption (ID, attack)</a><br>
+</div></ul>
+</div>
+		<div class="command">
+			<a name="about-readattackdata"></a>
+				<h4>read attack data (attack, whichdata)</h4>
+<p>
+			
+				Reads an element of an attack definition.
+				<span class="param">attack</span> is one of the <span class="param">atk:name</span> constants from your .hsi file.
+				<span class="param">whichdata</span> is one of the <a href="#about-attackdataconstants" class="ref">attack data constants</a>.
+				<div class="notice note">
+<img src="Plotnote.png" alt="[Notice]" class="icon">
+					If you want to use this command with attack ID numbers, you must add 1 to the ID number.
+				</div>
+			
+			
+			
+			
+		</p>
+</div>
+		<div class="command">
+			<a name="about-getattackname"></a>
+				<h4>get attack name</h4>
+				An alias for <a href="#about-readattackname">read attack name</a>.
+			</div>
+		<div class="command">
+			<a name="about-readattackname"></a>
+				<h4>read attack name (ID, attack)</h4>
+<p>
+			This command will take the name of <span class="param">attack</span> and stick it in string #<span class="param">ID</span>, overwriting its contents. Use the <span class="param">atk:name</span> constants from your HSI file.
+			<div class="notice note">
+<img src="Plotnote.png" alt="[Notice]" class="icon">If you want to use this command with attack ID numbers, you must add 1 to the ID number.</div>
+			<div class="notice note">
+<img src="Plotnote.png" alt="[Notice]" class="icon">This command replaces the old <span class="param">get attack name</span> which required you to use <span class="param">atk:name -- 2</span> or the attack id number <span class="param">-- 1</span>
+</div>
+			
+			
+			
+			
+		</p>
+</div>
+		<div class="command">
+			<a name="about-getattackcaption"></a>
+				<h4>get attack caption (ID, attack)</h4>
+<p>
+			This command will take the caption of <span class="param">attack</span> and stick it in string #<span class="param">ID</span>, overwriting its contents. Use the <span class="param">atk:name</span> constants from your HSI file.
+			<div class="notice note">
+<img src="Plotnote.png" alt="[Notice]" class="icon">If you want to use this command with attack ID numbers, you must add 1 to the ID number.</div>
+			
+			
+			
+			
+		</p>
+</div>
+		<hr>
+		</div>
+		<div class="section">
 <a name="Getting%20Player%20Input"></a>
 		<h3>
 <span class="backlink"></span>Getting Player Input</h3>
@@ -9772,9 +9848,6 @@ There is no limit on string length.<br>
 		<a href="#about-getheroname">get hero name (ID, hero)</a><br>
 		<a href="#about-setheroname">set hero name (ID, hero)</a><br>
 		<a href="#about-getmapname">get map name (ID, map)</a><br>
-		<a href="#about-readattackname">get attack name</a><br>
-		<a href="#about-readattackname">read attack name (ID, attack)</a><br>
-		<a href="#about-getattackcaption">get attack caption (ID, attack)</a><br>
 		<a href="#about-getsongname">get song name (ID, song)</a><br>
 </ul>
 <ul></ul>
@@ -10213,39 +10286,17 @@ get hero name (1, find hero (leader))
 		</p>
 </div>
 		<div class="command">
-			<a name="about-getattackname"></a>
-				<h4>get attack name</h4>
-				An alias for <a href="#about-readattackname">read attack name</a>.
-			</div>
+		<h4></h4>
+		<p><a href="#about-getattackname">Documented in the Attack Data section.</a></p>
+		</div>
 		<div class="command">
-			<a name="about-readattackname"></a>
-				<h4>read attack name (ID, attack)</h4>
-<p>
-			This command will take the name of <span class="param">attack</span> and stick it in string #<span class="param">ID</span>, overwriting its contents. Use the <span class="param">atk:name</span> constants from your HSI file.
-			<div class="notice note">
-<img src="Plotnote.png" alt="[Notice]" class="icon">If you want to use this command with attack ID numbers, you must add 1 to the ID number.</div>
-			<div class="notice note">
-<img src="Plotnote.png" alt="[Notice]" class="icon">This command replaces the old <span class="param">get attack name</span> which required you to use <span class="param">atk:name -- 2</span> or the attack id number <span class="param">-- 1</span>
-</div>
-			
-			
-			
-			
-		</p>
-</div>
+		<h4>read attack name (ID, attack)</h4>
+		<p><a href="#about-readattackname">Documented in the Attack Data section.</a></p>
+		</div>
 		<div class="command">
-			<a name="about-getattackcaption"></a>
-				<h4>get attack caption (ID, attack)</h4>
-<p>
-			This command will take the caption of <span class="param">attack</span> and stick it in string #<span class="param">ID</span>, overwriting its contents. Use the <span class="param">atk:name</span> constants from your HSI file.
-			<div class="notice note">
-<img src="Plotnote.png" alt="[Notice]" class="icon">If you want to use this command with attack ID numbers, you must add 1 to the ID number.</div>
-			
-			
-			
-			
-		</p>
-</div>
+		<h4>get attack caption (ID, attack)</h4>
+		<p><a href="#about-getattackcaption">Documented in the Attack Data section.</a></p>
+		</div>
 		<div class="command">
 			<a name="about-getsongname"></a>
 				<h4>get song name (ID, song)</h4>
@@ -21194,6 +21245,7 @@ run key            # Alias for 'flee key'
 		<a href="#about-song:silence">song: silence</a><br>
 		<a href="#about-song:sameaslastmap">song: same as last map</a><br>
 		<a href="#about-song:sameasmap">song: same as map</a><br>
+		<a href="#about-attackdataconstants">Attack data constants</a><br>
 </div></ul>
 </div>
 		<div class="command">
@@ -21578,9 +21630,122 @@ run key            # Alias for 'flee key'
 			
 		</p>
 </div>
+		<div class="command">
+			<a name="about-attackdataconstants"></a>
+				<h4>Attack data constants</h4>
+<p>
+			
+				Constants which can be used with <a href="#about-readattackdata" class="ref">read attack data</a>.
+				<ul>
+					<li><span class="param">attack:picture</span></li>
+					<li><span class="param">attack:target stat</span></li>
+					<li><span class="param">attack:palette</span></li>
+					<li><span class="param">attack:weapon picture</span></li>
+					<li><span class="param">attack:weapon palette</span></li>
+					<li><span class="param">attack:anim pattern</span></li>
+					<li><span class="param">attack:target class</span></li>
+					<li><span class="param">attack:target setting</span></li>
+					<li><span class="param">attack:damage math</span></li>
+					<li><span class="param">attack:aim math</span></li>
+					<li><span class="param">attack:base attack</span></li>
+					<li><span class="param">attack:base defense</span></li>
+					<li><span class="param">attack:mp cost</span></li>
+					<li><span class="param">attack:hp cost</span></li>
+					<li><span class="param">attack:money cost</span></li>
+					<li><span class="param">attack:extra damage</span></li>
+					<li><span class="param">attack:attacker anim</span></li>
+					<li><span class="param">attack:delay - in ticks</span></li>
+					<li><span class="param">attack:turn delay</span></li>
+					<li><span class="param">attack:hits</span></li>
+					<li>
+<span class="param">attack:prefer target</span> - One of the values:
+					<ul>
+						<li>0 - Default</li>
+						<li>1 - First</li>
+						<li>...</li>
+					</ul>
+					</li>
+					<li><span class="param">attack:prefer target stat</span></li>
+					<li><span class="param">attack:dramatic pause - in ticks</span></li>
+					<li><span class="param">attack:caption time</span></li>
+					<li><span class="param">attack:caption delay</span></li>
+					<li><span class="param">attack:sound effect</span></li>
+					<li><span class="param">attack:learn sound effect</span></li>
+					<li><span class="param">attack:base accuracy</span></li>
+					<li><span class="param">attack:base dodge</span></li>
+					<li><span class="param">attack:randomization</span></li>
+					<li><span class="param">attack:damage color</span></li>
+					<li><span class="param">attack:target offset x</span></li>
+					<li><span class="param">attack:target offset y</span></li>
+					<li><span class="param">attack:target align h</span></li>
+					<li><span class="param">attack:target align v</span></li>
+					<li><span class="param">attack:change control</span></li>
+					<li><span class="param">attack:change turncoat</span></li>
+					<li><span class="param">attack:change defector</span></li>
+				</ul>
+				Attack Bitsets (have value <span class="code">true</span> or <span class="code">false</span>):
+				<ul>
+					<li><span class="param">attack:cure</span></li>
+					<li><span class="param">attack:divide spread</span></li>
+					<li><span class="param">attack:absorb</span></li>
+					<li><span class="param">attack:unreversible picture</span></li>
+					<li><span class="param">attack:can steal item</span></li>
+					
+					<li><span class="param">attack:ignore extra hits</span></li>
+					<li><span class="param">attack:erase rewards</span></li>
+					<li><span class="param">attack:show damage without inflicting</span></li>
+					<li><span class="param">attack:store target</span></li>
+					<li><span class="param">attack:delete stored targets</span></li>
+					<li><span class="param">attack:auto target</span></li>
+					<li><span class="param">attack:show name</span></li>
+					<li><span class="param">attack:dont display damage</span></li>
+					<li><span class="param">attack:dont display miss</span></li>
+					<li><span class="param">attack:dont display fail</span></li>
+					<li><span class="param">attack:reset target stat</span></li>
+					<li><span class="param">attack:allow excess cure</span></li>
+					<li><span class="param">attack:useable outside battle</span></li>
+					<li><span class="param">attack:useable inside battle</span></li>
+					<li><span class="param">attack:damage can be zero</span></li>
+					<li><span class="param">attack:force run</span></li>
+					<li><span class="param">attack:force victory</span></li>
+					<li><span class="param">attack:force battle exit</span></li>
+					<li><span class="param">attack:mutable</span></li>
+					<li><span class="param">attack:fail if target poison</span></li>
+					<li><span class="param">attack:fail if target stun</span></li>
+					<li><span class="param">attack:fail if target mute</span></li>
+					<li><span class="param">attack:percent damage not set</span></li>
+					<li><span class="param">attack:no chain on fail</span></li>
+					<li><span class="param">attack:reset poison</span></li>
+					<li><span class="param">attack:reset regen</span></li>
+					<li><span class="param">attack:reset stun</span></li>
+					<li><span class="param">attack:reset mute</span></li>
+					<li><span class="param">attack:cancel targets attack</span></li>
+					<li><span class="param">attack:no cancel by attacks</span></li>
+					<li><span class="param">attack:no spawn on attack</span></li>
+					<li><span class="param">attack:no spawn on kill</span></li>
+					<li><span class="param">attack:check costs as item</span></li>
+					<li><span class="param">attack:recheck costs after delay</span></li>
+					<li><span class="param">attack:target no flinch</span></li>
+					<li><span class="param">attack:no exceed target stat</span></li>
+					<li><span class="param">attack:delay non blocking</span></li>
+					<li><span class="param">attack:no trigger elemental counters</span></li>
+					<li><span class="param">attack:poison is negative regen</span></li>
+					<li><span class="param">attack:always hide attacker</span></li>
+					<li><span class="param">attack:always unhide attacker</span></li>
+					<li><span class="param">attack:blocking counterattack</span></li>
+					<li><span class="param">attack:empty target readymeter</span></li>
+					<li><span class="param">attack:fill target readymeter</span></li>
+					<li><span class="param">attack:fail if target regen</span></li>
+				</ul>
+			
+			
+			
+			
+		</p>
+</div>
 		<hr>
 		</div>
-<p>Stats: There are 916 commands (of which 12 are aliases), 27 constants and 12 definitions of types and other terms in this file.</p>
+<p>Stats: There are 917 commands (of which 12 are aliases), 28 constants and 12 definitions of types and other terms in this file.</p>
 <p>This file was generated from an XML file. The contents were painstakingly transcribed by Mike Caron from the original Plotscripting Dictionary, which was created by James Paige.</p>
 </body>
 </html>
