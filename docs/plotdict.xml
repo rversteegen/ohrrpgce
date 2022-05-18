@@ -5263,8 +5263,10 @@ end</example>
 			<canon>mouse button (which)</canon>
 			<shortname>mouse button</shortname>
 			<description>
-				Returns <ref>true</ref> if the specified mouse button is currently pressed down.
-				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> or <ref>rightbutton</ref> to specify the button.
+				Returns <ref>true</ref> if the specified mouse button is currently pressed down, like <ref>keyispressed</ref>.
+				Always true for at least one tick even for mouse clicks that last less than a tick.
+				<lb/>
+				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> or <ref>rightbutton</ref> to specify <p>which</p> button.
 				<note>
 					Just like keyboard commands such as <ref>keyispressed</ref>, you can <b>not</b>
 					wait for the player to click the mouse with a while loop that doesn't contain
@@ -5279,7 +5281,7 @@ end</example>
 					There are two reasons: firstly, that's how the mouse works in almost all software (try it!).
 					Secondly, the engine itself uses 'mouse release' everywhere,
 					so you may run into problems if you use <tt>mouse button</tt> for UI stuff.
-					For example if you quit a custom menu on <tt>mouse button</tt> (ie the button is pushed down),
+					For example if you quit a custom menu on <tt>mouse button</tt> (i.e. the button is pushed down),
 					but then the engine will do something like walk the hero to a tile when it sees the button goes back up,
 					that'll cause an unwanted action.
 				</warn>
@@ -5293,8 +5295,9 @@ end</example>
 			<canon>mouse click (which)</canon>
 			<shortname>mouse click</shortname>
 			<description>
-				Returns <ref>true</ref> if the specified mouse button has been 'clicked' down in the last tick.
-				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> or <ref>rightbutton</ref> to specify the button.
+				Returns <ref>true</ref> if the specified mouse button has been 'clicked' down this current tick.
+				So it's true for just one tick (unless you double click very fast), like <ref>newkeypress</ref>.
+				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> or <ref>rightbutton</ref> to specify <p>which</p> button.
 				<note>
 					Just like keyboard commands such as <ref>keyispressed</ref>, you can <b>not</b>
 					wait for the player to click the mouse with a while loop that doesn't contain
@@ -5311,7 +5314,7 @@ end</example>
 			<shortname>mouse release</shortname>
 			<description>
 				Returns <ref>true</ref> if the specified mouse button has been released since the last tick.
-				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> and <ref>rightbutton</ref> to specify the button.
+				You can use the constants <ref>leftbutton</ref>, <ref>middlebutton</ref> and <ref>rightbutton</ref> to specify <p>which</p> button.
 				<note>
 					Just like keyboard commands such as <ref>keyispressed</ref>, you can <b>not</b>
 					wait for the player to click the mouse with a while loop that doesn't contain

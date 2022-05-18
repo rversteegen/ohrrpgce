@@ -45,6 +45,7 @@ DECLARE SUB write_debian_copyright_file (filename as string)
 DECLARE FUNCTION gzip_file (filename as string) as bool
 DECLARE FUNCTION gunzip_file (filename as string) as bool
 DECLARE FUNCTION create_zipfile(start_in_dir as string, zipfile as string, files as string) as bool
+DECLARE FUNCTION get_zip_contents(zipfile as string, files() as string) as bool
 DECLARE FUNCTION create_tarball(start_in_dir as string, tarball as string, files as string) as bool
 DECLARE FUNCTION extract_tarball(into_dir as string, tarball as string, files as string) as bool
 DECLARE FUNCTION create_ar_archive(start_in_dir as string, archive as string, files as string) as bool
@@ -1390,6 +1391,20 @@ FUNCTION create_zipfile(start_in_dir as string, zipfile as string, files as stri
  RETURN YES
 END FUNCTION
 
+'Fills files() with the files in a .zip file
+FUNCTION get_zip_contents(zipfile as string, files() as string) as bool
+ DIM unzip as string = find_helper_app("unzip", YES)
+ IF unzip = "" THEN dist_info "ERROR: unzip is not available": RETURN NO
+
+ DIM as string stdout_s, stderr_s
+ IF run_and_get_output(unzip & " -Z -1 " & escape_filename(zipfile), stdout_s, stderr_s) THEN
+  dist_info !"Couldn't examine zip file:\n" & stderr_s
+  RETURN NO
+ END IF
+ split stdout_s, files()
+ RETURN YES
+END FUNCTION
+
 FUNCTION create_tarball(start_in_dir as string, tarball as string, files as string) as bool
  '--Returns YES if successful, or NO if failed
 
@@ -1650,8 +1665,16 @@ FUNCTION can_make_mac_packages () as bool
  '--check to see if we can find the tools needed to compress a mac .app package
  IF find_helper_app("tar") = "" THEN RETURN NO
  IF find_helper_app("gzip") = "" THEN RETURN NO
+ #IFDEF __FB_WIN32__
+  IF find_helper_app("zip_exec") = "" THEN RETURN NO
+  #ENDIF
  RETURN YES
 END FUNCTION
+
+SUB 
+ IF find_helper_app("zip_exec") = "" THEN RETURN NO
+END SUB
+
 
 SUB distribute_game_as_mac_app (which_arch as string, dest_override as string = "")
 
@@ -1752,19 +1775,12 @@ END SUB
 /' This works, but isn't used yet. May not be needed. See comment above.
 FUNCTION prepare_mac_app_zip(zipfile as string, gamename as string) as bool
  '--Renames OHRRPGCE-Game.app to gamename.app inside a zip file, without extracting it
- DIM unzip as string = find_helper_app("unzip", YES)
- IF unzip = "" THEN dist_info "ERROR: unzip is not available": RETURN NO
  DIM ziptool as string = find_helper_app("ziptool", YES)
  IF ziptool = "" THEN dist_info "ERROR: ziptool is not available": RETURN NO
 
  'First get list of files/directories
- DIM as string stdout_s, stderr_s
- IF run_and_get_output(unzip & " -Z -1 " & escape_filename(zipfile), stdout_s, stderr_s) THEN
-  dist_info !"Couldn't examine zip file:\n" & stderr_s
-  RETURN NO
- END IF
  DIM files() as string
- split stdout_s, files()
+ IF get_zip_contents(zipfile, files()) = NO THEN RETURN NO
 
  'Rename each entry
  DIM renamed as integer = 0

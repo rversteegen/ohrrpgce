@@ -1607,6 +1607,7 @@ SUB io_sdl2_setmouse(byval x as integer, byval y as integer)
 END SUB
 
 LOCAL SUB internal_set_mouserect(rect as RectPoints)
+  'Note: SDL 2.0.18 adds SDL_SetWindowMouseRect, maybe we should use that when available?
   mouseclipped = (rect.p1.x >= 0)
   'Grabs just mouse, not keyboard (WM combos?) unless SDL_HINT_GRAB_KEYBOARD set
   '(SDL_SetWindowMouseGrab is new in SDL 2.0.16)
