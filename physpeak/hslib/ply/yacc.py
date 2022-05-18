@@ -466,11 +466,17 @@ class LRParser:
 
                     #--! DEBUG
                     if plen:
-                        debug.info('Action : Reduce rule [%s] with %s and goto state %d', p.str,
+                        if state in goto:
+                            debug.info("Actionxxx : Possible future gotos: %s" % list(goto[state].keys()))
+                        else:
+                            debug.info("Actionxxx : Possible future gotos: NONE")
+                        debug.info("Actionxxx : Possible completion gotos: %s" % list(goto[statestack[-1-plen]].keys()))
+
+                        debug.info('Actionx : Reduce rule [%s] with %s  %s and goto state %d', p.str, pname,
                                    '['+','.join([format_stack_entry(_v.value) for _v in symstack[-plen:]])+']',
                                    goto[statestack[-1-plen]][pname])
                     else:
-                        debug.info('Action : Reduce rule [%s] with %s and goto state %d', p.str, [],
+                        debug.info('Actionx : Reduce rule [%s] with %s and goto state %d', p.str, [],
                                    goto[statestack[-1]][pname])
 
                     #--! DEBUG
