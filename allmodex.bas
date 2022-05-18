@@ -86,6 +86,7 @@ declare function next_unused_screenshot_filename() as string
 declare sub snapshot_check(page as integer = -1)
 
 declare function calcblock(tmap as TileMap, x as integer, y as integer, overheadmode as integer, pmapptr as TileMap ptr) as integer
+declare sub init_autotile_tables()
 
 declare function compatpage_internal(pageframe as Frame ptr) as Frame ptr
 
@@ -510,6 +511,8 @@ local sub modex_init()
 
 	' TODO: tmpdir is shared by all instances of Custom, but when that is fixed this can be removed
 	macrofile = tmpdir & "macro" & get_process_id() & ".ohrkeys"
+
+	init_autotile_tables()
 end sub
 
 ' This is called from init_preferred_gfx_backend before gfx_init/Initialize. gfxbackend is set.
@@ -4145,6 +4148,151 @@ sub writeblock (map as TileMap, x as integer, y as integer, v as integer)
 	map.data[x + y * map.wide] = v
 end sub
 
+type AutoTileLookup
+	fulltile as byte
+	halftiles(0 to 1, 0 to 1) as byte
+end type
+
+dim shared autotile_lookup(255) as AutoTileLookup
+
+'Autotile neighbour constants
+enum
+	atUL = 1
+	atU = 2
+	atUR = 4
+	atL = 8
+	atR = 16
+	atDL = 32
+	atD = 64
+	atDR = 128
+	atUL3 = atU+atL+atUL  'Corner masks
+	atUR3 = atU+atR+atUR
+	atDL3 = atD+atL+atDL
+	atDR3 = atD+atR+atDR
+end enum
+
+'For autotiling:
+'Compute tile number offset in the 3x3 block below the autotile base tile: x,y in range 0..2
+#define blockoff(x, y) (x+(y+1)*16)
+
+local sub init_autotile_tables()
+	'Half tiles
+	for bitmask as integer = 0 to 255
+		with autotile_lookup(bitmask)
+			.fulltile = -1
+
+			'Unroll local rules into the size 256 table.
+			'Each halftile depends only on the 3 neighbouring tiles, with the
+			'exception of straight edges, where there are two alternative
+			'halftiles, one of them being next to a corner halftile. Have to look
+			'in the opposite direction to detect the corner.
+
+			dim off as integer
+			'Top left
+			select case bitmask and atUL3
+					case 0:         off = blockoff(0, 0)
+					case atU, atU+atUL
+						if (bitmask and atD) = 0 then
+							off = blockoff(0, 2)  'next to corner
+						else
+							off = blockoff(0, 1)  'straight
+						end if
+					case atL, atL+atUL
+						if (bitmask and atR) = 0 then
+							off = blockoff(2, 0)  'next to corner
+						else
+							off = blockoff(1, 0)  'straight
+						end if
+					case atUL:      off = 1  'diagonally adjacent pieces
+					case atU+atL:   off = 2  'inner corner pieces
+					case atUL3:     off = blockoff(1, 1)
+			end select
+			.halftiles(0, 0) = off
+
+			'Top right
+			select case bitmask and atUR3
+					case 0:         off = blockoff(2, 0)
+					case atU, atU+atUR
+						if (bitmask and atD) = 0 then
+							off = blockoff(2, 2)  'next to corner
+						else
+							off = blockoff(2, 1)  'straight
+						end if
+					case atR, atR+atUR
+						if (bitmask and atL) = 0 then
+							off = blockoff(0, 0)  'next to corner
+						else
+							off = blockoff(1, 0)  'straight
+						end if
+					case atUR:      off = 1  'diagonally adjacent pieces
+					case atU+atR:   off = 2  'inner corner pieces
+					case atUR3:     off = blockoff(1, 1)
+			end select
+			.halftiles(1, 0) = off
+
+			'Bottom left
+			select case bitmask and atDL3
+					case 0:         off = blockoff(0, 2)
+					case atD, atD+atDL
+						if (bitmask and atU) = 0 then
+							off = blockoff(0, 0)  'next to corner
+						else
+							off = blockoff(0, 1)  'straight
+						end if
+					case atL, atL+atDL
+						if (bitmask and atR) = 0 then
+							off = blockoff(2, 2)  'next to corner
+						else
+							off = blockoff(1, 2)  'straight
+						end if
+					case atDL:      off = 1  'diagonally adjacent pieces
+					case atD+atL:   off = 2  'inner corner pieces
+					case atDL3:     off = blockoff(1, 1)
+			end select
+			.halftiles(0, 1) = off
+
+			'Bottom right
+			select case bitmask and atDR3
+					case 0:         off = blockoff(2, 2)
+					case atD, atD+atDR
+						if (bitmask and atU) = 0 then
+							off = blockoff(2, 0)  'next to corner
+						else
+							off = blockoff(2, 1)  'straight
+						end if
+					case atR, atR+atDR
+						if (bitmask and atL) = 0 then
+							off = blockoff(0, 2)  'next to corner
+						else
+							off = blockoff(1, 2)  'straight
+						end if
+					case atDR:      off = 1  'diagonally adjacent pieces
+					case atD+atR:   off = 2  'inner corner pieces
+					case atDR3:     off = blockoff(1, 1)
+			end select
+			.halftiles(1, 1) = off
+		end with
+	next
+
+	'Full tiles. These are special cases where it's not necessary to cut up any tiles.
+	'Therefore there are 12 cases for the 12 tiles.
+	autotile_lookup(0).fulltile = 0  'Isolated tile
+	autotile_lookup(atUL+atUR+atDL+atDR).fulltile = 1  'Only 4 diagonals
+	autotile_lookup(atU+atD+atL+atR).fulltile = 2  '4 inner corners
+	autotile_lookup(255).fulltile = blockoff(1, 1)  'Surrounded
+	autotile_lookup(atR+atD+atDR).fulltile = blockoff(0, 0)
+	autotile_lookup(atL+atU+atUL).fulltile = blockoff(2, 2)
+	autotile_lookup(atL+atD+atDL).fulltile = blockoff(2, 0)
+	autotile_lookup(atR+atU+atUR).fulltile = blockoff(0, 2)
+	autotile_lookup(atL+atDL+atD+atDR+atR).fulltile = blockoff(1, 0)
+	autotile_lookup(atU+atUR+atR+atDR+atD).fulltile = blockoff(0, 1)
+	autotile_lookup(atU+atUL+atL+atDL+atD).fulltile = blockoff(2, 1)
+	autotile_lookup(atL+atUL+atU+atUR+atR).fulltile = blockoff(1, 2)
+end sub
+
+#undef blockoff
+
+
 'Calculate which tile to display
 local function calcblock (tmap as TileMap, x as integer, y as integer, overheadmode as integer, pmapptr as TileMap ptr) as integer
 'returns -1 to draw no tile
@@ -4232,6 +4380,25 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 	get_cliprect() = saveclip
 end sub
 
+'tx, ty: dest position
+'subtile: 0-3 for which half tile to draw (= subx + 2*suby)
+'tilesize: 20, or 10 for half tiles
+private sub setup_tileframe(tileframe as Frame ptr, tilesetsprite as Frame ptr, tilenum as integer, tilesize as integer, subtile as integer = 0)
+	dim pixeloffset as integer = tilenum * (20 * 20)
+	if subtile then
+		pixeloffset += iif(subtile and 1, 10, 0) + iif(subtile and 2, 10*20, 0)
+	end if
+
+	tileframe->image = tilesetsprite->image + pixeloffset
+	if tilesetsprite->mask then 'just in case it happens some day
+		tileframe->mask = tilesetsprite->mask + pixeloffset
+	else
+		tileframe->mask = NULL
+	end if
+	tileframe->w = tilesize
+	tileframe->h = tilesize
+end sub
+
 sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame ptr, dest as Frame ptr, trans as bool = NO, overheadmode as integer = 0, pmapptr as TileMap ptr = NULL, largetileset as bool = NO, pal as Palette16 ptr = NULL, opts as DrawOptions = def_drawoptions)
 'Draw a single map layer.
 'This version of drawmap paints over the entire dest Frame given to it.
@@ -4257,7 +4424,10 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 	dim ty as integer
 	dim tx as integer
 	dim todraw as integer
+
 	dim tileframe as Frame
+	tileframe.refcount = NOREFC
+	tileframe.pitch = 20  'tileset pitch must be 20
 
 	get_cliprect(dest)  'Set clipping Frame
 
@@ -4279,11 +4449,6 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 	xoff = -calc
 	xstart = xpos
 
-	tileframe.refcount = NOREFC
-	tileframe.w = 20
-	tileframe.h = 20
-	tileframe.pitch = 20
-
 	ty = yoff
 	while ty < dest->h
 		tx = xoff
@@ -4295,15 +4460,45 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 			end if
 
 			'get the tile
-			if (todraw >= 0) then
-				tileframe.image = tilesetsprite->image + todraw * 20 * 20
-				if tilesetsprite->mask then 'just in case it happens some day
-					tileframe.mask = tilesetsprite->mask + todraw * 20 * 20
-				else
-					tileframe.mask = NULL
-				end if
+			if todraw >= 0 then
 
-				'draw it on the map
+				'kludge: hardcoded autotile settings!
+				if tmap.layernum = 1 andalso (todraw = 13 orelse todraw = 49) then
+					'Find neighbouring autotiles, as a length-8 bitvector
+					dim as integer neighbits, idx = 0
+					for yi as integer = -1 to 1
+						for xi as integer = -1 to 1
+							if xi or yi then  'not 0,0
+								if calcblock(tmap, xpos + xi, ypos + yi, overheadmode, pmapptr) = todraw then
+									neighbits or= 1 shl idx
+								end if
+								idx += 1
+							end if
+						next
+					next
+					with autotile_lookup(neighbits)
+						if .fulltile > -1 then
+							'Use one of the full tiles
+							todraw += .fulltile
+						else
+							'Use half-tiles
+							dim subtile as integer = 0
+							for yi as integer = 0 to 1
+								for xi as integer = 0 to 1
+									dim tilenum as integer = todraw + .halftiles(xi, yi)
+									setup_tileframe(@tileframe, tilesetsprite, tilenum, 10, subtile)
+									frame_draw_internal(@tileframe, curmasterpal(), pal, tx + 10 * xi, ty + 10 * yi, trans, dest, opts)
+									subtile += 1
+								next
+							next
+							todraw = -1 'skip normal draw
+						end if
+					end with
+				end if
+			end if
+
+			if todraw >= 0 then
+				setup_tileframe(@tileframe, tilesetsprite, todraw, 20)
 				frame_draw_internal(@tileframe, curmasterpal(), pal, tx, ty, trans, dest, opts)
 			end if
 
