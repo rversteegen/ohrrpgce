@@ -5993,11 +5993,13 @@ END SUB
 
 '"greyscale palette" command
 SUB greyscalepal ()
+ DIM mult as double = bound(get_optional_arg(2, 255), 0, 255) / 255
  FOR i as integer = bound(retvals(0), 0, 255) TO bound(retvals(1), 0, 255)
   WITH master(i)
-   .r = bound(CINT(.r * 0.3 + .g * 0.59 + .b * 0.11), 0, 255)
-   .g = .r
-   .b = .r
+   DIM grey as double = .r * 0.3 + .g * 0.59 + .b * 0.11
+   .r = bound(CINT(grey * mult + .r * (1 - mult)), 0, 255)
+   .g = bound(CINT(grey * mult + .g * (1 - mult)), 0, 255)
+   .b = bound(CINT(grey * mult + .b * (1 - mult)), 0, 255)
    END WITH
  NEXT i
 END SUB
