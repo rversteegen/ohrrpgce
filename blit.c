@@ -320,6 +320,23 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 	return true;
 }
 
+static uint32_t getpixel8(uint8_t *buffer, int x, int y, const XYPair size) {
+
+	if (x < 0) {
+		x = 0;
+	} else if (x > size.w - 1) {
+		x = size.w - 1;
+	}
+	
+	if (y < 0) {
+		y = 0;
+	} else if (y > size.h - 1) {
+		y = size.h - 1;
+	}
+	
+	return buffer[y * size.w + x];
+}
+
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
 //destbuffer: destination scaled buffer pitch x h*zoom also 8 bit
@@ -328,9 +345,114 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 	if (multismoothblit(8, 8, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
 
+	if (smooth == 1 && zoom == 2) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+
+			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+
+			for (x = 0; x < size.w; x++) {
+			
+				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+
+				uint8_t E0, E1, E2, E3;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+				}
+
+				*row0++ = E0;
+				*row0++ = E1;
+
+				*row1++ = E2;
+				*row1++ = E3;
+			}
+		}
+		
+		return;
+	}
+ 
+	if (smooth == 1 && zoom == 3) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+		
+			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+			uint8_t *row2 = destbuffer + (y * zoom + 2) * pitch;
+		
+			for (x = 0; x < size.w; x++) {
+
+				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
+				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
+				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
+				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
+			
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E2 = B == F ? F : E;
+					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E4 = E;
+					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E6 = D == H ? D : E;
+					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
+					E8 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E4 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+
+				*row0++ = E0;
+				*row0++ = E1;
+				*row0++ = E2;
+
+				*row1++ = E3;
+				*row1++ = E4;
+				*row1++ = E5;
+
+				*row2++ = E6;
+				*row2++ = E7;
+				*row2++ = E8;
+			}
+		}
+		
+		return;
+	}
+
 	uint8_t *sptr;
 	int i, j;
-	int wide = size.w * zoom, high = size.h * zoom;
+	int wide = size.w * zoom;
 
 	sptr = destbuffer;
 
@@ -373,41 +495,6 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 			}
 		}
 	}
-
-	if (smooth == 1 && zoom >= 2) {
-		int fy = 1;
-		int pstep;
-		if (zoom == 3) {
-			pstep = 1;
-		} else {
-			pstep = zoom;
-			fy = zoom - 1;
-		}
-		uint8_t *sptr1, *sptr2, *sptr3;
-		for (; fy <= high - 2; fy += pstep) {
-			sptr1 = destbuffer + pitch * (fy - 1) + 1;  //(1,0)
-			sptr2 = sptr1 + pitch; //(1,1)
-			sptr3 = sptr2 + pitch; //(1,2)
-			for (int fx = wide - 2; fx >= 1; fx--) {
-				//p0=point(fx,fy)
-				//p1=point(fx-1,fy-1)//nw
-				//p2=point(fx+1,fy-1)//ne
-				//p3=point(fx+1,fy+1)//se
-				//p4=point(fx-1,fy+1)//sw
-				//if p1 = p3 then p0 = p1
-				//if p2 = p4 then p0 = p2
-				if (sptr1[1] == sptr3[-1])
-					sptr2[0] = sptr1[1];
-				else
-					if (sptr1[-1] == sptr3[1])
-						sptr2[0] = sptr1[-1];
-				
-				sptr1 += 1;
-				sptr2 += 1;
-				sptr3 += 1;
-			}
-		}
-	}
 }
 
 void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor pal[]) {
@@ -418,10 +505,115 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 	if (multismoothblit(8, 32, srcbuffer, destbuffer, size, pitch, zoom, &smooth, pal))
 		return;
 
+	if (smooth == 1 && zoom == 2) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+
+			uint32_t *row0 = (uint32_t *)destbuffer + (y * zoom + 0) * pitch;
+			uint32_t *row1 = (uint32_t *)destbuffer + (y * zoom + 1) * pitch;
+
+			for (x = 0; x < size.w; x++) {
+			
+				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+
+				uint8_t E0, E1, E2, E3;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+				}
+
+				*row0++ = pal[E0].col;
+				*row0++ = pal[E1].col;
+
+				*row1++ = pal[E2].col;
+				*row1++ = pal[E3].col;
+			}
+		}
+		
+		return;
+	}
+ 
+	if (smooth == 1 && zoom == 3) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+		
+			uint32_t *row0 = (uint32_t *)destbuffer + (y * zoom + 0) * pitch;
+			uint32_t *row1 = (uint32_t *)destbuffer + (y * zoom + 1) * pitch;
+			uint32_t *row2 = (uint32_t *)destbuffer + (y * zoom + 2) * pitch;
+		
+			for (x = 0; x < size.w; x++) {
+
+				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
+				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
+				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
+				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
+			
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E2 = B == F ? F : E;
+					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E4 = E;
+					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E6 = D == H ? D : E;
+					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
+					E8 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E4 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+
+				*row0++ = pal[E0].col;
+				*row0++ = pal[E1].col;
+				*row0++ = pal[E2].col;
+
+				*row1++ = pal[E3].col;
+				*row1++ = pal[E4].col;
+				*row1++ = pal[E5].col;
+
+				*row2++ = pal[E6].col;
+				*row2++ = pal[E7].col;
+				*row2++ = pal[E8].col;
+			}
+		}
+		
+		return;
+	}
+
 	uint32_t *sptr;
 	uint32_t pixel;
 	int i, j;
-	int wide = size.w * zoom, high = size.h * zoom;
+	int wide = size.w * zoom;
 
 	sptr = (uint32_t *)destbuffer;
 
@@ -443,39 +635,23 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 			sptr += pitch;
 		}
 	}
+}
 
-	if (smooth == 1 && zoom >= 2) {
-		int pstep;
-		if (zoom == 2)
-			pstep = 2;
-		else
-			pstep = 1;
-		uint32_t *sptr1, *sptr2, *sptr3;
-		for (int fy = 1; fy <= (high - 2); fy += pstep) {
-			sptr1 = (uint32_t *)destbuffer + pitch * (fy - 1) + 1;  //(1,0)
-			sptr2 = sptr1 + pitch; //(1,1)
-			sptr3 = sptr2 + pitch; //(1,2)
-			for (int fx = wide - 2; fx >= 1; fx--) {
-				//p0=point(fx,fy)
-				//p1=point(fx-1,fy-1)//nw
-				//p2=point(fx+1,fy-1)//ne
-				//p3=point(fx+1,fy+1)//se
-				//p4=point(fx-1,fy+1)//sw
-				//if p1 = p3 then p0 = p1
-				//if p2 = p4 then p0 = p2
-				if (sptr1[1] == sptr3[-1])
-					sptr2[0] = sptr1[1];
-				else
-					if (sptr1[-1] == sptr3[1])
-						sptr2[0] = sptr1[-1];
-				
-				//pset(fx,fy),p0
-				sptr1 += 1;
-				sptr2 += 1;
-				sptr3 += 1;
-			}
-		}
+static uint32_t getpixel32(RGBcolor *buffer, int x, int y, const XYPair size) {
+
+	if (x < 0) {
+		x = 0;
+	} else if (x > size.w - 1) {
+		x = size.w - 1;
 	}
+	
+	if (y < 0) {
+		y = 0;
+	} else if (y > size.h - 1) {
+		y = size.h - 1;
+	}
+	
+	return *((uint32_t *)buffer + y * size.w + x);
 }
 
 void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
@@ -486,10 +662,115 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 	if (multismoothblit(32, 32, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
 
+	if (smooth == 1 && zoom == 2) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+
+			uint32_t *row0 = (uint32_t *)destbuffer + (y * zoom + 0) * pitch;
+			uint32_t *row1 = (uint32_t *)destbuffer + (y * zoom + 1) * pitch;
+
+			for (x = 0; x < size.w; x++) {
+			
+				uint32_t B = getpixel32(srcbuffer, x + 0, y - 1, size);
+				uint32_t D = getpixel32(srcbuffer, x - 1, y + 0, size);
+				uint32_t E = getpixel32(srcbuffer, x + 0, y + 0, size);
+				uint32_t F = getpixel32(srcbuffer, x + 1, y + 0, size);
+				uint32_t H = getpixel32(srcbuffer, x + 0, y + 1, size);
+
+				uint32_t E0, E1, E2, E3;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+				}
+
+				*row0++ = E0;
+				*row0++ = E1;
+
+				*row1++ = E2;
+				*row1++ = E3;
+			}
+		}
+		
+		return;
+	}
+ 
+	if (smooth == 1 && zoom == 3) {
+	
+		int x, y;
+		
+		for (y = 0; y < size.h; y++) {
+		
+			uint32_t *row0 = (uint32_t *)destbuffer + (y * zoom + 0) * pitch;
+			uint32_t *row1 = (uint32_t *)destbuffer + (y * zoom + 1) * pitch;
+			uint32_t *row2 = (uint32_t *)destbuffer + (y * zoom + 2) * pitch;
+		
+			for (x = 0; x < size.w; x++) {
+
+				uint32_t A = getpixel32(srcbuffer, x - 1, y - 1, size);
+				uint32_t B = getpixel32(srcbuffer, x + 0, y - 1, size);
+				uint32_t C = getpixel32(srcbuffer, x + 1, y - 1, size);
+				uint32_t D = getpixel32(srcbuffer, x - 1, y + 0, size);
+				uint32_t E = getpixel32(srcbuffer, x + 0, y + 0, size);
+				uint32_t F = getpixel32(srcbuffer, x + 1, y + 0, size);
+				uint32_t G = getpixel32(srcbuffer, x - 1, y + 1, size);
+				uint32_t H = getpixel32(srcbuffer, x + 0, y + 1, size);
+				uint32_t I = getpixel32(srcbuffer, x + 1, y + 1, size);
+			
+				uint32_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E2 = B == F ? F : E;
+					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E4 = E;
+					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E6 = D == H ? D : E;
+					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
+					E8 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E4 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+
+				*row0++ = E0;
+				*row0++ = E1;
+				*row0++ = E2;
+
+				*row1++ = E3;
+				*row1++ = E4;
+				*row1++ = E5;
+
+				*row2++ = E6;
+				*row2++ = E7;
+				*row2++ = E8;
+			}
+		}
+		
+		return;
+	}
+
 	uint32_t *sptr;
 	uint32_t pixel;
 	int i, j;
-	int wide = size.w * zoom, high = size.h * zoom;
+	int wide = size.w * zoom;
 
 	sptr = (uint32_t *)destbuffer;
 
@@ -507,31 +788,6 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 		for (i = 2; i <= zoom; i++) {
 			memcpy(sptr, srcline, 4 * wide);
 			sptr += pitch;
-		}
-	}
-
-	if (smooth == 1 && zoom >= 2) {
-		int pstep;
-		if (zoom == 2)
-			pstep = 2;
-		else
-			pstep = 1;
-		uint32_t *sptr1, *sptr2, *sptr3;
-		for (int fy = 1; fy <= (high - 2); fy += pstep) {
-			sptr1 = (uint32_t *)destbuffer + pitch * (fy - 1) + 1;  //(1,0)
-			sptr2 = sptr1 + pitch; //(1,1)
-			sptr3 = sptr2 + pitch; //(1,2)
-			for (int fx = wide - 2; fx >= 1; fx--) {
-				if (sptr1[1] == sptr3[-1])
-					sptr2[0] = sptr1[1];
-				else
-					if (sptr1[-1] == sptr3[1])
-						sptr2[0] = sptr1[-1];
-				
-				sptr1 += 1;
-				sptr2 += 1;
-				sptr3 += 1;
-			}
 		}
 	}
 }
