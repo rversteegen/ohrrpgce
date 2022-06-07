@@ -320,22 +320,125 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 	return true;
 }
 
-static uint32_t getpixel8(uint8_t *buffer, int x, int y, const XYPair size) {
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define CLAMP(x, y, z) MIN(MAX(x, y), z)
 
-	if (x < 0) {
-		x = 0;
-	} else if (x > size.w - 1) {
-		x = size.w - 1;
-	}
-	
-	if (y < 0) {
-		y = 0;
-	} else if (y > size.h - 1) {
-		y = size.h - 1;
-	}
-	
-	return buffer[y * size.w + x];
+#define SCALEGETPIXEL(_a, _b, _c, _d) \
+	((_a *)_b)[CLAMP(_d, 0, size.h - 1) * size.w + CLAMP(_c, 0, size.w - 1)];
+
+#define SCALEGETSAMPLE1(_a) \
+_a B = SCALEGETPIXEL(_a, srcbuffer, x + 0, y - 1); \
+_a D = SCALEGETPIXEL(_a, srcbuffer, x - 1, y + 0); \
+_a E = SCALEGETPIXEL(_a, srcbuffer, x + 0, y + 0); \
+_a F = SCALEGETPIXEL(_a, srcbuffer, x + 1, y + 0); \
+_a H = SCALEGETPIXEL(_a, srcbuffer, x + 0, y + 1); \
+
+#define SCALEGETSAMPLE2(_a) \
+_a A = SCALEGETPIXEL(_a, srcbuffer, x - 1, y - 1); \
+_a C = SCALEGETPIXEL(_a, srcbuffer, x + 1, y - 1); \
+_a G = SCALEGETPIXEL(_a, srcbuffer, x - 1, y + 1); \
+_a I = SCALEGETPIXEL(_a, srcbuffer, x + 1, y + 1); \
+
+#define SCALEGETSAMPLE3(_a) \
+_a J = SCALEGETPIXEL(_a, srcbuffer, x + 0, y - 2); \
+_a K = SCALEGETPIXEL(_a, srcbuffer, x - 2, y + 0); \
+_a L = SCALEGETPIXEL(_a, srcbuffer, x + 2, y + 0); \
+_a M = SCALEGETPIXEL(_a, srcbuffer, x + 0, y + 2);
+
+#define SCALE2XFILL \
+E0 = E; \
+E1 = E; \
+E2 = E; \
+E3 = E;
+
+#define SCALE3XFILL \
+SCALE2XFILL; \
+E4 = E; \
+E5 = E; \
+E6 = E; \
+E7 = E; \
+E8 = E;
+
+// https://www.scale2x.it/algorithm
+
+#define SCALEORIGRULE1 \
+E0 = D == B ? D : E; \
+E1 = B == F ? F : E; \
+E2 = D == H ? D : E; \
+E3 = H == F ? F : E;
+
+#define SCALEORIGRULE2 \
+E5 = (D == B && E != C) || (B == F && E != A) ? B : E; \
+E6 = (D == B && E != G) || (D == H && E != A) ? D : E; \
+E7 = (B == F && E != I) || (H == F && E != C) ? F : E; \
+E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+
+#define SCALE2XORIG(_a) \
+SCALEGETSAMPLE1(_a); \
+_a E0, E1, E2, E3; \
+if (B != H && D != F) { \
+	SCALEORIGRULE1; \
+} else { \
+	SCALE2XFILL; \
 }
+
+#define SCALE3XORIG(_a) \
+SCALEGETSAMPLE1(_a); \
+_a E0, E1, E2, E3, E4, E5, E6, E7, E8; \
+if (B != H && D != F) { \
+	SCALEGETSAMPLE2(_a); \
+	SCALEORIGRULE1; \
+	E4 = E; \
+	SCALEORIGRULE2; \
+} else { \
+	SCALE3XFILL; \
+}
+
+// https://forums.libretro.com/t/scalenx-artifact-removal-and-algorithm-improvement/1686/6
+
+#define SCALESFXRULE1 \
+E0 = D == B && (E != A || E ==C || E == G || A == J || A == K) ? D : E; \
+E1 = B == F && (E != C || E ==A || E == I || C == J || C == L) ? F : E; \
+E2 = D == H && (E != G || E ==A || E == I || G == K || G == M) ? D : E; \
+E3 = H == F && (E != I || E ==C || E == G || I == L || I == M) ? F : E;
+
+#define SCALESFXRULE2 \
+E5 = (D == B && E != C && (E != A || E == C || E == G || A == J || A == K) && E != C) || \
+	 (B == F && E != A && (E != C || E == A || E == I || C == J || C == L) && E != A) ? B : E; \
+E6 = (D == B && E != G && (E != A || E == C || E == G || A == J || A == K) && E != G) || \
+	 (D == H && E != A && (E != G || E == A || E == I || G == K || G == M) && E != A) ? D : E; \
+E7 = (B == F && E != I && (E != I || E == C || E == G || I == L || I == M) && E != C) || \
+	 (H == F && E != C && (E != C || E == A || E == I || C == J || C == L) && E != I) ? F : E; \
+E8 = (D == H && E != I && (E != I || E == C || E == G || I == L || I == M) && E != G) || \
+	 (H == F && E != G && (E != G || E == A || E == I || G == K || G == M) && E != I) ? H : E;
+
+#define SCALE2XSFX(_a) \
+SCALEGETSAMPLE1(_a); \
+_a E0, E1, E2, E3; \
+if (B != H && D != F) { \
+	SCALEGETSAMPLE2(_a); \
+	SCALEGETSAMPLE3(_a); \
+	SCALESFXRULE1; \
+} else { \
+	SCALE2XFILL; \
+}
+
+#define SCALE3XSFX(_a) \
+SCALEGETSAMPLE1(_a); \
+_a E0, E1, E2, E3, E4, E5, E6, E7, E8; \
+if (B != H && D != F) { \
+	SCALEGETSAMPLE2(_a); \
+	SCALEGETSAMPLE3(_a); \
+	SCALESFXRULE1; \
+	E4 = E; \
+	SCALESFXRULE2; \
+} else { \
+	SCALE3XFILL; \
+}
+
+#define SCALE2X(_a) SCALE2XSFX(_a) 
+#define SCALE3X(_a) SCALE3XSFX(_a) 
 
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
@@ -356,26 +459,8 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 
 			for (x = 0; x < size.w; x++) {
 			
-				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
-				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
-				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
-				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
-				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
-
-				uint8_t E0, E1, E2, E3;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = B == F ? F : E;
-					E2 = D == H ? D : E;
-					E3 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-				}
-
+				SCALE2X(uint8_t);
+			
 				*row0++ = E0;
 				*row0++ = E1;
 
@@ -399,51 +484,19 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 		
 			for (x = 0; x < size.w; x++) {
 
-				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
-				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
-				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
-				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
-				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
-				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
-				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
-				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
-				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
-			
-				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
-					E2 = B == F ? F : E;
-					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
-					E4 = E;
-					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
-					E6 = D == H ? D : E;
-					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
-					E8 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-					E4 = E;
-					E5 = E;
-					E6 = E;
-					E7 = E;
-					E8 = E;
-				}
+				SCALE3X(uint8_t);
 
 				*row0++ = E0;
+				*row0++ = E5;
 				*row0++ = E1;
-				*row0++ = E2;
 
-				*row1++ = E3;
+				*row1++ = E6;
 				*row1++ = E4;
-				*row1++ = E5;
+				*row1++ = E7;
 
-				*row2++ = E6;
-				*row2++ = E7;
+				*row2++ = E2;
 				*row2++ = E8;
+				*row2++ = E3;
 			}
 		}
 		
@@ -516,25 +569,7 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 
 			for (x = 0; x < size.w; x++) {
 			
-				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
-				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
-				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
-				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
-				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
-
-				uint8_t E0, E1, E2, E3;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = B == F ? F : E;
-					E2 = D == H ? D : E;
-					E3 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-				}
+				SCALE2X(uint8_t);
 
 				*row0++ = pal[E0].col;
 				*row0++ = pal[E1].col;
@@ -559,51 +594,19 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 		
 			for (x = 0; x < size.w; x++) {
 
-				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
-				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
-				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
-				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
-				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
-				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
-				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
-				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
-				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
-			
-				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
-					E2 = B == F ? F : E;
-					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
-					E4 = E;
-					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
-					E6 = D == H ? D : E;
-					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
-					E8 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-					E4 = E;
-					E5 = E;
-					E6 = E;
-					E7 = E;
-					E8 = E;
-				}
+				SCALE3X(uint8_t);
 
 				*row0++ = pal[E0].col;
+				*row0++ = pal[E5].col;
 				*row0++ = pal[E1].col;
-				*row0++ = pal[E2].col;
 
-				*row1++ = pal[E3].col;
+				*row1++ = pal[E6].col;
 				*row1++ = pal[E4].col;
-				*row1++ = pal[E5].col;
+				*row1++ = pal[E7].col;
 
-				*row2++ = pal[E6].col;
-				*row2++ = pal[E7].col;
+				*row2++ = pal[E2].col;
 				*row2++ = pal[E8].col;
+				*row2++ = pal[E3].col;
 			}
 		}
 		
@@ -637,23 +640,6 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 	}
 }
 
-static uint32_t getpixel32(RGBcolor *buffer, int x, int y, const XYPair size) {
-
-	if (x < 0) {
-		x = 0;
-	} else if (x > size.w - 1) {
-		x = size.w - 1;
-	}
-	
-	if (y < 0) {
-		y = 0;
-	} else if (y > size.h - 1) {
-		y = size.h - 1;
-	}
-	
-	return *((uint32_t *)buffer + y * size.w + x);
-}
-
 void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w*h buffer, 32 bit
 //destbuffer: destination scaled buffer (pitch*zoom)*(h*zoom), 32 bit (so pitch is in pixels, not bytes)
@@ -673,25 +659,7 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 
 			for (x = 0; x < size.w; x++) {
 			
-				uint32_t B = getpixel32(srcbuffer, x + 0, y - 1, size);
-				uint32_t D = getpixel32(srcbuffer, x - 1, y + 0, size);
-				uint32_t E = getpixel32(srcbuffer, x + 0, y + 0, size);
-				uint32_t F = getpixel32(srcbuffer, x + 1, y + 0, size);
-				uint32_t H = getpixel32(srcbuffer, x + 0, y + 1, size);
-
-				uint32_t E0, E1, E2, E3;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = B == F ? F : E;
-					E2 = D == H ? D : E;
-					E3 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-				}
+				SCALE2X(uint32_t);
 
 				*row0++ = E0;
 				*row0++ = E1;
@@ -716,51 +684,19 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 		
 			for (x = 0; x < size.w; x++) {
 
-				uint32_t A = getpixel32(srcbuffer, x - 1, y - 1, size);
-				uint32_t B = getpixel32(srcbuffer, x + 0, y - 1, size);
-				uint32_t C = getpixel32(srcbuffer, x + 1, y - 1, size);
-				uint32_t D = getpixel32(srcbuffer, x - 1, y + 0, size);
-				uint32_t E = getpixel32(srcbuffer, x + 0, y + 0, size);
-				uint32_t F = getpixel32(srcbuffer, x + 1, y + 0, size);
-				uint32_t G = getpixel32(srcbuffer, x - 1, y + 1, size);
-				uint32_t H = getpixel32(srcbuffer, x + 0, y + 1, size);
-				uint32_t I = getpixel32(srcbuffer, x + 1, y + 1, size);
-			
-				uint32_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
-
-				if (B != H && D != F) {
-					E0 = D == B ? D : E;
-					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
-					E2 = B == F ? F : E;
-					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
-					E4 = E;
-					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
-					E6 = D == H ? D : E;
-					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
-					E8 = H == F ? F : E;
-				} else {
-					E0 = E;
-					E1 = E;
-					E2 = E;
-					E3 = E;
-					E4 = E;
-					E5 = E;
-					E6 = E;
-					E7 = E;
-					E8 = E;
-				}
+				SCALE3X(uint32_t);
 
 				*row0++ = E0;
+				*row0++ = E5;
 				*row0++ = E1;
-				*row0++ = E2;
 
-				*row1++ = E3;
+				*row1++ = E6;
 				*row1++ = E4;
-				*row1++ = E5;
+				*row1++ = E7;
 
-				*row2++ = E6;
-				*row2++ = E7;
+				*row2++ = E2;
 				*row2++ = E8;
+				*row2++ = E3;
 			}
 		}
 		
