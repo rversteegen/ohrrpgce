@@ -906,10 +906,16 @@ SUB Custom_global_menu
  freepage holdscreen
 END SUB
 
+extern "C"
+ extern blit_mode as long
+end extern
+
 ' This is called after every setkeys unless we're already inside global_setkeys_hook
 ' It should be fine to call any allmodex function in here, but beware we might
 ' not have loaded a game yet!
 SUB global_setkeys_hook
+
+ IF keyval(scF7) > 1 THEN loopvar blit_mode, 0, 4, IIF(keyval(scTab), -1, 1)
  IF keyval(scF9) > 1 THEN Custom_global_menu
  'The other keys documented in Custom_global_menu are checked in allmodex_controls
 END SUB

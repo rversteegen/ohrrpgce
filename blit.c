@@ -12,6 +12,16 @@
 #include "surface.h"
 #include "errorlog.h"
 #include "blend.h"
+#include "array.h"
+int blit_mode = 0;
+FBCALL double       fb_Timer            ( void );
+
+
+int double_comp(double *a, double *b) {
+	if (*a < *b) return -1;
+	if (*a > *b) return 0;
+	return 0;
+}
 
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]);
 void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor pal[]);
@@ -399,15 +409,40 @@ if (B != H && D != F) { \
 } \
 E4 = E;
 
+
+static uint32_t getpixel8(uint8_t *buffer, int x, int y, const XYPair size) {
+/*
+	if (x < 0) {
+		x = 0;
+	} else if (x > size.w - 1) {
+		x = size.w - 1;
+	}
+	
+	if (y < 0) {
+		y = 0;
+	} else if (y > size.h - 1) {
+		y = size.h - 1;
+	}
+*/	
+	return buffer[y * size.w + x];
+}
+
+
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
 //destbuffer: destination scaled buffer pitch x h*zoom also 8 bit
 //supports zoom 1 to 16
 
+	int pix = 0;
+	
 	if (multismoothblit(8, 8, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
 
+	double start_timer = fb_Timer();
+
 	if (smooth == 1 && zoom == 2) {
+/*
+		if(blit_mode == 1) {
 	
 		int x, y;
 		
@@ -427,14 +462,180 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 				*row1++ = E3;
 			}
 		}
-		
+		goto end;
 		return;
-	}
- 
+
+		} else if (blit_mode == 2) {
+
+			int x, y;
+		
+			for (y = 0; y < size.h; y++) {
+
+				uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+				uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+
+				for (x = 0; x < size.w; x++) {
+			
+					SCALE2XSFX(uint8_t);
+			
+					*row0++ = E0;
+					*row0++ = E1;
+
+					*row1++ = E2;
+					*row1++ = E3;
+				}
+			}
+			goto end;
+
+		} else if (blit_mode == 3) {
+
+			uint8_t *restrict outbuf = (uint8_t *)calloc(size.w, 2);
+			//uint8_t *restrict srcbuffer2 = (uint8_t *)srcbuffer;
+			//uint8_t *restrict destbuffer2 = (uint8_t *)destbuffer;
+
+			for (int y = 1; y < size.h; y++) {
+
+				uint8_t *srcrowup = srcbuffer + (y - 1) * size.w;
+				uint8_t *srcrow = srcbuffer + y * size.w;
+				uint8_t *srcrowdown = srcbuffer + (y + 1) * size.w;
+				uint8_t *rowup = destbuffer + (y * zoom - 1) * pitch;
+				uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+
+				if (y == 0) srcrowup = srcrow;
+				if (y == size.h - 1) srcrowdown = srcrow;
+
+				for (int x = 0; x < size.w; x++) {
+					// uint8_t B = srcbuffer2[(y - 1) * size.w + (x + 0)];
+					// uint8_t D = srcbuffer2[(y + 0) * size.w + (x - 1)];
+					// uint8_t E = srcbuffer2[(y + 0) * size.w + (x + 0)];
+					// uint8_t F = srcbuffer2[(y + 0) * size.w + (x + 1)];
+					// uint8_t H = srcbuffer2[(y + 1) * size.w + (x + 0)];
+
+					uint8_t B = srcrowup[x];
+					uint8_t D = srcrow[x - 1];
+					uint8_t E = srcrow[x];
+					uint8_t F = srcrow[x + 1];
+					uint8_t H = srcrowdown[x];
+
+					uint8_t E0, E1, E2, E3;
+
+					uint8_t B2 = outbuf[x * zoom + 0];
+					uint8_t B3 = outbuf[x * zoom + 1];
+					bool swapB2 = B2 != B;
+					bool swapB3 = B3 != B;
+
+					if (B != H && D != F) {
+						E0 = D == B && !swapB2 ? D : E;
+						if (D == B) B2 = B;
+
+						E1 = B == F && !swapB3 ? F : E;
+						if (B == F) B3 = B;
+
+						E2 = D == H ? D : E;
+						E3 = H == F ? F : E;
+					} else {
+						E0 = E;
+						E1 = E;
+						E2 = E;
+						E3 = E;
+					}
+
+					//destbuffer[(y * zoom + 0) * pitch + x * zoom + 0] = E0;
+					//destbuffer[(y * zoom + 0) * pitch + x * zoom + 1] = E1;
+					//destbuffer[(y * zoom - 1) * pitch + x * zoom + 0] = B2;
+					//destbuffer[(y * zoom - 1) * pitch + x * zoom + 1] = B3;
+
+					*row0++ = E0;
+					*row0++ = E1;
+					//if (y) {
+					*rowup++ = B2;
+					*rowup++ = B3;
+					//}
+
+					outbuf[x * zoom + 0] = E2;
+					outbuf[x * zoom + 1] = E3;
+				}
+			}
+			{
+			uint8_t *rowup = destbuffer + (size.h * zoom - 1) * pitch;
+			memcpy(rowup, outbuf, zoom * size.w);
+			}
+			free(outbuf);
+			goto end;
+
+		} // blit_mode=3
+
+		else
+*/
+		if (blit_mode == 4) {
+
+			int x, y;
+			
+		
+			for (y = 0; y < size.h; y++) {
+
+				uint8_t *srcrowup = srcbuffer + (y - 1) * size.w;
+				uint8_t *srcrow = srcbuffer + y * size.w;
+				uint8_t *srcrowdown = srcbuffer + (y + 1) * size.w;
+
+				if (y == 0) srcrowup = srcrow;
+				if (y == size.h - 1) srcrowdown = srcrow;
+
+				uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+				uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+
+				for (x = 0; x < size.w; x++) {
+			
+					// uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+					// uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+					// uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+					// uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+					// uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+
+					uint8_t B = srcrowup[x];
+					uint8_t D = srcrow[x - 1];
+					uint8_t E = srcrow[x];
+					uint8_t F = srcrow[x + 1];
+					uint8_t H = srcrowdown[x];
+
+					uint8_t E0, E1, E2, E3;
+
+					if (B != H && D != F) {
+						E0 = D == B ? D : E;
+						E1 = B == F ? F : E;
+						E2 = D == H ? D : E;
+						E3 = H == F ? F : E;
+					} else {
+						E0 = E;
+						E1 = E;
+						E2 = E;
+						E3 = E;
+					}
+
+					*row0++ = E0;
+					*row0++ = E1;
+
+					*row1++ = E2;
+					*row1++ = E3;
+				}
+				pix += size.w;
+			
+				//if(pix > 70000) break;
+
+			}
+		
+			goto end;
+		}
+
+
+	} //zoom=2
+	/*
 	if (smooth == 1 && zoom == 3) {
 	
+
+	if (blit_mode == 1) {
 		int x, y;
-		
+
 		for (y = 0; y < size.h; y++) {
 		
 			uint8_t *row0 = destbuffer + y * zoom * pitch;
@@ -458,10 +659,101 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 				*row2++ = E3;
 			}
 		}
-		
+		goto end;
 		return;
-	}
 
+
+	} if (blit_mode == 2) {
+		int x, y;
+
+	for (y = 0; y < size.h; y++) {
+
+			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+			uint8_t *row2 = destbuffer + (y * zoom + 2) * pitch;
+
+			for (x = 0; x < size.w; x++) {
+
+				SCALE3XSFX(uint8_t);
+
+				*row0++ = E0;
+				*row0++ = E5;
+				*row0++ = E1;
+
+				*row1++ = E6;
+				*row1++ = E4;
+				*row1++ = E7;
+
+				*row2++ = E2;
+				*row2++ = E8;
+				*row2++ = E3;
+			}
+		}
+		goto end;
+		return;
+	} else if (blit_mode == 3) {
+
+		int x, y;
+
+		for (y = 0; y < size.h; y++) {
+
+			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
+			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
+			uint8_t *row2 = destbuffer + (y * zoom + 2) * pitch;
+
+
+			for (x = 0; x < size.w; x++) {
+
+				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
+				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
+				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
+				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
+				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
+				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
+				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
+				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
+				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
+
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E2 = B == F ? F : E;
+					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E4 = E;
+					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E6 = D == H ? D : E;
+					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
+					E8 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E4 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+
+				*row0++ = E0;
+				*row0++ = E1;
+				*row0++ = E2;
+
+				*row1++ = E3;
+				*row1++ = E4;
+				*row1++ = E5;
+
+				*row2++ = E6;
+				*row2++ = E7;
+				*row2++ = E8;
+			}
+		}
+		goto end;
+	}
+	}
 	uint8_t *sptr;
 	int i, j;
 	int wide = size.w * zoom;
@@ -507,6 +799,44 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 			}
 		}
 	}
+*/
+
+  end:;
+	double ttime = 2.4e9 * (fb_Timer() - start_timer) / (double)pix;
+	static double *besttimes;
+	if (! besttimes) array_new((array_t*)&besttimes, 9, 0, &type_table(double));
+	static int tickn = 0, lastw;
+//if (tickn ==0 || ttime > besttime) besttime = ttime;
+	if (tickn <0)
+		tickn++;
+	else
+		besttimes[tickn++] = ttime;
+	if (lastw != size.w) tickn=-5;
+	
+	lastw= size.w;
+	
+	if(tickn == 9) {
+		tickn = 0;
+		array_sort((array_t)besttimes, (FnCompare)double_comp);
+
+		printf("blit scale=%d: %.3f cyc/px w= %d\n", blit_mode, besttimes[4], size.w);
+	}
+
+
+
+// 	double ttime = 1e3 * (fb_Timer() - start_timer);
+// 	static double *besttimes;
+// 	if (! besttimes) array_new((array_t*)&besttimes, 9, 0, &type_table(double));
+// 	static int tickn = 0;
+// //if (tickn ==0 || ttime > besttime) besttime = ttime;
+// 	besttimes[tickn++] = ttime;
+// 	if(tickn == 9) {
+// 		tickn = 0;
+// 		array_sort((array_t)besttimes, (FnCompare)double_comp);
+
+// 		printf("blit scale=%d: %.3fms\n", blit_mode, besttimes[4]);
+// 	}
+
 }
 
 void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor pal[]) {
@@ -604,9 +934,11 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 //destbuffer: destination scaled buffer (pitch*zoom)*(h*zoom), 32 bit (so pitch is in pixels, not bytes)
 //supports any positive zoom
 
+	double start_timer = fb_Timer();
+
 	if (multismoothblit(32, 32, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
-
+int pix = 0;
 	if (smooth == 1 && zoom == 2) {
 	
 		int x, y;
@@ -627,6 +959,7 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 				*row1++ = E3;
 			}
 		}
+		goto end;
 		
 		return;
 	}
@@ -657,7 +990,12 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 				*row2++ = E8;
 				*row2++ = E3;
 			}
+			pix += size.w;
+			
+			if(pix > 100000) break;
+			
 		}
+		goto end;
 		
 		return;
 	}
@@ -685,4 +1023,27 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 			sptr += pitch;
 		}
 	}
+
+
+  end:;
+	double ttime = 1e9 * (fb_Timer() - start_timer) / (double)pix;
+	static double *besttimes;
+	if (! besttimes) array_new((array_t*)&besttimes, 9, 0, &type_table(double));
+	static int tickn = 0, lastw;
+//if (tickn ==0 || ttime > besttime) besttime = ttime;
+	if (tickn <0)
+		tickn++;
+	else
+		besttimes[tickn++] = ttime;
+	if (lastw != size.w) tickn=-5;
+	
+	lastw= size.w;
+	
+	if(tickn == 9) {
+		tickn = 0;
+		array_sort((array_t)besttimes, (FnCompare)double_comp);
+
+		printf("blit32 scale=%d: %.3f ns/px w= %d\n", blit_mode, besttimes[4], size.w);
+	}
+
 }
