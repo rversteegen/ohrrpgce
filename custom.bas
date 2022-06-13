@@ -915,7 +915,7 @@ end extern
 ' not have loaded a game yet!
 SUB global_setkeys_hook
 
- IF keyval(scF7) > 1 THEN loopvar blit_mode, 0, 4, IIF(keyval(scTab), -1, 1)
+ IF keyval(scF7) > 1 THEN loopvar blit_mode, 0, 3, IIF(keyval(scTab), -1, 1)
  IF keyval(scF9) > 1 THEN Custom_global_menu
  'The other keys documented in Custom_global_menu are checked in allmodex_controls
 END SUB

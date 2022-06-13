@@ -301,7 +301,7 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 
 	// Scale in 2 or 3 steps
 	int zoom0 = 1, zoom1 = 0, zoom2 = 0;
-	int finalsmooth = 1;
+	int finalsmooth = 0;
 	if (zoom == 4) { zoom1 = 2; zoom2 = 2; }
 	else if (zoom == 6) { zoom1 = 3; zoom2 = 2; }
 	else if (zoom == 8) { zoom0 = 2, zoom1 = 2; zoom2 = 2; }
@@ -433,7 +433,7 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 //destbuffer: destination scaled buffer pitch x h*zoom also 8 bit
 //supports zoom 1 to 16
 
-	int pix = 0;
+	int pix = size.w*size.h;
 	
 	if (multismoothblit(8, 8, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
@@ -441,7 +441,7 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 	double start_timer = fb_Timer();
 
 	if (smooth == 1 && zoom == 2) {
-/*
+
 		if(blit_mode == 1) {
 	
 		int x, y;
@@ -466,28 +466,6 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 		return;
 
 		} else if (blit_mode == 2) {
-
-			int x, y;
-		
-			for (y = 0; y < size.h; y++) {
-
-				uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
-				uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
-
-				for (x = 0; x < size.w; x++) {
-			
-					SCALE2XSFX(uint8_t);
-			
-					*row0++ = E0;
-					*row0++ = E1;
-
-					*row1++ = E2;
-					*row1++ = E3;
-				}
-			}
-			goto end;
-
-		} else if (blit_mode == 3) {
 
 			uint8_t *restrict outbuf = (uint8_t *)calloc(size.w, 2);
 			//uint8_t *restrict srcbuffer2 = (uint8_t *)srcbuffer;
@@ -566,8 +544,8 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 		} // blit_mode=3
 
 		else
-*/
-		if (blit_mode == 4) {
+
+		if (blit_mode == 3) {
 
 			int x, y;
 			
@@ -618,7 +596,6 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 					*row1++ = E2;
 					*row1++ = E3;
 				}
-				pix += size.w;
 			
 				//if(pix > 70000) break;
 
@@ -629,7 +606,7 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 
 
 	} //zoom=2
-	/*
+	
 	if (smooth == 1 && zoom == 3) {
 	
 
@@ -661,20 +638,46 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 		}
 		goto end;
 		return;
+/*
+	} else if (blit_mode == 2) {
 
-
-	} if (blit_mode == 2) {
 		int x, y;
 
-	for (y = 0; y < size.h; y++) {
+		for (y = 0; y < size.h; y++) {
 
 			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
 			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
 			uint8_t *row2 = destbuffer + (y * zoom + 2) * pitch;
 
+
 			for (x = 0; x < size.w; x++) {
 
-				SCALE3XSFX(uint8_t);
+
+				SCALEGETSAMPLE1(uint8_t);
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+				if (B != H && D != F) {
+					SCALEGETSAMPLE2(uint8_t);
+
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+				E4 = E;
 
 				*row0++ = E0;
 				*row0++ = E5;
@@ -690,70 +693,302 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 			}
 		}
 		goto end;
-		return;
-	} else if (blit_mode == 3) {
-
+*/
+	} else if (blit_mode == 4) {  // ANGULAR/SQUARISH
 		int x, y;
+		
+		for (y = 1; y < size.h - 1; y++) {
+		
+			uint8_t *row0 = (uint8_t *)destbuffer + y * zoom * pitch;
+			uint8_t *row1 = row0 + pitch;
+			uint8_t *row2 = row1 + pitch;
+		
+			for (x = 0; x < size.w-1; x++) {
 
-		for (y = 0; y < size.h; y++) {
-
-			uint8_t *row0 = destbuffer + (y * zoom + 0) * pitch;
-			uint8_t *row1 = destbuffer + (y * zoom + 1) * pitch;
-			uint8_t *row2 = destbuffer + (y * zoom + 2) * pitch;
-
-
-			for (x = 0; x < size.w; x++) {
-
-				uint8_t A = getpixel8(srcbuffer, x - 1, y - 1, size);
-				uint8_t B = getpixel8(srcbuffer, x + 0, y - 1, size);
-				uint8_t C = getpixel8(srcbuffer, x + 1, y - 1, size);
-				uint8_t D = getpixel8(srcbuffer, x - 1, y + 0, size);
-				uint8_t E = getpixel8(srcbuffer, x + 0, y + 0, size);
-				uint8_t F = getpixel8(srcbuffer, x + 1, y + 0, size);
-				uint8_t G = getpixel8(srcbuffer, x - 1, y + 1, size);
-				uint8_t H = getpixel8(srcbuffer, x + 0, y + 1, size);
-				uint8_t I = getpixel8(srcbuffer, x + 1, y + 1, size);
-
+				SCALEGETSAMPLE1(uint8_t);
 				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+				//if (B != H && D != F) {
+					SCALEGETSAMPLE2(uint8_t);
 
-				if (B != H && D != F) {
 					E0 = D == B ? D : E;
-					E1 = (D == B && E != C) || (B == F && E != A) ? B : E;
-					E2 = B == F ? F : E;
-					E3 = (D == B && E != G) || (D == H && E != A) ? D : E;
-					E4 = E;
-					E5 = (B == F && E != I) || (H == F && E != C) ? F : E;
-					E6 = D == H ? D : E;
-					E7 = (D == H && E != I) || (H == F && E != G) ? H : E;
-					E8 = H == F ? F : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+/*
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+*/
+					/* E5 = (D == B) || (B == F) ? B : E; */
+					/* E6 = (D == B) || (D == H) ? D : E; */
+					/* E7 = (B == F) || (H == F) ? F : E; */
+					/* E8 = (D == H) || (H == F) ? H : E; */
+
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+/*
 				} else {
 					E0 = E;
 					E1 = E;
 					E2 = E;
 					E3 = E;
-					E4 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}*/
+				E4 = E;
+
+				*row0++ = E0;
+				*row0++ = E5;
+				*row0++ = E1;
+
+				*row1++ = E6;
+				*row1++ = E4;
+				*row1++ = E7;
+
+				*row2++ = E2;
+				*row2++ = E8;
+				*row2++ = E3;
+			}
+		}
+		goto end;
+
+	} else if (blit_mode == 2) {  // SHARP SMOOTH FILTER
+		int x, y;
+		
+		for (y = 1; y < size.h - 1; y++) {
+		
+			uint8_t *row0 = (uint8_t *)destbuffer + y * zoom * pitch;
+			uint8_t *row1 = row0 + pitch;
+			uint8_t *row2 = row1 + pitch;
+		
+			for (x = 0; x < size.w-1; x++) {
+
+				SCALEGETSAMPLE1(uint8_t);
+				SCALEGETSAMPLE2(uint8_t);
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+				}
+
+				// PREVIOUS
+				// E0 = D == B && E != A ? D : E;
+				// E1 = B == F && E != C ? F : E;
+				// E2 = D == H && E != G ? D : E;
+				// E3 = H == F && E != I ? F : E;
+
+
+				E0 = D == B && (E == C || E == G) ? D : E;
+				E1 = B == F && (E == A || E == I) ? F : E;
+				E2 = D == H && (E == A || E == I) ? D : E;
+				E3 = H == F && (E == C || E == G) ? F : E;
+
+//				if ((B != H && D != F) || (A != C || G != I)) {
+
+
+					#define LINERULE(Ex, Ec, LE, RE, LN, N, RN) \ 
+					if (LE == E && E == RE) \
+						if (LN == N && N == RN) {Ex = N; Ec = N;};
+
+					E5 = E;
+					LINERULE(E5, E0, G, F, D, B, C);
+					LINERULE(E5, E1, D, I, A, B, F);
+					E6 = E;
+					LINERULE(E6, E2, I, B, H, D, A);
+					LINERULE(E6, E0, H, C, G, D, B);
+					E7 = E;
+					LINERULE(E7, E1, A, H, B, F, I);
+					LINERULE(E7, E3, B, G, C, F, H);
+					E8 = E;
+					LINERULE(E8, E2, A, F, D, H, I);
+					LINERULE(E8, E3, D, C, G, H, F);
+
+					// E5 = (D == B) || (B == F) ? B : E;
+					// E6 = (D == B) || (D == H) ? D : E;
+					// E7 = (B == F) || (H == F) ? F : E;
+					// E8 = (D == H) || (H == F) ? H : E;
+
+/*
+				if ((B != H && D != F)) { //|| (A != C || G != I)) {
+
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+
+				} else {
+					// E0 = E;
+					// E1 = E;
+					// E2 = E;
+					// E3 = E;
 					E5 = E;
 					E6 = E;
 					E7 = E;
 					E8 = E;
 				}
+*/
+				E4 = E;
 
 				*row0++ = E0;
+				*row0++ = E5;
 				*row0++ = E1;
-				*row0++ = E2;
 
-				*row1++ = E3;
+				*row1++ = E6;
 				*row1++ = E4;
-				*row1++ = E5;
+				*row1++ = E7;
 
-				*row2++ = E6;
-				*row2++ = E7;
+				*row2++ = E2;
 				*row2++ = E8;
+				*row2++ = E3;
 			}
 		}
 		goto end;
+
+
+
+	} else if (blit_mode == 3) {  // SMOOTH FILTER (bugs: isolated diagonal lines are pinched, isolate pixels become diamonds)
+		int x, y;
+		
+		for (y = 1; y < size.h - 1; y++) {
+		
+			uint8_t *row0 = (uint8_t *)destbuffer + y * zoom * pitch;
+			uint8_t *row1 = row0 + pitch;
+			uint8_t *row2 = row1 + pitch;
+		
+			for (x = 0; x < size.w-1; x++) {
+
+				SCALEGETSAMPLE1(uint8_t);
+				SCALEGETSAMPLE2(uint8_t);
+				uint8_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+
+				// Using thse rules causes line ends (OK) and V-corners (looks bad)
+				// and isolated diagonal lines (bad) be to chunky squares
+				// but they smooth out sharp corners without turning isolated pixels
+				// into diamonds
+				if (B != H && D != F) {
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+				}
+
+
+				// // PREVIOUS
+				// E0 = D == B && E != A ? D : E;
+				// E1 = B == F && E != C ? F : E;
+				// E2 = D == H && E != G ? D : E;
+				// E3 = H == F && E != I ? F : E;
+
+
+//				if ((B != H && D != F) || (A != C || G != I)) {
+
+
+					// E5 = E;
+					// if (G == E && E == F) { // Can smooth away E5
+					// 	//E5 = (D == B) || (B == F) ? B : E;
+					// 	if (D == B && B == C) E5 = B;
+					// }
+					// if (D == E && E == I) {
+					// 	if (A == B && B == F) E5 = B;
+					// }
+
+					#define LINERULE(Ex, Ec, LE, RE, LN, N, RN) \ 
+					if (LE == E && E == RE) \
+						if (LN == N && N == RN) {Ex = N; Ec = N;};
+
+					E5 = E;
+					LINERULE(E5, E0, G, F, D, B, C);
+					LINERULE(E5, E1, D, I, A, B, F);
+
+
+					E6 = E;
+					LINERULE(E6, E2, I, B, H, D, A);
+					LINERULE(E6, E0, H, C, G, D, B);
+
+
+					E7 = E;
+					LINERULE(E7, E1, A, H, B, F, I);
+					LINERULE(E7, E3, B, G, C, F, H);
+
+					// if (A == E && E == H) { // Can smooth away E5
+					// 	if (B == F && F == I) E7 = F;
+					// }
+
+					E8 = E;
+					LINERULE(E8, E2, A, F, D, H, I);
+					LINERULE(E8, E3, D, C, G, H, F);
+
+
+
+
+					// if (G == E && H == E) {
+					// 	E5 = E;
+					// 	E6 = E;
+					// }
+
+					// E5 = (D == B) || (B == F) ? B : E;
+					// E6 = (D == B) || (D == H) ? D : E;
+					// E7 = (B == F) || (H == F) ? F : E;
+					// E8 = (D == H) || (H == F) ? H : E;
+
+/*
+				if ((B != H && D != F)) { //|| (A != C || G != I)) {
+
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+
+				} else {
+					// E0 = E;
+					// E1 = E;
+					// E2 = E;
+					// E3 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+*/
+				E4 = E;
+
+				*row0++ = E0;
+				*row0++ = E5;
+				*row0++ = E1;
+
+				*row1++ = E6;
+				*row1++ = E4;
+				*row1++ = E7;
+
+				*row2++ = E2;
+				*row2++ = E8;
+				*row2++ = E3;
+			}
+		}
+		goto end;
+
 	}
+	
 	}
+
 	uint8_t *sptr;
 	int i, j;
 	int wide = size.w * zoom;
@@ -799,9 +1034,10 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 			}
 		}
 	}
-*/
+
 
   end:;
+if (smooth) {
 	double ttime = 2.4e9 * (fb_Timer() - start_timer) / (double)pix;
 	static double *besttimes;
 	if (! besttimes) array_new((array_t*)&besttimes, 9, 0, &type_table(double));
@@ -821,7 +1057,7 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 
 		printf("blit scale=%d: %.3f cyc/px w= %d\n", blit_mode, besttimes[4], size.w);
 	}
-
+}
 
 
 // 	double ttime = 1e3 * (fb_Timer() - start_timer);
@@ -938,7 +1174,8 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 
 	if (multismoothblit(32, 32, srcbuffer, destbuffer, size, pitch, zoom, &smooth, dummypal))
 		return;
-int pix = 0;
+	int pix = size.w*size.h;
+
 	if (smooth == 1 && zoom == 2) {
 	
 		int x, y;
@@ -965,16 +1202,16 @@ int pix = 0;
 	}
  
 	if (smooth == 1 && zoom == 3) {
-	
+	if (blit_mode == 1) {
 		int x, y;
 		
-		for (y = 0; y < size.h; y++) {
+		for (y = 1; y < size.h - 1; y++) {
 		
 			uint32_t *row0 = (uint32_t *)destbuffer + y * zoom * pitch;
 			uint32_t *row1 = row0 + pitch;
 			uint32_t *row2 = row1 + pitch;
 		
-			for (x = 0; x < size.w; x++) {
+			for (x = 0; x < size.w-1; x++) {
 
 				SCALE3X(uint32_t);
 
@@ -990,14 +1227,125 @@ int pix = 0;
 				*row2++ = E8;
 				*row2++ = E3;
 			}
-			pix += size.w;
-			
-			if(pix > 100000) break;
-			
 		}
 		goto end;
 		
 		return;
+	} else if (blit_mode == 2) {
+		int x, y;
+		
+		for (y = 1; y < size.h - 1; y++) {
+		
+			uint32_t *row0 = (uint32_t *)destbuffer + y * zoom * pitch;
+			uint32_t *row1 = row0 + pitch;
+			uint32_t *row2 = row1 + pitch;
+		
+			for (x = 0; x < size.w-1; x++) {
+
+				SCALEGETSAMPLE1(uint32_t);
+				uint32_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+				if (B != H && D != F) {
+					SCALEGETSAMPLE2(uint32_t);
+
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+/*
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+*/
+					E5 = (D == B) || (B == F) ? B : E;
+					E6 = (D == B) || (D == H) ? D : E;
+					E7 = (B == F) || (H == F) ? F : E;
+					E8 = (D == H) || (H == F) ? H : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+				E4 = E;
+
+				*row0++ = E0;
+				*row0++ = E5;
+				*row0++ = E1;
+
+				*row1++ = E6;
+				*row1++ = E4;
+				*row1++ = E7;
+
+				*row2++ = E2;
+				*row2++ = E8;
+				*row2++ = E3;
+			}
+		}
+		goto end;
+
+	} else if (blit_mode == 3) {
+		int x, y;
+		
+		for (y = 1; y < size.h - 1; y++) {
+		
+			uint32_t *row0 = (uint32_t *)destbuffer + y * zoom * pitch;
+			uint32_t *row1 = row0 + pitch;
+			uint32_t *row2 = row1 + pitch;
+		
+			for (x = 0; x < size.w-1; x++) {
+
+				SCALEGETSAMPLE1(uint32_t);
+				uint32_t E0, E1, E2, E3, E4, E5, E6, E7, E8;
+				if (B != H && D != F) {
+					SCALEGETSAMPLE2(uint32_t);
+
+					E0 = D == B ? D : E;
+					E1 = B == F ? F : E;
+					E2 = D == H ? D : E;
+					E3 = H == F ? F : E;
+/*
+					E5 = (D == B && E != C) || (B == F && E != A) ? B : E;
+					E6 = (D == B && E != G) || (D == H && E != A) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+*/
+					E5 = (D == B) || (B == F) ? B : E;
+					E6 = (D == B) || (D == H) ? D : E;
+					E7 = (B == F && E != I) || (H == F && E != C) ? F : E;
+					E8 = (D == H && E != I) || (H == F && E != G) ? H : E;
+				} else {
+					E0 = E;
+					E1 = E;
+					E2 = E;
+					E3 = E;
+					E5 = E;
+					E6 = E;
+					E7 = E;
+					E8 = E;
+				}
+				E4 = E;
+
+				*row0++ = E0;
+				*row0++ = E5;
+				*row0++ = E1;
+
+				*row1++ = E6;
+				*row1++ = E4;
+				*row1++ = E7;
+
+				*row2++ = E2;
+				*row2++ = E8;
+				*row2++ = E3;
+			}
+		}
+		goto end;
+
+	}
 	}
 
 	uint32_t *sptr;
