@@ -313,4 +313,15 @@ FUNCTION sdl2_joy_button_press(btn as integer, instance_id as integer) as bool
   RETURN YES
 END FUNCTION
 
+
+
+/'
+'Note: 8BitDo NES30 is a SNES-layout
+"Twin USB *"  'PS
+"Thrustmaster Run N Drive"  'PS
+"Thrustmaster Dual Trigger"  'PS
+"Thrustmaster Dual Analog 4" 'A=1, B=3, X=2, Y=4
+'"Thrustmaster Dual Analog 3" 'unlabelled
+'/
+
 #endif  'USE_SDL2

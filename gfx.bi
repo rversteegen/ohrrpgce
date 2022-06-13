@@ -87,6 +87,16 @@ type IOJoystickState
 end type
 #define IOJOYSTICKSTATE_SZ 6
 
+type GamepadType as integer
+enum
+	gptypeUnknown
+	gptypeXBox
+	gptypePS
+	gptypeSwitchJoycon
+	gptypeSwitchPro
+	gptypeGameCube
+	gptypeSNES
+end enum
 
 type GamePadMap
 	'For passing OHR scancodes to io_remap_android_gamepad
