@@ -964,7 +964,7 @@ shared_modules = []  # FB/RB modules shared by, but with separate builds, for Ga
 # Added to commonenv
 common_modules = []  # other modules (in any language) shared by Game and Custom; only built once
 common_libraries = []
-common_libpaths = []
+common_libpaths = ['/home/ralph/src/SDL_mixer/distrib/usr/local/lib/']
 
 
 ################ gfx and music backend modules and libraries
@@ -1104,6 +1104,7 @@ if win32:
     common_libpaths += ['win32']
 
 commonenv['CCLINKFLAGS'] += ['-L' + path for path in common_libpaths]
+commonenv['CCLINKFLAGS'] += ['-Wl,-rpath=' + path for path in common_libpaths]
 commonenv['FBLINKFLAGS'] += Flatten ([['-p', v] for v in common_libpaths])
 
 for lib in base_libraries:

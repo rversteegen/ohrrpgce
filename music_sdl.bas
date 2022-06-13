@@ -68,6 +68,10 @@ dim shared _Mix_GetChunkDecoder as function (byval index as Sint32) as zstring p
 dim shared _ModPlug_GetSettings as sub (byval settings as ModPlug_Settings ptr)
 dim shared _ModPlug_SetSettings as sub (byval settings as const ModPlug_Settings ptr)
 
+declare function Mix_GetMusicLoopLengthTime(music as Mix_Music ptr) as double
+declare function Mix_GetMusicLoopStartTime(music as Mix_Music ptr) as double
+declare function Mix_GetMusicLoopEndTime(music as Mix_Music ptr) as double
+
 
 #ifndef MIX_INIT_MID
 	'Exists in SDL_mixer 2 only (but missing from older FB headers).
@@ -428,6 +432,9 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			debug "Could not load song " + songname + " : " & *Mix_GetError
 			exit sub
 		end if
+
+
+		? "loop length " & Mix_GetMusicLoopLengthTime(music_song)
 
 		music_paused = NO
 		if Mix_PlayMusic(music_song, -1) then
