@@ -1219,6 +1219,14 @@ script,set load script,hsd:ID=0,begin
   write general(57,hsd:ID)
 end
 
+script,debug mode,begin
+  return(read general(205) <> 0)
+end
+
+script,set debug mode, hsd:value = true, begin
+  write general(205, hsd:value)
+end
+
 script,hsd:pref bit index,hsd:bitnum, begin
   if (hsd:bitnum >= 48) then (
     return(222 + (hsd:bitnum--48)/16)  # genBits3
