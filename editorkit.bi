@@ -88,6 +88,9 @@ type StringEnumOption
 	'description as zstring ptr
 end type
 
+' Function which returns the caption (textual display) for a value
+type CaptionFn as function(n as integer) as string
+
 ' See editorkit.bas for usage information
 type EditorKit extends ModularMenu
 	'---- Menu settings
@@ -216,9 +219,11 @@ type EditorKit extends ModularMenu
 	declare sub caption_default_or_int(default_value as integer = 0, default_caption as zstring ptr = @"Default")
 	declare sub caption_default_or_str(default_caption as zstring ptr = @"[default]")
 	declare sub captions_bool(nocapt as zstring ptr, yescapt as zstring ptr)
-	declare sub captions(captions_array() as string, invalid_thing as zstring ptr = @"value")
+	declare sub captions overload(captions_array() as string, invalid_thing as zstring ptr = @"value")
+	declare sub captions overload(captions_func as CaptionFn)
 	declare sub captionsz(captions_array() as zstring ptr, invalid_thing as zstring ptr = @"value")
 	declare sub captions_or_int(captions_array() as string)
+
 	'declare sub captions_list(...)   'A macro, below
 	'declare sub captions_list_or_int(...)   'A macro, below
 

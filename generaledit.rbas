@@ -23,7 +23,8 @@
 DECLARE SUB masterpalettemenu ()
 DECLARE SUB statcapsmenu ()
 DECLARE SUB mark_non_elemental_elementals ()
-DECLARE SUB battleoptionsmenu ()
+DECLARE SUB battleoptionsmenu()
+DECLARE SUB battle_system_options ()
 DECLARE SUB equipmergemenu ()
 DECLARE SUB update_masterpalette_menu(menu() as string, shaded() as bool, palnum as integer)
 DECLARE SUB inputpasw ()
@@ -1524,6 +1525,138 @@ SUB AchievementsEditor.define_items()
 END SUB
 
 
+TYPE BattleSystemOptionsMenu EXTENDS EditorKit
+  preview as MenuDef
+  previewst as MenuState
+  viewport_page as integer
+  battle_menu_selected as bool
+
+  DECLARE CONSTRUCTOR()
+  DECLARE DESTRUCTOR()
+  DECLARE VIRTUAL SUB draw_underlays()
+  DECLARE SUB def_indicator_char(title as zstring ptr, byref charidx as integer)
+  DECLARE VIRTUAL SUB define_items()
+END TYPE
+
+SUB battle_system_options()
+  IF keyval(scShift) THEN
+    battleoptionsmenu ()
+    EXIT SUB
+  END IF
+  DIM menu as BattleSystemOptionsMenu
+  menu.run()
+END SUB
+
+CONSTRUCTOR BattleSystemOptionsMenu()
+  'I think these things are here (and not upgrade) because we don't want to force them on games
+  IF gen(genPoisonChar) <= 0 THEN gen(genPoisonChar) = 161
+  IF gen(genStunChar) <= 0 THEN gen(genStunChar) = 159
+  IF gen(genMuteChar) <= 0 THEN gen(genMuteChar) = 163
+  'Regen icon is newer, so let's not default it unexpectedly
+  IF gen(genRegenChar) <= 0 THEN gen(genRegenChar) = 32
+
+  IF gen(genBattleMode) < 0 ORELSE gen(genBattleMode) > 1 THEN
+    visible_debug "WARNING: invalid gen(genBattleMode) " & gen(genBattleMode) & " resorting to active mode"
+    gen(genBattleMode) = 0
+  END IF
+
+  helpkey = "battle_system_options"
+  viewport_page = gameres_page()
+END CONSTRUCTOR
+
+DESTRUCTOR BattleSystemOptionsMenu()
+  freepage viewport_page
+END DESTRUCTOR
+
+' Define a menu item to edit a status indicator character, e.g. Stun
+SUB BattleSystemOptionsMenu.def_indicator_char(title as zstring ptr, byref charidx as integer)
+  defitem title
+  edit_int charidx, 32, 255
+  IF activate THEN
+    DIM d as string = charpicker
+    IF d <> "" THEN
+      charidx = ASC(d)
+      edited = YES
+    END IF
+  END IF
+  set_caption charidx & " " & CHR(charidx)
+END SUB
+
+SUB BattleSystemOptionsMenu.draw_underlays()
+  IF battle_menu_selected THEN
+    preview_menu preview, previewst, viewport_page, vpage
+  END IF
+END SUB
+
+SUB BattleSystemOptionsMenu.define_items ()
+  IF defitem_act("Battle preference bitsets...") THEN edit_battle_bitsets
+
+  section "Mechanics"
+  defint "Battle Mode: ", gen(genBattleMode), 0, 1
+  captions_list("Active-time", "Turn-based")
+  defint "Number of Elements: ", gen(genNumElements), 1, 64
+  IF defitem_act("Hero Elemental Resistance Calculation...") THEN equipmergemenu
+  IF defitem_act("Mark non-elemental elementals...") THEN mark_non_elemental_elementals
+
+  section "Stats and Experience"
+  IF defitem_act("Stat Caps...") THEN statcapsmenu
+  IF defitem_act("View Experience Chart...") THEN experience_chart
+
+  defunselectable "Experience given to heroes..."
+  defint " ...swapped-out and unlocked: ", gen(genUnlockedReserveXP), 0, 1000
+  set_caption value & "%"
+  defint " ...swapped-out and locked: ", gen(genLockedReserveXP), 0, 1000
+  set_caption value & "%"
+
+  '--Disabled because it is not ready yet
+  'defitem "Stat Growth Options..."
+
+  defint "Hero Weak state below: ", gen(genHeroWeakHP), 1, 100
+  set_caption value & "% " & statnames(statHP)
+  defint "Enemy Weak state below: ", gen(genEnemyWeakHP), 1, 100
+  set_caption value & "% " & statnames(statHP)
+
+  section "Display"
+  def_indicator_char "Poison Indicator: ", gen(genPoisonChar)
+  def_indicator_char "Stun Indicator: ", gen(genStunChar)
+  def_indicator_char "Mute Indicator: ", gen(genMuteChar)
+  def_indicator_char "Regen Indicator: ", gen(genRegenChar)
+
+  defint "Default Enemy Dissolve: ", gen(genEnemyDissolve), 0, dissolveTypeMax
+  captions @dissolve_type_caption
+  defint "Damage Display Time: ", gen(genDamageDisplayTicks), 0, 1000
+  set_caption value & " ticks (" & seconds_estimate(value) & " sec)"
+  defint "Damage Display Rises: ", gen(genDamageDisplayRise), -1000, 1000
+  set_caption value & " pixels"
+  defint "Rewards Display: ", gen(genSkipBattleRewardsTicks), 0, 100000
+  set_caption IIF(value = 0, "Wait for keypress", value & " ticks (" & seconds_estimate(value) & " secs)")
+
+  section "Other Defaults"
+  defint "Attacks Provoke Counterattacks: ", gen(genDefCounterProvoke), 1, provokeLAST  'Can't select 'Default'
+  captionsz counter_provoke_captions()
+
+  defitem "Battle Menu: "
+  edit_int offset_int(-1, gen(genDefaultBattleMenu)), -1, gen(genMaxMenu)
+  IF value = -1 THEN
+    set_caption "Default"
+  ELSE
+    set_caption "Menu " & value & " (" & getmenuname(value) & ") as template"
+  END IF
+  IF edited ORELSE (selected ANDALSO battle_menu_selected = NO) THEN
+    'Ensure battle menu is created when selecting for the first time
+    init_battle_menu preview, value  'gen(genDefaultBattleMenu) - 1
+    append_menu_item preview, "Fight"
+    append_menu_item preview, "Spells"
+    append_menu_item preview, "Parry"
+    append_menu_item preview, "Item"
+    init_menu_state previewst, preview
+  END IF
+  battle_menu_selected = selected
+END SUB
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
 SUB generate_battlesystem_menu(menu() as string, enabled() as bool, greyout() as bool)
   flusharray enabled(), UBOUND(enabled), YES
   flusharray greyout(), UBOUND(greyout), NO
@@ -1580,7 +1713,7 @@ SUB generate_battlesystem_menu(menu() as string, enabled() as bool, greyout() as
   enabled(27) = NO
   greyout(27) = YES
 
-  menu(28) = "Attacks Provoke Counterattacks: " & counter_provoke_captions(gen(genDefCounterProvoke))
+  menu(28) = "Attacks Provoke Counterattacks: " & *counter_provoke_captions(gen(genDefCounterProvoke))
   menu(29) = "Battle Menu: " & IIF(gen(genDefaultBattleMenu) > 0, "Menu " & (gen(genDefaultBattleMenu) - 1) & " (" & getmenuname(gen(genDefaultBattleMenu) - 1) & ") as template" , "Default")
 END SUB
 
@@ -2094,7 +2227,7 @@ SUB GeneralSettingsMenu.define_items()
   section "Major Settings"
   IF defitem_act("New Games...")               THEN startingdatamenu
   IF defitem_act("Saved Games...")             THEN edit_savegame_options
-  IF defitem_act("Battle System...")           THEN battleoptionsmenu
+  IF defitem_act("Battle System...")           THEN battle_system_options
   IF defitem_act("Preference Bitsets...")      THEN edit_general_bitsets
   IF defitem_act("Backwards-Compatibility...") THEN edit_backcompat_bitsets
 

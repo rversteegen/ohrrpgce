@@ -690,6 +690,17 @@ sub EditorKit.captions(captions_array() as string, invalid_thing as zstring ptr 
 	end if
 end sub
 
+' Calls a function which should handle out-of-bounds values itself
+' (though can return "", translated to "Invalid value ##")
+sub EditorKit.captions(captions_func as CaptionFn)
+	if refresh then
+		cur_item.caption = captions_func(value)
+		if len(cur_item.caption) = 0 then
+			cur_item.caption = "Invalid value " & value
+		end if
+	end if
+end sub
+
 ' Due to FB bug sf#666 (fixed in 1.09) it's not possible to define an overload of
 ' captions() which takes a zstring ptr array.
 sub EditorKit.captionsz(captions_array() as zstring ptr, invalid_thing as zstring ptr = @"value")

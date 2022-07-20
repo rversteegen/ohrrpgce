@@ -44,9 +44,9 @@ DECLARE SUB attack_preview_slice_defocus(byval sl as Slice Ptr)
 
 
 '--Globals
-DIM counter_provoke_captions(provokeLAST) as string * 23 = { _
-    "Default", "Always", "Never", "If attack hits", "If attack fails", "If attack misses", _
-    "If attack doesn't hit", "If attack doesn't fail", "If attack doesn't miss" _
+DIM counter_provoke_captions(provokeLAST) as zstring ptr = { _
+    @"Default", @"Always", @"Never", @"If attack hits", @"If attack fails", @"If attack misses", _
+    @"If attack doesn't hit", @"If attack doesn't fail", @"If attack doesn't miss" _
 }
 
 SUB addcaption (caption() as string, byref indexer as integer, cap as string)
@@ -762,7 +762,7 @@ max(AtkLimCounterProvoke) = provokeLAST
 min(AtkLimCounterProvoke) = 0
 menucapoff(AtkCounterProvoke) = capindex
 FOR idx as integer = 0 TO UBOUND(counter_provoke_captions)
- addcaption caption(), capindex, counter_provoke_captions(idx)
+ addcaption caption(), capindex, *counter_provoke_captions(idx)
 NEXT
 
 CONST AtkLimSfxOrDefault = 46
