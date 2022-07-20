@@ -79,11 +79,11 @@ DECLARE SUB mapedit_edit_npcdef OVERLOAD (map as MapData, npcdef_filename as str
 DECLARE SUB npcdef_editor (map as MapData, npc_def() as NPCType, npcdef_filename as string, byval is_global as bool=NO)
 DECLARE SUB global_npcdef_editor OVERLOAD ()
 DECLARE SUB global_npcdef_editor OVERLOAD (map as MapData, npc_def() as NPCType)
-DECLARE FUNCTION mapedit_npc_instance_count(st as MapEditState, byval id as integer, byval pool_id as integer) as integer
+DECLARE FUNCTION mapedit_npc_instance_count(st as MapEditState, byval id as NPCTypeID, byval pool_id as integer) as integer
 DECLARE SUB npcdefedit_preview_npc(npcdata as NPCType, npc_img as GraphicPair, boxpreview as string, framenum as integer = 4, thinggrabber_hint as bool = NO)
 DECLARE FUNCTION count_npc_slots_used(npcs() as NPCInst) as integer
 
-DECLARE FUNCTION npcdef_by_pool(st as MapEditState, byval pool_id as integer, byval id as integer) byref as NPCType
+DECLARE FUNCTION npcdef_by_pool(st as MapEditState, byval pool_id as integer, byval id as NPCTypeID) byref as NPCType
 
 'Undo
 DECLARE SUB add_change_step(byref changelist as MapEditUndoTile vector, byval x as integer, byval y as integer, byval value as integer, byval mapid as MapID)
@@ -501,12 +501,38 @@ END FUNCTION
 '                               Main SUB (toplevel menu)
 '==========================================================================================
 
-FUNCTION mapedit_npc_instance_count(st as MapEditState, byval id as integer, byval pool_id as integer) as integer
+'Number of copies of an NPC type
+FUNCTION mapedit_npc_instance_count(st as MapEditState, byval id as NPCTypeID, byval pool_id as integer) as integer
  DIM num as integer = 0
- FOR i as integer = 0 to UBOUND(st.map.npc)
+ FOR i as NPCIndex = 0 to UBOUND(st.map.npc)
   IF st.map.npc(i).id - 1 = id ANDALSO st.map.npc(i).pool = pool_id THEN num += 1
  NEXT i
  RETURN num
+END FUNCTION
+
+'Pick an NPCIndex (NPC reference) to use for a new NPC instance, preferring one that
+'won't cause the copy numbers for existing instances to shift.
+'Returns -1 if none available.
+FUNCTION mapedit_assign_npc_index(st as MapEditState, byval id as NPCTypeID, byval pool_id as integer /', byval last_deleted_npc as NPCIndex'/) as NPCIndex
+ 'If you delete an NPC 
+' IF last_deleted_npc_id = id ANDALSO st.map.npc(st.last_deleted_npci) = 0 THEN RETURN last_deleted_npc
+ 'Find 'last' instance of this NPC ID
+ DIM last as NPCIndex = -1
+ FOR i as NPCIndex = UBOUND(st.map.npc) TO 0 STEP -1
+  IF st.map.npc(i).id - 1 = id ANDALSO st.map.npc(i).pool = pool_id THEN
+   last = i
+   EXIT FOR
+  END IF
+ NEXT
+ 'Look for unused index
+ DIM fallback as NPCIndex = -1
+ FOR i as NPCIndex = 0 TO UBOUND(st.map.npc)
+  IF st.map.npc(i).id = 0 THEN
+   IF i > last THEN RETURN i
+   IF fallback = -1 THEN fallback = i
+  END IF
+ NEXT i
+ RETURN fallback
 END FUNCTION
 
 SUB mapeditor (byval mapnum as integer)
@@ -1487,18 +1513,14 @@ DO
      npci = mapedit_npc_at_spot(st, st.pos)
      IF npci > -1 THEN
       CleanNPCInst st.map.npc(npci)  'Delete
+      'last_deleted_npc = npci
      END IF
      npc_d = dirDown
     END IF
 
     IF npci = -1 THEN
      'Place NPC
-     FOR i as NPCIndex = 0 TO UBOUND(st.map.npc)
-      IF st.map.npc(i).id = 0 THEN
-       npci = i
-       EXIT FOR
-      END IF
-     NEXT i
+     npci = mapedit_assign_npc_index(st, st.cur_npc, st.cur_npc_pool)', last_deleted_npc)
      IF npci >= 0 THEN
       WITH st.map.npc(npci)
        .pos = st.pos * tilesize
@@ -6333,7 +6355,7 @@ FUNCTION editnpc_zone_caption(byval zoneid as integer, byval default as integer,
  RETURN caption
 END FUNCTION
 
-FUNCTION npcdef_by_pool(st as MapEditState, byval pool_id as integer, byval id as integer) byref as NPCType
+FUNCTION npcdef_by_pool(st as MapEditState, byval pool_id as integer, byval id as NPCTypeID) byref as NPCType
  SELECT CASE pool_id
   CASE 0:
    IF id >= 0 AND id <= UBOUND(st.map.npc_def) THEN
