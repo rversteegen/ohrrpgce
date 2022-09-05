@@ -107,11 +107,13 @@ namespace Achievements
           next
 
           if progress <> null then
-            progress->value = achievement."value".integer
-            progress->rewarded = achievement."rewarded".exists
-            progress->rewarded_date = achievement."rewarded_date".double
+            with *progress
+              .value = achievement."value".integer
+              .rewarded = achievement."rewarded".exists
+              .rewarded_date = achievement."rewarded".double
 
-            ach_debug("loading progress of #" & id & ": value=" & progress->value & " rewarded=" & progress->rewarded)
+              ach_debug("loading progress of #" & id & ": value=" & .value & " rewarded=" & .rewarded)
+            end with
             dim tag as Nodeptr = FirstChild(achievement."tags".ptr, "tag")
             while tag <> null
               dim t as integer = GetInteger(tag)
@@ -128,7 +130,7 @@ namespace Achievements
 
     save_loaded = true
 
-    ' Update awarded status in Steam, in casewe previously couldn't (e.g. a new achievement that's
+    ' Update awarded status in Steam, in case we previously couldn't (e.g. a new achievement that's
     ' been added to a game, or not previously running under Steam)
     if Steam.available then
       for index as integer = 0 to ubound(achievement_progress)
@@ -165,7 +167,7 @@ namespace Achievements
         dim achievement as NodePtr = AppendChildNode(achievements_node, "achievement", .id)
         AppendChildNode(achievement, "value", .value)
         if .rewarded then
-          SetChildNodeDate(achievement, "rewarded", NOW())
+          SetChildNodeDate(achievement, "rewarded", .rewarded_date)
         end if
 
         dim tags as NodePtr = AppendChildNode(achievement, "tags")
@@ -282,7 +284,7 @@ namespace Achievements
         if NodeByPath(persist, path) = 0 then
           ach_debug("...not in persist.reld... adding now!")
           dim achievement as NodePtr = NodeByPath(persist, path, true)
-          SetChildNodeDate(achievement, "rewarded_date", NOW())
+          SetChildNodeDate(achievement, "rewarded_date", .rewarded_date)
           write_persist_reld
         else
           ach_debug("...already in persist.reld, skip adding")
