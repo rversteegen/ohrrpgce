@@ -1203,6 +1203,7 @@ SUB displayall()
  IF gam.debug_npc_info > 0 THEN npc_debug_display(gam.debug_npc_info = 2)
  IF gam.debug_textbox_info THEN show_textbox_debug_info
  IF gam.debug_showtags THEN tagdisplay dpage
+ IF gam.debug_achievements THEN show_achievements_debug dpage
  IF gam.debug_scripts THEN scriptwatcher gam.debug_scripts, YES
 END SUB
 
@@ -4421,6 +4422,10 @@ END FUNCTION
 '==========================================================================================
 
 
+SUB disable_debug_overlays
+ gam.debug_scripts
+END SUB
+
 SUB DebugMenuDef.start_building_menu()
  v_new menu
 END SUB
@@ -4516,8 +4521,8 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
  END IF
 
  IF dbg.def(      , scF4, "Tag debugger (F4)") THEN
+  disable_debug_overlays
   loopvar gam.debug_showtags, 0, 2
-  gam.debug_scripts = 0
  END IF
 
  IF dbg.def(SftCtl, scF4, "View/edit slice tree (Shft/Ctrl-F4)") THEN

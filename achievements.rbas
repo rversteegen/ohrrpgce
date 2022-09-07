@@ -114,10 +114,16 @@ namespace Achievements
     return achievement_defs(index)
   end function
 
-  function get_definition_by_id(id as integer) byref as AchievementDefinition
+  function id_to_index(id as integer) as integer
     for i as integer = 0 to ubound(achievement_defs)
-      if achievement_defs(i).id = id then return achievement_defs(i)
+      if achievement_defs(i).id = id then return i
     next
+    return -1
+  end function
+
+  function get_definition_by_id(id as integer) byref as AchievementDefinition
+    dim index as integer = id_to_index(id)
+    if index > -1 then return achievement_defs(i)
     ERROR_IF(true, "Invalid achievement id, " & id, byval null)
   end function
 

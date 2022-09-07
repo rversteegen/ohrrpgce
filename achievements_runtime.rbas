@@ -56,17 +56,21 @@ namespace Achievements
           dim tag as integer = .tags[t]
 
           if evaluate_a_tag(index, tag) then
-            if needs_rewarding(index) then
-              reward_achievement index
-            elseif needs_progress_update(index) then
-              ' ping user with progress
-              ach_debug("Steam: notifying progress on '" & .name & "'")
-              Steam.notify_achievement_progress .steam_id, achievement_progress(index).value, .max_value
-            end if
+            value_changed(index)
           end if
         next
       end with
     next
+  end sub
+
+  private sub set_value(index as integer, value as integer)
+    dim byref progress as AchievementProgress = achievement_progress(index)
+    dim max_value as integer = get_definition_by_index(index).max_value
+    value = bound(value, 0, .max_value)
+    if value <> progress.value then
+      progress.value = value
+      value_changed index
+    end if
   end sub
 
   ' Disables achievement evaluation
@@ -190,6 +194,7 @@ namespace Achievements
 
   ' -- internal functions --
 
+  ' Update an achievement's .seen_tags and .value if 'tag' has changed. Returns true if .value changed.
   private function evaluate_a_tag(index as integer, tag as integer) as boolean
     ach_verbose("evaluate_a_tag(" & index & ", " & tag & ")")
 
@@ -219,6 +224,19 @@ namespace Achievements
 
     return false
   end function
+
+  ' Called after an achievement's .value has changed
+  private sub value_changed(index as integer)
+    if needs_rewarding(index) then
+      reward_achievement index
+    elseif needs_progress_update(index) then
+      ' ping user with progress
+      with get_definition_by_index(index)
+        ach_debug("Steam: notifying progress on '" & .name & "'")
+        Steam.notify_achievement_progress .steam_id, achievement_progress(index).value, .max_value
+      end with
+    end if
+  end sub
 
   private function needs_rewarding(index as integer) as boolean
     ach_verbose("needs_rewarding(" & index & ")")

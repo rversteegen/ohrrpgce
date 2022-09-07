@@ -32,6 +32,7 @@ namespace Achievements
   declare sub definitions_free()
   declare sub definitions_reset()
   declare function definitions_count() as integer
+  declare function id_to_index(id as integer) as integer
   declare function get_definition_by_index(index as integer) byref as AchievementDefinition
   declare function get_definition_by_id(id as integer) byref as AchievementDefinition
   declare function is_permanent() as boolean

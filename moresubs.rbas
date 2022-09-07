@@ -1894,6 +1894,8 @@ freepage page
 party_change_updates
 END FUNCTION
 
+'==========================================================================================
+
 'Tag debug menu
 SUB tagdisplay (page as integer)
 STATIC st as MenuState
@@ -1958,6 +1960,72 @@ FOR i as integer = st.top TO st.top + st.size
 NEXT i
 
 END SUB
+
+'==========================================================================================
+'Achievements debug menu
+'==========================================================================================
+
+SUB show_achievements_debug (page as integer)
+ STATIC st as MenuState
+ DIM lineh as integer = lineheight()
+ st.last = Achievements.definitions_count() - 1
+ IF gam.debug_achievements = 2 THEN
+  st.size = small(st.last, get_resolution().h \ lineh - 1)
+ ELSE
+  st.size = small(st.last, 6)
+ END IF
+
+ 'Controls
+ IF keyval(scCtrl) > 0 ORELSE keyval(scShift) > 0 THEN
+  IF keyval(scNumpadMinus) > 1 OR keyval(scMinus) > 1 THEN
+   'settag st.pt, NO
+   tag_updates
+  END IF
+  IF keyval(scNumpadPlus) > 1 OR keyval(scPlus) > 1 THEN
+   settag st.pt, YES
+   tag_updates
+  END IF
+ ELSE
+  IF usemenu(st, scMinus, scPlus) = NO THEN
+   'little bit hacky...
+   usemenu(st, scNumpadMinus, scNumpadPlus)
+  END IF
+ END IF
+ IF keyval(scTab) > 1 THEN
+  settag st.pt, NOT istag(st.pt, 0)
+  tag_updates
+ END IF
+
+ ''Draw the menu
+ 'Help message, and a fuzzy box behind it
+ DIM helpmsg as string = !"To scroll:\n+/-/pgup/down\nShift+/- to add/\nremove points\nTAB to award/remove" '\nF4 expand/quit"
+ DIM helpbox as XYPair = textsize(helpmsg, , fontEdged)
+ fuzzyrect pRight, pTop, helpbox.w, helpbox.h, uilook(uiOutline), page
+ wrapprint helpmsg, pRight, 0, uilook(uiMenuItem), page
+ 'This fuzzy box is exactly wide enough for the max tag name length
+ fuzzyrect 0, 0, 208, (st.size + 1) * lineh, uilook(uiOutline), page
+ DIM as integer col0 = findrgb(140,140,140), col1 = findrgb(230,230,230)
+ FOR index as integer = st.top TO st.top + st.size
+  WITH Achievements.get_definition_by_index(index)
+   text_left(.name, 150)
+
+  DIM temp as string = i & IIF(istag(i, 0), " +", " -")
+  SELECT CASE i
+   CASE 0, 1
+    temp += "Reserved Tag"
+   CASE IS > 1
+    temp += load_tag_name(i)
+  END SELECT
+  DIM col as integer
+  IF progress.rewarded THEN col = col1 ELSE col = col0
+  DIM y as integer = (i - st.top) * lineh
+  edgeprint temp, 8, y, col, page
+  IF i = st.pt THEN edgeprint CHR(26), 0, y, uilook(uiText), page
+ NEXT i
+
+END SUB
+
+'==========================================================================================
 
 FUNCTION default_margin() as integer
  IF running_on_console() THEN

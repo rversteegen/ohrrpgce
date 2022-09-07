@@ -42,6 +42,7 @@ dim shared SteamAPI_ManualDispatch_GetAPICallResult as function ( hSteamPipe as 
 ' achievements
 dim shared SteamAPI_SteamUserStats_v012 as function () as ISteamUserStats ptr
 dim shared SteamAPI_ISteamUserStats_RequestCurrentStats as function(byval self as ISteamUserStats ptr) as boolean
+dim shared SteamAPI_ISteamUserStats_GetAchievement as function(byval self as ISteamUserStats ptr, byval name as const zstring ptr, achieved as boolean ptr) as boolean
 dim shared SteamAPI_ISteamUserStats_SetAchievement as function(byval self as ISteamUserStats ptr, byval name as const zstring ptr) as boolean
 dim shared SteamAPI_ISteamUserStats_ClearAchievement as function(byval self as ISteamUserStats ptr, byval name as const zstring ptr) as boolean
 dim shared SteamAPI_ISteamUserStats_StoreStats as function(byval self as ISteamUserStats ptr) as boolean
@@ -97,6 +98,7 @@ function initialize() as boolean
   MUSTLOAD(steamworks_handle, SteamAPI_ManualDispatch_GetAPICallResult)
   MUSTLOAD(steamworks_handle, SteamAPI_SteamUserStats_v012)
   MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_RequestCurrentStats)
+  MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_GetAchievement)
   MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_SetAchievement)
   MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_ClearAchievement)
   MUSTLOAD(steamworks_handle, SteamAPI_ISteamUserStats_StoreStats)
@@ -142,11 +144,23 @@ function available() as boolean
   return steamworks_handle <> null
 end function
 
+function check_achievement(id as const string) as boolean
+  if available() = false then return false
+
+  'I assume RequestCurrentStats() doesn't need to be called after using
+  'SetAchievement/etc for this to give correct current state.
+  dim ret as boolean
+  if SteamAPI_ISteamUserStats_GetAchievement(steam_user_stats, id, @ret) = false then
+    steam_error("Unable to get achievement " & id)
+  end if
+  return ret
+end function
+
 sub reward_achievement(id as const string)
   if available() = false then return
 
   if SteamAPI_ISteamUserStats_SetAchievement(steam_user_stats, id) = false then
-    steam_error("Unable to reward achievement: " & id)
+    steam_error("Unable to reward achievement " & id)
   else
     if SteamAPI_ISteamUserStats_StoreStats(steam_user_stats) = false then
       steam_error("Unable to persist stats")
