@@ -431,6 +431,7 @@ TYPE ScriptData
                         'Used for tracking time spent in self and children.
   totaltime as double   'time spent in here, in seconds. If currently executing, subtract start time.
   childtime as double   'time spent in here and all descendents, in seconds
+  child_timer_calls as integer 'Number of profiling READ_TIMER calls by the script and called scripts.
   entered as integer    'number of times entered (started/switched to)
   'For command profiling. The following are filled in and used only if commandprofiling is true.
   numcmdcalls as integer      'Number of builtin command calls.

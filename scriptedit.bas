@@ -599,7 +599,9 @@ FUNCTION get_hspeak_version(hspeak_path as string) as string
 
  DIM hsversion as string = MID(blurb, INSTR(blurb, " v") + 2, 3)
  IF LEN(hsversion) <> 3 ORELSE isdigit(hsversion[0]) = NO THEN
-  debug !"Couldn't get HSpeak version from blurb:\n'" & blurb & "'"
+  'Show first line of the blurb only, as it r
+  IF INSTR(blurb, !"\n") THEN blurb = LEFT(blurb, INSTR(blurb, !"\n") - 1)
+  visible_debug !"Couldn't understand the reported HSpeak version (are you using the copy of HSpeak included with the OHRRPGCE?):\n'" & blurb & "'"
   RETURN ""
  END IF
  RETURN hsversion
@@ -624,15 +626,10 @@ FUNCTION compilescripts(fname as string, hsifile as string, quickimport as bool 
  debuginfo "hspeak version '" & hspeak_ver & "'"
  IF hspeak_ver = "" THEN
   'If get_hspeak_version failed (returning ""), then spawn_and_wait usually will too.
-  'However if hspeak isn't compiled as a console program then we can run it but not get its output.
-  notification "Your copy of HSpeak is faulty or not supported. You should download a copy of HSpeak from http://rpg.hamsterrepublic.com/ohrrpgce/Downloads"
+  'However if hspeak isn't compiled as a console program then we can run it but not get its output. 
   RETURN ""
  ELSEIF strcmp(STRPTR(hspeak_ver), @RECOMMENDED_HSPEAK_VERSION) < 0 THEN
-  IF version_branch = "wip" THEN
-   notification "Your copy of HSpeak is out of date. You should download a nightly build of HSpeak from http://rpg.hamsterrepublic.com/ohrrpgce/Downloads"
-  ELSE
-   notification "Your copy of HSpeak is out of date. You should use the version of HSpeak that was provided with the OHRRPGCE."
-  END IF
+  notification "Your copy of HSpeak is out of date. You should use the version of HSpeak that was provided with the OHRRPGCE."
  END IF
 
  IF isfile(game & ".hsp") THEN

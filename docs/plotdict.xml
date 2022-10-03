@@ -994,7 +994,8 @@ wait for hero (me) # wait until he stops</example>
 			<shortname>wait for key</shortname>
 			<description>
 				Waits for the player to press a key.
-				(Specially, (possibly repeated) keypresses or mouse button release.)
+				Specifically it waits for new or typematic-repeat keypresses mouse button release, ignoring keys that are already down until they start to repeat.
+				<lb/>
 				<p>key</p> is an optional <ref>scancode</ref> such as a keyboard key (e.g. <tt>key:ctrl</tt>)
 				a joystick button (e.g. <tt>joy:left</tt>), or a virtual scancode such as
 				<ref>usekey</ref>.
@@ -1010,7 +1011,7 @@ wait for hero (me) # wait until he stops</example>
 				joystick cancel, and optionally right click.
 				<lb/>
 				If and only if <tt>anykey</tt> is used, then <p>waitforkey(anykey)</p> will return the scancode of the keyboard or joystick key that was pressed,
-				but won't ever be a constant like <tt>usekey</tt>.
+				but won't ever be a control key constant like <tt>usekey</tt>.
 				It returns a value >= 180 if a mouse button was released (see scancode.hsi).
 				<note>
 					Previously you couldn't use scancodes like <tt>key:x</tt>,

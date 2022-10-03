@@ -2665,7 +2665,7 @@ END FUNCTION
 'Also it needs to be used on Windows if the executable was escaped (so contains quotes).
 'Returns the exit code, or -1 if it couldn't be run, or -2 if it timed out
 'NOTE: use instead run_and_get_output and check stderr if you want better ability to catch errors
-FUNCTION safe_shell (cmd as string, timeout as double = 5., log_it as bool = YES) as integer
+FUNCTION safe_shell (cmd as string, timeout as double = 0.5, log_it as bool = YES) as integer
   IF log_it THEN debuginfo cmd
 #IFDEF __FB_WIN32__
   'SHELL wraps system() which calls cmd.exe (or command.com on non-NT Windows)
@@ -2713,7 +2713,10 @@ FUNCTION run_and_get_output(cmd as string, byref stdout_s as string, byref stder
     ' This redirection works on Windows too with cmd.exe, but not command.com
     cmdline &= " 2> " & escape_filename(stderr_file)
   END IF
-  ret = safe_shell(cmdline, , log_it)
+  ret = safe_shell(cmdline, 0.4, log_it)
+
+  'Note: if the timeout is very short (or the computer very slow), the stdout/err files
+  'might not have been created yet, causing the following errors.
 
   IF grab_stderr THEN
     IF isfile(stderr_file) THEN
@@ -2735,6 +2738,9 @@ FUNCTION run_and_get_output(cmd as string, byref stdout_s as string, byref stder
 
   IF ret ORELSE (grab_stderr AND LEN(stderr_s)) THEN
    debuginfo "safe_shell(" & IIF(log_it, "", cmd) & ")=" & ret & " stderr:" & stderr_s
+   IF ret = -2 ANDALSO LEN(stderr_s) = 0 THEN
+    stderr_s = "The program started but timed out instead of finishing. If your computer or storage drive is a little slow try it again."
+   END IF
   END IF
 
   RETURN ret

@@ -51,6 +51,10 @@ DIM command_profiles(maxScriptCmdID) as CommandProfile
 DIM SHARED trigger_script_failure as bool
 DIM SHARED last_queued_script as ScriptFibre ptr
 
+'Number of times READ_TIMER has been called. Used by script profiling to estimate
+'total timer overhead in .childtime.
+DIM SHARED profiling_timer_calls as integer
+
 
 '==========================================================================================
 '                                   Triggering scripts
@@ -1051,6 +1055,7 @@ END SUB
 SUB script_call_timing
  DIM timestamp as double
  READ_TIMER(timestamp)
+ profiling_timer_calls += 1
  'Exclusive time for calling script
  scriptinsts(nowscript - 1).scr->totaltime += timestamp
  WITH *scriptinsts(nowscript).scr
@@ -1062,6 +1067,7 @@ SUB script_call_timing
   'Inclusive time
   IF .calls_in_stack = 0 THEN
    .laststart = timestamp
+   .child_timer_calls -= profiling_timer_calls
    'debug "  set laststart=" & timestamp
   END IF
   .calls_in_stack += 1
@@ -1073,6 +1079,7 @@ END SUB
 SUB script_return_timing
  DIM timestamp as double
  READ_TIMER(timestamp)
+ profiling_timer_calls += 1
  WITH *scriptinsts(nowscript).scr
   'debug "script_return_timing: slot " & nowscript & " id " & .id & " calls_in_stack-- =" & .calls_in_stack & " (returning script)"
   'Exclusive time
@@ -1082,6 +1089,7 @@ SUB script_return_timing
   .calls_in_stack -= 1
   IF .calls_in_stack = 0 THEN
    'Was not a recursive call, so won't be double-counting time
+   .child_timer_calls += profiling_timer_calls
    .childtime += timestamp - .laststart
    IF scriptinsts(nowscript).watched THEN
     gam.script_log.last_script_childtime = timestamp - .laststart
@@ -1116,6 +1124,7 @@ SUB start_fibre_timing
 
  DIM timestamp as double
  READ_TIMER(timestamp)
+ profiling_timer_calls += 1
 
  ' Exclusive time (in this script)
  scrat(nowscript).scr->totaltime -= timestamp
@@ -1134,6 +1143,7 @@ SUB start_fibre_timing
   WITH *scrat(which).scr
    .calls_in_stack += 1
    .laststart = timestamp
+   .child_timer_calls -= profiling_timer_calls
    'debug "  set slot " & which & " id " & .id & " laststart = " & timestamp & " ++calls_in_stack = " & .calls_in_stack
   END WITH
  NEXT
@@ -1152,6 +1162,7 @@ SUB stop_fibre_timing
 
  DIM timestamp as double
  READ_TIMER(timestamp)
+ profiling_timer_calls += 1
 
  ' Exclusive time (in this script)
  scrat(nowscript).scr->totaltime += timestamp
@@ -1166,6 +1177,7 @@ SUB stop_fibre_timing
    IF .calls_in_stack = 0 THEN
     'Was not a recursive call, so won't be double-counting time
     .childtime += timestamp - .laststart
+    .child_timer_calls += profiling_timer_calls
     'debug "  adding to id " & .id & " childtime: " & (timestamp - .laststart) & " now: " & .childtime
    END IF
   END WITH
@@ -1208,23 +1220,33 @@ FUNCTION measure_timer_overhead() as double
 END FUNCTION
 
 'Print profiling information on scripts to g_debug.txt
+'Warning: modifies profiles, so it should be cleared before restarting profiling.
 SUB print_script_profiling
  DIM timeroverhead as double = measure_timer_overhead()
-
- REDIM LRUlist() as ScriptListElmt
- DIM numscripts as integer
-
- 'Sort scripts by time. Ignore the reused LRUlist variable name
- sort_scripts LRUlist(), numscripts, @profiling_script_totaltime_scorer
 
  DIM entiretime as double
  DIM totalswitches as integer
  DIM totalcmds as integer
- FOR i as integer = 0 TO numscripts - 1
-  entiretime += LRUlist(i).p->totaltime
-  totalswitches += LRUlist(i).p->entered
-  totalcmds += LRUlist(i).p->numcmdcalls
+
+ '-- script() is a hashtable with doubly linked lists as buckets
+ FOR idx as integer = 0 TO UBOUND(script)
+  DIM as ScriptData Ptr scrnode = script(idx)
+  WHILE scrnode
+   WITH *scrnode
+    entiretime += .totaltime
+    totalswitches += .entered
+    totalcmds += .numcmdcalls
+    .totaltime = large(0.0, .totaltime - timeroverhead * (.entered + 2 * .numcmdcalls))
+   END WITH
+   scrnode = scrnode->next
+  WEND
  NEXT
+
+ REDIM scriptlist() as ScriptListElmt
+ DIM numscripts as integer
+
+ 'Sort scripts by .totaltime
+ sort_scripts scriptlist(), numscripts, @profiling_script_totaltime_scorer
 
  debug "=== Script profiling information ==="
  debug "'%time' shows the percentage of the total time spent in this script."
@@ -1244,6 +1266,9 @@ SUB print_script_profiling
  debug "ms is milliseconds (0.001 seconds), us is microseconds (0.000001 seconds)"
  debug ""
  debug "Total time recorded in interpreter: " & format(entiretime, "0.000") & "sec"
+ 'Avoid divide by zero
+ entiretime = large(1e-10, entiretime - (totalswitches + 2 * totalcmds) * timeroverhead)
+ debug "            without timer overhead: " & format(entiretime, "0.000") & "sec"
  debug "(Timer overhead = " & format(timeroverhead*1e6, "0.00") & "us per measurement)"
  debug "(Estimated time wasted script profiling: " & format(timeroverhead * totalswitches, "0.000") & "sec)"
  IF commandprofiling THEN
@@ -1259,8 +1284,8 @@ SUB print_script_profiling
  END IF
 
  FOR i as integer = 0 TO numscripts - 1
- ' debug i & ": " & LRUlist(i).p & " score = " & LRUlist(i).score
-  WITH *LRUlist(i).p
+ ' debug i & ": " & scriptlist(i).p & " score = " & scriptlist(i).score
+  WITH *scriptlist(i).p
    DIM cmdtime_line as string
    DIM numcmds_line as string
    IF commandprofiling THEN
@@ -1279,19 +1304,19 @@ SUB print_script_profiling
        & "  " & rpad(scriptname(ABS(.id)), , 25) _
        & IIF(time_specific_cmdid, " " & lpad(STR(.specificcmdcalls), , 6), "") _
        & IIF(time_specific_cmdid, " " & lpad(format(.specificcmdtime*1000, "0.0"), , 5) & "ms", "")
-      '& "  " & format(1000*(.totaltime - (.entered + 2 * .numcmdcalls) * timeroverhead), "0.00") & "ms"
+      '& "  " & format(1000*(.totaltime + (.entered + 2 * .numcmdcalls) * timeroverhead), "0.00") & "ms"
 
   END WITH
  NEXT
 
  'Print fibres only
- sort_scripts LRUlist(), numscripts, @profiling_script_childtime_scorer, YES
+ sort_scripts scriptlist(), numscripts, @profiling_script_childtime_scorer, YES
 
  debug ""
  debug "  -- Triggered scripts sorted by childtime --"
  debug "%chdtime   chdtime  chdtime/call    #calls                type  script name"
  FOR i as integer = 0 TO numscripts - 1
-  WITH *LRUlist(i).p
+  WITH *scriptlist(i).p
    DIM percall as string
    debug lpad(format(100 * .childtime / entiretime, "0.00"), , 6)  _
        & lpad(format(.childtime*1000, "0"), , 10) & "ms" _
@@ -1304,7 +1329,6 @@ SUB print_script_profiling
  debug ""
 
  IF commandprofiling THEN
-  entiretime -= (totalswitches + 2 * totalcmds) * timeroverhead
   print_command_profiling(entiretime, timeroverhead)
  END IF
 END SUB
@@ -1348,7 +1372,8 @@ SUB timed_script_commands(cmdid as integer)
   profiling_cmd_in_script->numcmdcalls += 1
   WITH command_profiles(cmdid)
    .calls += 1
-   .callstart = TIMER
+   READ_TIMER(.callstart)
+   profiling_timer_calls += 1
   END WITH
  END IF
 
@@ -1363,7 +1388,11 @@ SUB stop_command_timing
  'interpreter or we stopped early because stop_fibre_timing was called.
  IF profiling_cmdid THEN
   WITH command_profiles(profiling_cmdid)
-   DIM cmdtime as double = TIMER - .callstart
+   DIM cmdtime as double ' = TIMER - .callstart
+   READ_TIMER(cmdtime)
+   profiling_timer_calls += 1
+   cmdtime -= .callstart
+
    .time += cmdtime
    'Don't use nowscript in case the script changed (e.g. runscriptbyid)
    profiling_cmd_in_script->cmdtime += cmdtime
@@ -1403,6 +1432,7 @@ FUNCTION prompt_for_profiling_cmdid() as bool
  RETURN NO
 END FUNCTION
 
+'Warning: modifies command_profiles, so it should be cleared before restarting profiling.
 SUB print_command_profiling(entiretime as double, timeroverhead as double)
  'Subtract the estimated timing overhead from each command, because it can easily be 90% of the total time
  FOR i as integer = 0 TO UBOUND(command_profiles)
