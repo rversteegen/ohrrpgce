@@ -993,10 +993,10 @@ FUNCTION slice_editor_forbidden_search(byval sl as Slice Ptr, specialcodes() as 
  IF sl = 0 THEN RETURN 0
  DIM initial_ret as integer = ret
 
- IF sl->Protect THEN
+ IF sl->Protector THEN
   ret += 1
   IF ret < 7 THEN errorstr &= SlicePath(sl) & !" is protected\n"
-  IF clean THEN sl->Protect = NO
+  IF clean THEN sl->Protector = NULL
  END IF
 
  IF a_find(editable_slice_types(), cint(sl->SliceType)) < 0 THEN
@@ -1542,7 +1542,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, byref state as MenuStat
    ELSE 'If the lookup isn't recognised, don't allow changing it
     kindlimit = IIF(ses.privileged, kindlimitANYTHING, kindlimitNOTHING)
    END IF
-  ELSEIF sl->Protect ANDALSO ses.privileged = NO THEN
+  ELSEIF sl->Protector ANDALSO ses.privileged = NO THEN
    kindlimit = kindlimitNOTHING  'Can't change protected slices
   END IF
   ' Use kindlimit to filter editable_slice_types()
@@ -1861,10 +1861,10 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
   sliceed_rule_none rules(), "metadata"
  END IF
  IF ses.privileged THEN
-  a_append menu(), "Protected: " & yesorno(.Protect)
-  sliceed_rule_tog rules(), "protect", @.Protect
- ELSEIF .Protect THEN
-  a_append menu(), "Protected"
+  a_append menu(), "Protected by " & SlicePath(.Protector)
+  'TODO: allow editing
+ ELSEIF .Protector THEN
+  a_append menu(), "Protected by " & SlicePath(.Protector)
   sliceed_rule_none rules(), "protect"
  END IF
 

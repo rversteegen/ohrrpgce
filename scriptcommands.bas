@@ -2993,11 +2993,12 @@ SUB script_commands(byval cmdid as integer)
  CASE 446 '--move slice below
   DIM as Slice ptr sl0 = get_arg_slice(0), sl1 = get_arg_slice(1)
   IF sl0 ANDALSO sl1 THEN
+   'Move sl0 below sl1
    IF sl0 = sl1 THEN
     slice_bad_op sl0, "tried to move $SL below itself"
-   ELSEIF sl0->Protect ANDALSO sl0->Parent <> sl1->Parent THEN
+   ELSEIF sl0->Protector ANDALSO sl0->Parent <> sl1->Parent THEN
     slice_bad_op sl0, "tried to change the parent of protected $SL"
-   ELSEIF sl1->Parent = NULL THEN
+   ELSEIF sl0->Parent = NULL ORELSE sl1->Parent = NULL THEN
     scripterr "moveslicebelow: Root can't have siblings"
    ELSE
     InsertSliceBefore sl1, sl0
@@ -3006,11 +3007,12 @@ SUB script_commands(byval cmdid as integer)
  CASE 447 '--move slice above
   DIM as Slice ptr sl0 = get_arg_slice(0), sl1 = get_arg_slice(1)
   IF sl0 ANDALSO sl1 THEN
+   'Move sl0 above sl1
    IF sl0 = sl1 THEN
     slice_bad_op sl0, "tried to move $SL above itself"
-   ELSEIF sl0->Protect ANDALSO sl0->Parent <> sl1->Parent THEN
+   ELSEIF sl0->Protector ANDALSO sl0->Parent <> sl1->Parent THEN
     slice_bad_op sl0, "tried to change the parent of protected $SL"
-   ELSEIF sl1->Parent = NULL THEN
+   ELSEIF sl0->Parent = NULL ORELSE sl1->Parent = NULL THEN
     scripterr "movesliceabove: Root can't have siblings"
    ELSE
     InsertSliceAfter sl1, sl0

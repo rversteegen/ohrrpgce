@@ -440,7 +440,7 @@ Type Slice
   'Note that this is only checked when a slice is directly freed or
   'moved, so if a Protected slice has an unprotected ancestor, then
   'it can still be deleted or moved indirectly.
-  Protect as bool
+  Protector as Slice ptr
 
   'NOTE: When adding to this, remember to update CloneSliceTree, SliceLoadFromNode and SliceSaveToNode
 End Type

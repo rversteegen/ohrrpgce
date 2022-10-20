@@ -35,7 +35,7 @@ LOCAL FUNCTION create_walkabout_slices(byval parent as Slice Ptr) as Slice Ptr
  WITH *sl
   .Width = 20
   .Height = 20
-  .Protect = YES
+  .Protector = parent
  END WITH
  DIM sprsl as Slice Ptr
  sprsl = NewSliceOfType(slSprite, sl, SL_WALKABOUT_SPRITE_COMPONENT)
@@ -45,7 +45,7 @@ LOCAL FUNCTION create_walkabout_slices(byval parent as Slice Ptr) as Slice Ptr
   .AlignHoriz = alignCenter
   .AnchorVert = alignBottom
   .AlignVert = alignBottom
-  .Protect = YES
+  .Protector = sl
  END WITH
  RETURN sl
 END FUNCTION
@@ -469,13 +469,13 @@ SUB refresh_walkabout_layer_sort()
    '--create the hero layer if it is needed
    SliceTable.HeroLayer = NewSliceOfType(slContainer, SliceTable.Walkabout, SL_HERO_LAYER)
    SliceTable.HeroLayer->Fill = YES
-   SliceTable.HeroLayer->Protect = YES
+   SliceTable.HeroLayer->Protector = SliceTable.Walkabout
    SliceTable.HeroLayer->AutoSort = slAutoSortY
   END IF
   IF SliceTable.NPCLayer = 0 THEN
    SliceTable.NPCLayer = NewSliceOfType(slContainer, SliceTable.Walkabout, SL_NPC_LAYER)
    SliceTable.NPCLayer->Fill = YES
-   SliceTable.NPCLayer->Protect = YES
+   SliceTable.NPCLayer->Protector = SliceTable.Walkabout
    SliceTable.NPCLayer->AutoSort = slAutoSortCustom
   END IF
   IF gmap(16) = 1 THEN

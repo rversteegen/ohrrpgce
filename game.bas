@@ -3836,7 +3836,7 @@ SUB SetupGameSlices ()
  SliceTable.Root->Fill = YES
 
  SliceTable.MapRoot = NewSliceOfType(slContainer, SliceTable.Root, SL_MAPROOT)
- SliceTable.MapRoot->Protect = YES
+ SliceTable.MapRoot->Protector = SliceTable.Root
  
  'If "recreate map slices" is off, then all possible map layer slices always exist,
  'but are hidden if there is no corresponding map layer.
@@ -3846,7 +3846,7 @@ SUB SetupGameSlices ()
  SetupMapSlices maplayerMax
 
  SliceTable.Backdrop = NewSliceOfType(slSprite, SliceTable.Root, SL_BACKDROP)
- SliceTable.Backdrop->Protect = YES
+ SliceTable.Backdrop->Protector = SliceTable.Root
  ChangeSpriteSlice SliceTable.Backdrop, sprTypeBackdrop
 
  SliceTable.ScriptSprite = NewSliceOfType(slSpecial, SliceTable.Root, SL_SCRIPT_LAYER)
@@ -3914,20 +3914,20 @@ SUB SetupMapSlices(byval to_max as integer)
 
  SliceTable.MapOverlay = NewSliceOfType(slContainer, SliceTable.MapRoot, SL_MAP_OVERLAY)
  SliceTable.MapOverlay->Fill = YES
- SliceTable.MapOverlay->Protect = YES
+ SliceTable.MapOverlay->Protector = SliceTable.MapRoot
 
  'Note: the order of this slice in relation to the .MapLayer siblings will change each time a map is loaded
  'Note: refresh_walkabout_layer_sort will delete or recreate as needed HeroLayer & NPCLayer. Pretty redundant!
  SliceTable.Walkabout = NewSliceOfType(slContainer, SliceTable.MapRoot, SL_WALKABOUT_LAYER)
  SliceTable.Walkabout->Fill = YES
- SliceTable.Walkabout->Protect = YES
+ SliceTable.Walkabout->Protector = SliceTable.MapRoot
  SliceTable.HeroLayer = NewSliceOfType(slContainer, SliceTable.Walkabout, SL_HERO_LAYER)
  SliceTable.HeroLayer->Fill = YES
- SliceTable.HeroLayer->Protect = YES
+ SliceTable.HeroLayer->Protector = SliceTable.MapRoot
  SliceTable.HeroLayer->AutoSort = slAutoSortY
  SliceTable.NPCLayer = NewSliceOfType(slContainer, SliceTable.Walkabout, SL_NPC_LAYER)
  SliceTable.NPCLayer->Fill = YES
- SliceTable.NPCLayer->Protect = YES
+ SliceTable.NPCLayer->Protector = SliceTable.MapRoot
  SliceTable.NPCLayer->AutoSort = slAutoSortCustom
 END SUB
 

@@ -553,13 +553,14 @@ EXTERN "C"
 
 'Warning/TODO: one reason to call this instead of NewRectangleSlice, etc directly is that those
 'constructors overwrite some data with defaults. To fix that, just set the defaults in the UDT directly.
+'Note: slMap, slSpecial slices are automatically protected only if parent is provided.
 FUNCTION NewSliceOfType (byval t as SliceTypes, byval parent as Slice Ptr=0, byval lookup_code as integer=0) as Slice Ptr
  DIM newsl as Slice Ptr
  SELECT CASE t
   CASE slSpecial:
    newsl = NewSlice(parent)
    newsl->SliceType = slSpecial
-   newsl->Protect = YES
+   newsl->Protector = parent
   CASE slContainer:
    newsl = NewSlice(parent)
   CASE slRectangle:
@@ -577,7 +578,7 @@ FUNCTION NewSliceOfType (byval t as SliceTypes, byval parent as Slice Ptr=0, byv
   CASE slMap:
    DIM dat as MapSliceData
    newsl = NewMapSlice(parent, dat)
-   newsl->Protect = YES
+   newsl->Protector = parent  'MapRoot
   CASE slGrid:
    DIM dat as GridSliceData
    newsl = NewGridSlice(parent, dat)
@@ -4448,7 +4449,7 @@ Function CloneSliceTree(byval sl as Slice ptr, recurse as bool = YES, copy_speci
   'Function ptrs not copied.
   '.Attach and .Attached not copied
   '.TableSlot not copied
-  if copy_special then .Protect = sl->Protect  'Otherwise, the copy won't have any special role
+  if copy_special then .Protector = sl->Protector  'Otherwise, the copy won't have any special role
   .Lookup = sl->Lookup
   if copy_special = NO and .Lookup < 0 then .Lookup = 0
   .X = sl->X
@@ -4962,7 +4963,7 @@ SUB SliceDebugDumpTree(sl as Slice Ptr, byval indent as integer = 0)
  CheckTableSlotOK(sl)
  dim s as string
  s = string(indent, " ") & SliceTypeName(sl)
- if sl->Protect then
+ if sl->Protector then
   s &= " (P)"
  end if
 

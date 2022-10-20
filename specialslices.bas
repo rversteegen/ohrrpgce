@@ -46,7 +46,7 @@ sub GraphSlice.Initialize(sl as Slice ptr)
  sl->PaddingBottom = 14
  field_sl = NewSliceOfType(slContainer, sl)
  field_sl->Fill = YES
- field_sl->Protect = YES
+ field_sl->Protector = sl
 end sub
 
 local sub set_min_and_max(byref minv as double, byref maxv as double, vals() as double, defaultmax as double)
