@@ -59,7 +59,6 @@ DECLARE SUB refresh_map_slice()
 DECLARE SUB refresh_map_slice_tilesets()
 DECLARE SUB refresh_walkabout_layer_sort()
 DECLARE SUB update_map_slices_for_new_tilemap()
-DECLARE SUB cleanup_game_slices ()
 
 DECLARE SUB save_game_config()
 DECLARE SUB exit_gracefully(need_fade_out as bool = NO)

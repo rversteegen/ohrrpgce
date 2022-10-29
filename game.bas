@@ -1049,7 +1049,7 @@ SUB reset_game_final_cleanup()
  unloadtilemap pass
  unloadtilemap foemap
  DeleteZonemap zmap
- cleanup_game_slices
+ DestroyGameSlices
  #IFDEF ENABLE_SLICE_DEBUG
   SliceDebugDump YES
  #ENDIF
@@ -1087,21 +1087,6 @@ SUB exit_gracefully(need_fade_out as bool = NO)
   save_window_state_to_config
  END IF
  exitprogram need_fade_out, 0
-END SUB
-
-SUB cleanup_game_slices ()
- 'Deleting hero slices here should be unnecessary because it should have
- 'happened when resetgame called deletehero
- FOR i as integer = 0 TO UBOUND(gam.hero)
-  DeleteSlice @gam.hero(i).sl
- NEXT i
- FOR i as integer = 0 TO UBOUND(herow)
-  herow(i).sl = NULL
- NEXT i
- FOR i as integer = 0 TO UBOUND(npc)
-  DeleteSlice @npc(i).sl
- NEXT i
- DestroyGameSlices
 END SUB
 
 SUB doloadgame(byval load_slot as integer, prefix as string="")
@@ -3828,6 +3813,7 @@ END SUB
 '==========================================================================================
 
 
+'Create the in-game slice tree (SliceTable ptrs), but doesn't create hero and NPC slices
 SUB SetupGameSlices ()
  'Note that the map root and walkabout layers are containers, while
  'inconsistently everything else is a special slice.
@@ -3874,6 +3860,7 @@ SUB SetupGameSlices ()
  SliceTable.Reserve->EditorHideChildren = YES
 End Sub
 
+'Delete the slice tree and zero all slice pointers
 Sub DestroyGameSlices (dumpdebug as bool = NO)
  DeleteSlice(@SliceTable.Root, dumpdebug)
  '--after deleting root, all other slices should be gone, but the pointers
@@ -3890,6 +3877,18 @@ Sub DestroyGameSlices (dumpdebug as bool = NO)
  SliceTable.Menu = 0
  SliceTable.ScriptString = 0
  SliceTable.Reserve = 0
+
+ 'Hero slices should already have been deleted when resetgame called deletehero
+ FOR i as integer = 0 TO UBOUND(gam.hero)
+  gam.hero(i).sl = 0
+ NEXT i
+ FOR i as integer = 0 TO UBOUND(herow)
+  herow(i).sl = 0
+ NEXT i
+
+ FOR i as integer = 0 TO UBOUND(npc)
+  npc(i).sl = 0
+ NEXT i
 
  'Correct accounting of these globals is unnecessary! I guess
  'it's good for determinism though
