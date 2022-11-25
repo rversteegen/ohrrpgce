@@ -4070,6 +4070,8 @@ SUB cycletile (tanim_state() as TileAnimState, tastuf() as integer)
      END SELECT
      notstuck = large(notstuck - 1, 0)
     LOOP WHILE notstuck AND .skip = 0
+    'It's not necessary to make .cycle loop here (it would do nothing),
+    'because translate_animated_tile (must) also do it.
    END IF
   END WITH
  NEXT i

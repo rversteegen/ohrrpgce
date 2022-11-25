@@ -4245,12 +4245,13 @@ end function
 'Given a tile number, possibly animated, translate it to the static tile to display
 function translate_animated_tile(todraw as integer) as integer
 	if todraw >= 208 then
-		return (todraw - 48 + anim2) mod 160
+		todraw += -208 + anim2
 	elseif todraw >= 160 then
-		return (todraw + anim1) mod 160
+		todraw += -160 + anim1
 	else
-		return todraw
+		'return todraw
 	end if
+	return POSMOD(todraw, 160)
 end function
 
 sub drawmap (tmap as TileMap, x as integer, y as integer, tileset as TilesetData ptr, p as integer, trans as bool = NO, overheadmode as integer = 0, pmapptr as TileMap ptr = NULL, ystart as integer = 0, yheight as integer = -1, pal as Palette16 ptr = NULL, opts as DrawOptions = def_drawoptions)
@@ -4337,13 +4338,13 @@ sub drawmap (tmap as TileMap, x as integer, y as integer, tilesetsprite as Frame
 		tx = xoff
 		xpos = xstart
 		while tx < dest->w
-			todraw = calcblock(tmap, xpos, ypos, overheadmode, pmapptr)
-			if largetileset = NO then
-				todraw = translate_animated_tile(todraw)
-			end if
-
 			'get the tile
-			if (todraw >= 0) then
+			todraw = calcblock(tmap, xpos, ypos, overheadmode, pmapptr)
+			if todraw >= 0 then
+				if largetileset = NO then
+					todraw = translate_animated_tile(todraw)
+				end if
+
 				tileframe.image = tilesetsprite->image + todraw * 20 * 20
 				if tilesetsprite->mask then 'just in case it happens some day
 					tileframe.mask = tilesetsprite->mask + todraw * 20 * 20

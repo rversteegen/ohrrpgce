@@ -871,7 +871,7 @@ SUB script_commands(byval cmdid as integer)
  CASE 253'--set tile animation offset
   retvals(2) = get_optional_arg(2, 0)
   IF (retvals(0) = 0 OR retvals(0) = 1) AND valid_map_layer(retvals(2), serrBound) THEN
-   tilesets(retvals(2))->anim(retvals(0)).cycle = retvals(1) MOD 160
+   tilesets(retvals(2))->anim(retvals(0)).cycle = POSMOD(retvals(1), 160)
   END IF
  CASE 254'--get tile animation offset
   retvals(1) = get_optional_arg(1, 0)
