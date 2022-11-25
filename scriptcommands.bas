@@ -2340,7 +2340,7 @@ SUB script_commands(byval cmdid as integer)
    'serrWarn causes get_arg_slice/get_handle_slice to not show an error if already freed
    sl = get_arg_slice(0, serrWarn)
    IF sl THEN
-    IF sl->Protect THEN
+    IF sl->Protector ORELSE sl = SliceTable.Root THEN
      slice_bad_op sl, "is protected, can't be deleted"
     ELSEIF cmdid = 323 ANDALSO sl->SliceType <> slSprite THEN
      slice_bad_op sl, "isn't a sprite"
@@ -2500,7 +2500,7 @@ SUB script_commands(byval cmdid as integer)
   sl = get_arg_slice(0)
   parent = get_arg_slice(1)
   IF sl ANDALSO parent THEN
-   IF sl->Protect THEN
+   IF sl->Protector THEN ' ORELSE sl = SliceTable.Root THEN
     slice_bad_op sl, "is protected, can't be reparented"
    ELSE
     SetSliceParent sl, parent

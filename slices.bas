@@ -664,10 +664,112 @@ End Function
 
 #endif
 
-'Deletes a slice and any descendents,  and zeros out *s.
+/'
+'Depth first scan of the tree, process the leaf nodes first
+Sub ProtectedDeleteSlice(byval s as Slice ptr ptr, byval tree_root as Slice ptr)
+
+ if s = 0 then exit sub  'can't do anything
+ if *s = 0 then exit sub 'already freed
+
+ dim root as slice ptr = *s
+
+ if root->Parent = 0 then
+  'Special case, always delete all because can't do any reparenting
+  DeleteSlice(s)
+  exit sub
+ end if
+
+ sl = root->FirstChild
+ while sl
+
+ if sl->Protector then
+  'If the protector is an ancestor of root then we save the slice by reparenting
+  'the subtree out of root's subtree
+  if IsAncestor(root, sl->Protector) then
+   setparent
+   sl = NextDescendent(sl, root, NO) ' Skip over children
+   continue while
+  elseif sl->Protector = root then
+   'Gets deleted, not protected
+ end if
+
+ sl = NextDescendent(sl, root)
+wend
+End sub
+'/
+
+'See DeleteSlice
+'This is a replacement for DeleteSliceChildren which deletes unprotected slices and those protected by delete_root,
+'or deletes everything if delete_root = NULL
+Private Sub DeleteUnprotectedChildren(sl as Slice ptr, debugme as integer = 0, delete_root as Slice ptr)
+
+ child = sl->FirstChild
+ while child
+
+  if child->Protector andalso delete_root then
+   'If the protector is an ancestor of delete_root then the protector isn't being deleted, so we
+   'save the slice by reparenting it out of delete_root's subtree
+   if IsAncestor(delete_root, child->Protector) then
+    'InsertSliceBefore to preserve relative order and so that we don't visit it again (e.g. in DeleteSliceChildren)
+    InsertSliceBefore delete_root, child
+    ' Don't delete
+    child = child->NextSibling
+    continue while
+   elseif child->Protector = delete_root then
+    'delete_root gets deleted, so everything it protects is deleted too
+   else
+    'child->protector is a descendent of delete_root. Can happen if, when following the chain of
+    'protectors eventually is protected by delete_root (so should be deleted).
+    'If it doesn't, that shouldn't happen, because we should have already reparented
+    'one of the protectors out of delete_root's subtree and skipped it.
+    'Double check
+    dim pro as Slice ptr = child->Protector
+    do
+     if pro = delete_root then exit do  'Good
+     if pro->Protector = NULL then
+      if pro->Parent <> NULL then
+       'Also check for broken chains (they should always reach the root of the tree)...
+       'except when we've orphaned/cloned, or cut up the tree
+       debugc errBug, SlicePath(pro) & " is a protector but doesn't have a protector"
+      end if
+      debugc errBug, "DeleteSlice bug deleting " & SlicePath(child)
+     end if
+
+     pro = pro->Protector
+    loop
+
+   end if
+  end if
+
+  ProtectedDeleteSlice @child, tree_root
+
+  child = child->NextSibling
+ wend
+End sub
+
+'Delete a slice (always), and all its descendents including ones it protects, except for slices
+'protected by other slices (ancestors of *s), which get reparented to where *s was in the tree.
+'delete_root is for internal usage only
+Sub DeleteSlice(byval s as Slice ptr ptr, byval debugme as integer = 0, byval delete_root as Slice ptr = NULL)
+
+ if s = 0 then exit sub  'can't do anything
+ if *s = 0 then exit sub 'already freed
+
+ dim sl as Slice ptr = *s
+ if delete_root = 0 then delete_root = sl
+
+ if sl->Parent = NULL then
+  'Special case, always delete all because can't do any reparenting
+  DeleteSliceTree s, debugme
+ else
+  DeleteUnprotectedSlices s, debugme
+ end if
+end sub
+
+'Deletes a slice and any descendents, regardless of protection, and zeros out *s.
 'If debugme is YES, dump some debug info about the slice being freed and all its children
 '(debugme > 0 is indentation depth)
-Sub DeleteSlice(byval s as Slice ptr ptr, byval debugme as integer=0)
+Sub DeleteSliceTree(byval s as Slice ptr ptr, byval debugme as integer=0)
 
  if s = 0 then exit sub  'can't do anything
  if *s = 0 then exit sub 'already freed
@@ -693,15 +795,18 @@ Sub DeleteSlice(byval s as Slice ptr ptr, byval debugme as integer=0)
  end if
 #endif
  
- 'Call the slice's type-specific Dispose function
- if sl->Dispose <> 0 then sl->Dispose(sl)
- 
+ 'Depth first scan of the subtree: delete the leaf nodes first so that we can call IsAncestor
+ 'and reparent slices.
+ DeleteUnprotectedChildren sl, debugme, delete_root
+
  OrphanSlice sl
- DeleteSliceChildren sl, debugme
 
  #ifdef ENABLE_SLICE_DEBUG
   SliceDebugForget sl
  #endif
+ 
+ 'Call the slice's type-specific Dispose function
+ if sl->Dispose <> 0 then sl->Dispose(sl)
 
  delete sl->Context
  v_free sl->ExtraVec
@@ -713,7 +818,7 @@ End Sub
 'If debugme is YES, log debug info about the slices.
 Sub DeleteSliceChildren(byval sl as Slice ptr, byval debugme as integer = 0)
  if sl = 0 then debug "DeleteSliceChildren null ptr": exit sub
- dim ch as slice ptr
+ dim ch as Slice ptr
  ch = sl->FirstChild
  do while ch
   DeleteSlice @ch, debugme
