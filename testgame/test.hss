@@ -481,7 +481,12 @@ end
 #Map 0 on-keypress
 script, map changer key listener, begin
   if (key is pressed(key:s)) then (
-    trace value (write map block (hero x, hero y, read map block (hero x, hero y) xor, 3))
+#    trace value (write map block (hero x, hero y, read map block (hero x, hero y) xor, 3))
+variable(xx)
+xx:=lookup slice(sl: textbox root)
+showvalueof(xx)
+free slice(xx)
+
   )
   if (key is pressed(key:a)) then (
     trace value (save map state)
