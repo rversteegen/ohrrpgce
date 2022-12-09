@@ -873,11 +873,6 @@ Sub Draw<TYPENAME>Slice(byval sl as Slice ptr, byval p as integer)
  '''DRAWING CODE GOES HERE!
 end sub
 
-Function Get<TYPENAME>SliceData(byval sl as Slice ptr) as <TYPENAME>SliceData ptr
- if sl = 0 then return 0
- return sl->SliceData
-End Function
-
 Sub Clone<TYPENAME>Slice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "Clone<TYPENAME>Slice null ptr": exit sub
  dim dat as <TYPENAME>SliceData Ptr

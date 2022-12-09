@@ -1521,11 +1521,6 @@ Function NewRectangleSlice(byval parent as Slice ptr, byref dat as RectangleSlic
  return ret
 end function
 
-Function GetRectangleSliceData(byval sl as Slice ptr) as RectangleSliceData ptr
- if sl = 0 then debug "GetRectangleSliceData null ptr": return 0
- return sl->SliceData
-End Function
-
 'All arguments default to no-change
 Sub ChangeRectangleSlice(byval sl as Slice ptr,_
                       byval style as integer=-2,_
@@ -1601,11 +1596,6 @@ Sub DrawLineSlice(byval sl as Slice ptr, byval p as integer)
   drawline sl->ScreenX, sl->ScreenY, point2.x, point2.y, col, p
  'end if
 end sub
-
-Function GetLineSliceData(byval sl as Slice ptr) as LineSliceData ptr
- if sl = 0 then return 0
- return sl->LineData
-End Function
 
 Sub LineSliceData.SetColor(color as integer)
  this.col = color
@@ -1857,11 +1847,6 @@ Local Sub UpdateTextSliceHeight(byval sl as Slice ptr, lines() as string)
  end if
  sl->Height = high * 10
 end sub
-
-Function GetTextSliceData(byval sl as Slice ptr) as TextSliceData ptr
- if sl = 0 then debug "GetTextSliceData null ptr": return 0
- return sl->SliceData
-End Function
 
 Sub CloneTextSlice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "CloneTextSlice null ptr": exit sub
@@ -2789,11 +2774,6 @@ Function NewGridSlice(byval parent as Slice ptr, byref dat as GridSliceData) as 
  return ret
 end function
 
-Function GetGridSliceData(byval sl as Slice ptr) as GridSliceData ptr
- if sl = 0 then debug "GetGridSliceData null ptr": return 0
- return sl->SliceData
-End Function
-
 'All arguments default to no-change
 Sub ChangeGridSlice(byval sl as Slice ptr,_
                       byval rows as integer=0,_
@@ -3018,11 +2998,6 @@ Sub LayoutChildrenRefresh(byval par as Slice ptr)
  wend
  v_free offsets
 end sub
-
-Function GetLayoutSliceData(byval sl as Slice ptr) as LayoutSliceData ptr
- if sl = 0 then return 0
- return sl->SliceData
-End Function
 
 Sub CloneLayoutSlice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "CloneLayoutSlice null ptr": exit sub
