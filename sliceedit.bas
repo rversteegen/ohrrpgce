@@ -174,7 +174,7 @@ CONST slgrEDITSWITCHINDEX = 256
 CONST slgrBROWSESPRITEASSET = 512
 CONST slgrBROWSESPRITEID = 1024
 CONST slgrBROWSEBOXBORDER = 2048
-CONST slgrLAYOUT2NDDIR = 4096
+CONST slgrBOXSTACK2NDDIR = 4096
 CONST slgrEXTRALENGTH = 8192
 CONST slgrEXTRAEDITOR = 16384
 CONST slgrEXTRA = 32768
@@ -1657,8 +1657,8 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, byref state as MenuStat
    sl->SelectData->override = -1 'Cancel override when we manually change index
   END IF
  END IF
- IF rule.group AND slgrLAYOUT2NDDIR THEN
-  DIM byref secdir as DirNum = sl->LayoutData->secondary_dir
+ IF rule.group AND slgrBOXSTACK2NDDIR THEN
+  DIM byref secdir as DirNum = sl->BoxStackData->secondary_dir
   DIM n as integer = 0
   IF secdir = dirRight OR secdir = dirDown THEN n = 1
   IF intgrabber(n, 0, 1) THEN
@@ -2054,7 +2054,13 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule rules(), "grid_rows", erIntgrabber, @(dat->rows), 0, 99 'FIXME: upper limit of 99 is totally arbitrary
     a_append menu(), " Columns: " & dat->cols
     sliceed_rule rules(), "grid_cols", erIntgrabber, @(dat->cols), 0, 99 'FIXME: upper limit of 99 is totally arbitrary
-    a_append menu(), " Show Grid: " & yesorno(dat->show)
+    a_append menu(), " First stacking direction: " & DirectionCaptions(dat->primary_dir)
+    sliceed_rule rules(), "layout_primary_dir", erIntgrabber, @dat->primary_dir, 0, 3
+    a_append menu(), " Second stacking direction: " & DirectionCaptions(dat->secondary_dir)
+    sliceed_rule_none rules(), "layout_secondary_dir", slgrBOXSTACK2NDDIR
+    a_append menu(), " Skip hidden: " & yesorno(dat->skip_hidden)
+    sliceed_rule_tog rules(), "layout_skip_hidden", @dat->skip_hidden
+    a_append menu(), " Show grid: " & yesorno(dat->show)
     sliceed_rule_tog rules(), "grid_show", @(dat->show)
 
    CASE slEllipse
@@ -2096,10 +2102,10 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    CASE slLayout
     DIM dat as LayoutSliceData Ptr
     dat = .SliceData
-    a_append menu(), " Row grow direction: " & DirectionCaptions(dat->primary_dir)
+    a_append menu(), " Row grow (first) direction: " & DirectionCaptions(dat->primary_dir)
     sliceed_rule rules(), "layout_primary_dir", erIntgrabber, @dat->primary_dir, 0, 3
-    a_append menu(), " Row-stacking direction: " & DirectionCaptions(dat->secondary_dir)
-    sliceed_rule_none rules(), "layout_secondary_dir", slgrLAYOUT2NDDIR
+    a_append menu(), " Row-stacking (second) direction: " & DirectionCaptions(dat->secondary_dir)
+    sliceed_rule_none rules(), "layout_secondary_dir", slgrBOXSTACK2NDDIR
     a_append menu(), " Justified: " & yesorno(dat->justified)
     sliceed_rule_tog rules(), "layout_justified", @dat->justified
     IF dat->justified THEN

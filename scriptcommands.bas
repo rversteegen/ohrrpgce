@@ -4015,6 +4015,7 @@ SUB script_commands(byval cmdid as integer)
  CASE 587 '--slice child index
   sl = get_arg_slice(0)
   IF sl THEN
+   'Include templates and hidden slices
    scriptret = SliceIndexAmongSiblings(sl)
   END IF
  CASE 588 '--create scroll
@@ -5174,6 +5175,21 @@ SUB script_commands(byval cmdid as integer)
   IF curcmd->argc > 0 THEN
    scriptret = retvals(randint(curcmd->argc))
   END IF
+
+/'
+ CASE 459 '--set skip hidden
+  sl = get_arg_boxstacksl(0)  'grid or layout
+  IF sl THEN
+   sl->BoxStackData->skip_hidden = (retvals(1) <> 0)
+  END IF
+ CASE 460 '--get skip hidden
+  sl = get_arg_boxstacksl(0)  'grid or layout
+  sl = get_arg_maskedsl(0, slMaskGrid or slMaskLayout)
+
+  IF sl THEN
+   scriptret = IIF(sl->BoxStackData->skip_hidden, 1, 0)
+  END IF
+'/
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands

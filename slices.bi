@@ -285,6 +285,7 @@ Type LineSliceDataFwd as LineSliceData
 Type TextSliceDataFwd as TextSliceData
 Type SpriteSliceDataFwd as SpriteSliceData
 Type MapSliceDataFwd as MapSliceData
+Type BoxStackDataFwd as BoxStackData
 Type GridSliceDataFwd as GridSliceData
 Type LayoutSliceDataFwd as LayoutSliceData
 Type EllipseSliceDataFwd as EllipseSliceData
@@ -427,6 +428,7 @@ Type Slice
     TextData     as TextSliceDataFwd ptr
     SpriteData   as SpriteSliceDataFwd ptr
     MapData      as MapSliceDataFwd ptr
+    BoxStackData as BoxStackDataFwd ptr
     GridData     as GridSliceDataFwd ptr
     LayoutData   as LayoutSliceDataFwd ptr
     EllipseData  as EllipseSliceDataFwd ptr
@@ -552,18 +554,24 @@ Type MapSliceData
  pass as TileMap ptr 'NOTE: ptr to the passmap ('pass' global) (Not owned!) May be NULL for non-overhead layers
 End Type
 
-Type GridSliceData
- show as bool     'Whether to draw the lines of the grid
- rows as integer
- cols as integer
-End Type
-
-Type LayoutSliceData
+'Not a slice type, this is common data shared between Grid and Layout slices
+Type BoxStackData
  primary_dir as DirNum = dirRight  'Direction that rows grow
  secondary_dir as DirNum = dirDown 'Direction to shift after a row is full (must be perpendicular to primary_dir)
+ skip_hidden as bool          'Don't leave gaps for nonvisible children (aka visibleonly)
+
+ Declare Sub Validate()
+End Type
+
+Type GridSliceData Extends BoxStackData
+ show as bool                 'Whether to draw the lines of the grid
+ rows as integer = 1
+ cols as integer = 1
+End Type
+
+Type LayoutSliceData Extends BoxStackData
  primary_padding as integer   'Padding between children, in the primary_dir (within rows)
  secondary_padding as integer '...and between rows
- skip_hidden as bool          'Don't leave gaps for nonvisible children (aka visibleonly)
  min_row_breadth as integer   'Min height/width in pixels of rows, in the secondary_dir
  justified as bool            'Like justified text: add extra padding to rows to be flush against both edges
  last_row_justified as bool   '(Only when justified) If NO, last row justification spacing is no more than row above.
@@ -576,7 +584,6 @@ Type LayoutSliceData
 
  Declare Function SkipForward(ch as Slice ptr) as Slice ptr
  Declare Sub SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as integer, dir0 as integer, byref offsets as integer vector, byref breadth as integer)
- Declare Sub Validate()
 End Type
 
 Type EllipseSliceData
@@ -648,7 +655,7 @@ DECLARE Sub EdgeYSortChildSlices(byval parent as slice ptr, byval edge as AlignT
 DECLARE Sub CustomSortChildSlices(byval parent as slice ptr, byval wipevals as bool)
 DECLARE Sub AutoSortChildren(byval s as Slice Ptr)
 
-DECLARE Function SliceIndexAmongSiblings(sl as Slice Ptr, include_templates as bool = YES) as integer
+DECLARE Function SliceIndexAmongSiblings(sl as Slice Ptr, include_templates as bool = YES, visibleonly as bool = NO) as integer
 DECLARE Function SliceChildByIndex(byval sl as slice ptr, byval index as integer) as Slice ptr
 DECLARE FUNCTION SlicePath(sl as Slice ptr) as string
 DECLARE Function LookupSlice(byval lookup_code as integer, byval root_sl as Slice ptr, byval onlytype as SliceTypes=slInvalid, start_sl as Slice ptr=NULL) as Slice ptr
@@ -801,10 +808,11 @@ DECLARE Sub ChangeMapSlice (byval sl as slice ptr,_
                    byval overlay as integer=-1) ' All arguments default to no change (explaining weird tiles default)
 
 DECLARE Function NewGridSlice(byval parent as Slice ptr, byref dat as GridSliceData) as slice ptr
-DECLARE Sub ChangeGridSlice(byval sl as slice ptr,_
+DECLARE Sub ChangeGridSlice(byval sl as Slice ptr,_
                       byval rows as integer=0,_
                       byval cols as integer=0,_
-                      byval show as integer=-2)
+                      byval firstdir as integer=-1,_
+                      byval seconddir as integer=-1)
 
 DECLARE Function NewLayoutSlice(byval parent as Slice ptr, byref dat as LayoutSliceData) as slice ptr
 

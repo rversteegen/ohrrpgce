@@ -778,6 +778,13 @@ define function, begin
 746,setrectstationarypattern,2,0,1 # Set whether fuzzy pattern is stationary (slice, bool)
 747,keypresstime,2,0,0        # How long a key has been down, in milliseconds (scancode, player)
 748,randomchoice,-1           # Return one of the args, randomly
+749,getskipshidden,1,0        # Get whether Grid/Layout slice skips hidden children
+750,setskipshidden,2,0,1      # Set whether Grid/Layout slice skips hidden children
+751,setfirststackdir,2,0,1    # Set Grid/Layout slice primary child stacking direction
+752,getfirststackdir,1,0      # Getter
+753,setsecondstackdir,2,0,2   # Set Grid/Layout slice secondary child stacking direction
+754,getsecondstackdir,1,0     # Getter
+
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 

@@ -221,7 +221,7 @@ Sub LoadNullSlice(byval s as Slice ptr, byval node as Reload.Nodeptr) : end sub
 Sub NullChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES) : end sub
 
 'Computes ScreenX/Y, and also sets the width/height if filling (which is basically an implementation mistake).
-'childindex is index of ch among its siblings, ignoring templates. Pass -1 if not known,
+'childindex is index of ch among its siblings, skipping templates and possibly hidden slices. Pass -1 if not known,
 'which saves computing it if it's not needed. (Not used by DefaultChildRefresh)
 Sub DefaultChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
  if ch = 0 then debug "DefaultChildRefresh null ptr": exit sub
@@ -1116,14 +1116,15 @@ end function
 'Returns the 0-based index of this slice among is siblings.
 'If including_templates=NO then doesn't count template slices, but beware that if
 'called on a template slice it'll share its index with the next sibling.
-Function SliceIndexAmongSiblings(sl as Slice Ptr, include_templates as bool = YES) as integer
+'If visibleonly then doesn't count hidden slices. Beware same thing as above.
+Function SliceIndexAmongSiblings(sl as Slice Ptr, include_templates as bool = YES, visibleonly as bool = NO) as integer
  if sl = 0 then return 0
  if sl->parent = 0 then return 0  'The root slice
  dim sib as Slice Ptr = sl->parent->FirstChild
  dim index as integer = 0
  while sib
   if sib = sl then return index
-  if include_templates orelse sib->Template = NO then
+  if (include_templates orelse sib->Template = NO) andalso (sib->Visible orelse visibleonly = NO) then
    index += 1
   end if
   sib = sib->NextSibling
@@ -2647,20 +2648,17 @@ end sub
 
 Sub CloneGridSlice(byval sl as Slice ptr, byval cl as Slice ptr)
  if sl = 0 or cl = 0 then debug "CloneGridSlice null ptr": exit sub
- dim dat as GridSliceData ptr = sl->GridData
- with *cl->GridData
-  .cols = dat->cols
-  .rows = dat->rows
-  .show = dat->show
- end with
+ *cl->GridData = *sl->GridData
 end sub
 
 Sub SaveGridSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  if sl = 0 or node = 0 then debug "SaveGridSlice null ptr": exit sub
- DIM dat as GridSliceData Ptr
- dat = sl->SliceData
+ dim dat as GridSliceData ptr = sl->SliceData
  SavePropAlways node, "cols", dat->cols
  SavePropAlways node, "rows", dat->rows
+ if dat->primary_dir <> dirRight then SavePropAlways node, "dir0", dat->primary_dir
+ if dat->secondary_dir <> dirDown then SavePropAlways node, "dir1", dat->secondary_dir
+ SaveProp node, "skip_hidden", dat->skip_hidden
  SavePropAlways node, "show", dat->show
 End Sub
 
@@ -2670,8 +2668,57 @@ Sub LoadGridSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat = sl->SliceData
  dat->cols = large(1, LoadProp(node, "cols", 1))
  dat->rows = large(1, LoadProp(node, "rows", 1))
+ dat->primary_dir = LoadProp(node, "dir0", dirRight)
+ dat->secondary_dir = LoadProp(node, "dir1", dirDown)
+ dat->skip_hidden = LoadPropBool(node, "skip_hidden")
  dat->show = LoadPropBool(node, "show")
+
+ dat->Validate()
 End Sub
+
+Local Function GridChildSlot(sl as Slice ptr, childindex as integer) as XYPair
+ with *sl->GridData
+  if .rows <= 0 orelse .cols <= 0 then return XY(0,0)
+  if childindex >= .rows * .cols then return XY(0,0)
+
+  ' dim as integer axis0, axis1 'primary and secondary axes: 0 or 1 for x or y
+  ' dim as integer dir0, dir1  '1 if offsets are measured from top or left, -1 otherwise
+  ' select case .primary_dir
+  '  case dirLeft:  axis0 = 0 : axis1 = 1 : dir0 = -1
+  '  case dirRight: axis0 = 0 : axis1 = 1 : dir0 = 1
+  '  case dirUp:    axis0 = 1 : axis1 = 0 : dir0 = -1
+  '  case dirDown:  axis0 = 1 : axis1 = 0 : dir0 = 1
+  ' end select
+  ' select case .secondary_dir
+  '  case dirLeft:  dir1 = -1
+  '  case dirRight: dir1 = 1
+  '  case dirUp:    dir1 = -1
+  '  case dirDown:  dir1 = 1
+  ' end select
+
+  dim xslot as integer  'From 0 to cols-1
+  dim yslot as integer  'From 0 to rows-1
+  'if axis0 = 0 then
+  if .primary_dir = dirLeft orelse .primary_dir = dirRight then
+   xslot = childindex mod .cols
+   'if dir0 = -1 then xslot = .cols - 1 - xslot
+   if .primary_dir = dirLeft then xslot = .cols - 1 - xslot
+   yslot = childindex \ .cols
+   'if dir1 = -1 then yslot = .rows - 1 - yslot
+   if .secondary_dir = dirUp then yslot = .rows - 1 - yslot
+  else
+   xslot = childindex \ .rows
+   'if dir1 = -1 then xslot = .cols - 1 - xslot
+   if .secondary_dir = dirLeft then xslot = .cols - 1 - xslot
+   yslot = childindex mod .rows
+   'if dir0 = -1 then yslot = .rows - 1 - yslot
+   if .primary_dir = dirUp then xslot = .cols - 1 - xslot
+  end if
+
+  return XY(xslot, yslot)
+ end with
+' return XY(.ScreenX + xslot * w, .ScreenY + yslot * h)
+end function
 
 'Computes ScreenX/Y, and also sets the width/height if filling
 Sub GridChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
@@ -2682,12 +2729,15 @@ Sub GridChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex a
  dim w as integer = par->Width \ large(1, dat->cols)
  dim h as integer = par->Height \ large(1, dat->rows)
  '--Figure out which child this is
- if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown)
- dim xslot as integer = childindex mod large(1, dat->cols)
- dim yslot as integer = childindex \ large(1, dat->cols)
+ '(If skip_hidden and this
+ if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown, dat->skip_hidden)
+ ' dim xslot as integer = childindex mod large(1, dat->cols)
+ ' dim yslot as integer = childindex \ large(1, dat->cols)
+ dim slot as XYPair = GridChildSlot(par, childindex)
 
  dim support as RectType = any
- support.xy = par->ScreenPos + XY(par->paddingLeft + xslot * w, par->paddingTop + yslot * h)
+ support.x = par->ScreenX + par->paddingLeft + slot.x * w
+ support.y = par->ScreenY + par->paddingTop + slot.y * h
  support.wide = w - par->paddingLeft - par->paddingRight
  support.high = h - par->paddingTop - par->paddingBottom
  RefreshChild ch, support
@@ -2720,17 +2770,14 @@ Sub GridChildDraw(byval s as Slice Ptr, byval page as integer)
 
   'draw the slice's children
   dim ch as Slice ptr = .FirstChild
-  dim childindex as integer = 0
-  for yslot as integer = 0 to dat->rows - 1
-   for xslot as integer = 0 to dat->cols - 1
-    while ch andalso ShouldSkipSlice(ch)  'Skip templates
+  for childindex as integer = 0 to dat->rows * dat->cols - 1
+    while ch andalso ShouldSkipSlice(ch, dat->skip_hidden)  'Skip templates, possibly hidden
      ch = ch->NextSibling
     wend
-    if ch = 0 then exit for, for
+    if ch = 0 then exit for
 
-    dim clippos as XYPair
-    clippos.x = .ScreenX + xslot * w
-    clippos.y = .ScreenY + yslot * h
+    dim clippos as XYPair = .ScreenPos + GridChildSlot(s, childindex) * XY(w, h)
+
     dim rememclip as ClipState = get_cliprect()
     if shrinkclip(clippos.x + .paddingLeft, _
                   clippos.y + .paddingTop, _
@@ -2744,8 +2791,6 @@ Sub GridChildDraw(byval s as Slice Ptr, byval page as integer)
     get_cliprect() = rememclip
 
     ch = ch->NextSibling
-    childindex += 1
-   next
   next
  end with
 End Sub
@@ -2754,12 +2799,9 @@ Function NewGridSlice(byval parent as Slice ptr, byref dat as GridSliceData) as 
  dim ret as Slice ptr
  ret = NewSlice(parent)
  if ret = 0 then return 0
- 
+
  dim d as GridSliceData ptr = new GridSliceData
  *d = dat
- '--Set non-zero defaults here
- d->cols = 1
- d->rows = 1
  
  ret->SliceType = slGrid
  ret->SliceData = d
@@ -2778,7 +2820,8 @@ end function
 Sub ChangeGridSlice(byval sl as Slice ptr,_
                       byval rows as integer=0,_
                       byval cols as integer=0,_
-                      byval show as integer=-2)
+                      byval firstdir as integer=-1,_
+                      byval seconddir as integer=-1)
  if sl = 0 then debug "ChangeGridSlice null ptr" : exit sub
  ASSERT_SLTYPE(sl, slGrid)
  dim dat as GridSliceData Ptr = sl->SliceData
@@ -2788,9 +2831,13 @@ Sub ChangeGridSlice(byval sl as Slice ptr,_
  if cols > 0 then
   dat->cols = cols
  end if
- if show > -2 then
-  dat->show = show
+ if firstdir > -1 then
+  dat->primary_dir = firstdir
  end if
+ if seconddir > -1 then
+  dat->secondary_dir = seconddir
+ end if
+ dat->Validate()
 end sub
 
 '--Layout-----------------------------------------------------------------
@@ -2893,12 +2940,13 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
  end if
 end Sub
 
-Sub LayoutSliceData.Validate()
+Sub BoxStackData.Validate()
+ this.primary_dir and= 3
+ this.secondary_dir and= 3
  if (this.primary_dir and 1) = (this.secondary_dir and 1) then
   'The directions aren't orthogonal
   this.secondary_dir = (this.primary_dir and 1) xor 1
  end if
- 'Could do everything else too...
 end Sub
 
 'Layout slices work
@@ -3534,12 +3582,12 @@ Sub LoadPanelSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->padding = LoadProp(node, "padding")
 End Sub
 
-'Calculate support (size and position relative to screen) of child 'index' of panel slice 'par'.
-Sub CalcPanelSupport (byref support as RectType, byval par as Slice ptr, byval index as integer)
+'Calculate support (size and position relative to screen) of child 'childindex' of panel slice 'par'.
+Sub CalcPanelSupport (byref support as RectType, byval par as Slice ptr, byval childindex as integer)
 
  if par = 0 then debug "CalcPanelArea null par ptr": exit sub
 
- if index > 1 then
+ if childindex > 1 then
   'Panel only expects 2 children
   support = XY_WH(par->ScreenPos, XY(0, 0))
   exit sub
@@ -3565,15 +3613,15 @@ Sub CalcPanelSupport (byref support as RectType, byval par as Slice ptr, byval i
  support.wh.n(other) = innersize.n(other)
  support.xy.n(other) = prepad.n(other)
  prsize = int(innersize.n(axis) * dat->percent) + dat->pixels
- if index = dat->primary then
+ if childindex = dat->primary then
   support.wh.n(axis) = prsize
  else
   support.wh.n(axis) = innersize.n(axis) - prsize
  end if
- if index = 0 then
+ if childindex = 0 then
   support.xy.n(axis) = prepad.n(axis)
  else
-  if index = dat->primary then
+  if childindex = dat->primary then
    support.xy.n(axis) = prepad.n(axis) + (innersize.n(axis) - prsize) + dat->padding
   else
    support.xy.n(axis) = prepad.n(axis) + prsize + dat->padding
@@ -3606,16 +3654,16 @@ Sub PanelChildDraw(byval s as Slice Ptr, byval page as integer)
   dim rememclip as ClipState = any
 
   'draw the slice's children
-  dim index as integer = 0
+  dim childindex as integer = 0
   dim ch as Slice ptr = .FirstChild
   do while ch <> 0
-   if ShouldSkipSlice(ch) then  'Skip template slices
+   if ShouldSkipSlice(ch, .SkipHiddenChildren) then  'Skip template slices
     ch = ch->NextSibling
     continue do
    end if
    dim needdraw as bool = YES
    if .Clip then
-    CalcPanelSupport cliprect, s, index
+    CalcPanelSupport cliprect, s, childindex
 
     rememclip = get_cliprect()
     needdraw = shrinkclip(cliprect.x, cliprect.y, _
@@ -3623,12 +3671,12 @@ Sub PanelChildDraw(byval s as Slice Ptr, byval page as integer)
                           cliprect.y + cliprect.high - 1, vpages(page))
    end if
 
-   if needdraw then DrawSliceRecurse(ch, page, index)
+   if needdraw then DrawSliceRecurse(ch, page, childindex)
 
    if .Clip then get_cliprect() = rememclip
 
-   index += 1
-   if index > 1 then exit do ' Only ever draw the first 2 non-template children!
+   childindex += 1
+   if childindex > 1 then exit do ' Only ever draw the first 2 non-template children!
    ch = ch->NextSibling
   Loop
 
@@ -4208,8 +4256,12 @@ Function FindSliceCollision(parent as Slice Ptr, sl as Slice Ptr, byref num as i
     end if
    end with
   end if
+  if s->Visible orelse parent->SkipHiddenChildren = NO then
+   'Note we can still do hit-checking with hidden children, which in a
+   'Grid/Layout slice will overlap the next visible child.
+   childindex += 1
+  end if
   s = s->NextSibling
-  childindex += 1
  wend
  return NULL
 end function
@@ -4260,8 +4312,12 @@ Function FindSliceAtPoint(parent as Slice Ptr, point as XYPair, byref num as int
     end if
    end if
   end with
+  if s->Visible orelse parent->SkipHiddenChildren = NO then
+   'Note we can still do hit-checking with hidden children, which in a
+   'Grid/Layout slice will overlap the next visible child.
+   childindex += 1
+  end if
   s = s->NextSibling
-  childindex += 1
  wend
  return NULL
 end function
