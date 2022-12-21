@@ -444,6 +444,13 @@ Type Slice
   'it can still be deleted or moved indirectly.
   Protect as bool
 
+  'SkipHiddenChildren is only used by Grid, Layout and Panel slices so should be false for all other types,
+  '(in particular it would break Select slices!)
+  'so is shown in the Grid/Layout/Panel-specific settings in the slice editor.
+  'It tells not to increment childindex for hidden children, causing Grid and Layout slices to
+  'not leave gaps for them. In future it could affect CoverChildren too.
+  SkipHiddenChildren as bool
+
   'NOTE: When adding to this, remember to update CloneSliceTree, SliceLoadFromNode and SliceSaveToNode
 End Type
 
@@ -558,7 +565,6 @@ End Type
 Type BoxStackData
  primary_dir as DirNum = dirRight  'Direction that rows grow
  secondary_dir as DirNum = dirDown 'Direction to shift after a row is full (must be perpendicular to primary_dir)
- skip_hidden as bool          'Don't leave gaps for nonvisible children (aka visibleonly)
 
  Declare Sub Validate()
 End Type
@@ -582,7 +588,7 @@ Type LayoutSliceData Extends BoxStackData
  'Temporary members, not saved
  _previous_row_spacing as double 'Used internally by last_row_justified
 
- Declare Function SkipForward(ch as Slice ptr) as Slice ptr
+ Declare Function SkipForward(par as Slice ptr, ch as Slice ptr) as Slice ptr
  Declare Sub SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as integer, dir0 as integer, byref offsets as integer vector, byref breadth as integer)
 End Type
 

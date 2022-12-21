@@ -2008,11 +2008,11 @@ FUNCTION create_default_battle_hp_area() as Slice Ptr
  layout_sl->PaddingTop = -10
  layout_sl->AlignVert = alignBottom
  layout_sl->AnchorVert = alignBottom
+ layout_sl->SkipHiddenChildren = YES
  WITH *layout_sl->LayoutData
   .primary_dir = dirUp
   .secondary_dir = dirRight  'Not used
   .row_alignment = alignBottom  'MP meter (first child) at the bottom
-  .skip_hidden = YES
   .primary_padding = -1  '2px high MP bar + -1px padding = HP text moves up 1px
  END WITH
 

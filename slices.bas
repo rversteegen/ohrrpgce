@@ -333,11 +333,15 @@ Sub DefaultChildDraw(byval s as Slice Ptr, byval page as integer)
 
   'draw the slice's children
   dim ch as Slice ptr = .FirstChild
-  dim childindex as integer = 0  'Index amongst not-template-skipped siblings
+  dim childindex as integer = 0  'Index amongst not-skipped siblings
   do while ch <> 0
    if ch->Template = NO orelse template_slices_shown then  'equiv to ShouldSkipSlice(ch) = NO
+    'This will call RefreshChild to update ch->Visible
     DrawSliceRecurse(ch, page, childindex)
-    childindex += 1
+
+    if .SkipHiddenChildren = NO orelse ch->Visible then
+     childindex += 1
+    end if
    end if
    ch = ch->NextSibling
   loop
@@ -2658,7 +2662,6 @@ Sub SaveGridSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  SavePropAlways node, "rows", dat->rows
  if dat->primary_dir <> dirRight then SavePropAlways node, "dir0", dat->primary_dir
  if dat->secondary_dir <> dirDown then SavePropAlways node, "dir1", dat->secondary_dir
- SaveProp node, "skip_hidden", dat->skip_hidden
  SavePropAlways node, "show", dat->show
 End Sub
 
@@ -2670,7 +2673,6 @@ Sub LoadGridSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->rows = large(1, LoadProp(node, "rows", 1))
  dat->primary_dir = LoadProp(node, "dir0", dirRight)
  dat->secondary_dir = LoadProp(node, "dir1", dirDown)
- dat->skip_hidden = LoadPropBool(node, "skip_hidden")
  dat->show = LoadPropBool(node, "show")
 
  dat->Validate()
@@ -2730,7 +2732,7 @@ Sub GridChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex a
  dim h as integer = par->Height \ large(1, dat->rows)
  '--Figure out which child this is
  '(If skip_hidden and this
- if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown, dat->skip_hidden)
+ if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown, par->SkipHiddenChildren)
  ' dim xslot as integer = childindex mod large(1, dat->cols)
  ' dim yslot as integer = childindex \ large(1, dat->cols)
  dim slot as XYPair = GridChildSlot(par, childindex)
@@ -2771,7 +2773,7 @@ Sub GridChildDraw(byval s as Slice Ptr, byval page as integer)
   'draw the slice's children
   dim ch as Slice ptr = .FirstChild
   for childindex as integer = 0 to dat->rows * dat->cols - 1
-    while ch andalso ShouldSkipSlice(ch, dat->skip_hidden)  'Skip templates, possibly hidden
+    while ch andalso ShouldSkipSlice(ch, .SkipHiddenChildren)  'Skip templates, possibly hidden
      ch = ch->NextSibling
     wend
     if ch = 0 then exit for
@@ -2851,9 +2853,9 @@ Sub DisposeLayoutSlice(byval sl as Slice ptr)
 end sub
 
 'Skip over hidden slices as needed
-Function LayoutSliceData.SkipForward(ch as Slice ptr) as Slice ptr
+Function LayoutSliceData.SkipForward(par as Slice ptr, ch as Slice ptr) as Slice ptr
 ' ch = ch->NextSibling
- while ch andalso ShouldSkipSlice(ch, skip_hidden)
+ while ch andalso ShouldSkipSlice(ch, par->SkipHiddenChildren)
   ch = ch->NextSibling
  wend
  return ch
@@ -2876,7 +2878,7 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
  dim offset as integer = 0 ' along axis 0
  breadth = this.min_row_breadth  ' in axis 1
 
- first = SkipForward(first)
+ first = SkipForward(par, first)
  dim as Slice ptr ch = first, last
  'Should never happen
  if ch = 0 then showbug "SpaceRow: no children" : exit sub
@@ -2896,7 +2898,7 @@ Sub LayoutSliceData.SpaceRow(par as Slice ptr, first as Slice ptr, axis0 as inte
   offset += ch->Size.n(axis0) + this.primary_padding
   breadth = large(breadth, ch->Size.n(1 xor axis0))
 
-  ch = SkipForward(ch->NextSibling)
+  ch = SkipForward(par, ch->NextSibling)
  wend
  dim is_last_row as bool = (ch = NULL)
 
@@ -3005,7 +3007,7 @@ Sub LayoutChildrenRefresh(byval par as Slice ptr)
  wend
 
  'Now calculate positions of each visible child
- ch = dat->SkipForward(par->FirstChild)
+ ch = dat->SkipForward(par, par->FirstChild)
  while ch
   dat->SpaceRow(par, ch, axis0, dir0, offsets, breadth)
 
@@ -3031,7 +3033,7 @@ Sub LayoutChildrenRefresh(byval par as Slice ptr)
      case alignRight:  .ScreenPos.n(axis1) += within_cell_space
     end select
    end with
-   ch = dat->SkipForward(ch->NextSibling)
+   ch = dat->SkipForward(par, ch->NextSibling)
 
    ' ch = ch->NextSibling
    ' if skip_hidden then
@@ -3060,7 +3062,6 @@ Sub SaveLayoutSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  SavePropAlways node, "dir1", dat->secondary_dir
  SaveProp node, "padding0", dat->primary_padding
  SaveProp node, "padding1", dat->secondary_padding
- SaveProp node, "skip_hidden", dat->skip_hidden
  SaveProp node, "min_breadth", dat->min_row_breadth
  SaveProp node, "justified", dat->justified
  if dat->justified then
@@ -3079,7 +3080,6 @@ Sub LoadLayoutSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  dat->secondary_dir = LoadProp(node, "dir1")
  dat->primary_padding = LoadProp(node, "padding0")
  dat->secondary_padding = LoadProp(node, "padding1")
- dat->skip_hidden = LoadPropBool(node, "skip_hidden")
  dat->justified = LoadPropBool(node, "justified")
  dat->last_row_justified = LoadPropBool(node, "last_row_justified")
  dat->min_row_breadth = LoadProp(node, "min_breadth")
@@ -3635,7 +3635,7 @@ Sub PanelChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex 
  if ch = 0 then debug "PanelChildRefresh null ptr": exit sub
  if visibleonly andalso ch->Visible = NO then exit sub  'Don't need to exclude template slices
 
- if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown)
+ if childindex < 0 then childindex = SliceIndexAmongSiblings(ch, template_slices_shown, par->SkipHiddenChildren)
  if childindex > 1 then exit sub  'Panel only expects 2 children
 
  dim support as RectType = any
@@ -3657,7 +3657,7 @@ Sub PanelChildDraw(byval s as Slice Ptr, byval page as integer)
   dim childindex as integer = 0
   dim ch as Slice ptr = .FirstChild
   do while ch <> 0
-   if ShouldSkipSlice(ch, .SkipHiddenChildren) then  'Skip template slices
+   if ShouldSkipSlice(ch, .SkipHiddenChildren) then  'Skips template slices
     ch = ch->NextSibling
     continue do
    end if
@@ -3676,7 +3676,8 @@ Sub PanelChildDraw(byval s as Slice Ptr, byval page as integer)
    if .Clip then get_cliprect() = rememclip
 
    childindex += 1
-   if childindex > 1 then exit do ' Only ever draw the first 2 non-template children!
+   ' Only ever draw the first 2 non-template children! (And possibly restrict to visible too)
+   if childindex > 1 then exit do
    ch = ch->NextSibling
   Loop
 
@@ -4632,6 +4633,7 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles 
  SaveProp node, "sort", sl->Sorter
  SaveProp node, "autosort", sl->AutoSort
  SaveExtraVector node, "extra", sl->ExtraVec
+ SaveProp node, "skip_hidden", sl->SkipHiddenChildren
  #IFDEF IS_GAME
   if save_handles then
    ' This only occurs when saving a game.
@@ -4746,6 +4748,7 @@ Function SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_h
  sl->FillMode = LoadProp(node, "fillmode")
  sl->Sorter = LoadProp(node, "sort")
  sl->AutoSort = LoadProp(node, "autosort")
+ sl->SkipHiddenChildren = LoadPropBool(node, "skip_hidden")
 
  'Load extra data
  dim ex_node as Reload.NodePtr = GetChildByName(node, "extra")

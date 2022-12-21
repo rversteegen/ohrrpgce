@@ -2058,8 +2058,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule rules(), "layout_primary_dir", erIntgrabber, @dat->primary_dir, 0, 3
     a_append menu(), " Second stacking direction: " & DirectionCaptions(dat->secondary_dir)
     sliceed_rule_none rules(), "layout_secondary_dir", slgrBOXSTACK2NDDIR
-    a_append menu(), " Skip hidden: " & yesorno(dat->skip_hidden)
-    sliceed_rule_tog rules(), "layout_skip_hidden", @dat->skip_hidden
+    a_append menu(), " Skip hidden children: " & yesorno(sl->SkipHiddenChildren)
+    sliceed_rule_tog rules(), "skip_hidden", @sl->SkipHiddenChildren
     a_append menu(), " Show grid: " & yesorno(dat->show)
     sliceed_rule_tog rules(), "grid_show", @(dat->show)
 
@@ -2090,13 +2090,15 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     dat = .SliceData
     a_append menu(), " Orientation: " & IIF(dat->vertical, "Vertical", "Horizontal")
     sliceed_rule_tog rules(), "panel_vertical", @(dat->vertical)
-    a_append menu(), " Primary Child Is: " & dat->primary
+    a_append menu(), " Primary child is: " & dat->primary
     sliceed_rule rules(), "panel_primary", erIntgrabber, @(dat->primary), 0, 1
+    a_append menu(), " Skip hidden children: " & yesorno(sl->SkipHiddenChildren)
+    sliceed_rule_tog rules(), "skip_hidden", @sl->SkipHiddenChildren
     a_append menu(), "  " & IIF(dat->vertical, "Height", "Width") & ": " & format_percent(dat->percent) & " of panel"
     sliceed_rule_double rules(), "panel_percent", erPercentgrabber, @(dat->percent)
     a_append menu(), "  ...plus: " & dat->pixels & " pixels"
     sliceed_rule rules(), "panel_pixels", erIntgrabber, @(dat->pixels), 0, 9999 'FIXME: upper limit of 9999 is totally arbitrary
-    a_append menu(), " Padding Between Children: " & dat->padding
+    a_append menu(), " Padding between children: " & dat->padding
     sliceed_rule rules(), "panel_padding", erIntgrabber, @(dat->padding), 0, 9999 'FIXME: upper limit of 9999 is totally arbitrary
 
    CASE slLayout
@@ -2126,8 +2128,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule rules(), "layout_secondary_padding", erIntgrabber, @dat->secondary_padding, -9999, 9999
     a_append menu(), " Min row thickness: " & dat->min_row_breadth
     sliceed_rule rules(), "layout_min_row_breadth", erIntgrabber, @dat->min_row_breadth, 0, 9999
-    a_append menu(), " Skip hidden: " & yesorno(dat->skip_hidden)
-    sliceed_rule_tog rules(), "layout_skip_hidden", @dat->skip_hidden
+    a_append menu(), " Skip hidden children: " & yesorno(sl->SkipHiddenChildren)
+    sliceed_rule_tog rules(), "skip_hidden", @sl->SkipHiddenChildren
   END SELECT
 
  END IF  'expand_special
