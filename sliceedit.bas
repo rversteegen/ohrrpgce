@@ -146,7 +146,7 @@ DIM SHARED remember_draw_root_pos as XYPair
 DIM SHARED clipboard as Slice ptr
 
 
-REDIM SHARED editable_slice_types(9) as SliceTypes
+REDIM SHARED editable_slice_types(10) as SliceTypes
 editable_slice_types(0) = SlContainer
 editable_slice_types(1) = SlSprite
 editable_slice_types(2) = SlText
@@ -157,7 +157,7 @@ editable_slice_types(6) = SlScroll
 editable_slice_types(7) = SlSelect
 editable_slice_types(8) = SlGrid
 editable_slice_types(9) = SlPanel
-'editable_slice_types(10) = SlLayout
+editable_slice_types(10) = SlLayout
 'Omitted: slSpecial, slMap
 
 '==============================================================================
@@ -513,9 +513,6 @@ END SUB
 ' The main function of the slice editor is not called directly, call a slice_editor() overload instead.
 SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, initial_slice as Slice ptr = NULL)
  slice_editor_load_settings ses
-
- REDIM PRESERVE editable_slice_types(9)  'Remove slLayout if previously added it
- IF ses.privileged THEN a_append editable_slice_types(), slLayout
 
  '--user-defined slice lookup codes
  REDIM ses.slicelookup(10) as string

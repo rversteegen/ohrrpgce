@@ -20,4 +20,4 @@ Select - A special container that manages the visibility of its children. Only o
 
 Panel - A special container that only allows 2 children. The panel space will be divided between the two children according to a percentage or a fixed number of pixels.
 
-Layout - A special container which positions its children end-to-end and wrapped onto multiple rows, like words on a page or elements in an HTML document. A good alternative to a Grid if the children are different sizes.
+Layout - A special container which positions its children end-to-end and wrapped onto multiple rows or columns, like words on a page or 'inline elements' in an HTML document. A good alternative to a Grid if the children are different sizes.
