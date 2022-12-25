@@ -84,6 +84,7 @@ DECLARE SUB spriteedit_replace_col(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_flood_fill(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_sprctrl(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_clip (ss as SpriteEditState)
+DECLARE SUB changetopal (ss as SpriteEditState, newpal as integer)
 DECLARE SUB changepal (ss as SpriteEditState, palchange as integer)
 DECLARE SUB writeundospr (ss as SpriteEditState)
 DECLARE SUB readundospr (ss as SpriteEditState)
@@ -131,35 +132,36 @@ SUB airbrush (spr as Frame ptr, byval x as integer, byval y as integer, byval d 
  NEXT
 END SUB
 
-' Save current palette and load another one. When palchange=0, just saves current
-SUB changepal OVERLOAD (ss as SpriteEditState, palchange as integer)
+' Save current palette and load another one.
+SUB changetopal (ss as SpriteEditState, newpal as integer)
  palette16_save ss.palette, ss.pal_num
  'Note: bounding to gen(genMaxPal) would do nothing, because the
  'sprite editor increases gen(genMaxPal) whenever you reach the end
- ss.pal_num = bound(ss.pal_num + palchange, 0, 32767)
+ 'And this sub must allow going past the end anyway.
+ ss.pal_num = bound(newpal, 0, 32767)
  palette16_unload @ss.palette
  ss.palette = palette16_load(ss.pal_num, , , NO)  'expect_exists=NO
 END SUB
 
+' Save current palette and load another one. When palchange=0, just saves current
+SUB changepal (ss as SpriteEditState, palchange as integer)
+ changetopal ss, ss.pal_num + palchange
+END SUB
+
 FUNCTION pal_num_intgrabber (ss as SpriteEditState, lesskey as KBScancode=ccLeft, morekey as KBScancode=ccRight) as bool
- DIM old as integer = ss.pal_num
- IF intgrabber(ss.pal_num, 0, gen(genMaxPal) + 1, lesskey, morekey) THEN
-  palette16_save ss.palette, old
-  palette16_unload @ss.palette
-  ss.palette = palette16_load(ss.pal_num, , , NO)  'expect_exists=NO
+ DIM pal_num as integer = ss.pal_num
+ IF intgrabber(pal_num, 0, gen(genMaxPal) + 1, lesskey, morekey) THEN
+  changetopal ss, pal_num
   RETURN YES
  END IF
 END FUNCTION
 
 'Pick ss.pal_num with the palette browser, saving/loading before/after
 SUB spriteedit_pal16_browser (ss as SpriteEditState, sprite as Frame ptr)
- '--write changes so far
+ 'Write sprite and palette because the browser loads them
  ss.save_callback(ss.sprite, ss.save_callback_context, ss.pal_num)
- '--save current palette
  palette16_save ss.palette, ss.pal_num
- ss.pal_num = pal16browse(ss.pal_num, sprite)  'Can return > genMaxPal
- palette16_unload @ss.palette
- ss.palette = palette16_load(ss.pal_num, , , NO)  'expect_exists=NO
+ changetopal ss, pal16browse(ss.pal_num, sprite)  'Can return > genMaxPal
 END SUB
 
 'Copy a tile from one vpage to another
