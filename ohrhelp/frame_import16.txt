@@ -1,4 +1,9 @@
-Use the LEFT and RIGHT, or [ and ] keys, or type an ID number, to select a 16 color palette.
+Select a 16 color palette to use or overwrite while importing an image.
+
+Add New Palette: imports the image's palette as a new palette, after the last used one. The selected palette is ignored.
+
+The other options require you to select a palette.
+Use the LEFT and RIGHT, or [ and ] keys, or type an ID number.
 Or press P or click on "Pal ###" to browse for a palette.
 
 Overwrite Current Palette: overwrites the current palette with the one from the image.

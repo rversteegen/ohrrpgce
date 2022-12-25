@@ -3132,20 +3132,26 @@ SUB spriteedit_import16_compare_palettes(byval old_pal as Palette16 ptr, byval n
  NEXT
 END SUB
 
+'Menu to select the palette ID for an imported palette (while importing a sprite)
 'Return value: see retval()
-'Also returns contents of palmapping()
+'Also returns contents of palmapping() and modifies ss.pal_num (and ss.palette) to the palette to use, but doesn't import it
 FUNCTION spriteedit_import16_remap_menu(byref ss as SpriteEditState, byref impsprite as Frame ptr, byref pal16 as Palette16 ptr, palmapping() as integer) as integer
  DIM can_remap as bool
  DIM is_identical as bool
  DIM usepal as Palette16 ptr
+ DIM display_pal as Palette16 ptr
+ DIM display_pal_id as integer
  DIM ret as integer
+ DIM new_pal_id as integer = gen(genMaxPal) + 1
+ DIM blank_pal as Palette16 ptr = palette16_new()
 
- DIM pmenu(2) as string
- DIM retval(2) as integer
+ CONST menulast = 3
+ DIM pmenu(menulast) as string
+ DIM retval(menulast) as integer
  DIM palstate as MenuState
  palstate.pt = 0
- palstate.last = 2
- palstate.size = 2
+ palstate.last = menulast
+ palstate.size = menulast
  palstate.need_update = YES
  showmousecursor
  setkeys
@@ -3174,25 +3180,38 @@ FUNCTION spriteedit_import16_remap_menu(byref ss as SpriteEditState, byref impsp
    spriteedit_pal16_browser ss, impsprite
   END IF
   IF usemenu(palstate) THEN palstate.need_update = YES
-  IF enter_space_click(palstate) THEN ret = retval(palstate.pt) : EXIT DO
+  IF enter_space_click(palstate) THEN
+   ret = retval(palstate.pt)
+   IF palstate.pt = 0 THEN changetopal ss, new_pal_id
+   EXIT DO
+  END IF
 
   IF palstate.need_update THEN
    palstate.need_update = NO
    spriteedit_import16_compare_palettes ss.palette, pal16, palmapping(), can_remap, is_identical
 
-   pmenu(0) = "Overwrite Current Palette"
+   pmenu(0) = "Add New Palette, " & new_pal_id
    retval(0) = 0
+   pmenu(1) = "Overwrite Palette " & ss.pal_num
+   retval(1) = 0
    IF can_remap THEN
-    pmenu(1) = "Remap into Current Palette"
-    retval(1) = 1
+    pmenu(2) = "Remap into Palette " & ss.pal_num
+    retval(2) = 1
    ELSE
-    pmenu(1) = "Import Without Palette"
-    retval(1) = 2
+    pmenu(2) = "Import Without Palette"
+    retval(2) = 2
    END IF 
-   pmenu(2) = "Cancel Import"
-   retval(2) = 3
+   pmenu(3) = "Cancel Import"
+   retval(3) = 3
 
-   IF palstate.pt = 1 AND can_remap = NO THEN
+   display_pal_id = ss.pal_num
+   display_pal = ss.palette
+
+   IF palstate.pt = 0 THEN
+    usepal = pal16
+    display_pal_id = new_pal_id
+    display_pal = blank_pal
+   ELSEIF palstate.pt = 2 AND can_remap = NO THEN
     'Preview import without palette
     usepal = ss.palette
    ELSE
@@ -3206,21 +3225,22 @@ FUNCTION spriteedit_import16_remap_menu(byref ss as SpriteEditState, byref impsp
   'Draw palettes
   textcolor uilook(uiText), 0
   printstr bgcol_text(CHR(27), uilook(uiDisabledItem)) _
-           & "Pal" & rlpad(STR(ss.pal_num), " ", 3, 4) _
+           & "Pal" & rlpad(STR(display_pal_id), " ", 3, 4) _
            & bgcol_text(CHR(26), uilook(uiDisabledItem)), 243, 100, dpage, YES
-  spriteedit_draw_palette ss.palette, 246, 109, dpage
+  spriteedit_draw_palette display_pal, 246, 109, dpage
   printstr "Image Pal", 245, 80, dpage
   spriteedit_draw_palette pal16, 246, 89, dpage
 
   rectangle 4, 144, 224, 32, uilook(uiDisabledItem), dpage
   standardmenu pmenu(), palstate, 8, 148, dpage
-  edgeprint "(Press LEFT or RIGHT to select palette)", 0, 188, uilook(uiMenuItem), dpage
+  edgeprint "(Type palette number or press LEFT/RIGHT)", 0, pBottom - 2, uilook(uiMenuItem), dpage
 
   SWAP vpage, dpage
   setvispage vpage
   dowait
  LOOP
  hidemousecursor
+ palette16_unload @blank_pal
  RETURN ret
 END FUNCTION
 
