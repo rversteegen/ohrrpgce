@@ -1009,6 +1009,12 @@ Sub ReplaceSliceType(byval sl as Slice ptr, byref newsl as Slice ptr)
   sl->SliceType = .SliceType
   'Break slice connection to data
   .SliceData = 0
+
+  'Re-initialise any Slice data as required by certain slice types
+  IF sl->SliceType = slSelect THEN
+   sl->SkipHiddenChildren = NO  'This would break Select slices
+  END IF
+
   'Now destroy newsl
   DeleteSlice @newsl
  END WITH
