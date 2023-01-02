@@ -75,7 +75,8 @@ END SUB
 
 SUB draw_loop
 	switch_to_32bit_vpages()
-	toggle_fps_display
+	toggle_fps_display  'Display FPS
+	toggle_fps_display  'Draw FPS
 
 	FOR it as integer = 0 TO 999999
 		setwait 16.666
@@ -90,7 +91,8 @@ SUB draw_loop
 	NEXT
 END SUB
 
-
+'allmodex_setoption("maxfps", "100000")  'Disable frame skipping
+use_speed_control = true  'Disable framerate limiting (otherwise runs at 60 FPS)
 draw_loop
 
 closemusic
