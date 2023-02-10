@@ -1987,9 +1987,12 @@ end sub
 
 '--Sprite-----------------------------------------------------------------
 
+Declare Function LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO) as bool
+Declare Sub LoadSpriteSliceImageAndTransform(byval sl as Slice ptr, warn_if_missing as bool = NO)
 Declare Sub LoadAssetSprite(sl as Slice ptr, warn_if_missing as bool = YES)
 Declare Sub RecomputeSpriteRotozoomTransform(byval sl as Slice ptr)
 Declare Sub NormalizeSliceTransform(sl as Slice ptr, byref transfrm as Quad, drop_offset as bool = NO)
+Declare Sub UpdateSpriteIsTransformed(sl as Slice ptr)
 
 ' Frees any memory held by a sprite, leaving in a consistent state, but does not reset its type and other data
 Sub UnloadSpriteSlice(byval sl as Slice ptr)
@@ -2020,6 +2023,7 @@ Local Function frame_load_dummy(size as XYPair) as Frame ptr
  return ret
 end Function
 
+'Not to be confused with quad_integer_rect, this gets the size ignoring rotations and shears
 Local Function calc_quad_size(transform as Quad) as XYPAir
  dim size as XYPair
  size.w = vec2Distance(transform.topleft, transform.topright)  'Rounding to nearest pixel
@@ -2032,49 +2036,15 @@ end function
 ' Detects when a reload needs to happen due the Frame being modified or the transform changing,
 ' but doesn't detect when it's needed due to .spritetype, .record, .frame or .pal changing;
 ' in that case need to manually set .loaded = NO first.
-Sub LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO)
- if sl = 0 then exit sub
- if sl->SliceData = 0 then exit sub
+Function LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO) as bool
+ if sl = 0 orelse sl->SliceData = 0 then return NO
 
- 'dim scaled_need_update as bool = NO
  with *sl->SpriteData
-  if .img.sprite then
-   '.loaded is true
-   if .img_gen <> .original_img->generation then
-    .loaded = NO
-   elseif .is_transformed andalso .rz_cache_scaled then
-    'Check whether need to re-pre-scale the graphic because the transform size changed
-    dim scaled_size as XYPair = calc_quad_size(.transform)
-    if scaled_size <> .img.sprite->size then .loaded = NO
-   end if
-
-
-   ' if .scaled then
-   '  if .img.sprite->size <> .basesize /'sl->Size'/ then .loaded = NO
-   ' else
-   '  'You can't resize a sprite slice, except by using Fill (for backcompat,
-   '  'yuck). (CoverChildren isn't allowed on sprites.) But a spriteset's size can
-   '  'change, or fill mode might change, so we need to reset its size. It's too
-   '  'hard to tell whether a spriteset changed size without storing the old size,
-   '  'so we just unconditionally reset the size here, which happens on every
-   '  'DrawSpriteSlice call.
-   '  'This may not be the ideal place to put this code.
-   '  'NOTE: it's this code alone that prevents a Sprite slice's size from being changed
-   '  'in the slice editor. That's pretty ugly.
-   '  if sl->Fill /'orelse sl->CoverChildren <> coverNone'/ then
-   '   if sl->FillHoriz() = NO /'andalso (sl->CoverChildren and coverHoriz) = 0'/ then
-   '    sl->Width = .img.sprite->w
-   '   end if
-   '   if sl->FillVert() = NO /'andalso (sl->CoverChildren and coverVert) = 0'/ then
-   '    sl->Height = .img.sprite->h
-   '   end if
-   '  else  'sl->CoverChildren = coverNone and sl->Fill = NO and .cached_scaled = NO and zoom = 1.
-   '   sl->Size = .img.sprite->size
-   '  end if
-   ' end if
+  if .original_img andalso .img_gen <> .original_img->generation then
+   .loaded = NO
   end if
 
-  if .loaded /'andalso .scaled_need_update = NO'/ then exit sub
+  if .loaded then return NO
 
   'Load the sprite
   if .spritetype = sprTypeFrame then
@@ -2095,55 +2065,38 @@ Sub LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO)
 
   .frame = small(.frame, .img.sprite->arraylen - 1)
 
-  'Update transform,  slice size and possibly scale the sprite
-  if .is_transformed then
-   if .use_rz_params then
-    'Need to update the transform due to the image size possibly changing
-    'The slice size (pre-rotation) will update according to .rz_scale.
-    RecomputeSpriteRotozoomTransform sl
-    NormalizeSliceTransform sl, .transform, YES  'drop_offset=YES. Updates sl->Size
-   else
-    'NOTE!! We *don't* change the slice size (or .transform), because the user has specified a size
-    '(either explicitly or as vertices) which overrode the Frame size
-   end if
-
-   if .rz_cache_scaled then
-    dim scaled_size as XYPair = calc_quad_size(.transform)
-    if scaled_size <> .img.sprite->size then
-     'Becomes a 32-bit sprite
-     frame_assign @.img.sprite, frame_scaled32(@.img.sprite[.frame], scaled_size.w, scaled_size.h, master(), .img.pal)
-     palette16_unload @.img.pal
-     'Should set .paletted = NO? But the removal of the palette is reversible
+  'Update the slice size
+  if .is_transformed = NO then
+   'You can't resize a sprite slice, except by using Fill (for backcompat,
+   'yuck). (CoverChildren isn't allowed on sprites.) But a spriteset's size can
+   'change, or fill mode might change, so we need to reset its size. It's too
+   'hard to tell whether a spriteset changed size without storing the old size,
+   'so we just unconditionally reset the size here, which happens on every
+   'DrawSpriteSlice call.
+   'This may not be the ideal place to put this code.
+   'NOTE: it's this code alone that prevents a Sprite slice's size from being changed
+   'in the slice editor. That's pretty ugly.
+   if sl->Fill /'orelse sl->CoverChildren <> coverNone'/ then
+    if sl->FillHoriz() = NO /'andalso (sl->CoverChildren and coverHoriz) = 0'/ then
+     sl->Width = .img.sprite->w
     end if
+    if sl->FillVert() = NO /'andalso (sl->CoverChildren and coverVert) = 0'/ then
+     sl->Height = .img.sprite->h
+    end if
+   else  'sl->CoverChildren = coverNone and sl->Fill = NO and .cached_scaled = NO and zoom = 1.
+    sl->Size = .img.sprite->size
    end if
-
-  else  '.is_transformed = NO
-
-   '  'You can't resize a sprite slice, except by using Fill (for backcompat,
-   '  'yuck). (CoverChildren isn't allowed on sprites.) But a spriteset's size can
-   '  'change, or fill mode might change, so we need to reset its size. It's too
-   '  'hard to tell whether a spriteset changed size without storing the old size,
-   '  'so we just unconditionally reset the size here, which happens on every
-   '  'DrawSpriteSlice call.
-   '  'This may not be the ideal place to put this code.
-   '  'NOTE: it's this code alone that prevents a Sprite slice's size from being changed
-   '  'in the slice editor. That's pretty ugly.
-   '  if sl->Fill /'orelse sl->CoverChildren <> coverNone'/ then
-   '   if sl->FillHoriz() = NO /'andalso (sl->CoverChildren and coverHoriz) = 0'/ then
-   '    sl->Width = .img.sprite->w
-   '   end if
-   '   if sl->FillVert() = NO /'andalso (sl->CoverChildren and coverVert) = 0'/ then
-   '    sl->Height = .img.sprite->h
-   '   end if
-   '  else  'sl->CoverChildren = coverNone and sl->Fill = NO and .cached_scaled = NO and zoom = 1.
-   '   sl->Size = .img.sprite->size
-   '  end if
-
-
-   sl->Size = .img.sprite->size
+  else
+   'Handled by UpdateSpriteSliceTransform
   end if
-
  end with
+ return YES
+end function
+
+private sub LoadSpriteSliceImageAndTransform(sl as Slice ptr, warn_if_missing as bool = NO)
+ if LoadSpriteSliceImage(sl) then
+  UpdateSpriteSliceTransform sl, YES, YES  'drop_offset=YES, img_changed=YES
+ end if
 end sub
 
 Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
@@ -2155,8 +2108,7 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
   if gfx_op_timer.enabled then
    if .dissolving then
     subtimer = TimerIDs.Dissolve
-   elseif .rotate or .zoom <> 1. or .flipHoriz or .flipVert then
-    'Though surfaces don't support DrawOptions.scale yet
+   elseif .use_transform then
     subtimer = TimerIDs.Rotozoom
    elseif .drawopts.with_blending then
     subtimer = TimerIDs.Blend
@@ -2164,10 +2116,10 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
    if subtimer then subtimer = gfx_op_timer.substart(subtimer)
   end if
 
-  LoadSpriteSliceImage sl
+  LoadSpriteSliceImageAndTransform sl
 
   dim spr as Frame ptr
-  'dim have_copy as bool = NO
+  dim have_copy as bool = NO
   spr = .img.sprite
   if spr = 0 then
    if subtimer then gfx_op_timer.substop subtimer
@@ -2181,7 +2133,7 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
    .frame = 0
   end if
   'Only a single frame is scaled and cached
-  if .scaled = NO then
+  if .rz_cache_scaled = NO then
    spr = @spr[.frame]
   end if
 
@@ -2192,9 +2144,15 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
 
   dim drew as bool = NO
 
-  if .use_transform andalso .dissolving = NO then
-   frame_draw_transformed spr, , .img.pal, sl->ScreenPos, .transform, .trans, vpages(page), .drawopts
-   drew = YES
+  if .use_transform then
+   if .dissolving then
+    'This will return an 8-bit Frame, as currently required for dissolving, as long as spr is one
+    spr = frame_transformed(spr, , , .transform)
+    have_copy = YES
+   else
+    frame_draw_transformed spr, , .img.pal, sl->ScreenPos, .transform, .trans, vpages(page), .drawopts
+    drew = YES
+   end if
   end if
 
   if .dissolving then
@@ -2229,10 +2187,9 @@ Sub DrawSpriteSlice(byval sl as Slice ptr, byval page as integer)
 
   'if .drawopts.with_blending then watch.stop_and_print()
 
-  'This will be used again when dissolving transformed sprites is implemented
-  ' if have_copy then
-  '  frame_unload(@spr)
-  ' end if
+  if have_copy then
+   frame_unload(@spr)
+  end if
 
   if subtimer then gfx_op_timer.substop subtimer
  end with
@@ -2290,7 +2247,7 @@ Sub SetSpriteToAsset(sl as Slice ptr, assetfile as string, warn_if_missing as bo
   .paletted = NO
   .pal = -1
  end with
- LoadSpriteSliceImage sl, warn_if_missing
+ LoadSpriteSliceImageAndTransform sl, warn_if_missing
 End Sub
 
 ' Provide an external image for this sprite slice, instead of one of the game's sprites.
@@ -2415,24 +2372,21 @@ Local Sub LoadDrawOpts(drawopts as DrawOptions, node as Reload.Nodeptr)
   .with_blending = LoadProp(node, "blend")
   .blend_mode = bound(LoadProp(node, "blend_mode"), 0, blendModeLAST)
   .opacity = bound(LoadPropFloat(node, "opacity", 1.0), 0., 1.)
-  'scale: not loaded yet
  end with
 end sub
 
-'Internal, updates .is_transformed and .use_transform according to whether 
-'sub DropTrivialSpriteTransform(sl as Slice ptr)
-'sub CheckSpriteTransformIsTrivial(sl as Slice ptr)
+'Internal, updates .is_transformed and .use_transform by comparing the transform
+'quad with the image size. Assumes .original_img and .img.sprite are already loaded
+'and and prescaled if .rz_cache_scaled.
 local sub UpdateSpriteIsTransformed(sl as Slice ptr)
  if sl->SliceType <> slSprite then exit sub
  with *sl->SpriteData
-/'
+  /'
   'Don't check .rz_origin or .rz_smooth or .rz_cache_scaled
   'FIXME: what about transforms that keep_size? rz_origin matters?
   .is_transformed = (.rz_flip_vert orelse .rz_flip_horiz orelse .rz_scale <> XYF(1.0, 1.0) _
                      orelse fmod(.rz_angle, 360) <> 0.0)
-'/
-  'Ensure have up-to-date img.sprite->size and .original_img->size
-  LoadSpriteSliceImage sl
+  '/
 
   'Does .transform differ from the trivial transform of .img.sprite (which may be prescaled)?
   dim box as Quad
@@ -2459,27 +2413,8 @@ local sub UpdateSpriteIsTransformed(sl as Slice ptr)
    end if
   end if
 
-  
  end with
 end sub
-
-
-
-/'
-sub NormaliseTransform(byref transfrm as Quad, byref rect as RectType)
- dim rectf as ClippingRectF
- calculatePolygonRect(@transfrm.vertices(0), 4, sizeof(Float2), rect)
- 'Convert to integer
- rect.x = rectf.left - 0.01  'Round .5 down instead of to nearest even
- rect.y = rectf.top - 0.01
- rect.w = cint(rectf.right - 0.01) - rect.x
- rect.h = cint(rectf.bottom - 0.01) - rect.y
- for idx as integer = 0 to 3
-  transfrm.vertices(idx).x -= rect.x
-  transfrm.vertices(idx).y -= rect.y
- next
-end sub
-'/
 
 'Called after a sprite's Quad changes to normalize it and update the slice .Pos & .Size:
 'it's shifted so that its bounding box has ABS(minx)<=0.5, ABS(miny)<=0.5, and sl->Size is set to
@@ -2487,16 +2422,7 @@ end sub
 'Unless drop_offset=YES, the slice's position is shifted to compensate for the shift of transform
 'vertices plus the shift due to effect of any change in its size on its anchor point position.
 sub NormalizeSliceTransform(sl as Slice ptr, byref transfrm as Quad, drop_offset as bool = NO)
- dim rectf as ClippingRectF
- calculatePolygonRect(@transfrm.vertices(0), 4, sizeof(Float2), rectf)
- 'Convert to integer by rounding to nearest, but rounding .5 down instead of to nearest even.
- 'Note that rounding effectively finds the range of pixels whose center is
- 'within the polygon, which is the criterion used by the rasterizer.
- dim rect as RectType
- rect.x = rectf.left - 0.001
- rect.y = rectf.top - 0.001
- rect.w = cint(rectf.right - 0.001) - rect.x
- rect.h = cint(rectf.bottom - 0.001) - rect.y
+ dim rect as RectType = quad_integer_rect(transfrm)
  'Note: when the transform changes in reaction to the slice size changing when
  'HandleSliceSizeChange is called, the existing normalised transform will be stretched
  'to the new size which means rect.xy = 0, hence .Pos never changes
@@ -2512,7 +2438,7 @@ sub NormalizeSliceTransform(sl as Slice ptr, byref transfrm as Quad, drop_offset
   'Position of the top-left corner of the slice relative to its align point on the parent
 '    dim pos as XYPair = .Pos - 
 
-  sl->Pos += rect.xy + oldanc - XY(SliceXAnchor(sl), SliceYAnchor(sl))
+  sl->Pos += /'rect.xy +'/ oldanc - XY(SliceXAnchor(sl), SliceYAnchor(sl))
   ' sl->X += rect.x
   ' sl->Y += rect.y
  end if
@@ -2522,7 +2448,9 @@ sub NormalizeSliceTransform(sl as Slice ptr, byref transfrm as Quad, drop_offset
  next
 end sub
 
-'
+/'
+'Update .transform from .rz_* params.
+'Need to call UpdateSpriteIsTransformed manually afterwards.
 local sub RecomputeSpriteRotozoomTransform(byval sl as Slice ptr)
  with *sl->SpriteData
   if .use_rz_params = NO then exit sub
@@ -2531,44 +2459,86 @@ local sub RecomputeSpriteRotozoomTransform(byval sl as Slice ptr)
    'Recompute from the basesize - unimplemented
    'basesize = .basesize
   'else
-   'Recompute from zoomx/y...
+   'Recompute from scale x/y...
   'end if
-  LoadSpriteSliceImage sl
-  'basesize = original_size
-  'If .rz_cache_scaled then the Frame size is already multiplied by rz_scale.
-  'FIXME: that causes the scaled slice size to be rounded to the nearest pixel.
-'  if .rz_cache_scaled = NO then
-'   basesize *= .rz_scale
-'  end if
+
+  'Ensure .original_img is correct
+  if .original_img = NULL then LoadSpriteSliceImage sl
+
+  ' basesize = original_size
+  ' if .rz_cache_scaled = NO then
+  '  basesize *= .rz_scale 'FIXME: would cause the scaled slice size to be rounded to the nearest pixel
+  ' else
+  '  'If .rz_cache_scaled then the Frame size is already multiplied by rz_scale
+  ' end if
   rotozoom_transform .transform, .original_img->size, @.rz_origin, XYF(0, 0), .rz_angle, .rz_scale, .rz_flip_horiz, .rz_flip_vert
  end with
 end sub
+'/
 
-'Must be called after modifying rotozoom parameters or .transform directly.
-'Updates .transform and .is_transformed as needed
-sub UpdateSpriteSliceTransform(sl as Slice ptr, drop_offset as bool = NO)
+/'
+Sub LoadSpriteSliceImageAndTransform(sl as Slice ptr)
+ dim transform_need_update as bool = NO
  with *sl->SpriteData
-  if .use_rz_params then
-   RecomputeSpriteRotozoomTransform sl
+  if .is_transformed andalso .rz_cache_scaled andalso .loaded then
+   'Check whether need to re-pre-scale the graphic because the transform size changed
+   'TODO: avoid doing this check on every Draw
+   dim scaled_size as XYPair = calc_quad_size(.transform)
+   if scaled_size <> .img.sprite->size then transform_need_update = YES
   end if
-  NormalizeSliceTransform sl, .transform, drop_offset
-  UpdateSpriteIsTransformed sl
-  'If using .rz_cache_scaled will need to regenerate image
-  LoadSpriteSliceImage sl
 
-  'LoadSpriteSliceImage will decide whether the scaled size has actually changed,
-  'just tell it to check.
-  'if .rz_cache_scaled then .rz_cache_scaled_need_update = YES
+  if LoadSpriteSliceImage(sl) then transform_need_update = YES
+
+  'Update transform, slice size and possibly cached pre-scale the sprite.
+  'Need to update the transform due to the image size possibly changing.
+  if .is_transformed andalso transform_need_update then
+   UpdaeSpriteSliceTransform sl, YES  'drop_offset=YES
  end with
 end sub
+'/
 
+'Must be called after modifying rotozoom parameters or .transform directly to do necessary updates.
+'Assumes that the sprite itself hasn't changed unless img_changed=YES
+
+sub UpdateSpriteSliceTransform(sl as Slice ptr, drop_offset as bool = NO, img_changed as bool = NO)
+ with *sl->SpriteData
+  'This will reset .img.sprite = .original_img, throwing away prescaling
+  if .loaded = NO then
+   LoadSpriteSliceImage sl
+   img_changed = YES
+  end if
+
+  if .use_rz_params then
+   'RecomputeSpriteRotozoomTransform sl
+   rotozoom_transform .transform, .original_img->size, @.rz_origin, XYF(0, 0), .rz_angle, .rz_scale, .rz_flip_horiz, .rz_flip_vert
+  else
+   'We *don't* change the slice size (or .transform), because the user has specified a size
+   '(either explicitly or as vertices) which overrode the Frame size
+  end if
+  NormalizeSliceTransform sl, .transform, drop_offset
+
+  'If using .rz_cache_scaled may need to regenerate image
+  if .rz_cache_scaled then
+   dim scaled_size as XYPair = calc_quad_size(.transform)
+   if img_changed orelse (scaled_size <> .img.sprite->size) then
+    'Becomes a 32-bit sprite
+    frame_assign @.img.sprite, frame_scaled32(@.img.sprite[.frame], scaled_size.w, scaled_size.h, master(), .img.pal)
+    palette16_unload @.img.pal
+    'Should set .paletted = NO? But the removal of the palette is reversible
+   end if
+  end if
+
+  'Can update .use_transform only now we have prescaled .img.sprite
+  UpdateSpriteIsTransformed sl
+ end with
+end sub
 
 'Disable/erase a transform
 sub ResetSpriteTransform(sl as Slice ptr)
  with *sl->SpriteData
   .use_rz_params = NO  'Mark them uninitialised
   .is_transformed = NO  'Mark .transform uninitialised
-  'These are always considered initialised, so must be reset
+  'These are always considered initialised, so unlike others must be reset
   .rz_flip_horiz = NO
   .rz_flip_vert = NO
  end with
@@ -2585,8 +2555,8 @@ sub PrepareSpriteRZTransform(sl as Slice ptr, use_rz as integer = -2)
   if .use_rz_params = NO andalso .is_transformed = NO then
    'In this case .transform is uninitialised
    'if use_rz then
-    LoadSpriteSliceImage sl  'Get the sprite size
-    vec2GenerateCorners @.transform.vertices(0), 4, .img.sprite->size, XYF(0, 0)
+    LoadSpriteSliceImage sl  'Get the sprite size, ensure loaded
+    vec2GenerateCorners @.transform.vertices(0), 4, .original_img->size, XYF(0, 0)
    'else
     'Don't
    'end if
@@ -2612,13 +2582,6 @@ sub PrepareSpriteRZTransform(sl as Slice ptr, use_rz as integer = -2)
  end with
 end sub
 
-' 'Doesn't init
-' sub SetSpriteTransformMode(sl as Slice ptr, use_rz as integer)
-'  with *sl->SpriteData
-  
-'  end with
-' end sub
-
 'Change vertical/horizontal flipping of a Sprite slice. Like RotozoomSpriteSlice for flipping,
 'except this sets the flip state, it doesn't toggle the existing state.
 'This does not mirror the transform around any axis. It causes the image to be mirrored
@@ -2628,7 +2591,9 @@ sub SetSpriteFlipped(sl as Slice ptr, fliph as bool, flipv as bool)
   'Don't need to call PrepareSpriteRZTransform because flipping is special:
   '.rz_flip_* are always initialised
 
-  'Whether .use_rz_params or not, no need to recompute .transform, can just modify it.
+  'Whether .use_rz_params or not, no need to recompute .transform, can just modify it
+  'with flip_transform which *does not* mirror the quad, it swaps its vertices, having
+  'the effect of flipping the image before it's transformed
   flip_transform .transform, (fliph <> .rz_flip_horiz), (flipv <> .rz_flip_vert)
   .rz_flip_horiz = fliph
   .rz_flip_vert = flipv
@@ -2649,8 +2614,6 @@ sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 
    'If not already transformed, become a rotozoom transform
    PrepareSpriteRZTransform sl, YES
   end if
-   'EnsureSpriteTransformInitialised sl, YES
-   'ResetSpriteTransform sl
 
   if cache_scaled then
    .loaded = NO
@@ -2680,9 +2643,10 @@ sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 
    dim newvert as Quad  'vec2Transform can't write inplace
    vec2Transform @newvert.vertices(0), 4, @.transform.vertices(0), 4, matrix
    .transform = newvert
+   'Will be normalised by UpdateSpriteSliceTransform
   end if
 
-  UpdateSpriteSliceTransform sl
+  UpdateSpriteSliceTransform sl, NO
  end with
 end sub
 
@@ -2721,12 +2685,7 @@ Sub LoadSpriteSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  if dat->spritetype = sprTypeFrame then
   dat->load_asset_as_32bit = LoadPropBool(node, "32bit_asset")
   SetSpriteToAsset sl, LoadPropStr(node, "asset")
- else
-  'Load the sprite already in order to ensure the size is correct. This could be
-  'skipped, since the slice was probably saved with the correct size...
-'  LoadSpriteSliceImage sl
  end if
-
 
  ' if LoadPropBool(node, "smooth") then
  '  .rz_smooth = 2
@@ -2751,8 +2710,8 @@ Sub LoadSpriteSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  else
   dat->use_rz_params = YES  'We just initialised all of them
  end if
- UpdateSpriteSliceTransform sl, YES  'drop_offset=YES
 
+ LoadSpriteSliceImageAndTransform sl
 End Sub
 
 Function NewSpriteSlice(byval parent as Slice ptr, byref dat as SpriteSliceData) as Slice ptr
@@ -2814,14 +2773,12 @@ Sub ChangeSpriteSlice(byval sl as Slice ptr,_
   end if
   if trans <> NONBOOL then .trans = (trans <> 0)
   if .loaded = NO then
-   'unload_sprite_and_pal .img
-   'frame_unload @.original_img
    UpdateSpriteSliceImage sl
   end if
  end with
 end sub
 
-'Called after .spritetype, .record, .palette or .assetfile is changed.
+'Called after .spritetype, .record, .frame, .palette or .assetfile is changed.
 'If a rotozoom parameter changes, need to call UpdateSpriteSliceTransform instead.
 'Internal use only - normally you should call ChangeSpriteSlice instead
 Sub UpdateSpriteSliceImage(sl as Slice ptr)
@@ -2850,7 +2807,7 @@ Sub UpdateSpriteSliceImage(sl as Slice ptr)
    'Reload the sprite image (and palette) immediately, so that the size of the slice
    'and number of frames are correct. This will bound .frame
    .loaded = NO  'Force reload
-   LoadSpriteSliceImage sl
+   LoadSpriteSliceImageAndTransform sl
   end if
  end with
 end sub
@@ -2915,9 +2872,8 @@ Function SpriteSliceNumFrames(sl as Slice ptr) as integer
  ASSERT_SLTYPE(sl, slSprite, 0)
 
  with *sl->SpriteData
-  if .loaded = NO then LoadSpriteSliceImage sl
-  if .img.sprite = 0 then return 0
-  return .img.sprite->arraylen
+  if .loaded = NO then LoadSpriteSliceImageAndTransform sl
+  return .original_img->arraylen
  end with
 end function
 

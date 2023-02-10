@@ -249,6 +249,7 @@ DECLARE SUB rectangle OVERLOAD (x as RelPos, y as RelPos, w as RelPos, h as RelP
 DECLARE SUB rectangle OVERLOAD (fr as Frame Ptr, x as RelPos, y as RelPos, w as RelPos, h as RelPos, c as integer)
 DECLARE sub rectangle OVERLOAD (fr as Frame Ptr, byval rect as RelrectType, c as integer)
 DECLARE SUB trans_rectangle (dest as Frame ptr, byval rect as RelRectType, byval col as RGBcolor, alpha as double)
+DECLARE SUB rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as Quad, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 DECLARE SUB fuzzyrect OVERLOAD (x as RelPos, y as RelPos, w as RelPos = rWidth, h as RelPos = rHeight, c as integer, p as integer, fuzzfactor as integer = 50, stationary as bool = NO, zoom as integer = 1, offset as integer = 0)
 DECLARE SUB fuzzyrect OVERLOAD (fr as Frame Ptr, byval rect as RelRectType, c as integer, fuzzfactor as integer = 50, stationary as bool = NO, zoom as integer = 1, offset as integer = 0)
 DECLARE SUB antifuzzyrect(fr as Frame Ptr, rect as RelRectType, col as integer, fuzzfactor as integer = 50, zoom as integer = 1)
@@ -658,6 +659,14 @@ DECLARE FUNCTION get_global_sfx_volume () as single
 
 
 '==========================================================================================
+'                                     Transformations
+
+declare sub flip_transform(byref transf as Quad, flip_horiz as bool, flip_vert as bool)
+declare sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 ptr = NULL, pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+declare function quad_integer_rect(qud as Quad) as RectType
+
+
+'==========================================================================================
 '                                          Frame
 
 declare function graphics_file(filename_or_extn as string) as string
@@ -681,9 +690,6 @@ declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, 
 declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0),  transf as Quad, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
-declare sub rectangle_transformed(cols() as RGBcolor, offset as XYPair = XY(0,0), transf as Quad, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
-declare sub flip_transform(byref transf as Quad, flip_horiz as bool, flip_vert as bool)
-declare sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 ptr = NULL, pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
 
 declare function dissolve_type_caption(n as integer) as string
 declare function appear_type_caption(n as integer) as string
@@ -691,6 +697,7 @@ declare function frame_dissolved(spr as Frame ptr, tlength as integer, t as inte
 declare sub frame_draw_dissolved (src as Frame ptr, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, tlength as integer, tick as integer, style as integer)
 declare function default_dissolve_time(style as integer, w as integer, h as integer) as integer
 declare function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, hzoom as double, vzoom as double, smooth as integer = 0) as Frame ptr
+declare function frame_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, transf as Quad, vertex_cols as RGBcolor ptr = NULL) as Frame ptr
 declare sub frame_flip_horiz(spr as Frame ptr)
 declare sub frame_flip_vert(spr as Frame ptr)
 declare function frame_rotated_90(spr as Frame ptr) as Frame ptr

@@ -10849,9 +10849,25 @@ sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 pt
 	flip_transform baserect, flip_horiz, flip_vert
 
 	dim matrix as Float3x3
-	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos
+	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos + *origin
 	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 end sub
+
+function quad_integer_rect(qud as Quad) as RectType
+	dim rectf as ClippingRectF
+	calculatePolygonRect(@qud.vertices(0), 4, sizeof(Float2), rectf)
+	'0.001 subtraction has two purposes: to copy frame_draw_transformed, shifting vertices
+	'slightly to avoid almost-horizontal or -vertical edges cutting through a row/column of
+	'pixel centers; and also to round .5 down instead of to nearest even.
+	'Note that rounding effectively finds the range of pixels whose center is
+	'within the polygon, which is the criterion used by the rasterizer.
+	dim rect as RectType
+	rect.x = rectf.left - 0.001
+	rect.y = rectf.top - 0.001
+	rect.w = cint(rectf.right - 0.001) - rect.x
+	rect.h = cint(rectf.bottom - 0.001) - rect.y
+	return rect
+end function
 
 'Return a copy of a single Frame or a Frame array, each frame clipped or extended.
 'Extended portions are filled with bgcol.
@@ -11344,7 +11360,7 @@ function default_dissolve_time(style as integer, w as integer, h as integer) as 
 end function
 
 'Returns a scaled+rotated copy.
-'See also rotozoom_transform + frame_draw_transformed.
+'Aside from smooth arg, this is obsoleted by rotozoom_transform + frame_transformed.
 'Note: Frame masks are not supported, so can't rotate a dissolved sprite
 function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as double, zoomx as double, zoomy as double, smooth as integer = 0) as Frame ptr
 	dim as Surface ptr in_surf, out_surf
@@ -11376,6 +11392,18 @@ function frame_rotozoom(src as Frame ptr, pal as Palette16 ptr = NULL, angle as 
 	dim ret as Frame ptr = frame_with_surface(out_surf)
 	gfx_surfaceDestroy(@in_surf)
 	gfx_surfaceDestroy(@out_surf)
+	return ret
+end function
+
+'Returns an 8bit Frame if possible
+'Discards any shift in the transform/quad
+function frame_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, transf as Quad, vertex_cols as RGBcolor ptr = NULL) as Frame ptr
+	dim rect as RectType = quad_integer_rect(transf)
+	dim with_surface32 as bool = (masterpal orelse vertex_cols orelse (src->surf <> NULL andalso src->surf->format = SF_32bit))
+	dim ret as Frame ptr = frame_new(rect.w, rect.h, 1, YES, (src->mask <> NULL), with_surface32)
+	dim opts as DrawOptions
+	opts.write_mask = YES  'Not actually suppported by frame_draw_transformed yet!
+	frame_draw_transformed src, masterpal, pal, -rect.topleft, transf, NO, ret, , vertex_cols
 	return ret
 end function
 

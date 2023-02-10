@@ -2124,11 +2124,11 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   CASE erDoublegrabber
    DIM n as double ptr = rule.dataptr
    prevval.double = *n
-   state.need_update OR= float_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
+   state.need_update OR= float_grabber(*n, "", rule.lower, rule.upper, 5, YES)
   CASE erSinglegrabber
    DIM n as single ptr = rule.dataptr
    prevval.double = *n
-   state.need_update OR= float_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
+   state.need_update OR= float_grabber(*n, "", rule.lower, rule.upper, 5, YES)
   CASE erPercentgrabber
    DIM n as double ptr = rule.dataptr
    prevval.double = *n
@@ -2231,7 +2231,9 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
  IF rule.group AND slgrUPDATESPRITETRANSFORM THEN
   IF state.need_update THEN
    'state.need_update is cleared at the top of the loop
-   UpdateSpriteSliceTransform sl
+   sl->SpriteData->rz_angle = fmod(sl->SpriteData->rz_angle, 360.0)
+   IF sl->SpriteData->rz_angle < 0 THEN sl->SpriteData->rz_angle += 360.0
+   UpdateSpriteSliceTransform sl, YES
   END IF
  END IF
  IF rule.group AND slgrBROWSESPRITEASSET THEN
@@ -2675,11 +2677,11 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
      DIM nframes as integer = SpriteSliceNumFrames(sl)
      IF nframes > 1 THEN
       a_append menu(), " Frame: " & dat->frame
-      sliceed_rule rules(), "sprite_frame", erIntgrabber, @(dat->frame), 0, nframes - 1
+      sliceed_rule rules(), "sprite_frame", erIntgrabber, @(dat->frame), 0, nframes - 1, slgrUPDATESPRITE
      END IF
     END IF
     a_append menu(), " Transparent: " & yesorno(dat->trans)
-    sliceed_rule_tog rules(), "sprite_trans", @(dat->trans), slgrUPDATESPRITE
+    sliceed_rule_tog rules(), "sprite_trans", @(dat->trans)
 
     sliceed_add_blend_edit_rules ses, menu(), rules(), @dat->drawopts
 
@@ -2699,7 +2701,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     end if
 
     a_append menu(), " Rotation: " & format_float(dat->rz_angle) & " degrees"
-    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), 0, 360, slgrUPDATESPRITETRANSFORM
+    'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360
+    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
     a_append menu(), " Scale X: " & format_percent(dat->rz_scale.x)
     sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
     a_append menu(), " Scale Y: " & format_percent(dat->rz_scale.y)
@@ -2710,13 +2713,15 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
 
     IF ses.privileged THEN
-     STATIC SmoothCapts(2) as zstring ptr = {@"None", @"Smooth (Unimpl)", @"Smoother (scale_surface)"}
-     DIM msg as string = safe_captionz(SmoothCapts(), dat->rz_smooth)
-     IF dat->rz_smooth ANDALSO vpages_are_32bit = NO THEN msg &= " (ignored: Ctrl-3 to switch to 24bit)"
-     a_append menu(), "  Smoothing: " & msg
-     sliceed_rule rules(), "sprite_smooth_rotozoom", erIntGrabber, @(dat->rz_smooth), 0, 2, slgrUPDATESPRITE
      a_append menu(), " Cache scaled: " & yesorno(dat->rz_cache_scaled)
      sliceed_rule_tog rules(), "sprite_cache_scaled", @(dat->rz_cache_scaled), slgrUPDATESPRITE
+     IF dat->rz_cache_scaled THEN
+      STATIC SmoothCapts(2) as zstring ptr = {@"None", @"Smooth (Unimpl)", @"Smoother (scale_surface)"}
+      DIM msg as string = safe_captionz(SmoothCapts(), dat->rz_smooth)
+      IF dat->rz_smooth ANDALSO vpages_are_32bit = NO THEN msg &= " (ignored: Ctrl-F3 to switch to 24bit)"
+      a_append menu(), "  Smoothing: " & msg
+      sliceed_rule rules(), "sprite_smooth_rotozoom", erIntGrabber, @(dat->rz_smooth), 0, 2, slgrUPDATESPRITE
+     END IF
     END IF
 
     a_append menu(), " Flip horiz.: " & yesorno(dat->rz_flip_horiz)
