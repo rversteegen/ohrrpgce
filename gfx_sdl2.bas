@@ -111,7 +111,7 @@ DECLARE SUB log_error(failed_call as zstring ptr, funcname as zstring ptr)
 
 DIM SHARED zoom as integer = 2  'Size of a pixel
 DIM SHARED smooth_zoom as integer = 2  'Amount to zoom before applying smoothing
-DIM SHARED smooth as integer = 0  'Smoothing mode (0 or 1)
+DIM SHARED smooth as integer = 0  'Smoothing mode (0 off, up to maxSmoothFilter)
 DIM SHARED mainwindow as SDL_Window ptr = NULL
 DIM SHARED mainrenderer as SDL_Renderer ptr = NULL
 DIM SHARED maintexture as SDL_Texture ptr = NULL
@@ -553,6 +553,7 @@ LOCAL SUB set_viewport(for_windowed as bool)
   END IF
 END SUB
 
+'Change the resolution and/or zoom.
 'Note that gfx_sdl2_set_window_size wraps this.
 'actually_resize can (and should) be false if the window was resized by the WM;
 'don't changing the size while the user is doing the same, as that causes some
@@ -604,6 +605,15 @@ LOCAL SUB set_window_size(newframesize as XYPair, newzoom as integer, actually_r
   END IF
 END SUB
 
+'Called when 'smooth' changes.
+'This is like set_window_size but used if just the texture changes size, not the window
+LOCAL SUB update_texture_size()
+  'This should work, but it's less code to maintain to use set_window_size
+  set_viewport windowedmode
+  recreate_screen_texture
+  'set_window_size framesize, zoom, NO
+END SUB
+
 LOCAL SUB quit_video_subsystem()
   IF mainrenderer THEN SDL_DestroyRenderer(mainrenderer)  'Also destroys textures
   mainrenderer = NULL
@@ -645,6 +655,7 @@ LOCAL FUNCTION present_internal(raw as any ptr, imagesz as XYPair, bitdepth as i
 
   IF smooth ORELSE bitdepth = 8 THEN
     ' We need screenbuffer. So check it exists and is the right size
+    ' (If 'smooth' change, the maintexture may also have been resized)
 
     IF screenbuffer THEN
       IF XY(screenbuffer->w, screenbuffer->h) <> buffersize ORELSE _
@@ -1002,11 +1013,13 @@ FUNCTION gfx_sdl2_setoption(byval opt as zstring ptr, byval arg as zstring ptr) 
     gfx_sdl2_set_window_size( , value)
     ret = 1
   ELSEIF *opt = "smooth" OR *opt = "s" THEN
-    IF value = 1 OR value = -1 THEN  'arg optional (-1)
+    IF value = -1 THEN  'arg optional (-1)
       smooth = 1
     ELSE
-      smooth = 0
+      smooth = bound(value, 0, maxSmoothFilter)
     END IF
+    'When using a filter we scale instead of letting SDL do it, so maintexture changes size.
+    update_texture_size
     ret = 1
   END IF
   'all these take an optional numeric argument, so gobble the arg if it is
@@ -1017,7 +1030,7 @@ END FUNCTION
 
 FUNCTION gfx_sdl2_describe_options() as zstring ptr
   return @"-z -zoom [1...16]   Scale screen to 1,2, ... up to 16x normal size (2x default)" LINE_END _
-          "-s -smooth          Enable smoothing filter for zoom modes (default off)"
+          "-s -smooth [filter] Use a smoothing filter (1 to " STRINGIFY(maxSmoothFilter) ") for zoom modes"
 END FUNCTION
 
 FUNCTION gfx_sdl2_get_safe_zone_margin() as single

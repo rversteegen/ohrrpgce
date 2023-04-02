@@ -320,6 +320,188 @@ bool multismoothblit(int srcbitdepth, int destbitdepth, void *srcbuffer, void *d
 	return true;
 }
 
+
+static
+uint32_t clamped_add(uint32_t op1, uint32_t op2) {
+	// Reserve bottom bit for overflow
+	op1 &= 0xfefefefe;
+	op2 &= 0xfefefefe;
+	// Temporarily shift right so the topmost byte can overflow
+	// (depending on pixel format it might not be used anyway)
+	uint32_t ret = (op1 >> 1) + (op2 >> 1);
+	uint32_t overflow = ret & 0x80808080;
+	//uint32_t overflow_mask = overflow - (overflow >> 7);  //wrong
+	uint32_t overflow_mask = 0xff * (overflow >> 7);
+	// Shift back
+	ret = (ret & 0x7f7f7f7f) << 1;
+	// change overflowed bytes to 255
+	//ret |= (overflow >> 7) * 255;
+	ret |= overflow_mask;
+	return ret;
+}
+
+
+static
+uint32_t clamped_add2(uint32_t op1, uint32_t op2) {
+//uint32_t clamped_add2(uint8_t op1[4], uint8_t op2[4]) {
+	RGBcolor ret;
+	for (int i = 0; i < 4; i++) {
+		int x = ((RGBcolor)op1).comp[i] + ((RGBcolor)op2).comp[i];
+		if (x > 255) x = 255;
+		else if (x < 0) x = 0;
+		ret.comp[i] = x;
+	}
+	return ret.col;
+}
+
+static
+void scanlines_filter_8bit(uint8_t *destbuffer, int wide, int high, int pitch, int zoom, int smooth) {
+	uint8_t *sptr1, *sptr2, *sptr3;
+	int tog = 0;
+
+	for (int fy = 1; fy <= (high - 2); fy += 1) {
+		struct RGBerrors rgberr = {};
+		sptr1 = destbuffer + pitch * (fy - 1);  // pixel above
+		sptr2 = sptr1 + pitch; // current pixel
+		sptr3 = sptr2 + pitch; // pixel below
+
+		for (int fx = wide - 2; fx >= 1; fx--) {
+			uint32_t c1 = curmasterpal[*sptr1].col;
+			uint32_t c2 = curmasterpal[*sptr2].col;
+			uint32_t c3 = curmasterpal[*sptr3].col;
+			uint32_t value;
+			if (fy % zoom == 0) {
+				// For one (bright) scanline per zoomed pixel:
+				//value = (*sptr1 | (*sptr1 << 1)) & 0xfefefefe; // blurtastic
+				//value = (*sptr3 | (*sptr2 << 1)) & 0xfefefefe;  // colour shifitng
+				//value = (*sptr2 | (*sptr1 << 1)) & 0xfefefefe;  // ???
+				//value = (*sptr2 | (*sptr1 << 1));  // ???
+				value = clamped_add(c2, c3);
+			} else {
+				value = c2;
+
+				// For all the other scanlines (dim):
+				// Dim the line by half
+				//value = (*sptr1 >> 1) & 0x7f7f7f7f;
+				// Blend pixel above and pixel below, and dim to half
+				value = (c1 >> 2) & 0x3f3f3f3f;
+				//value += (*sptr2 >> 2) & 0x3f3f3f3f;
+				value += (c3 >> 2) & 0x3f3f3f3f;
+
+			}
+			*sptr2 = map_rgb_to_masterpal((RGBcolor)value, &rgberr, tog, (fx & fy));
+			tog ^= 1;
+			sptr1++;
+			sptr2++;
+			sptr3++;
+		}
+	}
+}
+
+static
+void scanlines_filter_32bit(RGBcolor *destbuffer, int wide, int high, int pitch, int zoom, int smooth) {
+	uint32_t *sptr1, *sptr2, *sptr3;
+	for (int fy = 1; fy <= (high - 2); fy += 1) {
+		sptr1 = (uint32_t *)destbuffer + pitch * (fy - 1);  // pixel above  = X
+		sptr2 = sptr1 + pitch; // current pixel = Y
+		sptr3 = sptr2;
+		if (fy != high - 2)
+			sptr3 += (zoom - 1) * pitch; // pixel below = Z
+		for (int fx = wide - 2; fx >= 1; fx--) {
+			uint32_t value;
+			if (smooth == 3) {
+				if (fy % zoom == 0)
+					// X/4 + Y/2
+					value = clamped_add((*sptr1 >> 2) & 0x3f3f3f3f,  (*sptr2 >> 1) & 0x7f7f7f7f);
+				else if (fy % zoom == zoom - 1)
+					// 5Y/4
+					value = clamped_add(*sptr2, (*sptr2 & 0xfcfcfcfc) >> 2);
+				else    // zoom 3x only: second line
+					// Dup above
+					value = *sptr1;
+			}
+			else
+			if (smooth == 4) {
+				if (fy % zoom == zoom - 1)
+					// Last row: 1.25x bright
+					// 5Y/4
+					value = clamped_add(*sptr2, (*sptr2 & 0xfcfcfcfc) >> 2);
+				else  // other rows: blend and dim 0.75
+					// X/2 + Y/4
+					value = clamped_add((*sptr2 >> 2) & 0x3f3f3f3f,  (*sptr1 >> 1) & 0x7f7f7f7f);
+			}
+			else
+			if (smooth == 6) {
+				if (fy % zoom == zoom - 1) {
+					// Last row:  bright
+					// X/2 + Y/2 + Z/4
+					value = clamped_add((*sptr1 >> 1) & 0x7f7f7f7f, (*sptr2 >> 1) & 0x7f7f7f7f);
+					value = clamped_add(value, (*sptr3 & 0xfcfcfcfc) >> 2);
+				} else if (fy % zoom == 0)  {
+					// first row: dim blend
+					// X/2 + Y/4
+					value = clamped_add((*sptr2 >> 2) & 0x3f3f3f3f,  (*sptr1 >> 1) & 0x7f7f7f7f);
+				} else {
+					// middle row if any: average
+					// X/2 + Y/2
+					value = clamped_add((*sptr2 >> 1) & 0x7f7f7f7f,  (*sptr1 >> 1) & 0x7f7f7f7f);
+				}
+			}
+			else
+			if (fy % zoom == zoom - 1) {
+				if (smooth == 2)
+				value = *sptr2;
+				//if (smooth == 3 || smooth == 4)
+				// For one 1.5x bright scanline per zoomed pixel:
+				//value = clamped_add(*sptr2, (*sptr2 & 0xfefefefe) >> 1);
+				if (smooth == 6)
+				value = clamped_add(*sptr2, (*sptr1 & 0xfcfcfcfc) >> 2);
+				else if (smooth == 5 || smooth == 6)
+					// 1.25x bright
+				value = clamped_add(*sptr2, (*sptr2 & 0xfcfcfcfc) >> 2);
+				//value = (*sptr1 | (*sptr1 << 1)) & 0xfefefefe; // blurtastic
+				/* else if (smooth == 4) */
+				/* value = (*sptr3 | (*sptr2 << 1)) & 0xfefefefe;  // colour shifitng */
+				/* else if (smooth == 6) */
+				/* value = clamped_add(*sptr2, (*sptr2 & 0xfefefefe) >> 1); */
+				//value = (*sptr2 | (*sptr1 << 1)) & 0xfefefefe;  // ???
+				/* else if (smooth == 6) */
+				/* value = (*sptr2 | (*sptr1 << 1));  // ??? */
+			} else {
+				if ((fy % zoom == 1) && smooth == 3) {
+					value = *sptr1 ;  //
+				} else
+
+				//value = *sptr2;
+
+				// For all the other scanlines (dim):
+				if (0 && smooth ==4) {
+					// Dim the line by half
+					value = (*sptr2 >> 1) & 0x7f7f7f7f;
+				} else if (smooth==2 || smooth==6) {
+					//average
+					value = (*sptr2 >> 1) & 0x7f7f7f7f;
+					//value += (*sptr2 >> 2) & 0x3f3f3f3f;
+					//value += (*sptr3 >> 2) & 0x3f3f3f3f;
+					value += (*sptr1 >> 1) & 0x7f7f7f7f;
+				} else { // smooth 3, 5
+					// Blend pixel above and pixel below, and dim to half
+					//value = (*sptr1 >> 2) & 0x3f3f3f3f;
+					value = (*sptr2 >> 2) & 0x3f3f3f3f;
+					//value += (*sptr2 >> 2) & 0x3f3f3f3f;
+					value += (*sptr3 >> 2) & 0x3f3f3f3f;
+				}
+
+			}
+			*sptr2 = value;
+			sptr1++;
+			sptr2++;
+			sptr3++;
+		}
+	}
+}
+
+
 void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor dummypal[]) {
 //srcbuffer: source w x h buffer paletted 8 bit
 //destbuffer: destination scaled buffer pitch x h*zoom also 8 bit
@@ -374,7 +556,10 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 		}
 	}
 
-	if (smooth == 1 && zoom >= 2) {
+	if (!smooth || zoom == 1)
+		return;
+
+	if (smooth == 1) {
 		int fy = 1;
 		int pstep;
 		if (zoom == 3) {
@@ -407,7 +592,10 @@ void smoothzoomblit_8_to_8bit(uint8_t *srcbuffer, uint8_t *destbuffer, XYPair si
 				sptr3 += 1;
 			}
 		}
+	} else {
+		scanlines_filter_8bit(destbuffer, wide, high, pitch, zoom, smooth);
 	}
+
 }
 
 void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair size, int pitch, int zoom, int smooth, RGBcolor pal[]) {
@@ -444,7 +632,10 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 		}
 	}
 
-	if (smooth == 1 && zoom >= 2) {
+	if (!smooth || zoom == 1)
+		return;
+
+	if (smooth == 1) {
 		int pstep;
 		if (zoom == 2)
 			pstep = 2;
@@ -475,6 +666,8 @@ void smoothzoomblit_8_to_32bit(uint8_t *srcbuffer, RGBcolor *destbuffer, XYPair 
 				sptr3 += 1;
 			}
 		}
+	} else {
+		scanlines_filter_32bit(destbuffer, wide, high, pitch, zoom, smooth);
 	}
 }
 
@@ -510,7 +703,10 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 		}
 	}
 
-	if (smooth == 1 && zoom >= 2) {
+	if (!smooth || zoom == 1)
+		return;
+
+	if (smooth == 1) {
 		int pstep;
 		if (zoom == 2)
 			pstep = 2;
@@ -533,5 +729,7 @@ void smoothzoomblit_32_to_32bit(RGBcolor *srcbuffer, RGBcolor *destbuffer, XYPai
 				sptr3 += 1;
 			}
 		}
+	} else {
+		scanlines_filter_32bit(destbuffer, wide, high, pitch, zoom, smooth);
 	}
 }

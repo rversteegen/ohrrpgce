@@ -111,7 +111,7 @@ DIM SHARED libsdl_handle as any ptr  'Not used, only to match gfx_sdl2
 DIM SHARED zoom as integer = 2
 DIM SHARED zoom_has_been_changed as bool = NO
 DIM SHARED remember_zoom as integer = -1   'We may change the zoom when fullscreening, so remember it
-DIM SHARED smooth as integer = 0
+DIM SHARED smooth as integer = 0  'Smoothing mode (0 off, up to maxSmoothFilter)
 DIM SHARED screensurface as SDL_Surface ptr = NULL  'The output surface (the window)
 DIM SHARED screenbuffer as SDL_Surface ptr = NULL  'Drawn to instead of screensurface if format conversion needed
 DIM SHARED screensurface_is_RGBColor as bool  'screensurface format is same pixel format as RGBColor
@@ -849,11 +849,12 @@ FUNCTION gfx_sdl_setoption(byval opt as zstring ptr, byval arg as zstring ptr) a
     gfx_sdl_set_zoom(value, YES)
     ret = 1
   ELSEIF *opt = "smooth" OR *opt = "s" THEN
-    IF value = 1 OR value = -1 THEN  'arg optional (-1)
+    IF value = -1 THEN  'arg optional (-1)
       smooth = 1
     ELSE
-      smooth = 0
+      smooth = bound(value, 0, maxSmoothFilter)
     END IF
+    IF screensurface THEN gfx_sdl_set_screen_mode()
     ret = 1
   ELSEIF *opt = "reset-videomode" THEN
     always_force_video_reset = YES
@@ -867,7 +868,7 @@ END FUNCTION
 
 FUNCTION gfx_sdl_describe_options() as zstring ptr
   return @"-z -zoom [1...16]   Scale screen to 1,2, ... up to 16x normal size (2x default)" LINE_END _
-          "-s -smooth          Enable smoothing filter for zoom modes (default off)" LINE_END _
+          "-s -smooth [filter] Use a smoothing filter (1 to " STRINGIFY(maxSmoothFilter) ") for zoom modes" LINE_END _
           "-reset-videomode    Reset SDL video subsys when changing video mode; may work around problems"
 END FUNCTION
 

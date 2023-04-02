@@ -14,6 +14,7 @@ typedef union {
 		// and BMP import uses the alpha channel, all other code ignores it.
 		unsigned char b, g, r, a;
 	};
+	unsigned char comp[4];
 	uint32_t col;
 } RGBcolor;
 

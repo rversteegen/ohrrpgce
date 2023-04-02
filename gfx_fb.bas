@@ -61,8 +61,8 @@ dim shared remember_windowed_zoom as integer = 2  'What zoom was before entering
 dim shared framesize as XYPair = (320, 200) 'The resolution supplied by the engine
 dim shared screensize as XYPair            'The size of the window/fullscreen resolution
 dim shared screenpitch as fb_integer       'Bytes per screen row
-dim shared depth as integer = 8            '8 or 32
-dim shared smooth as integer = 0  '0 or 1
+dim shared depth as integer = 32            '8 or 32
+dim shared smooth as integer = 0           'Smoothing mode (0 off, up to maxSmoothFilter)
 dim shared mouseclipped as bool = NO
 dim shared mouse_visibility as CursorVisibility = cursorDefault
 dim shared remember_windowtitle as string
@@ -305,10 +305,10 @@ function gfx_fb_setoption(byval opt as zstring ptr, byval arg as zstring ptr) as
 		end if
 		ret = 1
 	elseif *opt = "smooth" or *opt = "s" then
-		if value = 1 or value = -1 then  'arg optional
+		if value = -1 then  'arg optional (-1)
 			smooth = 1
 		else
-			smooth = 0
+			smooth = bound(value, 0, maxSmoothFilter)
 		end if
 		ret = 1
 	elseif *opt = "nogfx" then
@@ -410,7 +410,7 @@ end sub
 
 function gfx_fb_describe_options() as zstring ptr
 	return @"-z -zoom [1...16]   Scale screen to 1,2, ... up to 16x normal size (2x default)" LINE_END _
-	        "-s -smooth          Enable smoothing filter for zoom modes (default off)" LINE_END _
+		"-s -smooth [filter] Use a smoothing filter (1 to " STRINGIFY(maxSmoothFilter) ") for zoom modes" LINE_END _
 		"-nogfx              (Unix only) Don't create a window, commandline only. Combine with --print."
 end function
 

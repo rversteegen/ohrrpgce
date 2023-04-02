@@ -812,6 +812,8 @@ SUB CustomGlobalMenu.append(code as integer, text as string)
  a_append items(), text
 END SUB
 
+DIM SHARED smooth as integer = 0
+
 ' Accessible with F8 if we are editing a game
 SUB Custom_global_menu
  DIM holdscreen as integer = duplicatepage(getvispage)  'For screenshots
@@ -858,6 +860,10 @@ SUB Custom_global_menu
  IF num_logged_errors THEN note = ": " & num_logged_errors & " errors" ELSE note = " log"
  menu.append 13, "View c_debug.txt" & note & " (Shft/Ctrl-F8)"
 
+ IF MID(DATE, 1, 5) = "04-01" THEN
+  menu.append 17, "Toggle scanlines"
+ END IF
+
  DIM choice as integer
  choice = multichoice("Global Editor Options (F9)", menu.items())
  IF choice > -1 THEN choice = menu.item_codes(choice)
@@ -902,6 +908,10 @@ SUB Custom_global_menu
    touchfile game_config_file
   END IF
   open_document game_config_file
+ ELSEIF choice = 17 THEN
+  loopvar smooth, 0, maxSmoothFilter
+  show_overlay_message STR(smooth)
+  gfx_setoption("smooth", STR(smooth))
  END IF
  freepage holdscreen
 END SUB
@@ -910,8 +920,16 @@ END SUB
 ' It should be fine to call any allmodex function in here, but beware we might
 ' not have loaded a game yet!
 SUB global_setkeys_hook
- IF keyval(scF9) > 1 THEN Custom_global_menu
+ IF keyval(scF9) > 1 THEN
+  IF keyval(scShift) THEN
+  loopvar smooth, 0, maxSmoothFilter
+  show_overlay_message STR(smooth)
+  gfx_setoption("smooth", STR(smooth))
+ELSE
+ Custom_global_menu
  'The other keys documented in Custom_global_menu are checked in allmodex_controls
+END IF
+END IF
 END SUB
 
 '==========================================================================================

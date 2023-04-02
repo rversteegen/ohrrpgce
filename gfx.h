@@ -62,6 +62,8 @@ enum CursorVisibility {
 	CV_Default = -2  // (cursorDefault) Cursor shown when windowed, hidden in fullscreen
 };
 
+#define maxSmoothFilter 6
+
 
 DFI_CLASS_BEGIN( GfxBackendDll );
 

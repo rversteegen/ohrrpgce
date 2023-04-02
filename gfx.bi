@@ -113,6 +113,9 @@ enum
 	cursorDefault = -2 'Cursor shown when windowed, hidden in fullscreen
 end enum
 
+'Should be a #define so can use STRINGIFY on it
+#define maxSmoothFilter 6
+
 type EventEnum as integer
 enum
 	eventTerminate = 0        'Window or application close request event
