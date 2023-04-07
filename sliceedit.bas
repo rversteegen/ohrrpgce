@@ -2381,7 +2381,7 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    'a_append menu(), "Y: " & fgtag(uilook(uiDisabledItem), "0 (filling)")
    'sliceed_rule_none rules(), "pos"
   END IF
-  DIM minsize as integer = IIF(.SliceType = slLine, -9999, 0)
+  DIM minsize as integer = -9999'IIF(.SliceType = slLine, -9999, 0)
   a_append menu(), " Width: " & .Width
   sliceed_rule rules(), "size", erIntgrabber, @.Width, minsize, 9999, slgrPICKWH
   a_append menu(), " Height: " & .Height

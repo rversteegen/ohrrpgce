@@ -4608,8 +4608,8 @@ sub drawbox (dest as Frame ptr, x as RelPos, y as RelPos, w as RelPos, h as RelP
 	w = relative_pos(w, dest->w)
 	h = relative_pos(h, dest->h)
 
-	if w < 0 then x = x + w + 1: w = -w
-	if h < 0 then y = y + h + 1: h = -h
+	if w < 0 then x = x + w: w = -w
+	if h < 0 then y = y + h: h = -h
 
 	if w = 0 or h = 0 then exit sub
 
@@ -4642,7 +4642,8 @@ sub drawcube(dest as Frame ptr, rect as RectType, off as XYPair, col as integer,
 	drawline dest, br.x,   br.y,   br.x + off.x,   br.y + off.y,   col
 end sub
 
-' This function is slightly different from drawbox/rectangle, in that draws boxes with
+' Draw a box with a 3-color (color, uiBackground, transparent) ants pattern.
+' This function is slightly different from drawbox/rectangle, in that it draws boxes with
 ' width/height 0 as width/height 1 instead of not at all.
 ' color is the main highlight color; if -1, use default
 ' FIXME: this function doesn't respect clipping!
@@ -4661,8 +4662,8 @@ sub drawants(dest as Frame ptr, x as RelPos, y as RelPos, wide as RelPos, high a
 	x = relative_pos(x, dest->w, wide)
 	y = relative_pos(y, dest->h, high)
 
-	if wide < 0 then x = x + wide + 1: wide = -wide
-	if high < 0 then y = y + high + 1: high = -high
+	if wide < 0 then x = x + wide: wide = -wide
+	if high < 0 then y = y + high: high = -high
 
 	'if wide <= 0 or high <= 0 then exit sub
 
@@ -4706,11 +4707,11 @@ sub clip_rectangle_draw(dest as Frame ptr, byref rect as RelRectType, byref x_st
 	rect.y = relative_pos(rect.y, dest->h, rect.high)
 
 	if rect.wide < 0 then
-		rect.x = rect.x + rect.wide + 1
+		rect.x = rect.x + rect.wide
 		rect.wide = -rect.wide
 	end if
 	if rect.high < 0 then
-		rect.y = rect.y + rect.high + 1
+		rect.y = rect.y + rect.high
 		rect.high = -rect.high
 	end if
 

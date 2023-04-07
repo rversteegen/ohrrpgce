@@ -4147,9 +4147,9 @@ Function SliceCollide(byval sl1 as Slice Ptr, sl2 as Slice Ptr) as bool
  'Check for a screen-position collision between slice 1 and slice 2 (regardless of parentage)
  'Note RefreshSliceScreenPos not called here
  if sl1 = 0 or sl2 = 0 then return NO
- 'AABB collision test
- if sl1->Width + sl2->Width <= abs(2 * sl1->ScreenX + sl1->Width - 2 * sl2->ScreenX - sl2->Width) then return NO
- if sl1->Height + sl2->Height <= abs(2 * sl1->ScreenY + sl1->Height - 2 * sl2->ScreenY - sl2->Height) then return NO
+ 'AABB collision test with possible negative width or height
+ if abs(sl1->Width) + abs(sl2->Width) <= abs(2 * sl1->ScreenX + sl1->Width - 2 * sl2->ScreenX - sl2->Width) then return NO
+ if abs(sl1->Height) + abs(sl2->Height) <= abs(2 * sl1->ScreenY + sl1->Height - 2 * sl2->ScreenY - sl2->Height) then return NO
  return YES
 end function
 
@@ -4157,11 +4157,30 @@ Function SliceCollidePoint(byval sl as Slice Ptr, byval point as XYPair) as bool
  'Check if a point collides with a slice's screen position
  'Note RefreshSliceScreenPos not called here
  if sl = 0 then return NO
- if point.x >= sl->ScreenX andalso point.x < sl->ScreenX + sl->Width andalso _
-    point.y >= sl->ScreenY andalso point.y < sl->ScreenY + sl->Height then
-  return YES
+ 'Same 
+ ' if abs(sl->Width) + 1 <= abs(2 * point.x + 1 - 2 * sl->ScreenX - sl->Width) then return NO
+ ' if abs(sl->Height) < abs(2 * point.y + 1 - 2 * sl->ScreenY - sl->Height) then return NO
+ 'if abs(sl->Width + 1) <= abs(2 * point.x + 1 - 2 * sl->ScreenX - sl->Width) then return NO
+ 'if abs(sl->Height + 1) < abs(2 * point.y + 1 - 2 * sl->ScreenY - sl->Height) then return NO
+ return YES
+
+ 'I would guess this is slower; haven't tested it.
+ if sl->Width < 0 then
+  if point.x < sl->ScreenX orelse point.x >= sl->ScreenX + sl->Width then return NO
+ else
+  if point.x < sl->ScreenX orelse point.x >= sl->ScreenX + sl->Width then return NO
  end if
- return NO
+ if sl->Height < 0 then
+  if point.y < sl->ScreenY orelse point.y >= sl->ScreenY + sl->Height then return NO
+ else
+  if point.y < sl->ScreenY orelse point.y >= sl->ScreenY + sl->Height then return NO
+ end if
+
+ ' if point.x >= sl->ScreenX andalso point.x < sl->ScreenX + sl->Width andalso _
+ '    point.y >= sl->ScreenY andalso point.y < sl->ScreenY + sl->Height then
+ '  return YES
+ ' end if
+ ' return NO
 end function
 
 Function SliceContains(byval sl1 as Slice Ptr, byval sl2 as Slice Ptr) as bool

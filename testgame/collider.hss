@@ -2,7 +2,6 @@ include, plotscr.hsd
 include, scancode.hsi
 
 global variable(1, mouse)
-global variable(2, playing)
 global variable(3, test layer)
 global variable(4, dragging)
 global variable(5, drag x off)
@@ -14,12 +13,15 @@ plotscript, collision tester, begin
   suspend player
   create test slices
   create mouse cursor
-  playing := true
   $2="C:Clip mouse"
   show string at(2, 220, 190)
-  while(playing) do(
-    if(keyval(1) >> 1) then(playing := false)
-    if(keyval(key:c) >> 1) then(toggle clipping)
+  while(true) do(
+    if(keypress(key:esc)) then(break)
+    if(keypress(key:c)) then(toggle clipping)
+    if(dragging) then(
+      if(keypress(key:w)) then(set slice width(dragging, -1*slice width(dragging)))
+      if(keypress(key:h)) then(set slice height(dragging, -1*slice height(dragging)))
+    )
     update mouse
     update dragging
     update rects
@@ -101,6 +103,7 @@ script, update rects, begin
       numeral := create text
       $31=""
       append number(31, i)
+      if (slice contains(sl, dragging)) then ($31+"C")
       set slice text(numeral, 31)
       set parent(numeral, info layer)
       set slice x(numeral, slice screen x(sl) -- 4)
@@ -174,6 +177,11 @@ script, update dragging, begin
     set slice screen x(dragging, slice screen x(mouse) + drag x off)
     set slice screen y(dragging, slice screen y(mouse) + drag y off)
     clamp slice(dragging, sprite layer)
+    string sprintf(4, $4="W,H: flip rect. W=%d H=%d", slice width(dragging), slice height(dragging))
+    show string at(4, 0, 180)
+  ) else (
+    clear string(4)
+    clear string(5)  # slice contains string
   )
 end
 
