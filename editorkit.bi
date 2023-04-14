@@ -97,7 +97,8 @@ declare function prompt_for_enum(byref key as string, prompt_text as string, opt
 ' Saved menu state for a submenu
 type SubmenuState
 	'state as MenuState
-	pt as integer
+	'pt as integer
+	selected_id as integer
 	top as integer
 end type
 
@@ -150,12 +151,15 @@ type EditorKit extends ModularMenu
 		'activating
 	end enum
 	phase as Phases            'Whenever define_items() is called, this tells why
+	selected_id as integer     'The ID of the selected menu item
+	hover_id as integer        'The ID of the menu item with mouse hover focus
 
 	'---- The following is internal state you usually would not access
 
 	want_submenu as string     'Called switch/enter_submenu(), otherwise "NO"
 	initialised as bool        'update() has been called at least once
 	record_id_grabber_called as bool 'Ensure is only called once a tick
+	force_selection_update as bool
 
 	default_helpkey as string  'If define_items doesn't set helpkey, nor set_helpkey for the selected item
 	' Internal state to track the menu item currently being defined, while inside define_items()
@@ -233,6 +237,8 @@ type EditorKit extends ModularMenu
 	'No method for adding "Previous Menu", it's automatic
 
 	'---- Adding data menu items
+	declare sub defid overload()
+	declare sub defid overload(id as integer)
 	declare sub defitem(title as zstring ptr)
 	declare function defitem_act(title as zstring ptr) as bool
 	declare sub defunselectable(title as zstring ptr, color as integer = -eduiNote-1)
@@ -277,7 +283,7 @@ type EditorKit extends ModularMenu
 	declare sub set_unselectable()
 	declare sub set_disabled()
 	declare sub set_color(color as integer)
-	declare sub set_id(id as integer)
+	'declare sub set_id(id as integer)
 	declare sub set_helpkey(key as zstring ptr)
 	declare sub set_tooltip(text as zstring ptr)
 	declare function multiline_editable() as bool

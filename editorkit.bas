@@ -163,6 +163,13 @@
 '     defint "Display '" & CHR(1) & "1' in inventory:", gen(genInventSlotx1Display), 0, 2
 '     captions_list("always", "never", "only if stackable")
 '
+' ==== Menu item IDs ====
+' Menu items have unique IDs associated with them, by default starting at -1 and
+' counting down, but can be customised with defid. You can use selected_id and
+' hover_id to
+' When menu items appear or disappear the menu cursor won't stay on the currently
+' selected menu item
+'
 ' ==== More examples ====
 '
 ' You can call methods conditionally, as long as the same defitems are called during the
@@ -312,6 +319,11 @@ sub EditorKit.run_phase(which_phase as Phases)
 	cur_item_index = 0
 	started_item = NO
 	edited = NO
+	' if force_selection_update andalso (phase = Phases.processing) then
+	' 	' Cause selected_id to be updated. Needed after entering a submenu.
+	' 	usemenu_ret = YES
+	' 	force_selection_update = NO
+	' end if
 
 	refresh = (phase = Phases.refreshing)
 	process = NO
@@ -377,6 +389,7 @@ sub EditorKit.finish_defitem()
 		end with
 	end if
 
+	cur_item.id = 0  'Needs to be wiped before defitem
 	started_item = NO
 end sub
 
@@ -397,7 +410,8 @@ sub EditorKit.apply_enter_submenu(name as string = "")
 
 	' Save old state
 	with *get_submenu_state(submenu)
-		.pt = state.pt
+		'.pt = state.pt
+		.selected_id = selected_id
 		.top = state.top
 	end with
 
@@ -405,7 +419,10 @@ sub EditorKit.apply_enter_submenu(name as string = "")
 
 	' Restore previous state (blank if never visted)
 	with *get_submenu_state(name)
-		state.pt = .pt
+		'state.pt = .pt
+		selected_id = .selected_id
+		'FIXME: maybe force-
+		'force_selection_update = YES  'Recompute selected_id? No, need to recompute state.pt from selected_id, which is automatic!
 		state.top = .top
 	end with
 end sub
@@ -661,13 +678,47 @@ end sub
 '===============================================================================
 '                            def* menu item functions
 
+' Set the id (> 0) for the next menu item. Should appear immediately before defitem
+' since it finishes the previous. 
+sub EditorKit.defid(id as integer)
+	BUG_IF(id <= 0, "defid must be > 0")
+	finish_defitem
+	'started_item is NO
+	cur_item.id = id
+end sub
+
+' If the previous menu item had a manually set id, use it +1.
+' Remember spacer/section/subsection count as items so have ids.
+sub EditorKit.defid()
+	dim new_id as integer = 0
+	if cur_item.id > 0 then new_id = cur_item.id + 1
+	finish_defitem
+	cur_item.id = new_id
+end sub
+
 sub EditorKit.defitem(title as zstring ptr)
 	finish_defitem
 	started_item = YES
 
+	dim new_id as integer = cur_item.id
+	if new_id = 0 then
+		new_id = -1 - cur_item_index
+	end if
+
 	' Set all the per-item state variables
-	selected = (state.pt = cur_item_index)
-	hover = (state.hover = cur_item_index)
+	' selected = (state.pt = cur_item_index)
+	' hover = (state.hover = cur_item_index)
+
+	if usemenu_ret andalso phase = Phases.processing then
+		' Running after usemenu, menu item changed, so update selection
+		selected = (state.pt = cur_item_index)
+		hover = (state.hover = cur_item_index)
+		if selected then selected_id = new_id
+		if hover then hover_id = new_id
+	else
+		selected = (selected_id = new_id)
+		hover = (hover_id = new_id)
+	end if
 
 	'? "defitem " & cur_item_index & " " & *title
 	refresh = (phase = Phases.refreshing)
@@ -695,9 +746,10 @@ sub EditorKit.defitem(title as zstring ptr)
 
 	' Start new item
 	'if refresh then
+		' cur_item is set by defid
 		cur_item.destructor()
 		cur_item.constructor()
-		cur_item.id = cur_item_index
+		cur_item.id = new_id
 		if title andalso title[0] = asc("!") then
 			cur_item.inverted_bool = YES
 			' No value is set yet, don't need to invert it
@@ -842,9 +894,9 @@ sub EditorKit.set_disabled()
 end sub
 
 ' The id isn't used for anything currently
-sub EditorKit.set_id(id as integer)
-	cur_item.id = id
-end sub
+' sub EditorKit.set_id(id as integer)
+' 	cur_item.id = id
+' end sub
 
 ' The color is a master palette index or -uicol - 1 for a UI constant.
 ' Overrides color from a previous set_disabled().
