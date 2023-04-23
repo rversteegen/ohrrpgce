@@ -367,8 +367,8 @@ FUNCTION inflict (byref h as integer = 0, byref targstat as integer = 0, attacke
   attacker.stored_targs_can_be_dead = NO
  END IF
  
- 'If not 'no damage' (which skips hit/miss/fail checking)
- IF attack.damage_math <> 4 THEN
+ 'If not 'No damage'/'No damage and never miss or fail'
+ IF attack.damage_math <> 4 AND attack.damage_math <> 8 THEN
   DIM target_is_register as bool = NO
  
   'init
