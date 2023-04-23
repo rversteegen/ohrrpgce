@@ -1575,8 +1575,12 @@ FUNCTION slice_collection_has_changed(sl as Slice ptr, filename as string) as bo
  DIM changed as bool
  changed = Reload.Ext.CompareNodes(newtree, oldtree) = NO  'Check not equal
 
- 'SetRootNode olddoc, newtree
- 'SerializeBin filename + ".2", olddoc  'For debug
+ IF changed THEN
+  debug filename & " changed in memory"
+  show_overlay_message filename & " changed in memory"
+  'SetRootNode olddoc, newtree
+  SerializeBin filename + ".old", olddoc  'For debug
+ END IF
 
  FreeNode newtree
  FreeDocument olddoc
@@ -1628,7 +1632,18 @@ FUNCTION slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as 
   ' Autosave on quit, unless the collection is empty
   IF slice_collection_is_blank(ses, edslice) = NO THEN
    '--save non-empty slice collections
+
+   DIM oldhash as ulongint = file_hash64(filename)
+   slice_collection_has_changed(edslice, filename)
    SliceSaveToFile edslice, filename
+
+   DIM newhash as ulongint = file_hash64(filename)
+   IF oldhash <> newhash THEN
+    debug "hash changed: " & filename
+    show_overlay_message "hash changed: " & filename
+    filename &= ".new"
+   END IF
+
   ELSE
    '--erase empty slice collections
    safekill filename
@@ -1638,7 +1653,7 @@ FUNCTION slice_editor_save_when_leaving(byref ses as SliceEditState, edslice as 
   '(Export instead if you want to save)
   IF ses.editing_existing ANDALSO ses.existing_matches_file = NO THEN RETURN YES
 
-  IF slice_collection_has_changed(edslice, filename) = NO THEN RETURN YES
+  slice_collection_has_changed(edslice, filename)
 
   IF edslice->NumChildren > 0 THEN
    'Prevent attempt to quit the program, stop and wait for response first

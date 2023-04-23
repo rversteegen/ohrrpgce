@@ -4625,6 +4625,8 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles 
  SaveProp node, "sort", sl->Sorter
  SaveProp node, "autosort", sl->AutoSort
  SaveExtraVector node, "extra", sl->ExtraVec
+ 'SaveProp node, "type", SliceTypeName(sl)   'Used to be saved here
+
  #IFDEF IS_GAME
   if save_handles then
    ' This only occurs when saving a game.
