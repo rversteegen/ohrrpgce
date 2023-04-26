@@ -296,6 +296,7 @@ Type RectangleSliceDataFwd as RectangleSliceData
 Type LineSliceDataFwd as LineSliceData
 Type TextSliceDataFwd as TextSliceData
 Type SpriteSliceDataFwd as SpriteSliceData
+Type PolygonSliceDataFwd as PolygonSliceData
 Type MapSliceDataFwd as MapSliceData
 Type GridSliceDataFwd as GridSliceData
 Type LayoutSliceDataFwd as LayoutSliceData
@@ -449,6 +450,7 @@ Type Slice
     LineData     as LineSliceDataFwd ptr
     TextData     as TextSliceDataFwd ptr
     SpriteData   as SpriteSliceDataFwd ptr
+    PolygonData  as PolygonSliceDataFwd ptr
     MapData      as MapSliceDataFwd ptr
     GridData     as GridSliceDataFwd ptr
     LayoutData   as LayoutSliceDataFwd ptr
@@ -591,6 +593,13 @@ Type SpriteSliceData
  d_tick as integer ' counts which tick the dissolve is in right now
  d_type as integer ' id number of the dissolve animation
 End Type
+
+Type PolygonSliceData Extends SpriteSliceData
+ vertices(any) as VertexPTC
+
+
+End Type
+
 
 'Shows the currently loaded map at the given slice pos
 'Doesn't yet have the ability to load other non-current maps.

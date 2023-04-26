@@ -2880,6 +2880,50 @@ Function SpriteSliceNumFrames(sl as Slice ptr) as integer
  end with
 end function
 
+'--Polygon-----------------------------------------------------------------
+
+Sub SavePolygonSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
+ SaveSpriteSlice sl, node
+ dim dat as PolygonSliceData ptr = sl->PolygonData
+
+ dim as Reload.Node ptr verts_node, vert
+ verts_node = Reload.AppendChildNode(node, "vertices")
+ for idx as integer = 0 to ubound(dat->vertices)
+  with dat->vertices(idx)
+   vert = Reload.AppendChildNode(node, "vert")
+   Reload.SetChildNode(vert, "x", .pos.x)  'SaveProp?
+   Reload.SetChildNode(vert, "y", .pos.y)
+   Reload.SetChildNode(vert, "u", .tex.u)
+   Reload.SetChildNode(vert, "v", .tex.v)
+   Reload.SetChildNode(vert, "col", .col.col)  'BGRA uint32
+  end with
+ next
+end sub
+
+Sub LoadPolygonSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
+ if sl = 0 or node = 0 then debug "LoadPolygonSlice null ptr": exit sub
+ dim dat as PolygonSliceData Ptr = sl->PolygonData
+
+ dim as Reload.Node ptr verts_node, vert
+ verts_node = Reload.GetChildByName(node, "vertices")
+ if verts_node then
+  redim dat->vertices(large(3, CountChildren(verts_node, "vert")) - 1)
+  dim idx as integer = 0
+  vert = FirstChild(verts_node, "vert")
+  while vert
+   with dat->vertices(idx)
+    .pos.x = LoadPropFloat(vert, "x")
+    .pos.x = LoadPropFloat(vert, "y")
+    .tex.u = LoadPropFloat(vert, "u")
+    .tex.v = LoadPropFloat(vert, "v")
+    .col.col = LoadProp(vert, "col")
+   end with
+   vert = NextSibling(vert, "vert")
+   idx += 1
+  wend
+ end if
+end sub
+
 '--Map-----------------------------------------------------------------
 
 Sub DisposeMapSlice(byval sl as Slice ptr)
