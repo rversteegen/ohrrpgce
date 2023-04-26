@@ -169,12 +169,14 @@ Type TexCoord as Float2
 
 Type VertexPC
 	pos as Position
+	unused_tex as TexCoord
 	col as RGBcolor
 End Type
 
 Type VertexPT
 	pos as Position
 	tex as TexCoord
+	unused_col as RGBcolor
 End Type
 
 Type VertexPTC

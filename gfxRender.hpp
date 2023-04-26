@@ -120,6 +120,8 @@ inline void Color::scale(Color16 argbModifier)	{
 struct VertexPC
 {
 	Position pos;
+	// VertexPC, VertexPT, VertexPTC use the same memory layout
+	TexCoord unused_tex;
 	Color col;
 
 	// For measuring small increments in VertexPC
@@ -145,8 +147,8 @@ struct VertexPC
 	};
 	typedef VertexPC16 IncType;
 
-	VertexPC() : pos(), col() {}
-	VertexPC(IncType v) : pos(v.pos), col(v.col) {}
+	VertexPC() : pos(), unused_tex(), col() {}
+	VertexPC(IncType v) : pos(v.pos), unused_tex(), col(v.col) {}
 	operator IncType() const { return VertexPC16{pos, col}; }
 };
 
@@ -154,6 +156,8 @@ struct VertexPT
 {
 	Position pos;
 	TexCoord tex;
+	Color unused_col;
+
 	struct VertexPTInc {
 		Position pos;
 		TexCoordInc tex;
@@ -176,8 +180,8 @@ struct VertexPT
 	};
 	typedef VertexPTInc IncType;
 
-	VertexPT() : pos(), tex() {}
-	VertexPT(IncType v) : pos(v.pos), tex(v.tex) {}
+	VertexPT() : pos(), tex(), unused_col() {}
+	VertexPT(IncType v) : pos(v.pos), tex(v.tex), unused_col() {}
 	operator IncType() const { return IncType{pos, tex}; }
 
 };
