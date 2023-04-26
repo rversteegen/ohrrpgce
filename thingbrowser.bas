@@ -1277,7 +1277,7 @@ Function BackdropSpriteBrowser.create_thing_plank(byval id as integer) as Slice 
    dim scale as double = small(1., small(maxsize.w / spr->Width, maxsize.h / spr->Height))
    'ScaleSpriteSlice spr, XY(scale * spr->Width, scale * spr->Height)
    ' Cached smooth=2 scaling
-   RotozoomSpriteSlice spr, , , XYF(scale, scale), YES, 2, YES
+   RotozoomSpriteSlice spr, , , XYF(scale, scale), 2, YES
   end if
  end if
  return plank

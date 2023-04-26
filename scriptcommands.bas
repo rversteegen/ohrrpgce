@@ -5338,7 +5338,7 @@ SUB script_commands(byval cmdid as integer)
 
 
   CASE 776 '--scale slice(sl, scalex, scaley)  or  scale slice(sl, scale)
-  'Currently implemented for sprites only, RotozoomSlice shows an error for other types
+   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
    sl = get_arg_slice(0)
    IF sl THEN
     DIM as integer scalex = retvals(1), scaley = retvals(2)
@@ -5346,32 +5346,41 @@ SUB script_commands(byval cmdid as integer)
     RotozoomSlice sl, , , XYF(0.01 * scalex, 0.01 * scaley)
    END IF
 
+   /'
+  CASE 752 '--scale slice about(sl, scalex, scaley, x, y, change bounds)
+   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
+   sl = get_arg_spritesl(0)
+   IF sl THEN
+    DIM origin as Float2 = XYF(retvals(2), retvals(3))
+    RotozoomSlice sl, retvals(1), @origin
+   END IF
+  '/
 
-  CASE 777 '--rotate slice(sl, angle, change xy)
-  'Currently implemented for sprites only, RotozoomSlice shows an error for other types
+  CASE 777 '--rotate slice(sl, angle, change bounds)
+   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
    sl = get_arg_slice(0)
    IF sl THEN
-    DIM drop_offset as bool = (retvals(2) = 0)
+    DIM drop_offset as bool = (retvals(2) <> 0) '''
     RotozoomSlice sl, retvals(1), , , drop_offset
    END IF
 
-  CASE 778 '--rotate slice about(sl, angle, x, y)
+  CASE 778 '--rotate slice about(sl, angle, x, y, change bounds)
+   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
    sl = get_arg_spritesl(0)
    IF sl THEN
-    DIM as integer scalex = retvals(1), scaley = retvals(2)
-    IF scaley = INT_MIN THEN scaley = scalex
-    RotozoomSlice sl, retvals(1), XYF(retvals(2), retvals(3))
+    DIM origin as Float2 = XYF(retvals(2), retvals(3))
+    RotozoomSlice sl, retvals(1), @origin
    END IF
 
   CASE 779 '--reset slice transform(sl)
    sl = get_arg_spritesl(0)
    IF sl THEN ResetSpriteTransform(sl)
 
+   /'
   CASE 780 '--set slice vertices(sl, topright.x, topright.y, bottomleft.x, bottomleft.y, [bottomright.x, bottomright.y])
    sl = get_arg_spritesl(0)
    IF sl THEN
     'SetSpriteSliceTransformed sl, NO   'Set use_rz_params = NO
-    PrepareSpriteRZTransform sl, NO   'Set use_rz_params = NO
     WITH *sl->SpriteData.transform
      .topleft = XYF(0, 0)
      .topright = XYF(retvals(1), retvals(2))
@@ -5385,7 +5394,7 @@ SUB script_commands(byval cmdid as integer)
     END WITH
     UpdateSpriteSliceTransform sl
    END IF
-
+   '/
 
 
 

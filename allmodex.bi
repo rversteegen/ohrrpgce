@@ -662,7 +662,7 @@ DECLARE FUNCTION get_global_sfx_volume () as single
 '                                     Transformations
 
 declare sub flip_transform(byref transf as Quad, flip_horiz as bool, flip_vert as bool)
-declare sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 ptr = NULL, pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+declare sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = XYF(0,0), pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
 declare function quad_integer_rect(qud as Quad) as RectType
 
 

@@ -10831,22 +10831,23 @@ end sub
 'Calculate a Quad for a frame/slice of given 'size' by first stretching by 'scale',
 'then rotating `angle` degrees clockwise about `origin` (defaults to center of `size`),
 'then translating by `pos`. (Does NOT support RelPosXY)
-'This can achieve any affine transform.
 '(The Float2 args are passed byref but not modified)
-sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 ptr = NULL, pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
-	dim _origin as Float2 = any
-	if origin = NULL then
-		_origin = XYF(size.x / 2, size.y / 2)
-		origin = @_origin
-	end if
+sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = XYF(0,0), pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+	dim abs_origin as Float2 = origin + XYF(size.x / 2, size.y / 2)
+	' if origin = NULL then
+	' 	_origin = XYF(size.x / 2, size.y / 2)
+	' 	origin = @_origin
+	' end if
 	'if .flip_horiz then origin.x = size.x - origin.x
 	'if .flip_vert  then origin.y = size.y - origin.y
 	dim baserect as Quad
-	vec2GenerateCorners @baserect.vertices(0), 4, size, *origin
+	'Subtract the origin
+	vec2GenerateCorners @baserect.vertices(0), 4, CAST(Float2, size), abs_origin
 	flip_transform baserect, flip_horiz, flip_vert
 
 	dim matrix as Float3x3
-	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos + *origin
+	'Add the origin back
+	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos + abs_origin
 	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 end sub
 
@@ -11226,7 +11227,7 @@ function frame_dissolved(spr as Frame ptr, tlength as integer, t as integer, sty
 				next
 			next
 		case else
-			debug "frame_dissolved: unsupported effect " & style
+			'debug "frame_dissolved: unsupported effect " & style
 	end select
 
 	return cpy

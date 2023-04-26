@@ -399,6 +399,7 @@ declare function cdecl array_create(byval tbl as typeTable, ...)
   private function TID##_copy cdecl (byval p as T ptr) as T ptr
     'This works regardless of whether the UDT has a copy-constructor or not.
     '(You might get an 'Invalid data types' error here due to https://sourceforge.net/p/fbc/bugs/894/)
+    '(Fixed in FB 1.10)
     return new T(*p)
   end function
 

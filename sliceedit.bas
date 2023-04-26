@@ -253,6 +253,7 @@ CONST slgrEXTRA = 32768
 CONST slgrVELOCITY = 1 shl 16
 CONST slgrTARGET = 1 shl 17
 CONST slgrUPDATESPRITETRANSFORM = 1 shl 18
+CONST slgrPICKORIGIN = 1 shl 19
 '--This system won't be able to expand forever ... :(
 
 '==============================================================================
@@ -273,6 +274,7 @@ DECLARE SUB SliceAdoptNiece (byval sl as Slice Ptr)
 'Functions only used locally
 DECLARE FUNCTION tool_text(toolname as string, selected as bool) as string
 DECLARE SUB slice_editor_draw_icon(byref ses as SliceEditState, icon as Frame ptr, framenum as integer, byref pos as XYPair, tooltip as string, page as integer)
+DECLARE SUB slice_editor_draw_tooltip(byref ses as SliceEditState, page as integer)
 DECLARE SUB expand_slice_ancestors(sl as Slice ptr)
 DECLARE FUNCTION slicemenu_hit_tester(state as MenuState, index as integer, pos as XYPair) as bool
 DECLARE FUNCTION find_special_lookup_code(specialcodes() as SpecialLookupCode, code as integer) as integer
@@ -289,6 +291,7 @@ DECLARE SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as 
 DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as Slice Ptr)
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
+DECLARE SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
 DECLARE SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Slice ptr, rootsl as Slice ptr, byref show_ants as bool, ctrl_msg as string = "", helpkey as string = "sliceedit_xy")
 DECLARE FUNCTION slice_editor_filename(byref ses as SliceEditState) as string
 DECLARE SUB slice_editor_load(byref ses as SliceEditState, byref edslice as Slice Ptr, filename as string, importing as bool = NO)
@@ -736,9 +739,6 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
   setkeys
   DIM shiftctrl as KeyBits = keyval(scShift) OR keyval(scCtrl)
   DIM altctrl as KeyBits = keyval(scAlt) OR keyval(scCtrl)
-
-  ses.want_show_tooltip = (readmouse.moved_dist <= 2)
-  ses.tooltip = ""
 
   'ESC to exit mode or the menu
   'S/C-F4 enters the slice debugger, so exit by pressing again.
@@ -1258,9 +1258,8 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
 
   IF ses.focus = focusPicker THEN
    ses.picker.draw(dpage)
-  ELSEIF LEN(ses.tooltip) THEN
-   DIM tippos as XYPair = pick_tooltip_pos()
-   wrapprintbg ses.tooltip, tippos.x, tippos.y, uilook(uiText), dpage, , , , fontBuiltinEdged
+  ELSE
+   slice_editor_draw_tooltip ses, dpage
   END IF
 
   SWAP vpage, dpage
@@ -1305,6 +1304,16 @@ SUB slice_editor_draw_icon(byref ses as SliceEditState, icon as Frame ptr, frame
   ses.want_show_tooltip = NO
  END IF
  pos.x += icon->w
+END SUB
+
+SUB slice_editor_draw_tooltip(byref ses as SliceEditState, page as integer)
+ IF LEN(ses.tooltip) THEN
+  DIM tippos as XYPair = pick_tooltip_pos()
+  wrapprintbg ses.tooltip, tippos.x, tippos.y, uilook(uiText), dpage, , , , fontBuiltinEdged
+ END IF
+
+ ses.want_show_tooltip = (readmouse.moved_dist <= 2)
+ ses.tooltip = ""
 END SUB
 
 'We don't want menu item hitboxes to extend across the screen
@@ -1936,10 +1945,14 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
    DrawSliceAnts sl, dpage
   END IF
 
+  slice_edit_detail_draw_overlays ses, state, sl, rules(), dpage
+
   IF ses.hide_mode <> hideMenu THEN
    menuopts.drawbg = (ses.hide_mode <> hideMenuBG)
    standardmenu menu(), state, , , dpage, menuopts
   END IF
+
+  slice_editor_draw_tooltip ses, dpage
 
   SWAP vpage, dpage
   setvispage vpage
@@ -2198,6 +2211,12 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    state.need_update = YES
   END IF
  END IF
+ ' IF rule.group AND slgrPICKSCALE THEN
+ '  IF enter_space_click(state) THEN
+ '   slice_editor_xy @sl->SpriteData->rz_scale, @sl->SpriteData->rz_origin, sl, ses.draw_root, ses.show_ants, "Hold CTRL to adjust origin"
+ '   state.need_update = YES
+ '  END IF
+ ' END IF
  IF rule.group AND slgrPICKCOL THEN
   IF enter_space_click(state) THEN
    DIM n as integer ptr = rule.dataptr
@@ -2231,9 +2250,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
  IF rule.group AND slgrUPDATESPRITETRANSFORM THEN
   IF state.need_update THEN
    'state.need_update is cleared at the top of the loop
-   sl->SpriteData->rz_angle = fmod(sl->SpriteData->rz_angle, 360.0)
-   IF sl->SpriteData->rz_angle < 0 THEN sl->SpriteData->rz_angle += 360.0
-   UpdateSpriteSliceTransform sl, YES
+   UpdateSpriteSliceTransform sl
   END IF
  END IF
  IF rule.group AND slgrBROWSESPRITEASSET THEN
@@ -2338,6 +2355,28 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    state.need_update = YES
   END IF
  END IF
+END SUB
+
+SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
+
+ DIM rule as EditRule = rules(state.pt)
+
+ IF rule.group AND slgrPICKORIGIN THEN
+
+  'Draw a crosshair
+  DIM origin as XYPair
+  origin = sl->ScreenPos + sl->Size / 2 + sl->SpriteData->rz_origin
+'  DIM origin as Float2
+'  origin.x = sl->ScreenX + sl->Width / 2 + sl->SpriteData->rz_origin.x
+  slice_editor_draw_icon ses, ses.other_icons, 6, origin, "Rotozoom origin", dpage
+ END IF
+
+  ' dim col as integer = uilook(uiSelectedItem + global_tog)
+  ' rectangle .x - 4, .y, 4, 1, col, page
+  ' rectangle .x, .y - 4, 1, 4, col, page
+
+
+
 END SUB
 
 FUNCTION slice_editor_filename(byref ses as SliceEditState) as string
@@ -2691,28 +2730,35 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     ' a_append menu(), " Position vertices..."
     ' sliceed_rule_none rules(), "vertices", slgrMOVEVERTICES
 
-    a_append menu(), "Transformed: " & dat->is_transformed & " Use transform:  " & dat->use_transform & " RZ params: " &  dat->use_rz_params
-    sliceed_rule_none rules(), ""
+    a_append menu(), "Transformed: " & yesorno(dat->rz_enabled) & " (transform:  " & yesorno(dat->transform <> 0) & ")"
+    sliceed_rule_tog rules(), "sprite_rz", @dat->rz_enabled, slgrUPDATESPRITETRANSFORM
 
-    if dat->use_rz_params = NO then
-     if dat->is_transformed = NO then
-      PrepareSpriteRZTransform(sl, YES)
-     end if
-    end if
 
-    a_append menu(), " Rotation: " & format_float(dat->rz_angle) & " degrees"
-    'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360
-    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+
+
+    'FIXME: show the following only when rz_enabled
+
     a_append menu(), " Scale X: " & format_percent(dat->rz_scale.x)
     sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
     a_append menu(), " Scale Y: " & format_percent(dat->rz_scale.y)
     sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
-    a_append menu(), " Origin X: " & format_float(dat->rz_origin.x)
-    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
-    a_append menu(), " Origin Y: " & format_float(dat->rz_origin.y)
-    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
 
-    IF ses.privileged THEN
+    a_append menu(), " Rotation: " & format_float(dat->rz_angle) & " degrees"
+    'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360
+    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), "  Origin X: Center + " & format_float(dat->rz_origin.x)
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), "  Origin Y: Center + " & format_float(dat->rz_origin.y)
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    a_append menu(), "  Rotate bounding box: " & yesorno(dat->rz_rotate_bbox)
+    sliceed_rule_tog rules(), "sprite_rotate_bbox", @dat->rz_rotate_bbox, slgrUPDATESPRITETRANSFORM
+
+    a_append menu(), " Flip horiz.: " & yesorno(dat->rz_flip_horiz)
+    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_horiz), slgrUPDATESPRITETRANSFORM
+    a_append menu(), " Flip vert.: " & yesorno(dat->rz_flip_vert)
+    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_vert), slgrUPDATESPRITETRANSFORM
+
+'    IF ses.privileged THEN
      a_append menu(), " Cache scaled: " & yesorno(dat->rz_cache_scaled)
      sliceed_rule_tog rules(), "sprite_cache_scaled", @(dat->rz_cache_scaled), slgrUPDATESPRITE
      IF dat->rz_cache_scaled THEN
@@ -2722,12 +2768,7 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
       a_append menu(), "  Smoothing: " & msg
       sliceed_rule rules(), "sprite_smooth_rotozoom", erIntGrabber, @(dat->rz_smooth), 0, 2, slgrUPDATESPRITE
      END IF
-    END IF
-
-    a_append menu(), " Flip horiz.: " & yesorno(dat->rz_flip_horiz)
-    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_horiz), slgrUPDATESPRITETRANSFORM
-    a_append menu(), " Flip vert.: " & yesorno(dat->rz_flip_vert)
-    sliceed_rule_tog rules(), "sprite_flip", @(dat->rz_flip_Vert), slgrUPDATESPRITETRANSFORM
+'    END IF
 
     a_append menu(), " Dissolving: " & yesorno(dat->dissolving)
     sliceed_rule_tog rules(), "sprite_dissolve", @(dat->dissolving)

@@ -8814,6 +8814,77 @@ map y := slice screen y(sl) + camera pixel y</example>
 		<reference ref="moveslicewithwallchecking" />
 		</section>		<!--Moving Slices-->
 
+
+		<section title="Rotating and scaling slices">
+
+		<command id="rotatesliceabout">
+			<canon>rotate slice about (handle, angle, about x, about y)</canon>
+			<shortname>rotate slice about</shortname>
+			<description>
+				Rotates a sprite slice (other slice types aren't supported yet) by <p>angle</p> degrees clockwise around a point.
+
+				<p>angle</p> is degrees clockwise, normally 0 to 359 (angles outside of this range can be used; they wrap around).
+				<p>about x</p>/<p>about y</p> are the "origin point" to rotate about.
+				They are measured relative to the center of the unrotated slice (which is between two pixels if the size is even).
+				The origin is remembered for future <ref>rotateslice</ref> calls.
+
+				<lb/>
+				Scaling a sprite slice changes its size, and vice versa,
+				but rotation is more complicated.
+
+				There are three different ways you can rotate a slice:
+				<ul>
+					<li>
+						without changing position or size:
+						For animations when you don't care what the slice's hitbox for collision checking is.
+						For example, you just want to spin a ball about its center, or.g. swing an axe around its handle but
+						aren't going to use the slice as a hitbox, because that'
+						You don't want its size to change, which would move its alignment points and cause any child slices to move.
+						Use <p>rotateslice</p> instead.
+					</li>
+					<li>
+						changing size and position: 
+						To make a tall stone block sprite fall over you could rotate it about its base.
+						If once it's fallen flat you want it to act as a wide, short obstacle, then you want both its position (X and Y) and size to change.
+						If you're rotating something by a multiple of 90°, this is often the sensible thing to do.
+						A 10x30-sized sprite rotated 90° becomes 30x10.
+						<lb/>
+						But the sides of the slice remain size aligned along the X and Y axes like all other slices.
+						So if you rotate something by 45° its size always increases a lot, but at least half of its bounding box will just be empty space.
+						So if you swing a weapon, don't just rotate its sprite slice and use slice collision checking for hit detection, the hitbox would far too big!
+						<lb/>
+						In order to change the position of the slice you need to tell
+						around which point to rotate.
+					</li>
+					<li>
+						change size but not position:
+						Suppose you have a sprite for a chair, size 20x30, and you want a sideways chair, size 30x20.
+						You can use <p>rotateslice</p> and then <tt>put slice (sl, 0, 0)</tt>
+						to undo the change in position.
+					</li>
+				</ul>
+
+			</description>
+		</command>
+
+		<command id="rotateslice">
+			<canon>set bounding box transforms (handle, value)</canon>
+			<shortname>rotate slice</shortname>
+			<description>
+
+			</description>
+		</command>
+
+		<command id="rotateslice">
+			<canon>rotate slice (handle, angle)</canon>
+			<shortname>rotate slice</shortname>
+			<description>
+
+			</description>
+		</command>
+
+		</section>
+
 		<section title="Moving Around the Slice Tree">
 		<command id="slicechild">
 			<canon>slice child (handle, number)</canon>

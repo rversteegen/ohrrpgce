@@ -202,7 +202,8 @@ Enum 'SliceTypes
  slPanel
  slLayout
  slLine
- slLAST = slLine
+ slPolygon
+ slLAST = slPolygon
  'Follow INSTRUCTIONS at the bottom of this file for adding a new slice type
  'Remember to update slicetype constants in plotscr.hsd
  slAddCollection      'Not a real type, used only by slice_edit_detail_browse_slicetype
@@ -524,13 +525,13 @@ Type SpriteSliceData
                            'created from a Frame loaded from elsewhere, and can't be saved.
                            '(The string memory is owned by this slice. Used a string ptr
                            'to minimise overhead for non-asset slices.)
- load_asset_as_32bit as bool
  record as integer         'Spriteset number. Meaningless if spritetype is sprTypeFrame
  frame as integer          'Currently displaying frame number. Must be 0 if spritetype is sprTypeFrame
+ load_asset_as_32bit as boolean
  paletted as bool = YES    'UNSAVED: YES: 4-bit, NO: 8-bit (could remove this when 256-colour palettes added, or change meaning)
  pal as integer = -1       'Set pal to -1 for the default. Ignored if paletted=NO (and won't be saved).
                            '-2 if using a custom Palette16 ptr (sprTypeFrame only).
- trans as bool = YES       'Draw with color 0 as transparent?
+ trans as boolean = YES    'Draw with color 0 as transparent?
 
  loaded as bool            'UNSAVED: Set to NO to force a re-load on the next draw
  img_gen as integer        'UNSAVED: Equals .originl_img->generation unless the spriteset has changed (e.g. modified
@@ -544,11 +545,13 @@ Type SpriteSliceData
 
 
  'Transformations
- transform as Quad         'Normalized; see NormalizeSliceTransform
- is_transformed as bool    'False if .transform isn't used (it is considered uninitialised) and the transformation
-                           'described by rz* params is trivial and can be ignored. E.g. rotation by 360°.
-                           'Should be toggled only by calling UpdateSpriteIsTransformed.
- use_transform as bool     'True if should be drawn using .transform. Normally same as .is_transformed except
+ transform as Quad ptr     'Exists only when should be used. Calculated from rz_* params.  NULL whenever
+                           '.rz_enabled=NO, rz parameters are trivial, or only scaling and the scaling is cached.
+ rz_enabled as boolean     'Enables rotozooming, otherwise rz_* ignored.
+                           'Automatically set to false when .rz_* parameters become trivial.
+                           'Can also be manually toggled, e.g. while editing in the slice editor (which overrides
+                           'the automatic toggling, which would be annoying)
+ 'use_transform as bool     'True if should be drawn using .transform. Normally same as .is_transformed except
                            'when rz_cache_scaled=YES it's possible that use_transform=NO while is_transformed=YES
                            'because img.sprite is prescaled, and no further transform may be needed.
 
@@ -560,24 +563,29 @@ Type SpriteSliceData
  rz_smooth as integer      'UNSAVED: 0-2 rotozoom smoothing method. 0: none, 1: (unimplemented, was use bi-linear
                            'filtering --32-bit only) 2: use scale_surface, better when shrinking (32-bit only), but
                            'currently requires rz_cache_scaled = YES
- rz_cache_scaled as bool   'UNSAVED: rz_smooth=2 only. Pre-compute (cache) the scaling, store it in
+ rz_cache_scaled as boolean'UNSAVED: rz_smooth=2 only. Pre-compute (cache) the scaling, store it in
                            '.img.sprite. TODO: Not shared between sprite slices, unless they're cloned!
                            'FIXME: causes the scaled slice size to be rounded to the nearest pixel.
  'rz_cache_scaled_need_update as bool   'If might need to regenerate the scaled image
  'The following parameters may be used to (re)compute .transform only if .use_rz_params is true,
  'otherwise a custom transform is in use and it shouldn't be overwritten, and the following are just
  'descriptions of its properties.
- use_rz_params as bool = NO 'Regardless of .is_transformed, tells both whether rz_* parameters are initialised
+ 'use_rz_params as bool = NO 'Regardless of .is_transformed, tells both whether rz_* parameters are initialised
                            'and whether they are in use rather than a manually-set .transform.
                            'If .is_transformed=NO and .use_rz_params=YES then rz params describes a trivial
                            'transform (unless rz_cache_scaled=YES). If .is_transformed=YES and .use_rz_params=NO
                            'then only .transform & .rz_flip_horiz/vert are initialised.
- rz_flip_horiz as bool     'Horizontally flipped (before rotation). Note: always considered initialised even when
+
+ rz_rotate_bbox as boolean 'If true, rotating the sprite causes the slice pos/size to be set to a bounding box,
+                           'and the slice size can't be modified directly. Instead, you need to set rz_scale.
+                           'If false, changing slice size updates rz_scale and vice versa, and but rotations don't.
+
+ rz_flip_horiz as boolean  'Horizontally flipped (before rotation). Note: always considered initialised even when
                            'use_rz_params=NO, although may not be true, because they are still used for flipping.
- rz_flip_vert as bool      'Vertically flipped. As above.
+ rz_flip_vert as boolean   'Vertically flipped. As above.
  'basesize as Float2       'Frame size times rz_scale
  rz_scale as Float2        'Ratio to scale the Frame's width/height (before rotation)
- rz_angle as single        'Clockwise angle in degrees, normally 0-359
+ rz_angle as single        'Clockwise angle in degrees, gets converted to [0, 360)
  rz_origin as Float2       'Point (after flipping but before scaling) around which to rotate and scale
 
  'Blending/transparency settings
@@ -596,6 +604,12 @@ End Type
 
 Type PolygonSliceData Extends SpriteSliceData
  vertices(any) as VertexPTC
+
+ 'Differences from Sprite:
+
+ 'Changing the size of a Polygon does not change the position of its vertices. Slice
+ 'size is ignored while drawing (but does move the anchor point).
+ 'However, changing any of the vertices causes the size to be recomputed, to be a bounding box.
 
 
 End Type
@@ -732,7 +746,7 @@ DECLARE Function SlicePossiblyResizable(sl as Slice ptr) as bool
 DECLARE Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
 DECLARE Sub SetSliceSize(sl as Slice ptr, size as XYPair)
 
-DECLARE Sub RotozoomSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), drop_offset as bool = NO, smooth as integer = 0, cache_scaled as bool = NO)
+DECLARE Sub RotozoomSlice(sl as Slice ptr, angle as double = 0., origin as Float2 ptr = NULL, scale as Float2 = XYF(1,1), drop_offset as bool = NO, smooth as integer = 0, cache_scaled as bool = NO)
 
 DECLARE Function SliceXAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceYAnchor(byval sl as Slice Ptr) as integer
@@ -841,7 +855,7 @@ DECLARE Sub DrawSpriteSlice(byval sl as slice ptr, byval p as integer)
 DECLARE Sub SetSpriteToAsset(sl as Slice ptr, assetfile as string, warn_if_missing as bool = YES)
 DECLARE Sub SetSpriteToFrame(sl as slice ptr, fr as Frame ptr, pal16 as Palette16 ptr = NULL, pal as integer = -2)
 DECLARE Sub UpdateSpriteSliceImage(sl as Slice ptr)
-DECLARE Sub UpdateSpriteSliceTransform(sl as Slice ptr, drop_offset as bool = NO, img_changed as bool = NO)
+DECLARE Sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
 DECLARE Function NewSpriteSlice(byval parent as Slice ptr, byref dat as SpriteSliceData) as slice ptr
 DECLARE Sub ChangeSpriteSlice(byval sl as slice ptr,_
                       byval spritetype as SpriteType = sprTypeInvalid,_
@@ -851,10 +865,9 @@ DECLARE Sub ChangeSpriteSlice(byval sl as slice ptr,_
                       byval fliph as integer = -2,_
                       byval flipv as integer = -2,_
                       byval trans as integer = -2)  ' All arguments default to no change
-DECLARE Sub PrepareSpriteRZTransform(sl as Slice ptr, use_rz as integer = -2)  'EnsureSpriteTransformInit
 DECLARE Sub ResetSpriteTransform(sl as Slice ptr)
 DECLARE Sub ScaleSpriteSlice(sl as Slice ptr, size as XYPair)
-DECLARE Sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), drop_offset as bool = NO, smooth as integer = 0, cache_scaled as bool = NO)
+DECLARE Sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 ptr = NULL, scale as Float2 = XYF(1,1), smooth as integer = 0, cache_scaled as bool = NO)
 DECLARE Sub SetSpriteFlipped(sl as Slice ptr, fliph as bool, flipv as bool)
 DECLARE Sub DissolveSpriteSlice(byval sl as slice ptr, byval dissolve_type as integer, byval over_ticks as integer=-1, byval start_tick as integer=0, byval backwards as bool=NO, byval auto_animate as bool=YES)
 DECLARE Sub CancelSpriteSliceDissolve(sl as Slice ptr)
