@@ -2628,6 +2628,7 @@ sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 
    .rz_angle += angle
    '.basesize *= zoom
    .rz_scale *= scale
+?"Rotozoom new .rz_scale " & .rz_scale
    'We /could/ use the other branch, forming a matrix and multiplying the
    'existing .transform by it, but it's better to recompute .transform from
    'the parameters to avoid accumulation of rounding errors.
@@ -2640,6 +2641,8 @@ sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 
    next
    dim matrix as Float3x3
    matrixLocalTransform @matrix, angle * -M_PI / 180, scale, origin
+?"Quad scale by " & scale
+
    dim newvert as Quad  'vec2Transform can't write inplace
    vec2Transform @newvert.vertices(0), 4, @.transform.vertices(0), 4, matrix
    .transform = newvert
@@ -4274,6 +4277,7 @@ Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
    if oldsize.w andalso oldsize.h then
     with *sl->SpriteData
      dim scale as Float2 = XYF(sl->Width / oldsize.w, sl->Height / oldsize.h)
+?"HandleSliceSizeChange size=" & sl->Size & " old= " & oldsize & " scale=" & scale
      if .is_transformed andalso .use_rz_params then
       'Scaling the transform will in general turn it into a shear which
       'can't be represented with rz params, but as a special case, if it's not
