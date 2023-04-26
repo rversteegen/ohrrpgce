@@ -810,6 +810,10 @@ define function, begin
 774,xboxcontroller,1,0        # The specified controller is an xbox-style one
 775,nintendocontroller,1,0    # The specified controller is a nintendo-style one
 
+776,scale slice,3,0,100,-2147483648  #(sl, 100*scalex, 100*scaley)  or  scale slice(sl, 100*scale)
+777,rotate slice,3,0,0,0             #(sl, angle, change xy)
+778,rotate slice about,4,0,0,0,0       #(sl, angle, x, y)
+
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 

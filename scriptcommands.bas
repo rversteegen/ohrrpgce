@@ -5337,7 +5337,7 @@ SUB script_commands(byval cmdid as integer)
   scriptret = IIF(sys = "SWITCH", 1, 0)
 
 
-  CASE 750 '--scale slice(sl, scalex, scaley)  or  scale slice(sl, scale)
+  CASE 776 '--scale slice(sl, scalex, scaley)  or  scale slice(sl, scale)
   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
    sl = get_arg_slice(0)
    IF sl THEN
@@ -5347,7 +5347,7 @@ SUB script_commands(byval cmdid as integer)
    END IF
 
 
-  CASE 751 '--rotate slice(sl, angle, change xy)
+  CASE 777 '--rotate slice(sl, angle, change xy)
   'Currently implemented for sprites only, RotozoomSlice shows an error for other types
    sl = get_arg_slice(0)
    IF sl THEN
@@ -5355,7 +5355,7 @@ SUB script_commands(byval cmdid as integer)
     RotozoomSlice sl, retvals(1), , , drop_offset
    END IF
 
-  CASE 752 '--rotate slice about(sl, angle, x, y)
+  CASE 778 '--rotate slice about(sl, angle, x, y)
    sl = get_arg_spritesl(0)
    IF sl THEN
     DIM as integer scalex = retvals(1), scaley = retvals(2)
@@ -5363,11 +5363,11 @@ SUB script_commands(byval cmdid as integer)
     RotozoomSlice sl, retvals(1), XYF(retvals(2), retvals(3))
    END IF
 
-  CASE 753 '--reset slice transform(sl)
+  CASE 779 '--reset slice transform(sl)
    sl = get_arg_spritesl(0)
    IF sl THEN ResetSpriteTransform(sl)
 
-  CASE 754 '--set slice vertices(sl, topright.x, topright.y, bottomleft.x, bottomleft.y, [bottomright.x, bottomright.y])
+  CASE 780 '--set slice vertices(sl, topright.x, topright.y, bottomleft.x, bottomleft.y, [bottomright.x, bottomright.y])
    sl = get_arg_spritesl(0)
    IF sl THEN
     'SetSpriteSliceTransformed sl, NO   'Set use_rz_params = NO
