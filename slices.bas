@@ -5012,8 +5012,8 @@ End Sub
 Sub SaveProp(node as Reload.Nodeptr, propname as zstring ptr, byref value as Float2)
  if value.x = 0.0 andalso value.y = 0.0 then exit sub
  dim chnode as Reload.Node ptr = Reload.SetChildNode(node, propname)
- Reload.SetChildNode(node, "x", value.x)
- Reload.SetChildNode(node, "y", value.y)
+ Reload.SetChildNode(chnode, "x", value.x)
+ Reload.SetChildNode(chnode, "y", value.y)
 End Sub
 
 Extern "C"

@@ -10726,7 +10726,7 @@ end sub
 ' Optionally, can pass in an array of 4 colours (clockwise from bottomleft) to interpolate
 ' colour (and alpha) modulation across the image.
 sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), transf as Quad, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
-	dim vertices(3) as VertexPT
+	dim vertices(3) as VertexPTC
 	'Clockwise from bottom-left
 	vertices(0).tex.u = 0
 	vertices(0).tex.v = 1
@@ -10773,15 +10773,12 @@ sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL,
 	end if
 
 	if vertex_cols then
-		dim ptcvertices(3) as VertexPTC
 		for i as integer = 0 to 3
-			ptcvertices(i).tex = vertices(i).tex
-			ptcvertices(i).pos = vertices(i).pos
-			ptcvertices(i).col = vertex_cols[i]
+			vertices(i).col = vertex_cols[i]
 		next
-		gfx_renderQuadTextureColor(@ptcvertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTextureColor(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 	else
-		gfx_renderQuadTexture(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		gfx_renderQuadTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 	end if
 	def_drawoptions.color_key0 = NO
 end sub
