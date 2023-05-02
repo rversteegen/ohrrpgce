@@ -10828,12 +10828,13 @@ sub flip_transform(byref transf as Quad, flip_horiz as bool, flip_vert as bool)
 	end if
 end sub
 
+/'
 'Calculate a Quad for a frame/slice of given 'size' by first stretching by 'scale',
 'then rotating `angle` degrees clockwise about `origin` (defaults to center of `size`),
 'then translating by `pos`. (Does NOT support RelPosXY)
 '(The Float2 args are passed byref but not modified)
 sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = XYF(0,0), pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
-	dim abs_origin as Float2 = origin + XYF(size.x / 2, size.y / 2)
+	'dim abs_origin as Float2 = origin + XYF(size.x / 2, size.y / 2)
 	' if origin = NULL then
 	' 	_origin = XYF(size.x / 2, size.y / 2)
 	' 	origin = @_origin
@@ -10842,14 +10843,51 @@ sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = 
 	'if .flip_vert  then origin.y = size.y - origin.y
 	dim baserect as Quad
 	'Subtract the origin
-	vec2GenerateCorners @baserect.vertices(0), 4, CAST(Float2, size), abs_origin
+	vec2GenerateCorners @baserect.vertices(0), 4, XYF(size.w, size.h),origin ' XYF(0, 0) 'origin
+
 	flip_transform baserect, flip_horiz, flip_vert
 
 	dim matrix as Float3x3
 	'Add the origin back
-	matrixLocalTransform @matrix, angle * -M_PI / 180, scale, pos + abs_origin
+
+	'First scale, then subtract origin, rotate, add oriin
+	scaleRotateMatrix @matrix, angle * -M_PI / 180, scale, pos + origin
+
 	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 end sub
+'/
+
+sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = XYF(0,0), pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+	dim baserect as Quad
+	'Subtract the origin
+	vec2GenerateCorners @baserect.vertices(0), 4, XYF(size.w, size.h),origin ' XYF(0, 0) 'origin
+
+	'Scale rot
+	for i as integer = 0 to 3
+		baserect.vertices(i) = baserect.vertices(i) * scale - origin
+	next
+
+	flip_transform baserect, flip_horiz, flip_vert
+
+	dim matrix as Float3x3
+	'Add the origin back
+
+	'First scale, then subtract origin, rotate, add oriin
+	scaleRotateMatrix @matrix, angle * -M_PI / 180, XYF(1,1), pos + origin
+
+	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
+
+	'Rotate+scale the origin
+	' dim trans_origin_rot as Float2
+	' vec2Transform @origin_rot, 1, @origin, 1, matrix
+
+	'Subtract origin_rot
+	' for i as integer = 0 to 3
+	' 	result.vertices(i) -= origin_rot
+	' next
+
+end sub
+
 
 function quad_integer_rect(qud as Quad) as RectType
 	dim rectf as ClippingRectF

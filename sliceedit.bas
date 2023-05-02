@@ -253,7 +253,8 @@ CONST slgrEXTRA = 32768
 CONST slgrVELOCITY = 1 shl 16
 CONST slgrTARGET = 1 shl 17
 CONST slgrUPDATESPRITETRANSFORM = 1 shl 18
-CONST slgrPICKORIGIN = 1 shl 19
+CONST slgrSHOWORIGIN = 1 shl 19
+CONST slgrPICKORIGIN = 1 shl 20
 '--This system won't be able to expand forever ... :(
 
 '==============================================================================
@@ -553,7 +554,7 @@ SUB slice_editor_load_icons(byref ses as SliceEditState)
  ses.slice_type_icons = load_icon_spritesheet("icons/slice_types_8x8.bmp", XY(9,8), slLAST+1)
  ses.fill_mode_icons = load_icon_spritesheet("icons/slice_fill_modes_8x8.bmp", XY(9,8), 3)
  ses.blend_icons = load_icon_spritesheet("icons/slice_blend_modes_8x8.bmp", XY(9,8), 3)
- ses.other_icons = load_icon_spritesheet("icons/slice_other_8x8.bmp", XY(9,8), 6)
+ ses.other_icons = load_icon_spritesheet("icons/slice_other_8x8.bmp", XY(9,8), -1)
 END SUB
 
 LOCAL FUNCTION create_draw_root (ses as SliceEditState) as Slice ptr
@@ -1943,6 +1944,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
   END If
   IF ses.show_ants THEN
    DrawSliceAnts sl, dpage
+   'draw_special_ants sl, dpage
   END IF
 
   slice_edit_detail_draw_overlays ses, state, sl, rules(), dpage
@@ -2145,11 +2147,11 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   CASE erPercentgrabber
    DIM n as double ptr = rule.dataptr
    prevval.double = *n
-   state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
+   state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 5, YES)
   CASE erSinglePercentgrabber
    DIM n as single ptr = rule.dataptr
    prevval.single = *n
-   state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 4, YES)
+   state.need_update OR= percent_grabber(*n, "", 0.01 * rule.lower, 0.01 * rule.upper, 5, YES)
   CASE erLookupgrabber
    DIM n as integer ptr = rule.dataptr
    prevval.int = *n
@@ -2361,21 +2363,13 @@ SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as
 
  DIM rule as EditRule = rules(state.pt)
 
- IF rule.group AND slgrPICKORIGIN THEN
-
+ IF rule.group AND (slgrSHOWORIGIN OR slgrPICKORIGIN) THEN
   'Draw a crosshair
   DIM origin as XYPair
-  origin = sl->ScreenPos + sl->Size / 2 + sl->SpriteData->rz_origin
-'  DIM origin as Float2
-'  origin.x = sl->ScreenX + sl->Width / 2 + sl->SpriteData->rz_origin.x
-  slice_editor_draw_icon ses, ses.other_icons, 6, origin, "Rotozoom origin", dpage
+  origin = sl->ScreenPos + CAST(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+  ' The icon is offset by 3,3
+  slice_editor_draw_icon ses, ses.other_icons, 6, origin - XY(3, 3), "Rotozoom origin", dpage
  END IF
-
-  ' dim col as integer = uilook(uiSelectedItem + global_tog)
-  ' rectangle .x - 4, .y, 4, 1, col, page
-  ' rectangle .x, .y - 4, 1, 4, col, page
-
-
 
 END SUB
 
@@ -2739,17 +2733,19 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     'FIXME: show the following only when rz_enabled
 
     a_append menu(), " Scale X: " & format_percent(dat->rz_scale.x)
-    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM or slgrPICKWH or slgrSHOWORIGIN
     a_append menu(), " Scale Y: " & format_percent(dat->rz_scale.y)
-    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(dat->rz_scale.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM or slgrPICKWH or slgrSHOWORIGIN
 
     a_append menu(), " Rotation: " & format_float(dat->rz_angle) & " degrees"
-    'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360
-    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360. However,
+    'format_float returns a global string, showing the unwrapped value for a tick
+    'until float_grabber is called.
+    sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(dat->rz_angle), -1e6, 1e6, slgrUPDATESPRITETRANSFORM or slgrSHOWORIGIN
     a_append menu(), "  Origin X: Center + " & format_float(dat->rz_origin.x)
-    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.x), -1e6, 1e6, slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
     a_append menu(), "  Origin Y: Center + " & format_float(dat->rz_origin.y)
-    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM
+    sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(dat->rz_origin.y), -1e6, 1e6, slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
     a_append menu(), "  Rotate bounding box: " & yesorno(dat->rz_rotate_bbox)
     sliceed_rule_tog rules(), "sprite_rotate_bbox", @dat->rz_rotate_bbox, slgrUPDATESPRITETRANSFORM
 
@@ -2851,6 +2847,7 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
     sliceed_rule_ubyte rules(), "layout_row_alignment", @dat->row_alignment, 0, 2
     a_append menu(), " Within-row alignment: " & dir_align_caption(dat->secondary_dir, dat->cell_alignment)
     sliceed_rule_ubyte rules(), "layout_cell_alignment", @dat->cell_alignment, 0, 2
+
     IF dat->justified THEN
      a_append menu(), " Minimum within-row padding: " & dat->primary_padding
     ELSE
@@ -3253,6 +3250,41 @@ SUB DrawSliceAnts (byval sl as Slice Ptr, byval dpage as integer)
    NEXT
   END IF
  END IF
+
+ IF sl->SliceType = slSprite THEN
+  WITH *sl->SpriteData
+   IF .transform THEN
+  ' IF (.rz_angle <> 0.0 ANDALSO .rz_rotate_bbox) ORELSE _
+  '    (.transform <> NULL ANDALSO NOT .rz_rotate_bbox) ORELSE _
+
+    ' TODO: for an unrotated slice, this draws from x,y to x+w,y+h instead of to x+w-1,y+h-1
+    ' like drawants
+    'DIM ants_quad as Quad
+    'rotozoom_transform ants_quad, .original_img->size - XY(1,1), .rz_origin, XYF(-0.5, -0.5), .rz_angle, .rz_scale
+
+    FOR vidx as integer = 0 TO 3
+     DIM as XYPair thisv, nextv
+     thisv = .transform->vertices(vidx)
+     nextv = .transform->vertices((vidx + 1) AND 3)
+     'fixcoord
+     'IF thisv.x > nextv.x THEN nextv.x -= 1 ELSE thisv.x -= 1
+     'IF thisv.y < nextv.y THEN nextv.y -= 1 ELSE thisv.y -= 1
+
+     IF thisv.x >= sl->Width THEN thisv.x -= 1
+     IF nextv.x >= sl->Width THEN nextv.x -= 1
+     IF thisv.y >= sl->Height THEN thisv.y -= 1
+     IF nextv.y >= sl->Height THEN nextv.y -= 1
+
+     thisv += sl->ScreenPos
+     nextv += sl->ScreenPos
+
+     drawline thisv.x, thisv.y, nextv.x, nextv.y, uilook(uiText), dpage, 4, 1
+    NEXT
+
+   END IF
+  END WITH
+ END IF
+
 END SUB
 
 FUNCTION slice_lookup_code_caption(byval code as integer, slicelookup() as string) as string

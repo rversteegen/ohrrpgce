@@ -66,7 +66,7 @@ union Quad {
 
 extern "C" {
 
-void matrixLocalTransform( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position );
+void scaleRotateMatrix( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position );
 //void matrixMultiply( float3x3* pMatrixOut, const float3x3& A, const float3x3& B );
 void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2ArrayIn, int srcSize, const float3x3& transformMatrix );
 //void vec3Transform( float3* pVec3ArrayOut, int destSize, const float3* pVec3ArrayIn, int srcSize, const float3x3& transformMatrix );

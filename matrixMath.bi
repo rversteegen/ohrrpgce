@@ -41,7 +41,7 @@ END UNION
 EXTERN "C"
 
 'transforms from local coordinates to the specified scale, rotation (clockwise by "angle"), and translation; assembled in manner of Scale-Rotate-Transform (SRT)
-DECLARE SUB matrixLocalTransform( byval pMatrixOut as float3x3 ptr, byval angle as single, byref scale as float2, byref position as float2 )
+DECLARE SUB scaleRotateMatrix( byval pMatrixOut as float3x3 ptr, byval angle as single, byref scale as float2, byref position as float2 )
 
 'multiplies matrices together; pMatrixOut = A x B
 DECLARE SUB matrixMultiply( byval pMatrixOut as float3x3 ptr, byref A as float3x3, byref B as float3x3 )

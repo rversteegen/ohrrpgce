@@ -13,7 +13,9 @@
 #include <stddef.h>
 #define min(a, b) (a < b ? a : b)
 
-void matrixLocalTransform( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position )
+/**  See matrixMath.bi for docs!  **/
+
+void scaleRotateMatrix( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position )
 {
    if( pMatrixOut == NULL )
       return;
@@ -62,6 +64,7 @@ void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2Arra
 }
 
 /*
+// Can also be used for 3x3 matrix multiplication
 void vec3Transform( float3* pVec3ArrayOut, int destSize, const float3* pVec3ArrayIn, int srcSize, const float3x3& transformMatrix )
 {
    if( pVec3ArrayOut == NULL || pVec3ArrayIn == NULL )

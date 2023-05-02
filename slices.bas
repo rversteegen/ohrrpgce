@@ -2450,18 +2450,42 @@ end function
 'vertices and the shift due to effect of any change in its size on its anchor point.
 sub RotateSpriteBoundingBox(sl as Slice ptr, byref transfrm as Quad)
  dim rect as RectType = quad_integer_rect(transfrm)
+
+	dim rectf as ClippingRectF
+	calculatePolygonRect(@transfrm.vertices(0), 4, sizeof(Float2), rectf)
+
+
+ if sl->SpriteData->rz_rotate_bbox then
+
  'Note: when the transform changes in reaction to the slice size changing when
  'HandleSliceSizeChange is called, the existing normalised transform will be stretched
  'to the new size which means rect.xy = 0, hence .Pos never changes
  'drop_offset does nothing. Which is good because .Size has already changed, so we wouldn't
  'know how much to adjust .Pos by if the anchor point isn't the top left.
  dim oldanc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
+ dim oldsize as XYPair = sl->Size
+ 'Origin, relative to parent align point
+ dim oldorigin as xypair
+ oldorigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
  sl->Size = rect.wh
+ 'sl->Width = rectf.right - rectf.left - 0.001
+ 'sl->Height = rectf.bottom - rectf.top - 0.001
+ dim newanc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
+ dim neworigin as XYPair
+ neworigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+
  'Shift
+
   'Position of the top-left corner of the slice relative to its align point on the parent
- sl->Pos += /'rect.xy +'/ oldanc - XY(SliceXAnchor(sl), SliceYAnchor(sl))
+ 'sl->Pos -= /'rect.xy +'/ oldanc - newanc
+ sl->Pos -= neworigin - oldorigin
+
+ end if
+
+
   ' sl->X += rect.x
   ' sl->Y += rect.y
+
  for idx as integer = 0 to 3
   transfrm.vertices(idx).x -= rect.x
   transfrm.vertices(idx).y -= rect.y
@@ -2523,6 +2547,9 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
 
   if .transform = NULL then .transform = new Quad
 
+  'dim scaled_size as XYPair = calc_quad_size(.transform)
+  dim scaled_size as Float2 = cast(Float2, .original_img->size) * .rz_scale
+
   if .rz_cache_scaled = NO then
    'Normal case
    rotozoom_transform *.transform, .original_img->size, .rz_origin, XYF(0, 0), .rz_angle, .rz_scale, .rz_flip_horiz, .rz_flip_vert
@@ -2530,9 +2557,6 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
   else
    'If using .rz_cache_scaled may need to regenerate image
 
-   'dim scaled_size as XYPair = calc_quad_size(.transform)
-   dim scaled_size as Float2 = cast(Float2, .original_img->size) * .rz_scale
-   'dim scaled_size as XYPair = XY(scaled_sizef.x, scaled_sizef.y)
    if img_changed orelse (scaled_size <> .img.sprite->size) then
     'Becomes a 32-bit sprite
     dim framenum as integer = small(.frame, .original_img->arraylen - 1)
@@ -2548,8 +2572,11 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
 
   if .rz_rotate_bbox then
    RotateSpriteBoundingBox sl, *.transform
-  else
-   ResetSpriteSize sl
+  end if
+  'else
+   'ResetSpriteSize sl
+  if .rz_rotate_bbox = NO then
+   sl->Size = scaled_size
   end if
 
  end with
@@ -2835,7 +2862,7 @@ sub RotozoomPolygonSlice(sl as Slice ptr, angle as double = 0., origin as Float2
     .transform.vertices(i) -= origin
    next
    dim matrix as Float3x3
-   matrixLocalTransform @matrix, angle * -M_PI / 180, scale, origin
+   scaleRotateMatrix @matrix, angle * -M_PI / 180, scale, origin
 ?"Quad scale by " & scale
 
    dim newvert(ubound(.vertices)) as VertexPTC  'vec2Transform can't write inplace
@@ -4360,9 +4387,9 @@ Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
   case slSprite
    'if oldsize.w andalso oldsize.h then
     with *sl->SpriteData
-     if .rz_rotate_bbox then  'FIXME: should we check .rz_enabled? See SlicePossiblyResizable
+     'if .rz_rotate_bbox then  'FIXME: should we check .rz_enabled? See SlicePossiblyResizable
       'You can't change the size. Change the .rz_scale instead. Ignore.
-     else
+     'else
       'dim scale as Float2 = XYF(sl->Width / oldsize.w, sl->Height / oldsize.h)
       if .loaded = NO then
        'load .original_img
@@ -4377,7 +4404,7 @@ Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
       UpdateSpriteSliceTransform sl
 
       ?"HandleSliceSizeChange size=" & sl->Size & " old= " & oldsize & " scale=" & .rz_scale
-     end if
+     'end if
     end with
    'end if
    case slPolygon
@@ -4389,6 +4416,10 @@ Sub HandleSliceSizeChange(sl as Slice ptr, oldsize as XYPair)
 
 end Sub
 
+' Some slices weren't meant to be resizable, and most weren't meant
+' to be resizable to negative size. This sub doesn't enforce that, instead
+' the caller should, to whatever degree it wants.
+' The slice editor is much stricter than script commands.
 Sub SetSliceSize(sl as Slice ptr, size as XYPair)
 /'
   if size.w <> sl->Width THEN

@@ -1623,11 +1623,11 @@ SUB quad_transforms_menu ()
  DIM sprpair as GraphicPair
 
  DIM drawopts as DrawOptions
- drawopts.with_blending = YES
- drawopts.opacity = 0.5
- DIM angle as single = 45
+ ' drawopts.with_blending = YES
+ ' drawopts.opacity = 0.5
+ DIM angle as single = 0'45
  DIM scale as Float2 = (7, 7)
- DIM position as Float2 = (vpages(vpage)->w / 2, vpages(vpage)->h / 2)
+ DIM position as Float2 = (240,240)'(vpages(vpage)->w / 2, vpages(vpage)->h / 2)
 
  switch_to_32bit_vpages()
 
@@ -1695,7 +1695,9 @@ SUB quad_transforms_menu ()
 
   mathtime.start()
   dim transf as Quad
-  rotozoom_transform transf, sprpair.sprite->size, , position, angle, scale
+  dim origin as Float2
+    origin = cast(float2, sprpair.sprite->size) / -2
+  rotozoom_transform transf, sprpair.sprite->size, origin, position, angle, scale
   mathtime.stop()
 
   qdrawtime.start()
@@ -1754,9 +1756,11 @@ FUNCTION rotozoom_test_with (img as GraphicPair, rotate as double, zoomx as doub
   DIM cnt as integer = 0
   WHILE TIMER - rztime < 3e-3
    IF raster THEN
-    DIM position as Float2 = (vpages(vpage)->w / 2, vpages(vpage)->h / 2 - 50)
+    DIM position as Float2 = (200,200)'(vpages(vpage)->w / 2, vpages(vpage)->h / 2 - 50)
     DIM transf as Quad
-    rotozoom_transform transf, img.sprite->size, , position, rotate, XYF(zoomx, zoomy)
+    DIM origin as XYPair
+    origin = cast(float2, img.sprite->size) / -2
+    rotozoom_transform transf, img.sprite->size, origin, position, rotate, XYF(zoomx, zoomy)
     frame_draw_transformed img.sprite, , img.pal, , transf, trans, vpages(vpage)
 
    ELSE

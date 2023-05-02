@@ -584,7 +584,7 @@ Type SpriteSliceData
                            'use_rz_params=NO, although may not be true, because they are still used for flipping.
  rz_flip_vert as boolean   'Vertically flipped. As above.
  'basesize as Float2       'Frame size times rz_scale
- rz_scale as Float2        'Ratio to scale the Frame's width/height (before rotation)
+ rz_scale as Float2 = XYF(1,1) 'Ratio to scale the Frame's width/height (before rotation)
  rz_angle as single        'Clockwise angle in degrees, gets converted to [0, 360)
  rz_origin as Float2       'Point (after flipping but before scaling) around which to rotate and scale
 

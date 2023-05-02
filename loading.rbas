@@ -3568,7 +3568,7 @@ END FUNCTION
 'Cut up a sheet Frame into an Frame array. The sheet may be too large or small and is trimmed/expanded.
 FUNCTION split_spritesheet(sheet as Frame ptr, framesize as XYPair, numframes as integer) as Frame ptr
   DIM ss as Frame ptr
-  'IF numframes = -1 THEN numframes = sheet->w \ framesize.w
+  IF numframes = -1 THEN numframes = sheet->w \ framesize.w
   ss = frame_new(framesize.w, framesize.h, numframes, YES)
 
   FOR fridx as integer = 0 TO ss->arraylen - 1
