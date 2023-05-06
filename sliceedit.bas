@@ -1505,7 +1505,7 @@ FUNCTION slice_editor_forbidden_search(byval sl as Slice Ptr, specialcodes() as 
   ret += 1
   'The SlicePath includes the type
   IF ret < 7 THEN errorstr &= SlicePath(sl) & !" is a disallowed slice type\n"
-  IF clean THEN ReplaceSliceType sl, NewSliceOfType(slContainer)
+  IF clean THEN ReplaceSliceType sl, slContainer
  END IF
 
  IF sl->Lookup < 0 THEN
@@ -2197,7 +2197,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    END IF
   END IF
   IF switchtype THEN
-   ReplaceSliceType sl, NewSliceOfType(slice_type)
+   ReplaceSliceType sl, slice_type
    slice_edit_updates sl, @sl->SliceType, @dummyvar.as_any
   END IF
  END IF

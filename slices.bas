@@ -1010,19 +1010,14 @@ Sub InsertSliceAfter(byval sl as Slice ptr, byval newsl as Slice ptr)
  end if
 end sub
 
-Sub ReplaceSliceType(byval sl as Slice ptr, byref newsl as Slice ptr)
- 'This takes a new slice (normally from one of the New*Slice functions)
- 'and copies its type and type-specific data over an existing tree member.
- 'This is rather bizarre, but does make it possible to change into a Class slice.
- 'Newsl gets Deleted to prevent it from being used afterwards!
- 'Also, this fails if newsl is part of a tree. It must be parentless
+Sub ReplaceSliceType(byval sl as Slice ptr, newtype as SliceTypes)
  if sl = 0 then debug "ReplaceSliceType null ptr": exit sub
- if newsl = 0 then debug "ReplaceSliceType newsl null ptr": exit sub
- WITH *newsl
-  'Make sure that newsl is an orphan already
-  BUG_IF(.Parent, "Only works with orphaned slices")
+ 'Somewhat inefficient way to replace the method pointers, but it doesn't matter.
+ dim newsl as Slice ptr = NewSliceOfType(newtype)
+ if newsl = 0 then exit sub
+ with *newsl
   'Dispose of any old Slice Type specific data that is about to be replaced
-  IF sl->SliceData <> 0 THEN sl->Dispose(sl)
+  if sl->SliceData then sl->Dispose(sl)
   'Copy over slice identity
   sl->SliceType = .SliceType
   sl->Draw      = .Draw
@@ -1038,8 +1033,8 @@ Sub ReplaceSliceType(byval sl as Slice ptr, byref newsl as Slice ptr)
   .SliceData = 0
   'Now destroy newsl
   DeleteSlice @newsl
- END WITH
-End Sub
+ end with
+end sub
 
 'If start_sl = NULL: Find first descendent of root_sl (including root_sl itself) which matches lookup and onlytype.
 'If start_sl <> NULL: Find next descendent (in depth-first order), after start_sl, of root_sl.
@@ -5426,8 +5421,7 @@ Function SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_h
   end if
  end if
  if typenum <> sl->SliceType then
-  dim newsl as Slice Ptr = NewSliceOfType(typenum)
-  ReplaceSliceType sl, newsl
+  ReplaceSliceType sl, typenum
  end if
  '--Load properties specific to this slice type
  sl->Load(sl, node)

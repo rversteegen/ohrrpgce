@@ -699,7 +699,7 @@ DECLARE Function CloneTemplate(byval templatesl as Slice ptr) as Slice ptr
 
 DECLARE Sub OrphanSlice(byval sl as slice ptr)
 DECLARE Sub SetSliceParent(byval sl as slice ptr, byval parent as slice ptr)
-DECLARE Sub ReplaceSliceType(byval sl as slice ptr, byref newsl as slice ptr)
+DECLARE Sub ReplaceSliceType(byval sl as slice ptr, newtype as SliceTypes)
 
 '--Saving and loading slices
 DECLARE Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles as bool=NO)
