@@ -5421,10 +5421,44 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 	'All the deltas are fractions of a pixel scaled to integers
 	'by multiplying by 2*deltaMAJOR
 
+/'
+
+	dim clipped as bool = NO
+	dim as double startfrac = 0.0, endfrac = 1.0
+	if y1 < cliprect.t then
+		if y2 = y1 then exit sub  'Whole line clipped
+		startfrac = (cliprect.t - y1) / (y2 - y1)
+	end if
+	if y2 > cliprect.b then
+		if y2 = y1 then exit sub
+		endfrac = (cliprect.b - y1) / (y2 - y1)
+	end if
+	if x1 < x2 then
+		if x1 < cliprect.l then
+			if x1 = x2 then exit sub
+			startfrac = large(startfrac, (cliprect.l - x1) / (x2 - x1))
+		end if
+		if x1 < cliprect.l then
+			if x1 = x2 then exit sub
+			endfrac = large(endfrac, (cliprect.r - x1) / (x2 - x1))
+		end if
+	else
+	end if
+
+	if clipped then
+		if startfrac > endfrac then exit sub
+		x1 = startfrac
+
+	end if
+
+
+
+'/
+
 	dim as integer deltaX, deltaY
 
 	deltax = abs(x2 - x1)
-	deltay = y2 - y1  'is positive due to above swap
+	deltay = y2 - y1  'is non-negative due to above swap
 
 	dim as integer delta    'Accumulated fraction of a pixel error
 
@@ -5445,6 +5479,8 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 		majorstep = stepY * dest->pitch
 	end if
 	delta = -delta_sub \ 2  'Start at the center of a pixel
+	'delta = -delta_sub * fmod(y1, 1.0)
+
 
 	/'
 	'Perform clipping (not correct/finished)
