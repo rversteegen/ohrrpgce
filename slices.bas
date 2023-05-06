@@ -1992,7 +1992,7 @@ end sub
 Declare Function LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = NO) as bool
 Declare Sub LoadSpriteSliceImageAndTransform(byval sl as Slice ptr, warn_if_missing as bool = NO)
 Declare Sub LoadAssetSprite(sl as Slice ptr, warn_if_missing as bool = YES)
-Declare Sub RotateSpriteBoundingBox(sl as Slice ptr, byref transfrm as Quad)
+'Declare Sub RotateSpriteBoundingBox(sl as Slice ptr, byref transfrm as Quad, old)
 Declare Function UpdateSpriteIsTransformed(sl as Slice ptr) as boolean
 Declare Sub ResetSpriteSize(sl as Slice ptr)
 
@@ -2443,53 +2443,102 @@ local function UpdateSpriteIsTransformed(sl as Slice ptr) as boolean
  end with
 end function
 
+
+'Relative to slice's topleft
+function SpriteOriginPosition(sl as Slice ptr) as XYPair
+ 
+ dim imgsize as XYPair = sl->SpriteData->original_img->size
+
+
+ if sl->SpriteData->rz_rotate_bbox then
+  'In this case, the origin moves relative to the slice's center
+  dim origin as Float2
+  origin = cast(Float2, imgsize) / 2 + sl->SpriteData->rz_origin
+
+  dim transform as Quad ptr = sl->SpriteData->transform
+?"SpriteOriginPosition sl->size=", sl->Size
+  if transform = 0 orelse sl->Width = 0 orelse sl->Height = 0 then return origin
+
+  dim img_coords as Float2
+  img_coords = origin / imgsize 'sl->Size
+
+  dim transformed as Float2 = vec2QuadTransform(img_coords, *transform)
+  'transform->bottomleft + img_coords * (transform->topright - transform->bottomleft)
+?" img_coords=",img_coords, "::tr=", transformed
+  return transformed
+
+ else
+  dim origin as Float2
+  origin = cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+
+
+  'dim anc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
+  'return origin + sl->Pos - anc
+  return origin  'cast to XYPair
+ end if
+
+end function
+
+function SpriteAbsoluteOrigin(sl as Slice ptr) as XYPair
+ dim anc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
+ 'Origin, relative to parent align point
+ 'Position of the top-left corner of the slice relative to its align point on the parent
+
+ 'oldorigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+ return sl->Pos - anc + SpriteOriginPosition(sl)
+end function
+
 'Called only if .rz_rotate_bbox, after a sprite's .transform changes, to update the slice .Pos & .Size,
 'shifting so its bounding box has ABS(minx)<=0.5, ABS(miny)<=0.5, and sl->Size is set to
 'the box's maxy,maxy (rounded to integer).
 'The slice's position is shifted to compensate for both the shift of .transform
 'vertices and the shift due to effect of any change in its size on its anchor point.
-sub RotateSpriteBoundingBox(sl as Slice ptr, byref transfrm as Quad)
- dim rect as RectType = quad_integer_rect(transfrm)
-
-	dim rectf as ClippingRectF
-	calculatePolygonRect(@transfrm.vertices(0), 4, sizeof(Float2), rectf)
+sub RotateSpriteBoundingBox(sl as Slice ptr, transform as Quad ptr)', old_origin as XYPair)
 
 
- if sl->SpriteData->rz_rotate_bbox then
 
+  'In this case, the origin moves relative to the slice's center
+
+/'
  'Note: when the transform changes in reaction to the slice size changing when
  'HandleSliceSizeChange is called, the existing normalised transform will be stretched
  'to the new size which means rect.xy = 0, hence .Pos never changes
  'drop_offset does nothing. Which is good because .Size has already changed, so we wouldn't
  'know how much to adjust .Pos by if the anchor point isn't the top left.
  dim oldanc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
- dim oldsize as XYPair = sl->Size
  'Origin, relative to parent align point
- dim oldorigin as xypair
- oldorigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
- sl->Size = rect.wh
+ 'Position of the top-left corner of the slice relative to its align point on the parent
+ dim oldorigin as XYPair
+ 'oldorigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+ oldorigin = sl->Pos - oldanc + old_origin 'SpriteOriginPosition(sl)
+
+'/
+
+ if transform then
+  dim rect as RectType = quad_integer_rect(*transform)
+
+  sl->Size = rect.wh
+  for idx as integer = 0 to 3
+   transform->vertices(idx).x -= rect.x
+   transform->vertices(idx).y -= rect.y
+  next
+ end if
+/'
+
  'sl->Width = rectf.right - rectf.left - 0.001
  'sl->Height = rectf.bottom - rectf.top - 0.001
  dim newanc as XYPair = XY(SliceXAnchor(sl), SliceYAnchor(sl))
  dim neworigin as XYPair
- neworigin = sl->Pos - oldanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
-
+ ' neworigin = sl->Pos - newanc + cast(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+ neworigin = sl->Pos - newanc + SpriteOriginPosition(sl)
+ dim newor as XYPair = SpriteOriginPosition(sl)
  'Shift
 
-  'Position of the top-left corner of the slice relative to its align point on the parent
- 'sl->Pos -= /'rect.xy +'/ oldanc - newanc
  sl->Pos -= neworigin - oldorigin
+'/
+ '? "RBB: old", old_origin, "new", newor, " -> old", oldorigin, "new", neworigin, "=", neworigin - oldorigin
 
- end if
 
-
-  ' sl->X += rect.x
-  ' sl->Y += rect.y
-
- for idx as integer = 0 to 3
-  transfrm.vertices(idx).x -= rect.x
-  transfrm.vertices(idx).y -= rect.y
- next
 end sub
 
 /'
@@ -2531,9 +2580,10 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
   'FIXME: in principle, should we always call ResetSpriteSize first, and then
   'use .img instead of .original_img?
 
+  dim old_origin as XYPair = SpriteAbsoluteOrigin(sl)
+
   'Returns false if .rz_enabled = NO
   dim use_transform as bool = UpdateSpriteIsTransformed(sl)
-
 
   if use_transform = NO then
    if .transform then
@@ -2542,6 +2592,14 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
    end if
 
    ResetSpriteSize sl
+
+   if .rz_rotate_bbox then
+    RotateSpriteBoundingBox sl, .transform
+   end if
+
+   dim new_origin as XYPair = SpriteAbsoluteOrigin(sl)
+   sl->Pos -= new_origin - old_origin
+
    exit sub
   end if
 
@@ -2571,13 +2629,17 @@ sub UpdateSpriteSliceTransform(sl as Slice ptr, img_changed as bool = NO)
   end if
 
   if .rz_rotate_bbox then
-   RotateSpriteBoundingBox sl, *.transform
+   RotateSpriteBoundingBox sl, .transform ', old_origin
   end if
   'else
    'ResetSpriteSize sl
   if .rz_rotate_bbox = NO then
    sl->Size = scaled_size
   end if
+
+   dim new_origin as XYPair = SpriteAbsoluteOrigin(sl)
+   sl->Pos -= new_origin - old_origin
+
 
  end with
 end sub

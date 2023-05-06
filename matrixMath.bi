@@ -50,6 +50,10 @@ DECLARE SUB matrixMultiply( byval pMatrixOut as float3x3 ptr, byref A as float3x
 '(i.e. only the top-left 2x3 elements are used).
 DECLARE SUB vec2Transform( byval pVec2ArrayOut as float2 ptr, byval destSize as integer, byval pVec2ArrayIn as float2 ptr, byval srcSize as integer, byref transformMatrix as float3x3 )
 
+'Treat a Quad as an affine transformation matrix (ignores its bottomright vertext).
+'vec2 are U,V coords, the range [0,1] will map onto the area of the Quad.
+DECLARE FUNCTION vec2QuadTransform( byval vec2 as Float2, byref transform as Quad ) as Float2
+
 'Transforms all the vectors in pVec3ArrayIn into pVec3ArrayOut by `transformMatrix`
 'DECLARE SUB vec3Transform( byval pVec3ArrayOut as float3 ptr, byval destSize as integer, byval pVec3ArrayIn as float3 ptr, byval srcSize as integer, byref transformMatrix as float3x3 )
 

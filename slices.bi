@@ -869,6 +869,7 @@ DECLARE Sub ResetSpriteTransform(sl as Slice ptr)
 DECLARE Sub ScaleSpriteSlice(sl as Slice ptr, size as XYPair)
 DECLARE Sub RotozoomSpriteSlice(sl as Slice ptr, angle as double = 0., origin as Float2 ptr = NULL, scale as Float2 = XYF(1,1), smooth as integer = 0, cache_scaled as bool = NO)
 DECLARE Sub SetSpriteFlipped(sl as Slice ptr, fliph as bool, flipv as bool)
+DECLARE Function SpriteOriginPosition(sl as Slice ptr) as XYPair
 DECLARE Sub DissolveSpriteSlice(byval sl as slice ptr, byval dissolve_type as integer, byval over_ticks as integer=-1, byval start_tick as integer=0, byval backwards as bool=NO, byval auto_animate as bool=YES)
 DECLARE Sub CancelSpriteSliceDissolve(sl as Slice ptr)
 DECLARE Function SpriteSliceIsDissolving(byval sl as slice ptr, byval only_auto as bool=YES) as bool

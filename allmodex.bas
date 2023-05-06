@@ -10858,13 +10858,15 @@ end sub
 '/
 
 sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = XYF(0,0), pos as Float2 = XYF(0,0), angle as double = 0.0, scale as Float2 = XYF(0,0), flip_horiz as bool = NO, flip_vert as bool = NO)
+	dim abs_origin as Float2 = origin + cast(Float2, size) * scale / 2
+
 	dim baserect as Quad
 	'Subtract the origin
-	vec2GenerateCorners @baserect.vertices(0), 4, XYF(size.w, size.h),origin ' XYF(0, 0) 'origin
+	vec2GenerateCorners @baserect.vertices(0), 4, XYF(size.w, size.h), XYF(0, 0) 'origin
 
 	'Scale rot
 	for i as integer = 0 to 3
-		baserect.vertices(i) = baserect.vertices(i) * scale - origin
+		baserect.vertices(i) = baserect.vertices(i) * scale - abs_origin
 	next
 
 	flip_transform baserect, flip_horiz, flip_vert
@@ -10873,7 +10875,7 @@ sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = 
 	'Add the origin back
 
 	'First scale, then subtract origin, rotate, add oriin
-	scaleRotateMatrix @matrix, angle * -M_PI / 180, XYF(1,1), pos + origin
+	scaleRotateMatrix @matrix, angle * -M_PI / 180, XYF(1,1), pos + abs_origin
 
 	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
 

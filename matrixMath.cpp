@@ -63,6 +63,22 @@ void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2Arra
    }
 }
 
+// If we arranged members of Quad and float3x3 in the right order, this would be redundant to vec2Transform
+float2 vec2QuadTransform( float2 vec2, const Quad& transform )
+{
+   const Quad &tr = transform;
+   float2 xbasis = tr.topright - tr.topleft;
+   float2 ybasis = tr.bottomleft - tr.topleft;
+   return float2{
+      vec2.x * xbasis.x + vec2.y * ybasis.x + tr.topleft.x,
+      vec2.x * xbasis.y + vec2.y * ybasis.y + tr.topleft.y,
+      // Equivalently:
+      // vec2.x * tr.topright.x + vec2.y * tr.bottomleft.x + (1 - vec2.x - vec2.y) * tr.topleft.x,
+      // vec2.x * tr.topright.y + vec2.y * tr.bottomleft.y + (1 - vec2.x - vec2.y) * tr.topleft.y,
+   };
+}
+
+
 /*
 // Can also be used for 3x3 matrix multiplication
 void vec3Transform( float3* pVec3ArrayOut, int destSize, const float3* pVec3ArrayIn, int srcSize, const float3x3& transformMatrix )

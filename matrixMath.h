@@ -69,6 +69,7 @@ extern "C" {
 void scaleRotateMatrix( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position );
 //void matrixMultiply( float3x3* pMatrixOut, const float3x3& A, const float3x3& B );
 void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2ArrayIn, int srcSize, const float3x3& transformMatrix );
+float2 vec2QuadTransform( float2 vec2, const Quad& transform );
 //void vec3Transform( float3* pVec3ArrayOut, int destSize, const float3* pVec3ArrayIn, int srcSize, const float3x3& transformMatrix );
 void vec2GenerateCorners( float2* pVecArrayOut, int destSize, const float2& size, const float2& center );
 //void vec3GenerateCorners( float3* pVecArrayOut, int destSize, const float& size, const float2& center );

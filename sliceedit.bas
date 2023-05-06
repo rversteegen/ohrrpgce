@@ -2366,7 +2366,8 @@ SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as
  IF rule.group AND (slgrSHOWORIGIN OR slgrPICKORIGIN) THEN
   'Draw a crosshair
   DIM origin as XYPair
-  origin = sl->ScreenPos + CAST(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+  'origin = sl->ScreenPos + CAST(Float2, sl->Size) / 2 + sl->SpriteData->rz_origin
+  origin = sl->ScreenPos + SpriteOriginPosition(sl)
   ' The icon is offset by 3,3
   slice_editor_draw_icon ses, ses.other_icons, 6, origin - XY(3, 3), "Rotozoom origin", dpage
  END IF
