@@ -10753,6 +10753,37 @@ local sub frame_draw_internal(src as Frame ptr, masterpal() as RGBcolor, pal as 
 	if subtimer then gfx_op_timer.substop subtimer
 end sub
 
+
+'Color components not initialised
+sub Quad_to_VertexPTC(qud as Quad, vertices() as VertexPTC, offset as XYPair = XY(0,0))
+	assert(ubound(vertices) = 3)
+
+	'Clockwise from bottom-left
+	vertices(0).tex.u = 0
+	vertices(0).tex.v = 1
+	vertices(1).tex.u = 0
+	vertices(1).tex.v = 0
+	vertices(2).tex.u = 1
+	vertices(2).tex.v = 0
+	vertices(3).tex.u = 1
+	vertices(3).tex.v = 1
+	'Shift vertices slightly to avoid almost-horizontal or -vertical edges
+	'cutting through a row/column of pixel centers,
+	'which causes artifacts (not a rasterizer bug, will happen in OpenGL too)
+	for i as integer = 0 to 3
+		vertices(i).pos = offset + qud.vertices(i) - 0.001
+	next
+	'Equivalently:
+	with qud
+		'vertices(0).pos = offset + .bottomleft - 0.001
+		'vertices(1).pos = offset + .topleft - 0.001
+		'vertices(2).pos = offset + .topright - 0.001
+		'vertices(3).pos = offset + .bottomright - 0.001
+		'Parallelogram:
+		'vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
+	end with
+end sub
+
 ' Draw a Frame with position and transformation specified by a Quad.
 ' Pass at most one of masterpal or pal (neither to use the current master palette).
 ' Supports 8 & 32-bit Frames, including alpha channels. (Respects opts.alpha_channel.)
@@ -10763,26 +10794,7 @@ end sub
 ' colour (and alpha) modulation across the image.
 sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), transf as Quad, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
 	dim vertices(3) as VertexPTC
-	'Clockwise from bottom-left
-	vertices(0).tex.u = 0
-	vertices(0).tex.v = 1
-	vertices(1).tex.u = 0
-	vertices(1).tex.v = 0
-	vertices(2).tex.u = 1
-	vertices(2).tex.v = 0
-	vertices(3).tex.u = 1
-	vertices(3).tex.v = 1
-	with transf
-		'Shift vertices slightly to avoid almost-horizontal or -vertical edges
-		'cutting through a row/column of pixel centers,
-		'which causes artifacts (not a rasterizer bug, will happen in OpenGL too)
-		vertices(0).pos = offset + .bottomleft - 0.001
-		vertices(1).pos = offset + .topleft - 0.001
-		vertices(2).pos = offset + .topright - 0.001
-		vertices(3).pos = offset + .bottomright - 0.001
-		'Parallelogram:
-		'vertices(3).pos = XYF(.bottomleft.x + (.topright.x - .topleft.x), .bottomleft.y + (.topright.y - .topleft.y))
-	end with
+	Quad_to_VertexPTC transf, vertices(), offset
 
 	'Get Surface shims around Frames as needed
 	dim as Surface tempsrc_surface = any, tempdest_surface = any
@@ -10930,6 +10942,10 @@ end sub
 function quad_integer_rect(qud as Quad) as RectType
 	dim rectf as ClippingRectF
 	calculatePolygonRect(@qud.vertices(0), 4, sizeof(Float2), rectf)
+	return ClippingRectF_to_integer(rectf)
+end function
+
+function ClippingRectF_to_integer(byref rectf as ClippingRectF) as RectType
 	'0.001 subtraction has two purposes: to copy frame_draw_transformed, shifting vertices
 	'slightly to avoid almost-horizontal or -vertical edges cutting through a row/column of
 	'pixel centers; and also to round .5 down instead of to nearest even.
