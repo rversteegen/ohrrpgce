@@ -51,15 +51,24 @@ void matrixMultiply( float3x3* pMatrixOut, const float3x3& A, const float3x3& B 
 }
 */
 
-void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2ArrayIn, int srcSize, const float3x3& transformMatrix )
+void vec2Transform( float2* pVec2ArrayOut, int szStrideOut, const float2* pVec2ArrayIn, int szStrideIn, int nVectors, const float3x3& transformMatrix )
 {
-   if( pVec2ArrayOut == NULL || pVec2ArrayIn == NULL )
+   if( pVec2ArrayOut == NULL || pVec2ArrayIn == NULL || pVec2ArrayIn == pVec2ArrayOut )
       return;
 
-   for(int i = 0, maxCount = min(srcSize, destSize); i < maxCount; i++)
+   const float2 *pVin = pVec2ArrayIn;
+   float2 *pVout = pVec2ArrayOut;
+
+   for(int i = 0; i < nVectors; i++)
    {
-      pVec2ArrayOut[i].x = pVec2ArrayIn[i].x * transformMatrix._11 + pVec2ArrayIn[i].y * transformMatrix._21 + transformMatrix._31;
-      pVec2ArrayOut[i].y = pVec2ArrayIn[i].x * transformMatrix._12 + pVec2ArrayIn[i].y * transformMatrix._22 + transformMatrix._32;
+      float2 result = {
+         pVin->x * transformMatrix._11 + pVin->y * transformMatrix._21 + transformMatrix._31,
+         pVin->x * transformMatrix._12 + pVin->y * transformMatrix._22 + transformMatrix._32
+      };
+      *pVout = result;
+
+      pVin = (float2*)((char*)pVin + szStrideIn);
+      pVout = (float2*)((char*)pVout + szStrideOut);
    }
 }
 

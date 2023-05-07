@@ -3,6 +3,8 @@
  * Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
  *
  * Functions for creating 3x3 2d transformation matrices, multiplying them, and multiplying 3d vectors (x,y,w) against them
+ *
+ * See matrixMath.bi for docs!
  */
 
 #ifndef MATRIX_MATH_H
@@ -68,7 +70,7 @@ extern "C" {
 
 void scaleRotateMatrix( float3x3* pMatrixOut, float angle, const float2& scale, const float2& position );
 //void matrixMultiply( float3x3* pMatrixOut, const float3x3& A, const float3x3& B );
-void vec2Transform( float2* pVec2ArrayOut, int destSize, const float2* pVec2ArrayIn, int srcSize, const float3x3& transformMatrix );
+void vec2Transform( float2* pVec2ArrayOut, int szStrideOut, const float2* pVec2ArrayIn, int szStrideIn, int nVectors, const float3x3& transformMatrix );
 float2 vec2QuadTransform( float2 vec2, const Quad& transform );
 //void vec3Transform( float3* pVec3ArrayOut, int destSize, const float3* pVec3ArrayIn, int srcSize, const float3x3& transformMatrix );
 void vec2GenerateCorners( float2* pVecArrayOut, int destSize, const float2& size, const float2& center );

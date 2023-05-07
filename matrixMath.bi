@@ -48,7 +48,9 @@ DECLARE SUB matrixMultiply( byval pMatrixOut as float3x3 ptr, byref A as float3x
 
 'Transforms all the vectors in pVec2ArrayIn into pVec2ArrayOut by an affine transform matrix
 '(i.e. only the top-left 2x3 elements are used).
-DECLARE SUB vec2Transform( byval pVec2ArrayOut as float2 ptr, byval destSize as integer, byval pVec2ArrayIn as float2 ptr, byval srcSize as integer, byref transformMatrix as float3x3 )
+'pVec2ArrayIn == pVec2ArrayOut is allowed.
+'The strides can be given if the float2's are embedded in another struct, e.g. VertexPTC.
+DECLARE SUB vec2Transform( byval pVec2ArrayOut as float2 ptr, byval szStrideOut as integer = sizeof(float2), byval pVec2ArrayIn as float2 ptr, byval szStrideIn as integer = sizeof(float2), byval nVectors as integer, byref transformMatrix as float3x3 )
 
 'Treat a Quad as an affine transformation matrix (ignores its bottomright vertext).
 'vec2 are U,V coords, the range [0,1] will map onto the area of the Quad.

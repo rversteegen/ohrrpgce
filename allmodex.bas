@@ -10925,11 +10925,11 @@ sub rotozoom_transform(byref result as Quad, size as XYPair, origin as Float2 = 
 	'First scale, then subtract origin, rotate, add oriin
 	scaleRotateMatrix @matrix, angle * -M_PI / 180, XYF(1,1), pos + abs_origin
 
-	vec2Transform @result.vertices(0), 4, @baserect.vertices(0), 4, matrix
+	vec2Transform @result.vertices(0), , @baserect.vertices(0), , 4, matrix
 
 	'Rotate+scale the origin
 	' dim trans_origin_rot as Float2
-	' vec2Transform @origin_rot, 1, @origin, 1, matrix
+	' vec2Transform @origin_rot, , @origin, , 1, matrix
 
 	'Subtract origin_rot
 	' for i as integer = 0 to 3
