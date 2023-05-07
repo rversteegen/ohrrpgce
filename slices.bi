@@ -602,7 +602,19 @@ Type SpriteSliceData
  d_type as integer ' id number of the dissolve animation
 End Type
 
+Type PolygonFill as ubyte
+Enum 'PolygonFill
+ fillSingleColor = 0  '
+ fillColor = 1
+ fillTexture = 2
+ fillTextureColor = 3
+ fillLAST = 3
+end enum
+
 Type PolygonSliceData Extends SpriteSliceData
+ fill_type as PolygonFill
+
+
  vertices(any) as VertexPTC
 
  'Differences from Sprite:
@@ -874,6 +886,9 @@ DECLARE Sub DissolveSpriteSlice(byval sl as slice ptr, byval dissolve_type as in
 DECLARE Sub CancelSpriteSliceDissolve(sl as Slice ptr)
 DECLARE Function SpriteSliceIsDissolving(byval sl as slice ptr, byval only_auto as bool=YES) as bool
 DECLARE Function SpriteSliceNumFrames(sl as Slice ptr) as integer
+
+DECLARE Function NewPolygonSlice(byval parent as Slice ptr, byref dat as PolygonSliceData) as Slice ptr
+DECLARE Sub PolygonDefaultInit(sl as Slice ptr, nvertices as integer)
 
 DECLARE Sub DisposeMapSlice(byval sl as slice ptr)
 DECLARE Sub DrawMapSlice(byval sl as slice ptr, byval page as integer)

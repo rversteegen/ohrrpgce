@@ -156,10 +156,19 @@ DECLARE Sub RefreshChildClamp(ch as Slice ptr, support as RectType)
 DECLARE Sub ApplySliceVelocity(byval s as Slice ptr)
 DECLARE Sub SeekSliceTarg(byval s as Slice ptr)
 
+DECLARE Sub SpriteToPolygon(sl as Slice ptr)
+
 DECLARE Sub report_slice_type_err(sl as Slice ptr, expected as SliceTypes)
 
 #macro ASSERT_SLTYPE(sl, expected, retwhat...)
 	if sl->SliceType <> expected then
+		report_slice_type_err sl, expected
+		return retwhat  'If retwhat isn't given, just "return"
+	end if
+#endmacro
+
+#macro ASSERT_SLTYPE2(sl, expected, alternative, retwhat...)
+	if sl->SliceType <> expected andalso sl->SliceType <> alternative then
 		report_slice_type_err sl, expected
 		return retwhat  'If retwhat isn't given, just "return"
 	end if
@@ -374,6 +383,7 @@ FUNCTION SliceTypeByName (s as string) as SliceTypes
   CASE "Select":         RETURN slSelect
   CASE "Panel":          RETURN slPanel
   CASE "Layout":         RETURN slLayout
+  CASE "Polygon":        RETURN slPolygon
  END SELECT
  debugerror "Unrecognized slice name """ & s & """"
  RETURN slInvalid
@@ -401,6 +411,7 @@ FUNCTION SliceTypeName (t as SliceTypes) as string
   CASE slSelect:         RETURN "Select"
   CASE slPanel:          RETURN "Panel"
   CASE slLayout:         RETURN "Layout"
+  CASE slPolygon:        RETURN "Polygon"
  END SELECT
  RETURN "Unknown"
 END FUNCTION
@@ -628,6 +639,9 @@ FUNCTION NewSliceOfType (byval t as SliceTypes, byval parent as Slice Ptr=0, byv
   CASE slLayout:
    DIM dat as LayoutSliceData
    newsl = NewLayoutSlice(parent, dat)
+  CASE slPolygon:
+   DIM dat as PolygonSliceData
+   newsl = NewPolygonSlice(parent, dat)
   CASE ELSE
    showbug "NewSliceByType: type " & t & " is invalid"
    newsl = NewSlice(parent)
@@ -1016,8 +1030,14 @@ Sub ReplaceSliceType(byval sl as Slice ptr, newtype as SliceTypes)
  dim newsl as Slice ptr = NewSliceOfType(newtype)
  if newsl = 0 then exit sub
  with *newsl
-  'Dispose of any old Slice Type specific data that is about to be replaced
-  if sl->SliceData then sl->Dispose(sl)
+  if newtype = slPolygon andalso sl->SliceType = slSprite then
+   'Special case
+   SpriteToPolygon sl
+  else
+   'Dispose of any old Slice Type specific data that is about to be replaced
+   if sl->SliceData then sl->Dispose(sl)
+   sl->SliceData = .SliceData
+  end if
   'Copy over slice identity
   sl->SliceType = .SliceType
   sl->Draw      = .Draw
@@ -1028,10 +1048,8 @@ Sub ReplaceSliceType(byval sl as Slice ptr, newtype as SliceTypes)
   sl->ChildRefresh = .ChildRefresh
   sl->ChildrenRefresh = .ChildrenRefresh
   sl->ChildDraw = .ChildDraw
-  sl->SliceData = .SliceData
   'Break slice connection to data
   .SliceData = 0
-  'Now destroy newsl
   DeleteSlice @newsl
  end with
 end sub
@@ -2074,7 +2092,10 @@ Function LoadSpriteSliceImage(byval sl as Slice ptr, warn_if_missing as bool = N
 
   .frame = small(.frame, .img.sprite->arraylen - 1)
 
-  ResetSpriteSize sl
+  if sl->SliceType = slSprite then  'Not a Polygon
+   ResetSpriteSize sl
+  end if
+
  end with
  return YES
 end function
@@ -2123,7 +2144,9 @@ end sub
 '-calling just LoadSpriteSliceImage is lower-level
 private sub LoadSpriteSliceImageAndTransform(sl as Slice ptr, warn_if_missing as bool = NO)
  if LoadSpriteSliceImage(sl) then
-  UpdateSpriteSliceTransform sl, YES  'img_changed=YES
+  if sl->SliceType = slSprite then  'Not slPolygon
+   UpdateSpriteSliceTransform sl, YES  'img_changed=YES
+  end if
  end if
 end sub
 
@@ -2334,6 +2357,11 @@ Sub CloneSpriteSlice(byval sl as Slice ptr, byval cl as Slice ptr)
   .img.sprite = frame_reference(dat->img.sprite)
   .original_img = frame_reference(dat->original_img)
   .img.pal = palette16_reference(dat->img.pal)
+  if .transform then
+   dim newquad as Quad ptr = new Quad
+   *newquad = *.transform
+   .transform = newquad ' new Quad(*.transform)
+  end if
  end with
 end sub
 
@@ -2518,6 +2546,8 @@ sub RotateSpriteBoundingBox(sl as Slice ptr, transform as Quad ptr)', old_origin
    transform->vertices(idx).y -= rect.y
   next
  end if
+
+
 /'
 
  'sl->Width = rectf.right - rectf.left - 0.001
@@ -2780,7 +2810,7 @@ Sub ChangeSpriteSlice(byval sl as Slice ptr,_
                       byval flipv as optbool = NONBOOL,_
                       byval trans as optbool = NONBOOL)
  if sl = 0 then debug "ChangeSpriteSlice null ptr" : exit sub
- ASSERT_SLTYPE(sl, slSprite)
+ ASSERT_SLTYPE2(sl, slSprite, slPolygon)
  with *sl->SpriteData
   if spritetype <> sprTypeInvalid then
    BUG_IF(spritetype < sprTypeFirstLoadable orelse spritetype > sprTypeLastLoadable, "Invalid type " & spritetype)
@@ -2822,7 +2852,7 @@ end sub
 'If a rotozoom parameter changes, need to call UpdateSpriteSliceTransform instead.
 'Internal use only - normally you should call ChangeSpriteSlice instead
 Sub UpdateSpriteSliceImage(sl as Slice ptr)
- BUG_IF(sl = 0 orelse sl->SliceType <> slSprite, "invalid ptr")
+ BUG_IF(sl = 0 orelse (sl->SliceType <> slSprite andalso sl->SliceType <> slPolygon), "invalid ptr")
 
  with *sl->SpriteData
   if .spritetype = sprTypeFrame then
@@ -2890,7 +2920,7 @@ Function SpriteSliceNumFrames(sl as Slice ptr) as integer
   debug "SpriteSliceNumFrames: invalid ptr"
   return 0
  end if
- ASSERT_SLTYPE(sl, slSprite, 0)
+ ASSERT_SLTYPE2(sl, slSprite, slPolygon, 0)
 
  with *sl->SpriteData
   if .loaded = NO then LoadSpriteSliceImageAndTransform sl
@@ -2900,6 +2930,69 @@ end function
 
 '--Polygon-----------------------------------------------------------------
 
+Sub PolygonUpdateBBox(sl as Slice ptr)
+ with *sl->PolygonData
+  dim rectf as ClippingRectF
+  calculatePolygonRect(@.vertices(0).pos, ubound(.vertices) + 1, sizeof(.vertices(0)), rectf)
+  dim rect as RectType = ClippingRectF_to_integer(rectf)
+
+  sl->Size = rect.wh
+  for idx as integer = 0 to ubound(.vertices)
+   .vertices(idx).pos.x -= rect.x
+   .vertices(idx).pos.y -= rect.y
+  next
+ end with
+end sub
+
+Sub ClonePolygonSlice(byval sl as Slice ptr, byval cl as Slice ptr)
+ if sl = 0 or cl = 0 then debug "ClonePolygonSlice null ptr": exit sub
+ *cl->PolygonData = *sl->PolygonData
+ 'Duplicates copying over the data members in SpriteSliceData.
+ CloneSpriteSlice sl, cl
+end sub
+
+'Internal, called by ReplaceSliceType only.
+Private Sub SpriteToPolygon(sl as Slice ptr)
+ var sprdat = sl->SpriteData
+
+ 'Force create .transform
+ sprdat->rz_angle += 1e-6   'FIXME: kludge to avoid adding override arg to UpdateSpriteSliceTransform
+ UpdateSpriteSliceTransform sl
+
+ sl->PolygonData = new PolygonSliceData
+ *sl->SpriteData = *sprdat
+ delete sprdat
+
+ with *sl->PolygonData
+  .fill_type = fillTexture
+
+  assert(.transform)
+  redim .vertices(3)
+  Quad_to_VertexPTC *.transform, .vertices()
+  for i as integer = 0 to 3
+  '  .vertices(i).pos = .transform.vertices(i)
+    .vertices(i).col.col = &hffffffff  'Opaque white
+  next
+
+  delete .transform
+  .transform = NULL
+
+  'Zero out all the .rz_* members just so that SaveSpriteSlice doesn't save them. They are unused.
+  ResetSpriteTransform sl
+  '.rz_enabled = NO
+  .rz_smooth = 0
+  .rz_cache_scaled = NO
+  .rz_rotate_bbox = NO
+  '.rz_flip_horiz = NO
+  '.rz_flip_vert = NO
+  '.rz_scale = XYF(1,1)
+  '.rz_angle = 0
+  .rz_origin = XYF(0,0)
+
+  PolygonUpdateBBox sl
+ end with
+end sub
+
 Sub DisposePolygonSlice(byval sl as Slice ptr)
  if sl = 0 orelse sl->PolygonData = 0 then exit sub
  'Polygons extend SpriteSliceData. We don't add any members that need destruction
@@ -2908,26 +3001,25 @@ Sub DisposePolygonSlice(byval sl as Slice ptr)
  sl->PolygonData = 0
 end sub
 
-
-
 sub RotozoomPolygonSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), smooth as integer = 0, cache_scaled as bool = NO)
 
-/'
-   'For each vertex v, transform v --> (v - origin) * M_rotozoom + origin,
-   'where M_rotozoom is the matrix for rotation by 'angle' and scaling by 'scale'.
-   for i as integer = 0 to 3
-    .transform.vertices(i) -= origin
-   next
-   dim matrix as Float3x3
-   scaleRotateMatrix @matrix, angle * -M_PI / 180, scale, origin
-?"Quad scale by " & scale
+ with *sl->PolygonData
+  'For each vertex v, transform v --> (v - origin) * M_rotozoom + origin,
+  'where M_rotozoom is the matrix for rotation by 'angle' and scaling by 'scale'.
+  for i as integer = 0 to 3
+   .vertices(i).pos -= origin
+  next
+  dim matrix as Float3x3
+  scaleRotateMatrix @matrix, angle * -M_PI / 180, scale, origin
+  ?"Quad scale by " & scale
 
-   dim newvert(ubound(.vertices)) as VertexPTC  'vec2Transform can't write inplace
-   vec2Transform @newvert.vertices(0), 4, @.transform.vertices(0), 4, matrix
-   memcpy @.vertices(0), @.newvert(0), sizeof(VertexPTC) * (ubound(.vertices) + 1)
+  dim npoints as integer = ubound(.vertices) + 1
+  'dim newvert(npoints) as VertexPTC  'vec2Transform can't write inplace
+  vec2Transform @.vertices(0).pos, sizeof(VertexPTC), @.vertices(0).pos, sizeof(VertexPTC), npoints, matrix
+  'memcpy @.vertices(0), @.newvert(0), sizeof(VertexPTC) * npoints
+ end with
 
-
-'/
+ PolygonUpdateBBox sl
 end sub
 
 /'
@@ -2944,6 +3036,8 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
  if sl->SliceData = 0 then exit sub
 
  with *sl->PolygonData
+  if ubound(.vertices) < 2 then exit sub
+
   dim subtimer as TimerIDs = 0
   if gfx_op_timer.enabled then
    subtimer = gfx_op_timer.substart(TimerIDs.Rotozoom)
@@ -2988,13 +3082,32 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
   'if .drawopts.with_blending then watch.start()
 
   'Temp: 4 vertices are a Quad
-  frame_draw_transformed spr, , .img.pal, sl->ScreenPos, *cast(Quad ptr, @.vertices(0)), .trans, vpages(page), .drawopts
+  'frame_draw_transformed spr, , .img.pal, sl->ScreenPos, *cast(Quad ptr, @.vertices(0)), .trans, vpages(page), .drawopts
+
+  'if .fill_type = fillColor then spr = NULL
+  dim use_colors as bool = NO
+  select case .fill_type
+   case fillSingleColor
+    'Don't use_colors, use only drawopts.argbModifier
+    spr = NULL
+   case fillColor
+    use_colors = YES
+    spr = NULL
+   case fillTexture
+    '
+   case fillTextureColor
+    use_colors = YES
+  end select
+
+  draw_polygon spr, , .img.pal, sl->ScreenPos, .vertices(), .trans, vpages(page), .drawopts, use_colors
 
   'if .drawopts.with_blending then watch.stop_and_print()
 
+  /'
   if have_copy then
    frame_unload(@spr)
   end if
+  '/
 
   if subtimer then gfx_op_timer.substop subtimer
  end with
@@ -3004,11 +3117,13 @@ Sub SavePolygonSlice(byval sl as Slice ptr, byval node as Reload.Nodeptr)
  SaveSpriteSlice sl, node
  dim dat as PolygonSliceData ptr = sl->PolygonData
 
+ SaveProp node, "fill_type", dat->fill_type
+
  dim as Reload.Node ptr verts_node, vert
  verts_node = Reload.AppendChildNode(node, "vertices")
  for idx as integer = 0 to ubound(dat->vertices)
   with dat->vertices(idx)
-   vert = Reload.AppendChildNode(node, "vert")
+   vert = Reload.AppendChildNode(verts_node, "vert")
    Reload.SetChildNode(vert, "x", .pos.x)  'SaveProp?
    Reload.SetChildNode(vert, "y", .pos.y)
    Reload.SetChildNode(vert, "u", .tex.u)
@@ -3021,6 +3136,10 @@ end sub
 Sub LoadPolygonSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
  if sl = 0 or node = 0 then debug "LoadPolygonSlice null ptr": exit sub
  dim dat as PolygonSliceData Ptr = sl->PolygonData
+ LoadSpriteSlice sl, node
+ dat->rz_enabled = NO
+
+ dat->fill_type    = bound(LoadProp(node, "fill_type"), 0, fillLAST)
 
  dim as Reload.Node ptr verts_node, vert
  verts_node = Reload.GetChildByName(node, "vertices")
@@ -3031,7 +3150,7 @@ Sub LoadPolygonSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
   while vert
    with dat->vertices(idx)
     .pos.x = LoadPropFloat(vert, "x")
-    .pos.x = LoadPropFloat(vert, "y")
+    .pos.y = LoadPropFloat(vert, "y")
     .tex.u = LoadPropFloat(vert, "u")
     .tex.v = LoadPropFloat(vert, "v")
     .col.col = LoadProp(vert, "col")
@@ -3040,6 +3159,50 @@ Sub LoadPolygonSlice (byval sl as Slice ptr, byval node as Reload.Nodeptr)
    idx += 1
   wend
  end if
+end sub
+
+Function NewPolygonSlice(byval parent as Slice ptr, byref dat as PolygonSliceData) as Slice ptr
+ dim ret as Slice ptr
+ ret = NewSlice(parent)
+ if ret = 0 then return 0
+
+ ret->PolygonData = new PolygonSliceData(dat)
+ 'Initially no vertices
+ PolygonDefaultInit ret, 4
+
+ ret->SliceType = slPolygon
+ ret->Draw = @DrawPolygonSlice
+ ret->Dispose = @DisposePolygonSlice
+ ret->Clone = @ClonePolygonSlice
+ ret->Save = @SavePolygonSlice
+ ret->Load = @LoadPolygonSlice
+ 
+ return ret
+end function
+
+Sub PolygonDefaultInit(sl as Slice ptr, nvertices as integer)
+
+ with *sl->PolygonData
+
+  if nvertices <= 4 then
+
+   redim .vertices(3)
+
+   dim qd as Quad 'positions(nvertices - 1)
+   vec2GenerateCorners @qd.vertices(0), 4, sl->Size, XYF(0, 0)
+   Quad_to_VertexPTC qd, .vertices()
+   for i as integer = 0 to 3
+    '  .vertices(i).pos = .transform.vertices(i)
+    .vertices(i).col.col = &hffffffff  'Opaque white
+   next
+
+   redim preserve .vertices(nvertices - 1)
+
+  else
+   'TODO: createa a regular polygon scaled by sl->Size
+  end if
+ end with
+
 end sub
 
 '--Map-----------------------------------------------------------------
@@ -4407,7 +4570,7 @@ Function SlicePossiblyResizable(sl as Slice ptr) as bool
  if sl = 0 then return NO
  select case sl->SliceType
   case slSpecial, slRectangle, slLine, slContainer, slGrid, slEllipse, _
-       slSelect, slScroll, slPanel, slLayout
+       slSelect, slScroll, slPanel, slLayout, slPolygon
    return YES
   case slText
    if sl->TextData = 0 then return NO

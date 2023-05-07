@@ -10831,6 +10831,62 @@ sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL,
 	def_drawoptions.color_key0 = NO
 end sub
 
+'tex = NULL for untextured
+'use_colors means use per-vertex colors.
+'If use_colors = NO and tex = NULL, then fill whole polygon with one color, opts.argbModifier
+'FIXME: only works if opts.with_blending.
+sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), poly_vertices() as VertexPTC, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, use_colors as bool = NO)
+	'Shift the vertices by offset
+	dim vertices(ubound(poly_vertices)) as VertexPTC
+	memcpy @vertices(0), @poly_vertices(0), sizeof(VertexPTC) * (ubound(vertices) + 1)
+	for idx as integer = 0 to ubound(vertices)
+		vertices(idx).pos += offset
+	next
+
+	'Get Surface shims around Frames as needed
+	dim as Surface tempsrc_surface = any, tempdest_surface = any
+	dim src_surface as Surface ptr
+	if tex then
+		src_surface = surface_shim(tex, @tempsrc_surface)
+		if src_surface = 0 then return
+	end if
+	dim dest_surface as Surface ptr = surface_shim(dest, @tempdest_surface)
+	if dest_surface = 0 then return
+
+	dim scratchpal as RGBPalette = any
+	if masterpal = NULL then
+		'Convert from pal to a 256-color palette (scratchpal), or returns masterpal if pal is NULL
+		masterpal = unrollPalette16(pal, @curmasterpal(0), @scratchpal)
+	end if
+
+	dim byref cliprect as ClipState = get_cliprect(dest)
+	dim destrect as SurfaceRect = (cliprect.l, cliprect.t, cliprect.r, cliprect.b)
+
+	opts.color_key0 = trans  'Clobbers def_drawoptions.color_key0
+
+	if opts.with_blending andalso opts.argbModifier.col <> -1 andalso use_colors = NO then
+		for idx as integer = 0 to ubound(vertices)
+			vertices(idx).col.col = -1
+		next
+		use_colors = YES
+		'gfx_renderQuadTexture doesn't support argbModifier
+		'(Possible optimisation: if only argbModifier.a is set, set opts.opacity instead)
+	end if
+
+	quad_triangulation = triangulation
+
+	if tex = null then
+		gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+	elseif use_colors then
+		gfx_renderQuadTextureColor(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+	else
+		gfx_renderQuadTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		end if
+	end if
+	def_drawoptions.color_key0 = NO
+end sub
+
+
 ' Draw a paralleogram with a colour gradient between its corners.
 ' Supports opts.with_blending, opts.blend_mode, and opts.argbModifier in addition to opts.opacity
 ' opts.alpha_channel ignored.

@@ -20,6 +20,7 @@
 #include "customsubs.bi"
 #include "thingbrowser.bi"
 #include "sliceedit.bi"
+#include "editorkit.bi"
 
 'Subs and functions only used here
 DECLARE SUB cond_editor (cond as Condition, default as bool = NO, outer_state as MenuState)
@@ -2655,3 +2656,32 @@ FUNCTION game_uses_midi_or_bam() as bool
  NEXT songnum
  RETURN NO
 END FUNCTION
+
+/'
+TYPE RGBAEditor EXTENDS Editorkit
+ DECLARE SUB define_items()
+ DECLARE SUB edit_byte(title as string, byref byt as ubyte)
+ col as RGBcolor ptr
+END TYPE
+
+SUB RGBAEditor.edit_byte(title as string, byref byt as ubyte)
+ defitem title
+ DIM temp as integer = byt
+ edit_int temp, 0, 255
+ byt = temp
+ finish_defitem  'Because temp falls out of scope, get rid of pointer to it
+END SUB
+
+SUB RGBAEditor.define_items()
+ edit_byte "R:", col->r
+ edit_byte "G:", col->g
+ edit_byte "B:", col->b
+ edit_byte "Alpha:", col->a
+END SUB
+
+SUB rgba_editor(byref col as RGBColor)
+ DIM editor as RGBAEditor
+ editor.col = @col
+ editor.run()
+END SUB
+'/
