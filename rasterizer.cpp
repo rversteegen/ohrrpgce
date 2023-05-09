@@ -6,6 +6,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <cmath>
 #include <cfloat>
 #include "rasterizer.hpp"
@@ -538,19 +539,123 @@ void TriRasterizer::drawTriangleTextureColor(VertexPTC *pTriangle, const Surface
 	}
 }
 
-
+extern int quad_triangulation;
+int quad_triangulation = 0;
+double quad_t0 = 0.5, quad_t1 = 0.5;
 
 template <class T_VertexType>
 void QuadRasterizer::generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles)
 {
+
 	typename T_VertexType::IncType center1, center2;
+	double t0 = 0.5, t1 = 0.5;
 
-	center1 = pQuad[0];
-	center2 = pQuad[2];
 
-	center1.interpolateComponents(pQuad[1], .5f);
-	center2.interpolateComponents(pQuad[3], .5f);
-	center1.interpolateComponents(center2, .5f);
+	if (quad_triangulation <= 2) {
+
+		center1 = pQuad[0];
+		center2 = pQuad[2];
+
+		center1.interpolateComponents(pQuad[1], .5f);
+		center2.interpolateComponents(pQuad[3], .5f);
+		center1.interpolateComponents(center2, .5f);
+
+		//Equivalently:
+
+		// center1 = pQuad[0];
+		// center2 = pQuad[1];
+
+		// center1.interpolateComponents(pQuad[2], t0);
+		// center2.interpolateComponents(pQuad[3], t1);
+		// center1.interpolateComponents(center2, .5f);
+
+
+	} else if (quad_triangulation == 3 ) {
+
+
+		center1 = pQuad[0];
+		center2 = pQuad[1];
+
+		center1.interpolateComponents(pQuad[3], quad_t0);
+		center2.interpolateComponents(pQuad[2], quad_t0);
+		center1.interpolateComponents(center2, quad_t1);
+
+
+	} else if (quad_triangulation <= 5 ) {
+
+		// intersect the diagonals (pi + t*vi, t∈[0,1])
+		float2 v0 = pQuad[2].pos - pQuad[0].pos;
+		float2 v1 = pQuad[3].pos - pQuad[1].pos;
+		float2 p0 = pQuad[0].pos;
+		float2 p1 = pQuad[1].pos;
+
+		double denominator = v0.x * v1.y - v0.y * v1.x;
+		if (denominator != 0.0) {
+			t0 = ((p0.y - p1.y) * v1.x - (p0.x - p1.x) * v1.y) / denominator;
+			t1 = ((p0.y - p1.y) * v0.x - (p0.x - p1.x) * v0.y) / denominator;
+		}
+
+		// center1 = pQuad[0];
+		// center1.interpolateComponents(pQuad[2], t0);
+
+
+		center1 = pQuad[0];
+		center2 = pQuad[1];
+
+		if (quad_triangulation == 4 ) {
+
+			center1.interpolateComponents(pQuad[2], 1 - t0);
+			center2.interpolateComponents(pQuad[3], 1 - t1);
+			center1.interpolateComponents(center2, .5f);
+		} else {  // == 5
+
+			center1.interpolateComponents(pQuad[2], .5);
+			center2.interpolateComponents(pQuad[3], .5);
+			center1.interpolateComponents(center2, .5f);
+
+			center1.pos = p0 + v0 * t0;
+		}
+
+
+	} else if (quad_triangulation <= 7) {
+
+		if (quad_triangulation == 6) {
+			T_VertexType *pQuad_ = const_cast<T_VertexType*>(pQuad);
+			T_VertexType temp = pQuad[0];
+			//memmove(&pQuad_[0], &pQuad_[1], 3 * sizeof(T_VertexType));
+			for (int i = 0; i < 3; i++)
+				pQuad_[i] = pQuad_[i+1];
+			pQuad_[3] = temp;
+		}
+
+		center1 = pQuad[1];
+		center2 = pQuad[3];
+
+		center1.interpolateComponents(pQuad[2], .5f);
+		center2.interpolateComponents(pQuad[0], .5f);
+
+
+		pTriangles[0 + 0] = pQuad[0];
+		pTriangles[0 + 1] = pQuad[1];
+		pTriangles[0 + 2] = center1;
+
+		pTriangles[3 + 0] = center1;
+		pTriangles[3 + 1] = center2;
+		pTriangles[3 + 2] = pQuad[0];
+
+
+		pTriangles[6 + 0] = center2;
+		pTriangles[6 + 1] = center1;
+		pTriangles[6 + 2] = pQuad[3];
+
+
+		pTriangles[9 + 0] = pQuad[2];
+		pTriangles[9 + 1] = pQuad[3];
+		pTriangles[9 + 2] = center1;
+
+		return;
+	}
+
 
 	for (int i = 0; i < 4; i++) {
 		pTriangles[i*3 + 0] = pQuad[i];

@@ -693,7 +693,7 @@ declare sub frame_draw overload (src as Frame ptr, pal as Palette16 ptr = NULL, 
 declare sub frame_draw overload (src as Frame ptr, masterpal() as RGBcolor, pal as Palette16 ptr = NULL, x as RelPos, y as RelPos, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions)
 declare sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0),  transf as Quad, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, vertex_cols as RGBcolor ptr = NULL)
 
-declare sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), poly_vertices() as VertexPTC, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, use_colors as bool = NO)
+declare sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), poly_vertices() as VertexPTC, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, use_colors as bool = NO, triangulation as integer)
 
 declare function dissolve_type_caption(n as integer) as string
 declare function appear_type_caption(n as integer) as string

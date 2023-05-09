@@ -3099,7 +3099,7 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
     use_colors = YES
   end select
 
-  draw_polygon spr, , .img.pal, sl->ScreenPos, .vertices(), .trans, vpages(page), .drawopts, use_colors
+  draw_polygon spr, , .img.pal, sl->ScreenPos, .vertices(), .trans, vpages(page), .drawopts, use_colors, .triangulation
 
   'if .drawopts.with_blending then watch.stop_and_print()
 

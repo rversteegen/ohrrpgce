@@ -2630,6 +2630,10 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
  END IF
 END SUB
 
+extern "C"
+extern as double quad_t0, quad_t1
+end extern
+
 SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 
  WITH *sl
@@ -2877,6 +2881,16 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
 
     a_append menu(), " Fill: " & PolygonFillCaptions(dat->fill_type)
     sliceed_rule_ubyte rules(), "polygon_fill", @dat->fill_type, 0, fillLAST
+
+    a_append menu(), " Triangulation: " & dat->triangulation
+    sliceed_rule rules(), "", erIntGrabber, @dat->triangulation, 0, 7
+
+
+    a_append menu(), " T=3  t0: " & format_percent(quad_t0)
+    sliceed_rule_double rules(), "", erPercentgrabber, @quad_t0, -100, 200
+    a_append menu(), " T=3  t1: " & format_percent(quad_t1)
+    sliceed_rule_double rules(), "", erPercentgrabber, @quad_t1, -100, 200
+
 
     IF dat->fill_type >= fillTexture THEN
 

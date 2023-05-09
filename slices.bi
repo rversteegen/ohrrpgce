@@ -613,6 +613,7 @@ end enum
 
 Type PolygonSliceData Extends SpriteSliceData
  fill_type as PolygonFill
+ triangulation as integer
 
 
  vertices(any) as VertexPTC

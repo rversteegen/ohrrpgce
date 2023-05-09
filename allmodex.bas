@@ -10831,11 +10831,15 @@ sub frame_draw_transformed(src as Frame ptr, masterpal as RGBPalette ptr = NULL,
 	def_drawoptions.color_key0 = NO
 end sub
 
+extern "C"
+extern quad_triangulation as integer
+end extern
+
 'tex = NULL for untextured
 'use_colors means use per-vertex colors.
 'If use_colors = NO and tex = NULL, then fill whole polygon with one color, opts.argbModifier
 'FIXME: only works if opts.with_blending.
-sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), poly_vertices() as VertexPTC, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, use_colors as bool = NO)
+sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Palette16 ptr = NULL, offset as XYPair = XY(0,0), poly_vertices() as VertexPTC, trans as bool = YES, dest as Frame ptr, opts as DrawOptions = def_drawoptions, use_colors as bool = NO, triangulation as integer)
 	'Shift the vertices by offset
 	dim vertices(ubound(poly_vertices)) as VertexPTC
 	memcpy @vertices(0), @poly_vertices(0), sizeof(VertexPTC) * (ubound(vertices) + 1)
@@ -10876,11 +10880,59 @@ sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Pa
 	quad_triangulation = triangulation
 
 	if tex = null then
-		gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+		'gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+
+		if triangulation >= 2 then
+			gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+		elseif triangulation = 1 then
+			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+			redim preserve vertices(4)
+			vertices(4) = vertices(0)
+			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(2)), @destrect, dest_surface, @opts)
+		elseif triangulation = 0 then
+			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(1)), @destrect, dest_surface, @opts)
+			redim preserve vertices(5)
+			vertices(4) = vertices(0)
+			vertices(5) = vertices(1)
+			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(3)), @destrect, dest_surface, @opts)
+
+		end if
+
+
 	elseif use_colors then
-		gfx_renderQuadTextureColor(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		'gfx_renderQuadTextureColor(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		if triangulation >= 2 then
+			gfx_renderQuadTextureColor(cast(VertexPTC ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation = 1 then
+			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+			redim preserve vertices(4)
+			vertices(4) = vertices(0)
+			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(2)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation = 0 then
+			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(1)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+			redim preserve vertices(5)
+			vertices(4) = vertices(0)
+			vertices(5) = vertices(1)
+			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(3)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+
+		end if
+
+
 	else
-		gfx_renderQuadTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		if triangulation >= 2 then
+			gfx_renderQuadTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation = 1 then
+			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+			redim preserve vertices(4)
+			vertices(4) = vertices(0)
+			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(2)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation = 0 then
+			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(1)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+			redim preserve vertices(5)
+			vertices(4) = vertices(0)
+			vertices(5) = vertices(1)
+			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(3)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+
 		end if
 	end if
 	def_drawoptions.color_key0 = NO
