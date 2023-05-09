@@ -539,12 +539,12 @@ void TriRasterizer::drawTriangleTextureColor(VertexPTC *pTriangle, const Surface
 	}
 }
 
-extern int quad_triangulation;
-int quad_triangulation = 0;
+extern int quad_triangulation, quad_8tri;
+int quad_triangulation = 0, quad_8tri = 0;
 double quad_t0 = 0.5, quad_t1 = 0.5;
 
 template <class T_VertexType>
-void QuadRasterizer::generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles)
+int QuadRasterizer::generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles)
 {
 
 	typename T_VertexType::IncType center1, center2;
@@ -571,7 +571,8 @@ void QuadRasterizer::generateTriangles(const T_VertexType* pQuad, T_VertexType* 
 
 
 	} else if (quad_triangulation == 3 ) {
-
+		t0 = quad_t0;
+		t1 = quad_t1;
 
 		center1 = pQuad[0];
 		center2 = pQuad[1];
@@ -653,25 +654,68 @@ void QuadRasterizer::generateTriangles(const T_VertexType* pQuad, T_VertexType* 
 		pTriangles[9 + 1] = pQuad[3];
 		pTriangles[9 + 2] = center1;
 
-		return;
+		return 4;
 	}
 
+	if (quad_8tri) {
 
-	for (int i = 0; i < 4; i++) {
-		pTriangles[i*3 + 0] = pQuad[i];
-		pTriangles[i*3 + 1] = pQuad[(i+1)%4];
-		pTriangles[i*3 + 2] = center1;
+		typename T_VertexType::IncType ecenter[4]; //center01, center12, center32, center03;
+
+
+
+		//center01 = pQuad[0];
+		ecenter[0] = pQuad[0];
+		ecenter[0].interpolateComponents(pQuad[1], 0.5); //t1);
+		ecenter[0].pos = pQuad[0].pos * t1 + pQuad[1].pos * (1 - t1);
+
+
+		//center12 = pQuad[1];
+		ecenter[1] = pQuad[1];
+		ecenter[1].interpolateComponents(pQuad[2], 0.5); //t0);
+		ecenter[1].pos = pQuad[1].pos * t0 + pQuad[2].pos * (1 - t0);
+
+		//center32 = pQuad[3];
+		ecenter[2] = pQuad[3];
+		ecenter[2].interpolateComponents(pQuad[2], 0.5); //t1);
+		ecenter[2].pos = pQuad[3].pos * t1 + pQuad[2].pos * (1 - t1);
+
+		//center03 = pQuad[0];
+		ecenter[3] = pQuad[0];
+		ecenter[3].interpolateComponents(pQuad[3], 0.5); //t0);
+		ecenter[3].pos = pQuad[0].pos * t0 + pQuad[3].pos * (1 - t0);
+
+		for (int i = 0; i < 4; i++) {
+			pTriangles[i*6 + 0] = pQuad[i];
+			pTriangles[i*6 + 1] = ecenter[i];
+			pTriangles[i*6 + 2] = center1;
+
+			pTriangles[i*6 + 3] = center1;
+			pTriangles[i*6 + 4] = ecenter[i];
+			pTriangles[i*6 + 5] = pQuad[(i+1)%4];
+		}
+		return 8;
+
+	} else { 
+
+
+		for (int i = 0; i < 4; i++) {
+			pTriangles[i*3 + 0] = pQuad[i];
+			pTriangles[i*3 + 1] = pQuad[(i+1)%4];
+			pTriangles[i*3 + 2] = center1;
+		}
+		return 4;
 	}
+
 }
 
 void QuadRasterizer::drawQuadColor(const VertexPC *pQuad, SurfaceRect *pRectDest, Surface *pSurfaceDest, DrawOptions *pOpts)
 {
 	if( pQuad == NULL )
 		return;
-	VertexPC triangles[4*3];
-	generateTriangles(pQuad, triangles);
+	VertexPC triangles[8*3];
+	int ntris = generateTriangles(pQuad, triangles);
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < ntris; i++)
 		drawTriangleColor(&triangles[i*3], pRectDest, pSurfaceDest, pOpts);
 }
 
@@ -679,10 +723,10 @@ void QuadRasterizer::drawQuadTexture(const VertexPT *pQuad, const Surface *pText
 {
 	if( pQuad == NULL )
 		return;
-	VertexPT triangles[4*3];
-	generateTriangles(pQuad, triangles);
+	VertexPT triangles[8*3];
+	int ntris = generateTriangles(pQuad, triangles);
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < ntris; i++)
 		drawTriangleTexture(&triangles[i*3], pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }
 
@@ -690,9 +734,9 @@ void QuadRasterizer::drawQuadTextureColor(const VertexPTC *pQuad, const Surface 
 {
 	if( pQuad == NULL )
 		return;
-	VertexPTC triangles[4*3];
-	generateTriangles(pQuad, triangles);
+	VertexPTC triangles[8*3];
+	int ntris = generateTriangles(pQuad, triangles);
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < ntris; i++)
 		drawTriangleTextureColor(&triangles[i*3], pTexture, pPalette, pPal8, pRectDest, pSurfaceDest, pOpts);
 }

@@ -2632,6 +2632,7 @@ END SUB
 
 extern "C"
 extern as double quad_t0, quad_t1
+extern as integer quad_8tri
 end extern
 
 SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
@@ -2884,6 +2885,8 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
 
     a_append menu(), " Triangulation: " & dat->triangulation
     sliceed_rule rules(), "", erIntGrabber, @dat->triangulation, 0, 7
+    a_append menu(), " 8-tri: " & quad_8tri
+    sliceed_rule_tog rules(), "", @quad_8tri
 
 
     a_append menu(), " T=3  t0: " & format_percent(quad_t0)

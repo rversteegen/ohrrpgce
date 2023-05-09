@@ -85,7 +85,7 @@ class QuadRasterizer : public TriRasterizer
 {
 protected:
 	template <class T_VertexType>
-	void generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles);
+	int generateTriangles(const T_VertexType* pQuad, T_VertexType* pTriangles);
 public:
 	void drawQuadColor(const VertexPC* pQuad, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
 	void drawQuadTexture(const VertexPT* pQuad, const Surface* pTexture, const RGBPalette* pPalette, const Palette16* pPal8, SurfaceRect* pRectDest, Surface* pSurfaceDest, DrawOptions* pOpts);
