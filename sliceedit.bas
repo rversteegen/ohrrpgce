@@ -141,7 +141,8 @@ TYPE SliceEditState
 
  'Detail editor submenus
  submenu as string         'Name of the submenu, "" for top-level
- submenu_data_ptr as any ptr
+ submenu_data_ptr as any ptr        'Set to the dataptr of the rule that enters the submenu
+ submenu_prev_items as StrHashTable 'Remembers the previously selected menu item in each submenu
 
  ' Internal state of lookup_code_grabber
  editing_lookup_name as bool
@@ -304,7 +305,7 @@ DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_vertex_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
-DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
+DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, menu() as string, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
 DECLARE SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
 DECLARE SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Slice ptr, rootsl as Slice ptr, byref show_ants as bool, ctrl_msg as string = "", helpkey as string = "sliceedit_xy")
 DECLARE FUNCTION slice_editor_filename(byref ses as SliceEditState) as string
@@ -708,6 +709,7 @@ END SUB
 SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, initial_slice as Slice ptr = NULL)
  slice_editor_load_settings ses
  slice_editor_load_icons ses
+ ses.submenu_prev_items.construct(8, type_table(string), YES)
 
  REDIM PRESERVE editable_slice_types(10)  'Remove slLayout if previously added it
  IF ses.privileged THEN a_append editable_slice_types(), slLayout
@@ -1875,7 +1877,6 @@ END SUB
 'Editor for an individual slice
 SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as Slice Ptr)
 
- STATIC remember_pt as integer
  DIM usemenu_flag as bool
 
  IF sl = 0 THEN EXIT SUB
@@ -1887,7 +1888,6 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
 
  DIM state as MenuState
  WITH state
-  .pt = remember_pt
   .need_update = YES
   .autosize = YES
   'Right-dragging the collection around (and other mouse editing in future) shouldn't select menu items
@@ -1942,13 +1942,14 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
   usemenu_flag = usemenu(state)
   IF keyval(ccCancel) > 1 ORELSE (state.pt = 0 ANDALSO enter_space_click(state)) THEN
    IF LEN(ses.submenu) THEN
+    ses.submenu_prev_items.set(ses.submenu, menu(state.pt))  'Remember selection
     ses.submenu = ""
     state.need_update = YES
    ELSE
     EXIT DO
    END IF
   END IF
-  slice_edit_detail_keys ses, edslice, state, sl, rules(), usemenu_flag
+  slice_edit_detail_keys ses, edslice, menu(), state, sl, rules(), usemenu_flag
 
   'This must be after slice_edit_detail_keys so that can handle text input
   slice_editor_common_function_keys ses, edslice, state, YES  'F, R, V, F4, F7, F8, F10, C/S+F3, C/S+F5
@@ -1986,7 +1987,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
   dowait
  LOOP
 
- remember_pt = state.pt
+ ses.submenu_prev_items.set("", menu(state.pt))  'Remember selection
  benchmarking_slice = NULL
 
 END SUB
@@ -2086,7 +2087,7 @@ SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as any ptr 
  END WITH
 END SUB
 
-SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
+SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, menu() as string, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
  DIM prevval as VariantType
  DIM rule as EditRule = rules(state.pt)
  DIM set_default as bool
@@ -2097,8 +2098,10 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
  SELECT CASE rule.mode
   CASE erSubmenu
    IF enter_space_click(state) THEN
+    ses.submenu_prev_items.set(ses.submenu, menu(state.pt))  'Remember selection
     ses.submenu = *rule.menuname
     ses.submenu_data_ptr = rule.dataptr
+    state.pt = 0  'Move to Previous Menu, only happens the first time we enter
     state.need_update = YES
    END IF
   CASE erIntgrabber
@@ -2603,8 +2606,17 @@ SUB sliceed_add_blend_edit_rules(byref ses as SliceEditState, menu() as string, 
 END SUB
 
 SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
+
+ 'When reentering a menu, go back to the original item
  DIM prev_item as string
- IF state.pt <= UBOUND(menu) THEN prev_item = menu(state.pt)
+ prev_item = ses.submenu_prev_items.get_str(ses.submenu)
+ IF LEN(prev_item) THEN
+  '...on the first tick only
+  ses.submenu_prev_items.remove(ses.submenu)
+ ELSE
+  'Afterwards, remember the previous menu item as menu items appear/disappear
+  IF state.pt <= UBOUND(menu) THEN prev_item = menu(state.pt)
+ END IF
 
  REDIM menu(0) as string
  REDIM rules(0) as EditRule
@@ -2621,8 +2633,9 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
 
  init_menu_state state, menu(), menuopts
 
- 'Try to find the previously selected setting back, since its index might have changed
- prev_item = LEFT(prev_item, INSTR(prev_item, ":"))
+ 'Try to find the previously selected item back, since its index might have changed
+ DIM eq as integer = INSTR(prev_item, ":")
+ IF eq THEN prev_item = LEFT(prev_item, eq)
  IF LEN(prev_item) THEN
   FOR idx as integer = 0 TO UBOUND(menu)
    IF starts_with(menu(idx), prev_item) THEN state.pt = idx
