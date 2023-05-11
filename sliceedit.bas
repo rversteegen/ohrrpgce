@@ -226,7 +226,7 @@ DIM SHARED remember_draw_root_pos as XYPair
 DIM SHARED clipboard as Slice ptr
 
 
-REDIM SHARED editable_slice_types(9) as SliceTypes
+REDIM SHARED editable_slice_types(10) as SliceTypes
 editable_slice_types(0) = SlContainer
 editable_slice_types(1) = SlSprite
 editable_slice_types(2) = SlText
@@ -237,6 +237,7 @@ editable_slice_types(6) = SlScroll
 editable_slice_types(7) = SlSelect
 editable_slice_types(8) = SlGrid
 editable_slice_types(9) = SlPanel
+editable_slice_types(10) = SlPolygon
 'editable_slice_types(10) = SlLayout
 'Omitted: slSpecial, slMap
 
@@ -263,6 +264,8 @@ CONST slgrTARGET = 1 shl 17
 CONST slgrUPDATESPRITETRANSFORM = 1 shl 18
 CONST slgrSHOWORIGIN = 1 shl 19
 CONST slgrPICKORIGIN = 1 shl 20
+CONST slgrEDITVERTEX = 1 shl 21
+CONST slgrADDVERTEX = 1 shl 22
 '--This system won't be able to expand forever ... :(
 
 '==============================================================================
@@ -300,6 +303,7 @@ DECLARE SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as 
 DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as Slice Ptr)
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
+DECLARE SUB slice_edit_vertex_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
 DECLARE SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
 DECLARE SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Slice ptr, rootsl as Slice ptr, byref show_ants as bool, ctrl_msg as string = "", helpkey as string = "sliceedit_xy")
@@ -390,6 +394,11 @@ REDIM SHARED BlendAlgoCaptions(blendAlgoLAST) as string
 BlendAlgoCaptions(blendAlgoDither)     = "Dither"
 BlendAlgoCaptions(blendAlgoLessDither) = "Less dither"
 BlendAlgoCaptions(blendAlgoNoDither)   = "No dithering"
+REDIM SHARED PolygonFillCaptions(fillLAST) as string
+PolygonFillCaptions(fillSingleColor)  = "Single color"
+PolygonFillCaptions(fillColor)        = "Vertex colors"
+PolygonFillCaptions(fillTexture)      = "Textured"
+PolygonFillCaptions(fillTextureColor) = "Textured with vertex colors"
 
 '==============================================================================
 
@@ -700,7 +709,7 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
  slice_editor_load_settings ses
  slice_editor_load_icons ses
 
- REDIM PRESERVE editable_slice_types(9)  'Remove slLayout if previously added it
+ REDIM PRESERVE editable_slice_types(10)  'Remove slLayout if previously added it
  IF ses.privileged THEN a_append editable_slice_types(), slLayout
 
  '--user-defined slice lookup codes
@@ -1458,7 +1467,7 @@ FUNCTION slice_editor_mouse_over (byref ses as SliceEditState, edslice as Slice 
   'Ignore Map slices because transparent overhead layers makes it impossible to
   'click on things parented to map layers below.
   SELECT CASE sl->SliceType
-   CASE slRectangle, slSprite, slText, slEllipse, slScroll
+   CASE slRectangle, slSprite, slText, slEllipse, slScroll, slPolygon
     topmost = sl
    CASE slLine
     'TODO: test how close the mouse is to the line, rather than giving it
@@ -2266,6 +2275,7 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   END IF
  END IF
  IF rule.group AND slgrUPDATESPRITE THEN
+  'This is used for Sprite and Polygon slices
   IF state.need_update THEN
    'state.need_update is cleared at the top of the loop
    UpdateSpriteSliceImage sl
@@ -2362,6 +2372,20 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
    SetSliceTarg sl, sl->Targ.X, sl->Targ.Y, sl->TargTicks
   END IF
  END IF
+ IF rule.group AND slgrEDITVERTEX THEN
+  IF keyval(scDelete) > 1 THEN
+   WITH *sl->PolygonData
+    DIM last_idx as integer = UBOUND(.vertices)
+    DIM vertex as VertexPTC ptr = ses.submenu_data_ptr
+    DIM delete_idx as integer = (vertex - @.vertices(0)) \ sizeof(.vertices(0))
+    FOR idx as integer = delete_idx TO UBOUND(.vertices) - 1
+     .vertices(idx) = .vertices(idx + 1)
+    NEXT
+    REDIM PRESERVE .vertices(last_idx - 1)
+    state.need_update = YES
+   END WITH
+  END IF
+ END IF
 
  ' Special actions to take after some piece of data has been edited
  IF state.need_update THEN
@@ -2392,6 +2416,19 @@ SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as
   origin = sl->ScreenPos + SpriteOriginPosition(sl)
   ' The icon is offset by 3,3
   slice_editor_draw_icon ses, ses.other_icons, 6, origin - XY(3, 3), "Rotozoom origin", dpage
+ END IF
+
+ 'IF (rule.mode = erSubmenu ANDALSO *rule.menuname = "vertex") THEN
+ IF ses.submenu = "vertex" ORELSE (rule.group AND slgrEDITVERTEX) THEN
+  DIM vert as VertexPTC ptr
+  IF rule.group AND slgrEDITVERTEX THEN
+   vert = rule.dataptr
+  ELSE
+   vert = ses.submenu_data_ptr
+  END IF
+  DIM pos as XYPair = sl->ScreenPos
+  pos += vert->pos
+  slice_editor_draw_icon ses, ses.other_icons, 6, pos - XY(3, 3), "", dpage
  END IF
 
 END SUB
@@ -2574,7 +2611,9 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
  rules(0).helpkey = @"detail"
  menu(0) = "Previous Menu"
 
- IF ses.submenu = "" THEN  'Toplevel menu
+ IF ses.submenu = "vertex" THEN
+  slice_edit_vertex_menu ses, menu(), sl, rules()
+ ELSE
   slice_edit_detail_menu ses, menu(), sl, rules()
  END IF
 
@@ -2832,6 +2871,61 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
      'sliceed_rule_tog rules(), "sprite_d_auto", @(dat->d_auto)
     END IF
 
+
+   CASE slPolygon
+    DIM dat as PolygonSliceData Ptr = .SliceData
+
+    a_append menu(), " Fill: " & PolygonFillCaptions(dat->fill_type)
+    sliceed_rule_ubyte rules(), "polygon_fill", @dat->fill_type, 0, fillLAST
+
+    IF dat->fill_type >= fillTexture THEN
+
+     DIM byref sizeinfo as SpriteSize = sprite_sizes(dat->spritetype)
+     a_append menu(), " Texture sprite type: " & sizeinfo.name
+     DIM mintype as SpriteType = IIF(ses.collection_group_number = SL_COLLECT_EDITOR, sprTypeFrame, 0)
+     sliceed_rule_enum rules(), "sprite_type", @(dat->spritetype), mintype, sprTypeLastPickable, slgrUPDATESPRITE
+     IF dat->spritetype = sprTypeFrame THEN
+      IF dat->assetfile = NULL THEN
+       a_append menu(), " Raw Frame: " & frame_describe(dat->img.sprite)
+       sliceed_rule_none rules(), ""
+      ELSE
+       a_append menu(), " Asset file: " & *dat->assetfile
+       sliceed_rule_str rules(), "sprite_asset", erShortStrgrabber, dat->assetfile, 1024, (slgrUPDATESPRITE OR slgrBROWSESPRITEASSET)
+      END IF
+      IF ses.privileged THEN
+       a_append menu(), "  Load as 32bit Frame: " & yesorno(dat->load_asset_as_32bit)
+       sliceed_rule_tog rules(), "sprite_32bit_asset", @(dat->load_asset_as_32bit), slgrUPDATESPRITE
+      END IF
+     ELSE
+      a_append menu(), " Spriteset: " & dat->record
+      sliceed_rule rules(), "sprite_rec", erIntgrabber, @(dat->record), 0, sizeinfo.lastrec, (slgrUPDATESPRITE OR slgrBROWSESPRITEID)
+      IF dat->paletted THEN
+       a_append menu(), " Palette: " & defaultint(dat->pal)
+       sliceed_rule rules(), "sprite_pal", erIntgrabber, @(dat->pal), -1, gen(genMaxPal), slgrUPDATESPRITE
+      END IF
+      DIM nframes as integer = SpriteSliceNumFrames(sl)
+      IF nframes > 1 THEN
+       a_append menu(), " Frame: " & dat->frame
+       sliceed_rule rules(), "sprite_frame", erIntgrabber, @(dat->frame), 0, nframes - 1, slgrUPDATESPRITE
+      END IF
+     END IF
+     a_append menu(), " Transparent: " & yesorno(dat->trans)
+     sliceed_rule_tog rules(), "sprite_trans", @(dat->trans)
+
+    END IF
+
+    sliceed_add_blend_edit_rules ses, menu(), rules(), @dat->drawopts
+
+
+    sliceed_header menu(), rules(), " [Vertices]" ', @ses.expand_transform
+    FOR idx as integer = 0 TO UBOUND(dat->vertices)
+     a_append menu(), " Vertex " & idx & "..."
+     sliceed_rule_menu rules(), "vertex", @dat->vertices(idx), slgrEDITVERTEX
+    NEXT
+    a_append menu(), " Add Vertex"
+    sliceed_rule_none rules(), "vertex", slgrADDVERTEX
+
+
    CASE slGrid
     DIM dat as GridSliceData Ptr
     dat = .SliceData
@@ -3047,6 +3141,34 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
   sliceed_rule_none rules(), "", slgrEXTRAEDITOR
  END IF
 
+ END WITH
+END SUB
+
+SUB slice_edit_vertex_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
+ DIM vertex as VertexPTC ptr = ses.submenu_data_ptr
+ WITH *vertex
+
+  a_append menu(), "X: " & format_float(.pos.x)
+  sliceed_rule_single rules(), "vertex_pos", erSinglegrabber, @.pos.x, -1e6, 1e6', slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
+  a_append menu(), "Y: " & format_float(.pos.y)
+  sliceed_rule_single rules(), "vertex_pos", erSinglegrabber, @.pos.y, -1e6, 1e6', slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
+
+  a_append menu(), "U: " & format_float(.tex.u)
+  sliceed_rule_single rules(), "vertex_uv", erSinglegrabber, @.tex.u, -1e6, 1e6', slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
+  a_append menu(), "V: " & format_float(.tex.v)
+  sliceed_rule_single rules(), "vertex_uv", erSinglegrabber, @.tex.v, -1e6, 1e6', slgrUPDATESPRITETRANSFORM or slgrPICKORIGIN
+
+  sliceed_header menu(), rules(), "[Color modulation]", @ses.expand_sort
+
+  a_append menu(), " Red: " & .col.r
+  sliceed_rule_ubyte rules(), "modulate", @.col.r, 0, 255
+  a_append menu(), " Green: " & .col.g
+  sliceed_rule_ubyte rules(), "modulate", @.col.g, 0, 255
+  a_append menu(), " Blue: " & .col.b
+  sliceed_rule_ubyte rules(), "modulate", @.col.b, 0, 255
+  a_append menu(), " Opacity: " & .col.a
+  sliceed_rule_ubyte rules(), "modulate_opacity", @.col.a, 0, 255
+  
  END WITH
 
 END SUB
