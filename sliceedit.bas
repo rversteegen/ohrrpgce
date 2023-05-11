@@ -139,6 +139,10 @@ TYPE SliceEditState
  show_typenames as bool    'Display type names always
  privileged as bool        'Whether can edit properties that are normally off-limits. Non-user collections only.
 
+ 'Detail editor submenus
+ submenu as string         'Name of the submenu, "" for top-level
+ submenu_data_ptr as any ptr
+
  ' Internal state of lookup_code_grabber
  editing_lookup_name as bool
  last_lookup_name_edit as double  'Time of last edit
@@ -175,6 +179,7 @@ CONST kindlimitPOSITIONING = 7      'Either Grid or Layout
 
 ENUM EditRuleMode
   erNone              'Used for labels and links
+  erSubmenu           'Enter a submenu (set ses.submenu = .menuname, ses.submenu_data_ptr = .dataptr)
   erIntgrabber
   'erBytegrabber      'Commented because it's not currently needed
   erUBytegrabber
@@ -197,7 +202,10 @@ TYPE EditRule
   upper as integer    'Interpreted as percent for percent_grabber
   default as integer  'Value selected by Delete/Backspace key. Not supported by strings, bools, floats
   group as integer    'Marks this rule as a member of a numbered group, the meaning of which is defined in the implementation
-  helpkey as zstring ptr 'Suffix appended to "sliceedit_" to get the full helpkey
+  UNION
+   helpkey as zstring ptr  'Suffix appended to "sliceedit_" to get the full helpkey
+   menuname as zstring ptr 'Submenu to enter
+  END UNION
 END TYPE
 
 UNION VariantType
@@ -291,6 +299,7 @@ DECLARE SUB slice_editor_invalidate_ptrs (byref ses as SliceEditState)
 DECLARE SUB slice_edit_updates (sl as Slice ptr, dataptr as any ptr, prevval as any ptr)
 DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as Slice Ptr)
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
+DECLARE SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
 DECLARE SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
 DECLARE SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Slice ptr, rootsl as Slice ptr, byref show_ants as bool, ctrl_msg as string = "", helpkey as string = "sliceedit_xy")
@@ -330,6 +339,7 @@ DECLARE SUB sliceed_rule_single (rules() as EditRule, helpkey as zstring ptr, mo
 DECLARE SUB sliceed_rule_tog overload (rules() as EditRule, helpkey as zstring ptr, dataptr as bool ptr, group as integer=0)
 DECLARE SUB sliceed_rule_tog overload (rules() as EditRule, helpkey as zstring ptr, dataptr as boolean ptr, group as integer=0)
 DECLARE SUB sliceed_rule_none (rules() as EditRule, helpkey as zstring ptr, group as integer = 0)
+DECLARE SUB sliceed_rule_menu (rules() as EditRule, menuname as zstring ptr, dataptr as any ptr = NULL, group as integer=0)
 
 '==============================================================================
 
@@ -1885,7 +1895,6 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
  DO
   setwait 55
   setkeys YES
-  IF keyval(ccCancel) > 1 THEN EXIT DO
   IF keyval(scF1) > 1 THEN
    DIM helpkey as string = *rules(state.pt).helpkey
    show_help "sliceedit_" & IIF(LEN(helpkey), helpkey, "detail")
@@ -1922,7 +1931,14 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
   END IF
 
   usemenu_flag = usemenu(state)
-  IF state.pt = 0 AND enter_space_click(state) THEN EXIT DO
+  IF keyval(ccCancel) > 1 ORELSE (state.pt = 0 ANDALSO enter_space_click(state)) THEN
+   IF LEN(ses.submenu) THEN
+    ses.submenu = ""
+    state.need_update = YES
+   ELSE
+    EXIT DO
+   END IF
+  END IF
   slice_edit_detail_keys ses, edslice, state, sl, rules(), usemenu_flag
 
   'This must be after slice_edit_detail_keys so that can handle text input
@@ -2070,6 +2086,12 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
   state.need_update = YES
  END IF
  SELECT CASE rule.mode
+  CASE erSubmenu
+   IF enter_space_click(state) THEN
+    ses.submenu = *rule.menuname
+    ses.submenu_data_ptr = rule.dataptr
+    state.need_update = YES
+   END IF
   CASE erIntgrabber
    DIM n as integer ptr = rule.dataptr
    prevval.int = *n
@@ -2494,6 +2516,11 @@ SUB sliceed_rule_none(rules() as EditRule, helpkey as zstring ptr, group as inte
  sliceed_rule rules(), helpkey, erNone, 0, 0, 0, group
 END SUB
 
+'Enter a submenu. Sets ses.submenu and ses.submenu_data_ptr.
+SUB sliceed_rule_menu (rules() as EditRule, menuname as zstring ptr, dataptr as any ptr = NULL, group as integer=0)
+ sliceed_rule rules(), menuname, erSubmenu, dataptr, 0, 0, group
+END SUB
+
 SUB sliceed_rule_tog(rules() as EditRule, helpkey as zstring ptr, dataptr as bool ptr, group as integer=0)
  sliceed_rule rules(), helpkey, erToggle, dataptr, -1, 0, group
 END SUB
@@ -2546,6 +2573,26 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
  REDIM rules(0) as EditRule
  rules(0).helpkey = @"detail"
  menu(0) = "Previous Menu"
+
+ IF ses.submenu = "" THEN  'Toplevel menu
+  slice_edit_detail_menu ses, menu(), sl, rules()
+ END IF
+
+ state.hit_test_data = @menu(0)  'Must be before init_menu_state
+
+ init_menu_state state, menu(), menuopts
+
+ 'Try to find the previously selected setting back, since its index might have changed
+ prev_item = LEFT(prev_item, INSTR(prev_item, ":"))
+ IF LEN(prev_item) THEN
+  FOR idx as integer = 0 TO UBOUND(menu)
+   IF starts_with(menu(idx), prev_item) THEN state.pt = idx
+  NEXT idx
+ END IF
+END SUB
+
+SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
+
  WITH *sl
 
  a_append menu(), "Slice type: " & SliceTypeName(sl)
@@ -3002,17 +3049,6 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
 
  END WITH
 
- state.hit_test_data = @menu(0)  'Must be before init_menu_state
-
- init_menu_state state, menu(), menuopts
-
- 'Try to find the previously selected setting back, since its index might have changed
- prev_item = LEFT(prev_item, INSTR(prev_item, ":"))
- IF LEN(prev_item) THEN
-  FOR idx as integer = 0 TO UBOUND(menu)
-   IF starts_with(menu(idx), prev_item) THEN state.pt = idx
-  NEXT idx
- END IF
 END SUB
 
 'Pick a slice type in allowed_types() or slAddCollection, return YES if didn't cancel
