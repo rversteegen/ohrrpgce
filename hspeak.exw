@@ -13,6 +13,7 @@
 ---------------------------------------------------------------------------
 
 --Changelog
+--3W  2024-01-06 Add srcpos debug info
 --3Vb 2024-01-11 Fix lexing of identifiers ending in : & | or -
 --3Va 2022-04-08 Add exit
 --3V  2022-04-07 Add showvalueof, and tracevalueof alias
@@ -187,8 +188,8 @@ constant COMPILER_VERSION="3"
 -- For small changes increment the second letter of COMPILER_SUB_VERSION
 -- For large changes increment the first letter and reset the second letter
 --*Please make sure this is 2 chararacters long! Append a space if required.*
-constant COMPILER_SUB_VERSION="Va"
-constant COPYRIGHT_DATE="2022"
+constant COMPILER_SUB_VERSION="W "
+constant COPYRIGHT_DATE="2023"
 
 --Known single-character commandline options
 constant VALID_OPTIONS="abcdfjknstwuyz"
@@ -1976,10 +1977,10 @@ function lex_line(sequence s, integer i, integer stop, integer posoff)
             --'-' appears at the start of a token: this is only allowed to be a number.
             --We haven't appended anything to tokens that needs removing.
             ident=""
-            textstart=0
-            temp=lexer_read_number(s,i,stop,pos)
-            tokens=append(tokens,{temp[2],pos+i})
+            temp=lexer_read_number(s,i,stop,posoff)
+            tokens=append(tokens,{temp[2],encode_srcpos(posoff,i,i-textstart+1)})
             i=temp[1]
+            textstart=0
             state=LEX_DIGIT  --Sensible last_state to avoid 'extra comma' error
           else
             --a keyword character followed by garbage
@@ -5592,7 +5593,13 @@ function generate_srcfiles_dot_txt()
   sequence result
   result=""
   for i=1 to length(file_list) do
-    result&=sprintf_utf("file=%s\nlump=%s\noffset=%d\nlength=%d\n",{absolute_path(file_list[i][FILE_NAME]),file_list[i][FILE_LUMP],file_list[i][FILE_OFFSET],length(file_list[i][FILE_TEXT])})
+    result&=sprintf_utf("file=%s\nlump=%s\noffset=%d\nlength=%d\n",
+      {
+        absolutize_path(file_list[i][FILE_NAME]),
+        file_list[i][FILE_LUMP],
+        file_list[i][FILE_OFFSET],
+        length(file_list[i][FILE_TEXT])
+      })
   end for
   return(result)
 end function

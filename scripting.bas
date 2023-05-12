@@ -2004,10 +2004,6 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, 
   append_menu_item menu, "Enter slice editor/debugger", 5
  END IF
 
- append_menu_item menu, "Stop this script", , , , 2
- append_menu_item menu, "Suppress errors from this source", , , , 3
- append_menu_item menu, "Exit game (without saving)", , , , 4
- append_menu_item menu, "Enter slice debugger", , , , 5
  IF recursivecall = 1 THEN  'don't reenter the debugger if possibly already inside!
   IF gam.debug_scripts <> 0 THEN
    state.pt = append_menu_item(menu, "Return to script debugger", 6)

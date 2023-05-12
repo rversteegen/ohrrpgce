@@ -1161,7 +1161,10 @@ IF nowscript >= 0 THEN
  END SELECT
 END IF
 
-'Draw header
+'Number of lines of text (9 pixels high) that can fit below the header at the top.
+CONST displaylines = 19
+
+'Draw header at top of screen
 IF mode > 1 THEN
  edgeprint "F1   F2      F3   F4      F5      F6", 0, 0, uilook(uiDescription), page
  DIM tabnames(...) as string = {"Help", "Scripts", "Vars", "Globals", "Strings", "Timers"}
