@@ -53,7 +53,7 @@ void matrixMultiply( float3x3* pMatrixOut, const float3x3& A, const float3x3& B 
 
 void vec2Transform( float2* pVec2ArrayOut, int szStrideOut, const float2* pVec2ArrayIn, int szStrideIn, int nVectors, const float3x3& transformMatrix )
 {
-   if( pVec2ArrayOut == NULL || pVec2ArrayIn == NULL || pVec2ArrayIn == pVec2ArrayOut )
+   if( pVec2ArrayOut == NULL || pVec2ArrayIn == NULL )
       return;
 
    const float2 *pVin = pVec2ArrayIn;

@@ -157,6 +157,7 @@ DECLARE Sub ApplySliceVelocity(byval s as Slice ptr)
 DECLARE Sub SeekSliceTarg(byval s as Slice ptr)
 
 DECLARE Sub SpriteToPolygon(sl as Slice ptr)
+DECLARE Sub RotozoomPolygonSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), smooth as integer = 0, cache_scaled as bool = NO)
 
 DECLARE Sub report_slice_type_err(sl as Slice ptr, expected as SliceTypes)
 
@@ -2731,6 +2732,8 @@ sub RotozoomSlice(sl as Slice ptr, angle as double = 0., origin as Float2 ptr = 
  select case sl->SliceType
    case slSprite
     RotozoomSpriteSlice sl, angle, origin, scale /', drop_offset'/, smooth, cache_scaled
+   case slPolygon
+    RotozoomPolygonSlice sl, angle, *origin, scale /', drop_offset'/, smooth, cache_scaled
    case else
     reporterr "TODO: rotozooming " & SliceTypeName(sl) & " not implemented"
   end select
