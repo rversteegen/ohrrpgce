@@ -2167,6 +2167,9 @@ end function
 function seek_include(TokenList tokens)
   string ret
   if length(tokens) and equal(tokens[1][CMD_TEXT],"include") then
+    if length(tokens)=1 or length(tokens[2][CMD_TEXT])=0 then
+      src_error(COLYEL&"include"&COLRED&" is a keyword which should be followed on the same line by the filename to include",tokens[1][CMD_POS])
+    end if
     ret=tokens[2][CMD_TEXT]
     if ret[1]='"' then
       --trim quote marks

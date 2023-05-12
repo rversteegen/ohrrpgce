@@ -150,6 +150,7 @@ script, math warnings, x, begin
 end
 
 script, include tests, begin
+  include                    # ERROR
   include,                   # ERROR
   include, "foo"  bar        # ERROR
 ## "Found unexpected text"
