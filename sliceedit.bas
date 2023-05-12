@@ -120,6 +120,7 @@ TYPE SliceEditState
  expand_sort as bool
  expand_meta as bool
  expand_transform as bool
+ expand_tools as bool
 
  tool as SliceTool = SliceTool.pick
  focus as SliceEditorFocus        'What gets keyboard input. focusMenu or focusPicker only.
@@ -220,6 +221,8 @@ END UNION
 
 DIM SHARED dummyvar as VariantType
 
+DIM SHARED rzparams as SpriteSliceData
+
 '==============================================================================
 
 DIM SHARED remember_draw_root_pos as XYPair
@@ -267,6 +270,7 @@ CONST slgrSHOWORIGIN = 1 shl 19
 CONST slgrPICKORIGIN = 1 shl 20
 CONST slgrEDITVERTEX = 1 shl 21
 CONST slgrADDVERTEX = 1 shl 22
+CONST slgrROTOZOOM = 1 shl 23
 '--This system won't be able to expand forever ... :(
 
 '==============================================================================
@@ -305,6 +309,7 @@ DECLARE SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr
 DECLARE SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuState, menu() as string, menuopts as MenuOptions, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_vertex_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
+DECLARE SUB slice_edit_rotozoom_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
 DECLARE SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, menu() as string, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, usemenu_flag as bool)
 DECLARE SUB slice_edit_detail_draw_overlays (byref ses as SliceEditState, byref state as MenuState, sl as Slice Ptr, rules() as EditRule, page as integer)
 DECLARE SUB slice_editor_xy (xy1 as XYPair ptr, xy2 as XYPair ptr = NULL, focussl as Slice ptr, rootsl as Slice ptr, byref show_ants as bool, ctrl_msg as string = "", helpkey as string = "sliceedit_xy")
@@ -2389,6 +2394,15 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, m
    END WITH
   END IF
  END IF
+ IF rule.group AND slgrROTOZOOM THEN
+  IF enter_space_click(state) THEN
+   WITH rzparams
+    RotozoomSlice(sl, .rz_angle, @.rz_origin, .rz_scale)
+    state.need_update = YES
+   END WITH
+  END IF
+ END IF
+
 
  ' Special actions to take after some piece of data has been edited
  IF state.need_update THEN
@@ -2625,6 +2639,8 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
 
  IF ses.submenu = "vertex" THEN
   slice_edit_vertex_menu ses, menu(), sl, rules()
+ ELSEIF ses.submenu = "rotozoom" THEN
+  slice_edit_rotozoom_menu ses, menu(), sl, rules()
  ELSE
   slice_edit_detail_menu ses, menu(), sl, rules()
  END IF
@@ -2952,8 +2968,8 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
      a_append menu(), " Vertex " & idx & "..."
      sliceed_rule_menu rules(), "vertex", @dat->vertices(idx), slgrEDITVERTEX
     NEXT
-    a_append menu(), " Add Vertex"
-    sliceed_rule_none rules(), "vertex", slgrADDVERTEX
+    ' a_append menu(), " Add Vertex"
+    ' sliceed_rule_none rules(), "vertex", slgrADDVERTEX
 
 
    CASE slGrid
@@ -3035,6 +3051,15 @@ SUB slice_edit_detail_menu(byref ses as SliceEditState, menu() as string, sl as 
   END SELECT
 
  END IF  'expand_special
+
+ SELECT CASE .SliceType
+  CASE slSprite, slPolygon
+   sliceed_header menu(), rules(), "[Tools]", @ses.expand_tools
+   IF ses.expand_tools THEN
+    a_append menu(), " Rotozoom slice..."
+    sliceed_rule_menu rules(), "rotozoom"
+   END IF
+ END SELECT
 
  sliceed_header menu(), rules(), "[Visibility]", @ses.expand_visible
  IF ses.expand_visible THEN
@@ -3200,6 +3225,38 @@ SUB slice_edit_vertex_menu(byref ses as SliceEditState, menu() as string, sl as 
   sliceed_rule_ubyte rules(), "modulate_opacity", @.col.a, 0, 255
   
  END WITH
+
+END SUB
+
+SUB slice_edit_rotozoom_menu(byref ses as SliceEditState, menu() as string, sl as Slice Ptr, rules() as EditRule)
+ CONST updateflag = 0  'slgrUPDATESPRITETRANSFORM
+
+ WITH rzparams
+  a_append menu(), " Scale X: " & format_percent(.rz_scale.x)
+  sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(.rz_scale.x), -1e6, 1e6, updateflag or slgrPICKWH or slgrSHOWORIGIN
+  a_append menu(), " Scale Y: " & format_percent(.rz_scale.y)
+  sliceed_rule_single rules(), "sprite_scale", erSinglePercentgrabber, @(.rz_scale.y), -1e6, 1e6, updateflag or slgrPICKWH or slgrSHOWORIGIN
+
+  a_append menu(), " Rotation: " & format_float(.rz_angle) & " degrees"
+  'slgrUPDATESPRITETRANSFORM wraps the angle to the range 0-360. However,
+  'format_float returns a global string, showing the unwrapped value for a tick
+  'until float_grabber is called.
+  sliceed_rule_single rules(), "sprite_rotate", erSingleGrabber, @(.rz_angle), -1e6, 1e6, updateflag or slgrSHOWORIGIN
+  a_append menu(), "  Origin X: Center + " & format_float(.rz_origin.x)
+  sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(.rz_origin.x), -1e6, 1e6, updateflag or slgrPICKORIGIN
+  a_append menu(), "  Origin Y: Center + " & format_float(.rz_origin.y)
+  sliceed_rule_single rules(), "sprite_origin", erSinglegrabber, @(.rz_origin.y), -1e6, 1e6, updateflag or slgrPICKORIGIN
+
+
+  a_append menu(), " Flip horiz.: " & yesorno(.rz_flip_horiz)
+  sliceed_rule_tog rules(), "sprite_flip", @(.rz_flip_horiz), updateflag
+  a_append menu(), " Flip vert.: " & yesorno(.rz_flip_vert)
+  sliceed_rule_tog rules(), "sprite_flip", @(.rz_flip_vert), updateflag
+
+ END WITH
+
+ a_append menu(), "Apply..."
+ sliceed_rule_none rules(), "", slgrROTOZOOM
 
 END SUB
 
