@@ -1352,7 +1352,7 @@ end function
 ---------------------------------------------------------------------------
 
 function form_error_text(string s, srcpos pos)
-  integer poscol, poslen
+  integer poscol, poslen, posend
   string posline, line_display
   sequence src_position
   string column_display, caret_display
@@ -1368,11 +1368,15 @@ function form_error_text(string s, srcpos pos)
   --Expand tabs, because we don't know how the terminal displays then.
   line_display=substring_replace(posline,"\t","    ")
   posline&=" "  --Used to point to the newline at the end
+  posend=poscol+large(0,poslen-1)
+  if posend>length(posline) then  --One past the end of the actual line is allowed
+    simple_warn(sprintf_utf("Compiler bug: srcpos past end of line %d", {src_position[POS_LINE]}))
+    posend=length(posline)
+  end if
   --Count number of tabs in the line before and in the token,
   --so that we can determine their display length
-  --(Don't bother with tabs inside the token)
   tab_compensate=3*count('\t',posline[1..poscol-1])
-  token_tab_compensate=3*count('\t',posline[poscol..poscol+poslen])
+  token_tab_compensate=3*count('\t',posline[poscol..posend])
   caret_display=repeat('^',large(1,poslen)+token_tab_compensate)
   column_display=repeat(' ',poscol-1+tab_compensate)
 
