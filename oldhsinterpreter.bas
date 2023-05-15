@@ -909,8 +909,8 @@ FUNCTION script_current_srcpos(selectedscript as integer) as uinteger
   DIM curnode as ScriptCommand ptr
   curnode = cast(ScriptCommand ptr, .scrdata + .ptr)
 
-  'debug "script_current_srcpos: hassrcpos = " & .scr->hassrcpos & "  kind/id = " & curnode->kind & _
-  '      "/" & curnode->value & " ptr = " & .ptr & " argc = " & curnode->argc
+  'debug "script_current_srcpos: script " & .scr->id & " hassrcpos = " & .scr->hassrcpos & "  kind/id = " & _
+  '      curnode->kind & "/" & curnode->value & " ptr = " & .ptr & " argc = " & curnode->argc
   IF .scr->hassrcpos THEN
    IF curnode->kind = tynumber THEN
     ' Numbers don't have srcpos's. Return the srcpos of the parent node instead.
