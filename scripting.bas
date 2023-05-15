@@ -197,7 +197,8 @@ SUB start_script_trigger_log
  print #fh,
  print #fh, "Solid lines '|' show triggered scripts which have already started running but are"
  print #fh, "waiting or paused due to either another script which was triggered (indicated by a"
- print #fh, "line to its right) or while waiting for a script they called (not shown)."
+ print #fh, "line to its right) or while waiting for a script they called (called scripts aren't"
+ print #fh, "shown, only triggered scripts are)."
  print #fh, "Dotted lines ':' show triggered scripts which have not even had a chance to start."
  print #fh, "(...as above...) means that a script continues waiting multiple ticks for the same reason."
  print #fh,
@@ -600,7 +601,8 @@ LOCAL FUNCTION loadscript_open_script (n as integer, expect_exists as bool = YES
  RETURN fh
 END FUNCTION
 
-'Loads a script or fetchs it from the cache. Returns NULL on failure.
+'Loads a script (putting it in the cache) or fetchs it from the cache. Returns NULL on failure.
+'Does not increment its refcount.
 'If loaddata is false, only loads the script header.
 FUNCTION loadscript (id as integer, loaddata as bool = YES) as ScriptData ptr
  'debuginfo "loadscript(" & id & " " & scriptname(id) & ", loaddata = " & loaddata & ")"
@@ -1738,14 +1740,26 @@ FUNCTION commandname (byval id as integer) as string
 END FUNCTION
 
 
-'Read a local variable name from a script's variable name table if available,
-'otherwise returns "". Does NOT handle nonlocals
+'Read a local or nonlocal variable name from a script's variable name table if available,
+'otherwise returns "".
 FUNCTION script_lookup_local_name(var_id as integer, scrdat as ScriptData) as string
  WITH scrdat
   'debug "script_lookup_local_name(" & var_id & ", script " & scriptname(scrdat.id) & "), size = " & .size
 
+  IF var_id >= 256 THEN
+   'Nonlocal. Get the ScriptData for its script
+   DIM frameno as integer = var_id \ 256
+   var_id AND= 255
+   DIM frame_scrdat as ScriptData ptr = @scrdat
+   FOR idx as integer = 1 TO frameno
+    frame_scrdat = loadscript(frame_scrdat->parent, YES)
+    IF frame_scrdat = NULL THEN RETURN ""
+   NEXT
+   RETURN script_lookup_local_name(var_id, *frame_scrdat)
+  END IF
+
   IF var_id < 0 OR var_id >= .vars THEN
-   scripterr __FUNCTION__ ": illegal variable id " & var_id
+   scripterr __FUNCTION__ ": illegal variable id " & var_id, serrError
    RETURN ""
   END IF
   IF .varnamestable = 0 THEN RETURN ""
@@ -1776,13 +1790,13 @@ FUNCTION localvariablename (value as integer, scrdat as ScriptData) as string
  IF ret <> "" THEN RETURN ret
 
  'Debug info isn't available
- IF scrdat.args = 999 THEN
+ IF value >= 256 THEN
+  RETURN "nonlocal" & (value SHR 8) & "_" & (value AND 255)
+ ELSEIF scrdat.args = 999 THEN
   'old HS file: don't know the number of arguments
   RETURN "local" & value
  ELSEIF value < scrdat.args THEN
   RETURN "arg" & value
- ELSEIF value >= 256 THEN
-  RETURN "nonlocal" & (value SHR 8) & "_" & (value AND 255)
  ELSE
   'Not an arg
   RETURN "var" & (value - scrdat.args)
@@ -1805,6 +1819,8 @@ FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as
  }
 
  SELECT CASE kind
+  CASE tystop
+   RETURN "KIND=STOP"  'Doesn't ever occur in scripts
   CASE tynumber
    RETURN STR(id)
   CASE tyflow
@@ -1829,6 +1845,8 @@ FUNCTION scriptcmdname (kind as integer, id as integer, scrdat as ScriptData) as
    RETURN commandname(id)
   CASE tyscript
    RETURN scriptname(id)
+  CASE tynonlocal
+   RETURN localvariablename(id, scrdat)
  END SELECT
 END FUNCTION
 
@@ -1950,14 +1968,14 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, 
   END IF
  END IF
 
-' split(wordwrap(errmsg, large(80, vpages(vpage)->w - 16) \ 8), errtext())
+ DIM errsize as XYPair = textsize(errtext, rWidth - 16, , , vpage)
 
  DIM state as MenuState
  state.pt = 0
  DIM menu as MenuDef
  menu.anchorvert = alignTop
  menu.alignvert = alignTop
- menu.offset.y = 38
+ menu.offset.y = 28 + errsize.y
  menu.bordersize = -4
 
  append_menu_item menu, "Ignore once", 0

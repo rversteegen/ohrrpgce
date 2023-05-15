@@ -1250,7 +1250,7 @@ IF mode > 1 AND viewmode = 1 AND selectedscript >= 0 THEN
     FOR j as integer = var_cols - 1 TO 0 STEP -1  'Reverse order so the var name is what gets overwritten
      VAR localno = localsscroll + i * var_cols + j
      IF localno < numlocals THEN
-      temp = localvariablename(localno, *.scr) & "=" & fgtag(datacol) & heap(.frames(0).heap + localno)
+      temp = LEFT(localvariablename(localno, *.scr), 18) & "=" & fgtag(datacol) & heap(.frames(0).heap + localno)
       edgeprint temp, j * var_spacing, ol, uilook(uiText), page, YES
      END IF
     NEXT
@@ -1349,11 +1349,11 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1 OR viewmode = 5) THEN
 
  DIM as integer statex, commandx  'Where to print state and command
  IF viewmode = 5 THEN  'Stack
-  edgeprint "#  Name          Depth State Command", 0, ol, uilook(uiText), page
+  edgeprint "#   Name         Depth State Command", 0, ol, uilook(uiText), page
   statex = 184
   commandx = 232
  ELSE  'Source
-  edgeprint "#  Name             State/Command", 0, ol, uilook(uiText), page
+  edgeprint "#   Name            State/Command", 0, ol, uilook(uiText), page
   statex = 160
   commandx = 160
  END IF
@@ -1374,7 +1374,7 @@ IF mode > 1 AND (viewmode = 0 OR viewmode = 1 OR viewmode = 5) THEN
   DIM col as integer
   IF mode > 1 AND i = selectedscript THEN col = uilook(uiSelectedItem) ELSE col = uilook(uiText)
   edgeprint STR(i), 0, ol, col, page
-  edgeprint LEFT(scriptname(scrat(i).id), 16), 24, ol, col, page
+  edgeprint LEFT(scriptname(scrat(i).id), 16), 28, ol, col, page
   IF viewmode = 5 THEN
    edgeprint STR(scrat(i).depth), 160, ol, col, page
   END IF
