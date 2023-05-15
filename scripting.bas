@@ -82,6 +82,7 @@ SUB trigger_script (id as integer, numargs as integer, double_trigger_check as b
   scriptinsts(nowscript).watched = YES
   scrat(nowscript).state = sttriggered
   last_queued_script = @dummy_queued_script
+debug "script " & scriptname(id) & " <- sttriggered"
  ELSE
   last_queued_script = NEW ScriptFibre
   'Insert into the queue according to priority
@@ -303,6 +304,8 @@ SUB watched_script_resumed
   gam.script_log.last_logged = nowscript
  END IF
  scriptinsts(nowscript).started = YES
+
+ debug scriptname(scriptinsts(nowscript).id) & " resumed, started = YES"
 END SUB
 
 'Called right before the current script terminates and has .watched = YES

@@ -480,6 +480,7 @@ end
 
 #Map 0 on-keypress
 script, map changer key listener, begin
+recurse
   if (key is pressed(key:s)) then (
     trace value (write map block (hero x, hero y, read map block (hero x, hero y) xor, 3))
   )
@@ -743,3 +744,4 @@ plotscript, step on suspend, begin
   resume player
 end
 
+script, recurse, (recurse)

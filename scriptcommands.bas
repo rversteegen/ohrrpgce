@@ -5462,7 +5462,9 @@ FUNCTION describe_handle(handle as integer) as string
    END IF
  END SELECT
  IF LEN(info) THEN
-  RETURN handle & " (" & info & ")"
+  IF short THEN RETURN handle & " (" & info & ")"
+   RETURN handle & " (" & info & ")"
+ELSSE
  ELSE
   RETURN STR(handle)
  END IF

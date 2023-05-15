@@ -1612,7 +1612,6 @@ SUB showerror_internal (callsite as any ptr, zmsg as const zstring ptr, byval is
    quitmsg += !"(Error repeated)\n"
   END IF
   quitmsg += !"* Press ESC to hide occurrences of this error and continue.\n" _
-             !"* Press Alt-F4 to quit immediately.\n" _
               "* Press any other key to try to continue."
  END IF
 
@@ -2186,7 +2185,7 @@ END SUB
 
 'Like "IIF(keyval(key) > 1, 1, 0)" except that it initially repeats slowly, and returns
 'progressively larger values the longer the key is down, up to a maximum of maxspeed.
-FUNCTION accelerating_keydown(key as KBScancode, maxspeed as integer) as integer
+FUNCTION accelerating_keydown(key as KBScancode, maxspeed as integer, startspeed as integer = 0) as integer
 
  STATIC last_keydown_timestamp as double  'Timer
  STATIC key_momentum as integer  'Memory of effective milliseconds the key was down
@@ -2226,7 +2225,11 @@ FUNCTION accelerating_keydown(key as KBScancode, maxspeed as integer) as integer
 
   IF ms < STARTSPEEDMS THEN
    'RETURN IIF(keyval(key) > 1, 1, 0)  but slower
-   RETURN IIF(player_keyval(key, , , STARTMS, 180) > 1, 1, 0)
+   IF startspeed = 0 THEN
+    RETURN IIF(player_keyval(key, , , STARTMS, 180) > 1, 1, 0)
+   ELSE
+    RETURN IIF(keyval(key) > 1, startspeed, 0)
+   END IF
   END IF
 
   'x goes from 0 to 1 at MAXSPEEDMS
@@ -2236,7 +2239,8 @@ FUNCTION accelerating_keydown(key as KBScancode, maxspeed as integer) as integer
   'x = 2*x/3 + x*x/3
 
   'Always start at speed 1
-  RETURN large(1, maxspeed * (10^(x * 3) - 1) / 999.0)
+  IF startspeed = 0 THEN startspeed = 1
+  RETURN large(startspeed, maxspeed * (10^(x * 3) - 1) / 999.0)
  END IF
 END FUNCTION
 
