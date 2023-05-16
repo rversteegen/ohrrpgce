@@ -171,6 +171,7 @@ DIM numloadedscr as integer    'Number of loaded script headers in script cache 
 DIM totalscrmem as integer     'Total memory used by all loaded scripts, in int32s
 DIM unused_script_cache_mem as integer  'Memory used by scripts in cache which are unused, int32s
 DIM err_suppress_lvl as scriptErrEnum
+DIM serr_enabled(serrFirstID TO serrLastID) as boolean  'Indexed by scriptErrEnum
 DIM next_interpreter_check_time as double
 DIM interruption_grace_period as integer
 DIM scripts_use_cc_scancodes as bool

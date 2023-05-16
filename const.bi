@@ -476,6 +476,12 @@ Enum 'scriptErrEnum
   serrMajor = 6      'errors too big to ignore, eg interpreter can't continue or can't load script
   serrError = 7      'corrupt script data/unimplemented feature
                      'TODO: rename serrError to serrCorruption
+
+  serrFirstID = 500
+  serrBadSliceType = 500
+  serrNullSlice = 501     'Using 0 as a slice handle
+  serrDeletedSlice = 502  'Using a handle to a deleted slice
+  serrLastID = 599
 End Enum
 
 Type DirNum as integer

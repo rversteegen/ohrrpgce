@@ -5471,6 +5471,7 @@ END FUNCTION
 
 'Return the Slice ptr for a slice handle, or throw an error
 'and return NULL if not valid
+'errlvl = serrWarn or below has special behaviour: no warning at all if already deleted.
 FUNCTION get_handle_slice(byval handle as integer, byval errlvl as scriptErrEnum = serrBadOp) as Slice ptr
  'It's not necessary to explicitly check get_handle_type(handle) >= HandleType.Slice,
  'in fact we mustn't, to support obsolete handles in old saves which count up from 1.
@@ -5479,11 +5480,11 @@ FUNCTION get_handle_slice(byval handle as integer, byval errlvl as scriptErrEnum
   IF errlvl > serrIgnore THEN
    IF slot > 0 ANDALSO slot <= UBOUND(plotslices) ANDALSO _
       (handle AND NOT SLICE_HANDLE_CTR_MASK) = (plotslices(slot).handle AND NOT SLICE_HANDLE_CTR_MASK) THEN
-    IF errlvl > serrWarn THEN
+    IF errlvl > serrWarn ANDALSO serr_enabled(serrDeletedSlice) THEN
      'The HandleType is correct so could have been a valid handle to a previously existing slice in this slot
      scripterr current_command_name() & ": the slice with handle " & handle & " has been deleted", errlvl
     END IF
-   ELSE
+   ELSEIF slot <> 0 ORELSE serr_enabled(serrNullSlice) THEN
     scripterr current_command_name() & ": " & handle & " is not a slice handle", errlvl
    END IF
   END IF
@@ -5503,7 +5504,7 @@ FUNCTION get_handle_typed_slice(byval handle as integer, byval sltype as SliceTy
  DIM sl as Slice ptr = get_handle_slice(handle, errlvl)
  IF sl = NULL THEN RETURN sl
  IF sl->SliceType <> sltype THEN
-  slice_bad_op sl, "is not a " & SliceTypeName(sltype)
+  IF serr_enabled(serrBadSliceType) THEN slice_bad_op sl, "is not a " & SliceTypeName(sltype)
   RETURN NULL
  END IF
  RETURN sl

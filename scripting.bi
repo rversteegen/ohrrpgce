@@ -71,6 +71,9 @@ DECLARE SUB scriptwatcher (byref mode as integer, byval drawloop as bool = NO)
 DECLARE SUB setScriptArg (byval arg as integer, byval value as integer)
 DECLARE FUNCTION ancestor_script_id(scriptslot as integer, depth as integer) as integer
 
+
+EXTERN serr_enabled(serrFirstID TO serrLastID) as boolean  'Indexed by scriptErrEnum
+
 ' Globals for profiling of builtin script commands
 EXTERN profiling_cmdid as integer
 EXTERN profiling_cmd_in_script as ScriptData ptr

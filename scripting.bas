@@ -1544,7 +1544,7 @@ END FUNCTION
 'NOTE: this function can get called with errors which aren't caused by scripts,
 'for example findhero() called from a textbox conditional.
 'context_slice is which slice to show in the slice editor
-SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
+SUB scripterr (e as string, byval errornum as scriptErrEnum = serrBadOp, context_slice as Slice ptr = NULL)
  'mechanism to handle scriptwatch throwing errors
  STATIC as integer recursivecall
 
@@ -1554,6 +1554,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
  DIM as integer scriptcmdhash, errmsghash
 
  'err_suppress_lvl is always at least serrIgnore
+ DIM errorlevel as scriptErrEnum = IIF(errornum > 100, errornum \ 100, errornum)
  IF errorlevel <= err_suppress_lvl THEN EXIT SUB
 
  DIM display as bool = should_display_error_to_user(errorlevel)
@@ -1563,7 +1564,7 @@ SUB scripterr (e as string, byval errorlevel as scriptErrEnum = serrBadOp, conte
  IF display = YES ORELSE error_count < 50 THEN
   DIM as string call_chain
   IF insideinterpreter THEN call_chain = script_call_chain(NO)
-  debug "Scripterr(" & errorlevel & "): " + call_chain + ": " + e
+  debug "Scripterr(" & errornum & "): " + call_chain + ": " + e
  ELSEIF error_count = 50 THEN
   debug "Ignoring further script errors"
  END IF
