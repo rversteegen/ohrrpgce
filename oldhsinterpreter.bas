@@ -1338,7 +1338,7 @@ IF mode > 1 AND viewmode = 2 THEN
   FOR j as integer = var_cols - 1 TO 0 STEP -1   'reverse order so the var name is what gets overwritten
    DIM globalno as integer = globalsscroll + i * var_cols + j
    IF globalno > UBOUND(global) THEN CONTINUE FOR
-   DIM temp as string = globalno & "=" & fgtag(datacol) & global(globalno)
+   DIM temp as string = globalno & "=" & fgtag(datacol) & describe_handle(global(globalno), YES)
    edgeprint temp, j * var_spacing, ol, uilook(uiText), page, YES
   NEXT
   ol -= 9
