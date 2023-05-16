@@ -1978,7 +1978,8 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, 
  DIM menu as MenuDef
  menu.anchorvert = alignTop
  menu.alignvert = alignTop
- menu.offset.y = 28 + errsize.y
+ 'TODO: should change the position as the window is resized
+ menu.offset.y = 28 + errsize.h
  menu.bordersize = -4
 
  append_menu_item menu, "Ignore once", 0
@@ -2115,7 +2116,8 @@ FUNCTION script_interrupt () as bool
  state.pt = 0
  DIM menu as MenuDef
  menu.anchorvert = alignTop
- menu.offset.y = -100 + 38 + 10 * UBOUND(errtext) 'menus are always offset from the center of the screen
+ menu.alignvert = alignTop
+ menu.offset.y = 38 + 10 * UBOUND(errtext)
  menu.bordersize = -4
 
  append_menu_item menu, "Continue running", 0
@@ -2174,7 +2176,7 @@ FUNCTION script_interrupt () as bool
 
   centerbox rCenter, 12, rWidth - 10, 15, 3, vpage
   textcolor uilook(uiText), 0
-  printstr "A script is stuck", pCentered, 7, vpage
+  printstr "A script is stuck", pCentered, 8, vpage
 
   FOR i as integer = 0 TO UBOUND(errtext)
    printstr errtext(i), 8, 25 + 10 * i, vpage
