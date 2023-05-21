@@ -4254,6 +4254,10 @@ local function calcblock (tmap as TileMap, x as integer, y as integer, overheadm
 
 	block = readblock(tmap, x, y)
 
+	if block and tmapHidden then
+		return -1
+	end if
+
 	if block = 0 and tmap.layernum > 0 then  'This could be an argument, maybe we could get rid of layernum
 		return -1
 	end if

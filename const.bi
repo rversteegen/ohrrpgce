@@ -512,6 +512,9 @@ CONST passNorthwestCorner = &b1001 SHL 24
 CONST passSoutheastCorner = &b0110 SHL 24
 CONST passSouthwestCorner = &b1100 SHL 24
 
+'tilemap bits
+CONST tmapHidden = &h8000
+
 'Special zones
 CONST zoneLASTUSER = 9999      'The highest zone editable in the map editor, everything
                                'above this is reserved for special uses.

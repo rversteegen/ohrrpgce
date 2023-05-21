@@ -169,7 +169,7 @@ Type TileMap
     End Type
     size as XYPair
   End Union
-  data as ubyte ptr
+  data as short ptr
   layernum as integer
 End Type
 
