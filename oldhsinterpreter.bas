@@ -96,8 +96,9 @@ FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr) as zst
     DIM tryindex as integer = index - 1
     DO
      IF tryindex < 0 ORELSE scrat(tryindex).state < 0 THEN
-      'If it's a suspended script, it's in the wrong fibre
-      showbug "Could not find parent call frame on scrat stack"
+      '(If it's a suspended script, it's in the wrong fibre)
+      'This error can happen when reloading scripts 
+      showerror "Could not find parent call frame on scrat stack. Probably incompatible scripts were reloaded."
       RETURN @"corrupt/unsupported script"
      END IF
      'debug "scrat(" & tryindex &") = " & scrat(tryindex).id
@@ -1251,7 +1252,8 @@ END IF
 
 DIM ol as integer = pBottom  'Line output Y position
 
-CONST var_spacing = 150  'Pixels apart to print each column of variables
+DIM var_spacing as integer = 160  'Pixels apart to print each column of variables
+IF vpages(vpage)->w > 380 THEN var_spacing = 190
 CONST local_lines = 5   'Number of lines of local variables
 'Number of columns of local or global variables
 DIM var_cols as integer = small(vpages(vpage)->w \ var_spacing, 6)
