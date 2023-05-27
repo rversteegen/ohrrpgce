@@ -24,8 +24,8 @@ DECLARE SUB scriptdump (header as string)
 DECLARE FUNCTION functiondone () as integer
 DECLARE SUB killtopscript ()
 DECLARE SUB substart (byref si as OldScriptState)
-DECLARE SUB subdoarg (byref si as OldScriptState)
-DECLARE SUB subreturn (byref si as OldScriptState)
+DECLARE SUB subdoarg '(byref si as OldScriptState)
+DECLARE SUB subreturn '(byref si as OldScriptState)
 DECLARE SUB unwindtodo (byref si as OldScriptState, byval levels as integer)
 DECLARE SUB readstackcommand (node as ScriptCommand, state as OldScriptState, byref stk as Stack, byref i as integer)
 DECLARE FUNCTION localvariablename (byval value as integer, byval scriptargs as integer) as string
@@ -51,9 +51,10 @@ DIM curcmd as ScriptCommand ptr
 
 
 #MACRO dumpandreturn()
- scrst.pos -= scrat(nowscript).curargn
+ scrst.pos -= .curargn
  scriptret = 0
- scrat(nowscript).state = streturn
+ 'scrat(nowscript).state = streturn
+ subreturn
 #ENDMACRO
 
 DIM SHARED slow_math_stdoarg as integer = 0
@@ -174,10 +175,6 @@ DO
     '--evaluate function, math, script, whatever
     '--scriptret would be set here, pushed at return
     SELECT CASE curcmd->kind
-     CASE tystop
-      scripterr "stnext encountered noop " & curcmd->value & " at " & .ptr & " in " & nowscript, serrError
-      killallscripts
-      EXIT DO
      CASE tymath, tyfunct
       IF curcmd->argc > maxScriptArgs THEN
        scripterr "More command arguments than supported", serrError
@@ -192,7 +189,7 @@ DO
        scriptmath
        '.state = streturn
        'slow_math_return += 1
-       subreturn scrat(nowscript)
+       subreturn
       ELSE
        .state = streturn
        IF commandprofiling THEN
@@ -236,7 +233,8 @@ DO
         END SELECT
        CASE flowreturn
         popstack(scrst, .ret)
-        .state = streturn'---return
+        '.state = streturn'---return
+        subreturn
        CASE flowbreak
         popstack(scrst, temp)
         unwindtodo(scrat(nowscript), temp)
@@ -270,7 +268,8 @@ DO
        CASE flowswitch
         scrst.pos -= 3
         scriptret = 0
-        .state = streturn
+        '.state = streturn
+        subreturn
        'When adding new flow control remember to update flowname(), etc, in scriptstate
        CASE ELSE
         '--do, then, etc... terminate normally
@@ -298,6 +297,10 @@ DO
        .state = streturn'---return
       END IF
       GOTO interpretloop 'new WITH pointer
+     CASE tystop
+      scripterr "stnext encountered noop " & curcmd->value & " at " & .ptr & " in " & nowscript, serrError
+      killallscripts
+      EXIT DO
      CASE ELSE
       scripterr "illegal kind " & curcmd->kind & " " & curcmd->value & " in stnext", serrError
       killallscripts
@@ -307,7 +310,7 @@ DO
     IF .curargn = 0 THEN
      '--always need to execute the first argument
      '.state = stdoarg
-     subdoarg scrat(nowscript)
+     subdoarg
     ELSE 
      '--flow control and logical math are special, for all else, do next arg
      SELECT CASE curcmd->kind
@@ -316,16 +319,19 @@ DO
         CASE flowif'--we got an if!
          SELECT CASE .curargn
           CASE 0
-           .state = stdoarg'---call conditional
+           '.state = stdoarg'---call conditional
+           subdoarg
           CASE 1
            IF readstack(scrst, 0) THEN
             'scrst.pos -= 1
-            .state = stdoarg'---call then block
+            '.state = stdoarg'---call then block
+            subdoarg
            ELSE
             .curargn = 2
             '--if-else needs one extra thing on the stack to account for the then that didnt get used.
             pushstack(scrst, 0)
-            .state = stdoarg'---call else block
+            '.state = stdoarg'---call else block
+            subdoarg
            END IF
           CASE 2
            '--finished then but not at end of argument list: skip else
@@ -336,17 +342,19 @@ DO
         CASE flowwhile'--we got a while!
          SELECT CASE .curargn
           CASE 0
-           .state = stdoarg'---call condition
+           '.state = stdoarg'---call condition
+           subdoarg
           CASE 1
            IF readstack(scrst, 0) THEN
             '.state = stdoarg'---call do block
-            subdoarg scrat(nowscript)
+            subdoarg
             '--don't pop: number of words on stack should equal argn (for simplicity when unwinding stack)
            ELSE
             '--break while
             scrst.pos -= 1
             scriptret = 0
-            .state = streturn'---return
+            '.state = streturn'---return
+            subreturn
            END IF
           CASE ELSE
            showbug "while statement has jumped the curb"
@@ -361,27 +369,30 @@ DO
           '--argn 5 is repeat (normal termination)
           CASE 0, 1, 3
            '--get var, start, and later step
-           .state = stdoarg
+           '.state = stdoarg
+           subdoarg
           CASE 2
            '--set variable to start val before getting end
            writescriptvar readstack(scrst, -1), readstack(scrst, 0)
            '---now get end value
-           .state = stdoarg
+           '.state = stdoarg
+           subdoarg
           CASE 4
            IF gam.debug_scripts AND breakloopbrch THEN breakpoint gam.debug_scripts, 5
            tmpstep = readstack(scrst, 0)
            tmpend = readstack(scrst, -1)
-           tmpstart = readstack(scrst, -2)
+           'tmpstart = readstack(scrst, -2)
            tmpvar = readstack(scrst, -3)
            tmpnow = readscriptvar(tmpvar)
-           IF (tmpnow > tmpend AND tmpstep > 0) OR (tmpnow < tmpend AND tmpstep < 0) THEN
+           IF (tmpnow > tmpend ANDALSO tmpstep > 0) ORELSE (tmpnow < tmpend ANDALSO tmpstep < 0) THEN
             '--breakout
             scrst.pos -= 4
             scriptret = 0
-            .state = streturn'---return
+            '.state = streturn'---return
+            subreturn
            ELSE
             '.state = stdoarg'---execute the do block
-            subdoarg scrat(nowscript)
+            subdoarg
            END IF
           CASE ELSE
            showbug "for statement is being difficult"
@@ -389,12 +400,14 @@ DO
         CASE flowswitch
          IF .curargn = 0 THEN
           '--get expression to match
-          .state = stdoarg
+          '.state = stdoarg
+          subdoarg
          ELSEIF .curargn = 1 THEN
           '--set up state - push a 0: not fallen in
           '--assume first statement is a case, run it
           pushstack(scrst, 0)
-          .state = stdoarg
+          '.state = stdoarg
+          subdoarg
          ELSE
           popstack(scrst, tmpcase)
           popstack(scrst, tmpstate)
@@ -435,19 +448,22 @@ DO
           WEND
          END IF
         CASE ELSE
-         .state = stdoarg'---call argument
+         '.state = stdoarg'---call argument
+         subdoarg
        END SELECT
       CASE tymath
        SELECT CASE curcmd->value
         CASE 20'--logand
          IF readstack(scrst, 0) THEN
-          .state = stdoarg'---call 2nd argument
+          '.state = stdoarg'---call 2nd argument
+          subdoarg
          ELSE
           '--shortcut evaluate to false
           scriptret = 0
           '--pop all args
           scrst.pos -= .curargn
-          .state = streturn'---return
+          '.state = streturn'---return
+          subreturn
          END IF
         CASE 21'--logor
          IF readstack(scrst, 0) THEN
@@ -455,26 +471,29 @@ DO
           scriptret = 1
           '--pop all args
           scrst.pos -= .curargn
-          .state = streturn'---return
+          '.state = streturn'---return
+          subreturn
          ELSE
-          .state = stdoarg'---call 2nd argument
+          '.state = stdoarg'---call 2nd argument
+          subdoarg
          END IF
         CASE ELSE
          'slow_math_stdoarg += 1
-         subdoarg scrat(nowscript)
+         subdoarg
          '.state = stdoarg'---call argument
        END SELECT
       CASE ELSE
-       .state = stdoarg'---call argument
+       '.state = stdoarg'---call argument
+       subdoarg
      END SELECT
     END IF
    END IF
   CASE streturn'---return
    '--sets stdone if done with entire script, stnext otherwise
-   subreturn scrat(nowscript)
+   subreturn
   CASE stdoarg'---do argument
    '--evaluate an arg, either directly or by changing state. stnext will be next
-   subdoarg scrat(nowscript)
+   subdoarg
   CASE ststart'---read statement
    '--FIRST STATE
    '--just load the first command
@@ -647,7 +666,10 @@ IF curcmd->kind <> tyflow THEN
 END IF
 END SUB
 
-SUB subdoarg (si as OldScriptState)
+SUB subdoarg () '(si as OldScriptState)
+
+DIM byref si as OldScriptState = scrat(nowscript)
+
 'read/load arguments, evaluating immediate values, in a depth-first manner, until either:
 '-all args for a command have been pushed, stnext to evaluate
 '-certain flow & math commands need special logic after every evaluated arg, stnext to handle
@@ -730,16 +752,22 @@ IF si.curargn >= curcmd->argc THEN
   '--push return value
   pushstack(scrst, scriptret)
   GOTO finishedarg
+ ' ELSEIF curcmd->kind = tyflow THEN
+ '   IF curcmd->value = flowdo ORELSE curcmd->value = flowthen ORELSE curcmd->value = flowelse THEN
+ '   END IF
  END IF
  EXIT SUB
 END IF
-IF curcmd->kind = tyflow THEN IF curcmd->value = flowif OR curcmd->value >= flowfor THEN EXIT SUB
+'FIXME: What about switch?
+IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN EXIT SUB
 'logand, logor, lognot need special handing
-IF curcmd->kind = tymath THEN IF curcmd->value >= 20 AND curcmd->value <= 22 THEN EXIT SUB
+IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN EXIT SUB
 GOTO quickrepeat
 END SUB
 
-SUB subreturn (si as OldScriptState)
+SUB subreturn () 'si as OldScriptState)
+DIM byref si as OldScriptState = scrat(nowscript)
+
 si.depth -= 1
 IF si.depth < 0 THEN
  si.state = stdone
@@ -752,11 +780,12 @@ ELSE
  si.curargn += 1
  si.state = stnext'---try next arg
  IF si.curargn >= curcmd->argc THEN EXIT SUB
- IF curcmd->kind = tyflow THEN IF curcmd->value = flowif OR curcmd->value >= flowfor THEN EXIT SUB
+ 'FIXME: What about switch?
+ IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN EXIT SUB
  'logand, logor
  IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 21 THEN EXIT SUB
  'si.state = stdoarg
- subdoarg scrat(nowscript)
+ subdoarg
 END IF
 END SUB
 
@@ -777,13 +806,13 @@ WHILE levels > 0
  popstack(scrst, si.ptr)
  curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
 
- IF curcmd->kind = tyflow AND curcmd->value = flowdo THEN
+ IF curcmd->kind = tyflow ANDALSO curcmd->value = flowdo THEN
   levels -= 1
   'first pop do's evaluated arguments before stopping
  END IF
 
  'pop arguments
- IF curcmd->kind = tyflow AND curcmd->value = flowswitch THEN
+ IF curcmd->kind = tyflow ANDALSO curcmd->value = flowswitch THEN
   'unlike all other flow, switch stack usage != argn
   scrst.pos -= 2 'state, matching value
  ELSE
@@ -791,7 +820,7 @@ WHILE levels > 0
  END IF
 WEND
 'return to normality
-subreturn si
+subreturn
 
 END SUB
 
