@@ -784,7 +784,13 @@ define function, begin
 752,walkaboutsaresuspended,0  # suspendwalkabouts called
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 
-604,drawpix,4,0,0,0,0       # cause all the children of a Scroll Slice to move until a specific child is in view
+753,drawpix,4,0,0,0,0
+758,drawpix2,4,0,0,0,0
+759,getpix,3,0,0,0
+754,getspritepixels,3,0,0,0
+755,readpixel,3,0,0,0
+756,writepixel,4,0,0,0,0
+757,writepixel2,4,0,0,0,0
 end
 
 #--------------------------------------------------------------------------

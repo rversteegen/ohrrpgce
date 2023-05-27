@@ -743,3 +743,28 @@ plotscript, step on suspend, begin
   resume player
 end
 
+
+
+
+plotscript, benchmark: copy pixels, begin
+  variable (fromsl, tosl, x, y, w, a,b,c,d, frame, pitch)
+  a := 1
+  b := 1
+  c := 1
+  d := 1
+  fromsl := load hero sprite (0)
+  tosl := load backdrop sprite (0)
+  w := slice width (fromsl)
+  for (frame, 0, 7) do (
+    set sprite frame (fromsl, frame)
+    for (y, 0, slice height (fromsl) -- 1) do (
+      for (x, 0, w -- 1) do (
+        draw pix (tosl, x + pitch, y, get pix (fromsl, a * x / b, c * y / d))
+      )
+    )
+    pitch += 32
+  )
+  free slice (fromsl)
+  free slice (tosl)
+  show backdrop(0)
+end

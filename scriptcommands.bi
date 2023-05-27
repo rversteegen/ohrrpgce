@@ -21,6 +21,7 @@ enum HandleType explicit
  None      = 0     ' Range 1 to &h7FFFFFF. Context-dependent, might be some kind of ID
  Menu      = 1
  MenuItem  = 2
+ PixelBuffer = 3
  Slice     = 12    ' Slice handles are spread over four types, to get 2 extra SLICE_HANDLE_CTR_MASK
                    ' bits, but decode_handle only returns Slice.
  Slice2    = 13
