@@ -81,6 +81,9 @@ plotscript, main, begin
   score += run benchmark (@benchmark: addition, loops)
   $1 = "increment"
   score += run benchmark (@benchmark: increment, loops)
+  # $1 = "mathop"
+  # score += run benchmark (@benchmark: mathop, loops)
+
   $1 = "array create delete"
   score += run benchmark (@benchmark: array create delete, loops) / 5
   $1 = "array length"
@@ -145,6 +148,14 @@ plotscript, main, begin
     score += run benchmark (@benchmark: read global array, loops)
     $1 = "draw pix"
     score += run benchmark (@benchmark: draw pix, loops)
+    $1 = "write pixel"
+    score += run benchmark (@benchmark: write pixel, loops)
+    $1 = "draw pix2"
+    score += run benchmark (@benchmark: draw pix2, loops)
+    $1 = "write pixel2"
+    score += run benchmark (@benchmark: write pixel2, loops)
+    $1 = "get pix"
+    score += run benchmark (@benchmark: get pix, loops)
 
   )
 
@@ -193,6 +204,9 @@ plotscript, main, begin
     DOOM initialise flames
     score += run benchmark (@benchmark: DOOM flames update, 1) * 2
     free slice (flames container)
+
+    $1 = "copy pixels"
+    score2 += run benchmark (@benchmark: copy pixels, 1) / 5
 
     # Benchmarks excluded from the score
 
@@ -741,9 +755,9 @@ end
 
 
 script, benchmark: draw pix, begin
-  variable (i, sl)
+  variable (i, j, sl)
   sl := load backdrop sprite
-  for (i, 0, MICRO LOOPCOUNT / 10) do (
+  for (j, 0, MICRO LOOPCOUNT / 10) do (
     # testing the overhead of a typical slice command
     draw pix (sl, i, 7, 3)
     draw pix (sl, i, 8, 3)
@@ -758,6 +772,82 @@ script, benchmark: draw pix, begin
   )
   freeslice(sl)
 end
+
+script, benchmark: draw pix2, begin
+  variable (i, j, sl)
+  sl := load backdrop sprite
+  for (j, 0, MICRO LOOPCOUNT / 10) do (
+    # testing the overhead of a typical slice command
+    draw pix2 (sl, i, 7, 3)
+    draw pix2 (sl, i, 8, 3)
+    draw pix2 (sl, i, 9, 3)
+    draw pix2 (sl, i, 1, 3)
+    draw pix2 (sl, i, 2, 3)
+    draw pix2 (sl, i, 3, 3)
+    draw pix2 (sl, i, 4, 3)
+    draw pix2 (sl, i, 5, 3)
+    draw pix2 (sl, i, 6, 3)
+    draw pix2 (sl, i, 14, 3)
+  )
+  freeslice(sl)
+end
+
+script, benchmark: write pixel, begin
+  variable (i, j, buf)
+  buf := get sprite pixels (spritetype:backdrop, 0, 0)
+  for (j, 0, MICRO LOOPCOUNT / 10) do (
+    # testing the overhead of a typical slice command
+    write pixel (buf, i, 7, 3)
+    write pixel (buf, i, 8, 3)
+    write pixel (buf, i, 9, 3)
+    write pixel (buf, i, 1, 3)
+    write pixel (buf, i, 2, 3)
+    write pixel (buf, i, 3, 3)
+    write pixel (buf, i, 4, 3)
+    write pixel (buf, i, 5, 3)
+    write pixel (buf, i, 6, 3)
+    write pixel (buf, i, 14, 3)
+  )
+end
+
+
+script, benchmark: write pixel2, begin
+  variable (i, j, buf)
+  buf := get sprite pixels (spritetype:backdrop, 0, 0)
+  for (j, 0, MICRO LOOPCOUNT / 10) do (
+    # testing the overhead of a typical slice command
+    write pixel2 (buf, i, 7, 3)
+    write pixel2 (buf, i, 8, 3)
+    write pixel2 (buf, i, 9, 3)
+    write pixel2 (buf, i, 1, 3)
+    write pixel2 (buf, i, 2, 3)
+    write pixel2 (buf, i, 3, 3)
+    write pixel2 (buf, i, 4, 3)
+    write pixel2 (buf, i, 5, 3)
+    write pixel2 (buf, i, 6, 3)
+    write pixel2 (buf, i, 14, 3)
+  )
+end
+
+script, benchmark: get pix, begin
+  variable (i, j, sl)
+  sl := load backdrop sprite
+  for (j, 0, MICRO LOOPCOUNT / 10) do (
+    # testing the overhead of a typical slice command
+    get pix (sl, i, 7)
+    get pix (sl, i, 8)
+    get pix (sl, i, 9)
+    get pix (sl, i, 1)
+    get pix (sl, i, 2)
+    get pix (sl, i, 3)
+    get pix (sl, i, 4)
+    get pix (sl, i, 5)
+    get pix (sl, i, 6)
+    get pix (sl, i, 14)
+  )
+  freeslice(sl)
+end
+
 
 script, benchmark: slice X, begin
   variable (i, sl)
@@ -965,6 +1055,13 @@ script, benchmark: recursive fibonacci, begin
 end
 
 #----
+
+script, benchmark: mathop, begin
+  variable (i,a,b,c)
+  for (i, 0, MICRO LOOPCOUNT / 10) do (
+    return((a / 0x10000) * b + ((a, and, 0xffff) * b + 0x8000) / 0x10000  + 2 * C / 3)
+  )
+end
 
 # a and b are 16 bit fixed point numbers, where b >= 1.0
 # Return a*b
@@ -1303,4 +1400,29 @@ end
 script, benchmark: check all keys, begin
   variable (i)
   for (i, cancel key, joy: button 32) do (keyval(i))
+end
+
+#------------------------------------------------------------------------
+
+script, benchmark: copy pixels, begin
+  variable (fromsl, tosl, x, y, w, a,b,c,d, frame, pitch)
+  a := 1
+  b := 1
+  c := 1
+  d := 1
+  fromsl := load hero sprite (0)
+  tosl := load backdrop sprite (0)
+  w := slice width (fromsl)
+  for (frame, 0, 7) do (
+    set sprite frame (fromsl, frame)
+    for (y, 0, slice height (fromsl) -- 1) do (
+      for (x, 0, w -- 1) do (
+        draw pix2 (tosl, x + pitch, y, get pix (fromsl, a * x / b, c * y / d))
+      )
+    )
+    pitch += 32
+  )
+  free slice (fromsl)
+  free slice (tosl)
+  show backdrop(0)
 end

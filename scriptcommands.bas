@@ -26,6 +26,16 @@
 #include "bmodsubs.bi"
 #include "bcommon.bi"
 
+
+TYPE PixelBuffer
+ fr as Frame ptr
+ sprtype as SpriteType
+ record as integer
+ frameno as integer
+END TYPE
+
+DIM SHARED pixelbuffers(7) as PixelBuffer
+
 ''''' Local functions
 DECLARE SUB run_game ()
 DECLARE FUNCTION check_game_exists () as integer
@@ -35,6 +45,7 @@ DECLARE FUNCTION allow_gmap_idx(gmap_idx as integer) as bool
 DECLARE FUNCTION load_sprite_plotslice(byval spritetype as SpriteType, byval record as integer, byval pal as integer=-2) as integer
 DECLARE SUB replace_sprite_plotslice(byval slice_argno as integer, byval spritetype as SpriteType, byval record as integer, byval pal as integer=-2)
 DECLARE FUNCTION get_enemy_sprite_size(index as integer) as XYPair
+DECLARE FUNCTION get_arg_pixelbuffer(byval argno as integer) as PixelBuffer ptr
 
 ''''' Global variables
 
@@ -53,7 +64,6 @@ DIM next_slice_table_slot as integer = 1
 DIM num_reusable_slice_table_slots as integer
 
 REDIM timers(numInitialTimers - 1) as PlotTimer
-
 
 
 '==========================================================================================
@@ -2191,6 +2201,7 @@ SUB script_commands(byval cmdid as integer)
    END WITH
   END IF
  CASE 265'--rgb
+  'FB standard macro; sets A=255.
   scriptret = RGB(bound(retvals(0),0,255), bound(retvals(1),0,255), bound(retvals(2),0,255))
  CASE 266'--extract color
   DIM c as RGBcolor = TYPE(retvals(0))
@@ -5189,17 +5200,155 @@ SUB script_commands(byval cmdid as integer)
  CASE 752 '--walkabouts are suspended
   scriptret = readbit(gen(), genSuspendBits, suspendwalkabouts)
 
- CASE 665 'draw pix
-'  IF valid_plotsprite(retvals(0)) THEN
-   DIM dat as SpriteSliceData Ptr
-   dat = plotslices(retvals(0))->SliceData
+ CASE 753 'draw pix
+
+  sl = get_arg_spritesl(0)
+  IF sl THEN
+   DIM dat as SpriteSliceData Ptr = sl->SpriteData
    'Ensure loaded
-   ForceLoadSpriteSlice plotslices(retvals(0)), dat
+   IF dat->loaded = NO THEN  LoadSpriteSliceImage sl
    DIM fr as Frame ptr = dat->img.sprite
    IF fr THEN
+    fr += dat->frame
     putpixel fr, retvals(1), retvals(2), retvals(3)
    END IF
-'  END IF
+  END IF
+
+ CASE 758 'draw pix2
+
+  sl = get_arg_spritesl(0)
+  IF sl THEN
+   DIM dat as SpriteSliceData Ptr = sl->SpriteData
+   'Ensure loaded
+   IF dat->loaded = NO THEN  LoadSpriteSliceImage sl
+   DIM fr as Frame ptr = dat->img.sprite
+   IF fr THEN
+    fr += dat->frame
+
+    'putpixel fr, retvals(1), retvals(2), retvals(3)
+
+    dim as uinteger x = retvals(1), y = retvals(2) 'c = retvals(3)
+    if x >= fr->w orelse y >= fr->h then
+     
+    else
+     if fr->image then
+      fr->image[fr->pitch * (y) + (x)] = retvals(3)'c
+     elseif fr->surf then
+      cast(integer ptr, fr->surf->pColorData)[fr->surf->pitch * y + x] = retvals(3) 'c
+     end if
+    end if
+
+
+   END IF
+  END IF
+
+
+ CASE 759 'get pix
+
+  sl = get_arg_spritesl(0)
+  IF sl THEN
+   DIM dat as SpriteSliceData Ptr = sl->SpriteData
+   'Ensure loaded
+   IF dat->loaded = NO THEN  LoadSpriteSliceImage sl
+   DIM fr as Frame ptr = dat->img.sprite
+   IF fr THEN
+    fr += dat->frame
+    'putpixel fr, retvals(1), retvals(2), retvals(3)
+    dim as uinteger x = retvals(1), y = retvals(2)
+    if x >= fr->w orelse y >= fr->h then
+     scriptret = 0 'scripterr "OOB"
+    else
+     if fr->image then
+      scriptret = fr->image[fr->pitch * (y) + (x)]
+     elseif fr->surf then
+      scriptret = cast(integer ptr, fr->surf->pColorData)[fr->surf->pitch * y + x]
+     end if
+    end if
+
+
+   END IF
+  END IF
+
+
+ CASE 754  'get sprite pixels (spritetype, spriteset, frame)
+  DIM id as integer = 0
+  WITH pixelbuffers(id)
+   .frameno = retvals(2)
+   DIM sprset as Frame ptr = frame_load(retvals(0), retvals(1))
+   IF sprset THEN
+    IF .frameno >= 0 ANDALSO .frameno < sprset->arraylen THEN
+     .fr = sprset + .frameno
+     scriptret = make_handle(HandleType.PixelBuffer, id)
+    END IF
+   END IF
+  END WITH
+ CASE 755  'read pixel (buffer, x, y)
+  DIM buf as PixelBuffer ptr
+  buf = get_arg_pixelbuffer(0)
+  IF buf THEN
+   scriptret = readpixel(buf->fr, retvals(1), retvals(2))
+  END IF
+ CASE 756  'write pixel (buffer, x, y, col)
+  DIM buf as PixelBuffer ptr
+  buf = get_arg_pixelbuffer(0)
+  IF buf THEN
+   'putpixel(buf->fr, retvals(1), retvals(2), retvals(3))
+   with *buf->fr
+    dim as uinteger x = retvals(1), y = retvals(2), c = retvals(3)
+    'if x < 0 orelse x >= .w orelse y < 0 orelse y >= .h then
+    if x >= .w orelse y >= .h then
+     
+    else
+     if .image then
+      .image[.pitch * (y) + (x)] = c
+     elseif .surf then
+      cast(integer ptr, .surf->pColorData)[.surf->pitch * y + x] = c
+     end if
+    end if
+   end with
+  END IF
+
+ CASE 757  'write pixel2 (buffer, x, y, col)
+  DIM buf as PixelBuffer ptr
+  buf = get_arg_pixelbuffer(0)
+  IF buf THEN
+   'putpixel(buf->fr, retvals(1), retvals(2), retvals(3))
+   with *buf->fr
+    dim as uinteger x = retvals(1), y = retvals(2), c = retvals(3)
+    if x < 0 orelse x >= .w orelse y < 0 orelse y >= .h then
+    'if x >= .w orelse y >= .h then
+     
+    else
+     if .image then
+      .image[.pitch * (y) + (x)] = c
+     elseif .surf then
+      cast(integer ptr, .surf->pColorData)[.surf->pitch * y + x] = c
+     end if
+    end if
+   end with
+  END IF
+
+
+ 'CASE 757  'finish pixel buffer (buffer, x, y, col)
+
+ CASE 762  '--create blank sprite (type, width, height, frames, depth)
+  DIM as integer sprtype = retvals(0), frames = retvals(1), w = retvals(2), h = retvals(3), depth
+  '-1 is sprTypeFrame
+  IF bound_arg(sprtype, -1, sprTypeLastPickable, "sprite type") ANDALSO _
+     bound_arg(frames, 1, 1000, "frame number") ANDALSO _
+     bound_arg(w, 1, maxFrameSize, "width") ANDALSO _
+     bound_arg(h, 1, maxFrameSize, "height") THEN
+   IF depth <> 8 ANDALSO depth <> 24 THEN
+    scripterr "Bitdepth should be 8 or 24",
+   ELSE
+    DIM fr as Frame ptr
+    fr = frame_new(w, h, frames, YES, NO, (depth = 24))
+    sl = NewSliceOfType(slSprite, SliceTable.scriptsprite)
+    SetSpriteToFrame sl, fr
+    ' ChangeSpriteSlice sl, spritetype, record, pal
+    scriptret = create_plotslice_handle(sl)
+   END IF
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
@@ -5208,6 +5357,7 @@ SUB script_commands(byval cmdid as integer)
 
  END SELECT
 END SUB
+
 
 
 '==========================================================================================
@@ -5673,6 +5823,18 @@ LOCAL SUB replace_sprite_plotslice(byval slice_argno as integer, byval spritetyp
   END IF
  END IF
 END SUB
+
+
+FUNCTION get_arg_pixelbuffer(byval argno as integer) as PixelBuffer ptr
+ DIM id as uinteger = retvals(argno)
+ IF get_handle_type(id) = HandleType.PixelBuffer THEN
+  id = get_handle_payload(id)
+  IF id <= UBOUND(pixelbuffers) ANDALSO pixelbuffers(id).fr THEN
+   RETURN @pixelbuffers(id)
+  END IF
+ END IF
+ RETURN 0
+END FUNCTION
 
 
 '==========================================================================================
