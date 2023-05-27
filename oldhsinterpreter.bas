@@ -56,6 +56,10 @@ DIM curcmd as ScriptCommand ptr
  scrat(nowscript).state = streturn
 #ENDMACRO
 
+DIM SHARED slow_math_stdoarg as integer = 0
+DIM SHARED slow_math_return as integer = 0
+DIM SHARED fast_math as integer = 0
+
 'Returns error string on failure, NULL on success
 FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr) as zstring ptr
  WITH scrat(index)
@@ -118,6 +122,9 @@ FUNCTION oldscriptstate_init (index as integer, script as ScriptData ptr) as zst
 END FUNCTION
 
 SUB scriptinterpreter ()
+ slow_math_stdoarg = 0
+ slow_math_return = 0
+ fast_math = 0
  WITH scrat(nowscript)
   SELECT CASE .state
    CASE IS < stnone
@@ -131,6 +138,11 @@ SUB scriptinterpreter ()
     scriptinterpreter_loop
   END SELECT
  END WITH
+
+ ? "slow_math_stdoarg = " &  slow_math_stdoarg
+ ? "slow_math_return = " &  slow_math_return
+ ? "fast_math = " &  fast_math
+
 END SUB
 
 SUB scriptinterpreter_loop ()
@@ -176,11 +188,13 @@ DO
       FOR i as integer = curcmd->argc - 1 TO 0 STEP -1
        popstack(scrst, retvals(i))
       NEXT i
-      .state = streturn
       IF curcmd->kind = tymath THEN
        scriptmath
        '.state = streturn
+       'slow_math_return += 1
+       subreturn scrat(nowscript)
       ELSE
+       .state = streturn
        IF commandprofiling THEN
         timed_script_commands(curcmd->value)
        ELSE
@@ -292,7 +306,8 @@ DO
    ELSE
     IF .curargn = 0 THEN
      '--always need to execute the first argument
-     .state = stdoarg
+     '.state = stdoarg
+     subdoarg scrat(nowscript)
     ELSE 
      '--flow control and logical math are special, for all else, do next arg
      SELECT CASE curcmd->kind
@@ -324,7 +339,8 @@ DO
            .state = stdoarg'---call condition
           CASE 1
            IF readstack(scrst, 0) THEN
-            .state = stdoarg'---call do block
+            '.state = stdoarg'---call do block
+            subdoarg scrat(nowscript)
             '--don't pop: number of words on stack should equal argn (for simplicity when unwinding stack)
            ELSE
             '--break while
@@ -364,7 +380,8 @@ DO
             scriptret = 0
             .state = streturn'---return
            ELSE
-            .state = stdoarg'---execute the do block
+            '.state = stdoarg'---execute the do block
+            subdoarg scrat(nowscript)
            END IF
           CASE ELSE
            showbug "for statement is being difficult"
@@ -443,7 +460,9 @@ DO
           .state = stdoarg'---call 2nd argument
          END IF
         CASE ELSE
-         .state = stdoarg'---call argument
+         'slow_math_stdoarg += 1
+         subdoarg scrat(nowscript)
+         '.state = stdoarg'---call argument
        END SELECT
       CASE ELSE
        .state = stdoarg'---call argument
@@ -703,6 +722,7 @@ IF si.curargn >= curcmd->argc THEN
   IF curcmd->argc = 2 THEN popstack(scrst, retvals(1))
   popstack(scrst, retvals(0))
   scriptmath
+  'fast_math += 1
   si.depth -= 1
   popstack(scrst, si.curargn)
   popstack(scrst, si.ptr)
@@ -733,8 +753,10 @@ ELSE
  si.state = stnext'---try next arg
  IF si.curargn >= curcmd->argc THEN EXIT SUB
  IF curcmd->kind = tyflow THEN IF curcmd->value = flowif OR curcmd->value >= flowfor THEN EXIT SUB
- IF curcmd->kind = tymath THEN IF curcmd->value >= 20 THEN EXIT SUB
- si.state = stdoarg
+ 'logand, logor
+ IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 21 THEN EXIT SUB
+ 'si.state = stdoarg
+ subdoarg scrat(nowscript)
 END IF
 END SUB
 
