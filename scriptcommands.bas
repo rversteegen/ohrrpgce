@@ -55,7 +55,8 @@ DECLARE FUNCTION get_arg_pixelbuffer(byval argno as integer) as PixelBuffer ptr
 'plotslices(0) isn't used since Slice.TableSlot = 0 means the slice isn't in plotslices.
 'plotslices will grow as needed up to SLICE_HANDLE_SLOT_MASK (2.1 million)
 'The size of 64 is just so we won't have to reallocate for a little while
-REDIM plotslices(0 TO 64) as SliceHandleSlot
+DIM last_slice_table_slot as integer = 64  'Always equal to UBOUND(plotslices)
+REDIM plotslices(0 TO last_slice_table_slot) as SliceHandleSlot
 plotslicesp = @plotslices(0)
 
 'Next plotslices() slot to try assigning (if unused), linearly scanned upwards
@@ -5598,9 +5599,9 @@ FUNCTION get_handle_slice(byval handle as integer, byval errlvl as scriptErrEnum
  'It's not necessary to explicitly check get_handle_type(handle) >= HandleType.Slice,
  'in fact we mustn't, to support obsolete handles in old saves which count up from 1.
  DIM slot as uinteger = handle AND SLICE_HANDLE_SLOT_MASK
- IF slot > UBOUND(plotslices) ORELSE plotslices(slot).handle <> handle ORELSE plotslices(slot).sl = NULL THEN
+ IF slot > last_slice_table_slot ORELSE plotslices(slot).handle <> handle ORELSE plotslices(slot).sl = NULL THEN
   IF errlvl > serrIgnore THEN
-   IF slot > 0 ANDALSO slot <= UBOUND(plotslices) ANDALSO _
+   IF slot > 0 ANDALSO slot <= last_slice_table_slot ANDALSO _
       (handle AND NOT SLICE_HANDLE_CTR_MASK) = (plotslices(slot).handle AND NOT SLICE_HANDLE_CTR_MASK) THEN
     IF errlvl > serrWarn THEN
      'The HandleType is correct so could have been a valid handle to a previously existing slice in this slot
@@ -5716,13 +5717,13 @@ FUNCTION create_plotslice_handle(byval sl as Slice Ptr) as integer
  END IF
 
  DIM slot as integer
- FOR slot = next_slice_table_slot TO UBOUND(plotslices)
+ FOR slot = next_slice_table_slot TO last_slice_table_slot
   IF plotslices(slot).sl = 0 THEN EXIT FOR
  NEXT
  IF slot > UBOUND(plotslices) THEN
   'If no room is available, make the array bigger.
-  DIM numslots as integer = small(SLICE_HANDLE_SLOT_MASK, UBOUND(plotslices) * 1.5 + 32)
-  REDIM PRESERVE plotslices(0 TO numslots)
+  last_slice_table_slot = small(SLICE_HANDLE_SLOT_MASK, UBOUND(plotslices) * 1.5 + 32)
+  REDIM PRESERVE plotslices(0 TO last_slice_table_slot)
   plotslicesp = @plotslices(0)
  END IF
  IF slot > SLICE_HANDLE_SLOT_MASK THEN
@@ -5765,7 +5766,8 @@ SUB restore_saved_plotslice_handle(byval sl as Slice Ptr, handle as integer)
  DIM slot as uinteger = handle AND SLICE_HANDLE_SLOT_MASK
 
  IF slot > UBOUND(plotslices) THEN
-  REDIM PRESERVE plotslices(0 TO slot * 1.5 + 32)
+  last_slice_table_slot = slot * 1.5 + 32
+  REDIM PRESERVE plotslices(0 TO last_slice_table_slot)
   plotslicesp = @plotslices(0)
  END IF
 
