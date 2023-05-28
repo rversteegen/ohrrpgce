@@ -140,9 +140,9 @@ SUB scriptinterpreter ()
   END SELECT
  END WITH
 
- ? "slow_math_stdoarg = " &  slow_math_stdoarg
- ? "slow_math_return = " &  slow_math_return
- ? "fast_math = " &  fast_math
+ ' ? "slow_math_stdoarg = " &  slow_math_stdoarg
+ ' ? "slow_math_return = " &  slow_math_return
+ ' ? "fast_math = " &  fast_math
 
 END SUB
 
@@ -239,7 +239,7 @@ DO
         popstack(scrst, temp)
         unwindtodo(scrat(nowscript), temp)
         '--for and while need to be broken
-        IF curcmd->kind = tyflow AND (curcmd->value = flowfor OR curcmd->value = flowwhile) THEN
+        IF curcmd->kind = tyflow ANDALSO (curcmd->value = flowfor ORELSE curcmd->value = flowwhile) THEN
          dumpandreturn()
         END IF
         'If the break goes all the way to the root of the script (which is a do()) it is exited (for back-compat)
@@ -248,14 +248,14 @@ DO
         IF interpreter_occasional_checks THEN CONTINUE DO
         popstack(scrst, temp)
         unwindtodo(scrat(nowscript), temp)
-        IF curcmd->kind = tyflow AND curcmd->value = flowswitch THEN
+        IF curcmd->kind = tyflow ANDALSO curcmd->value = flowswitch THEN
          '--set state to 2
          scrst.pos -= 2
          pushstack(scrst, 2)
          pushstack(scrst, 0) '-- dummy value
         ELSEIF .depth < 0 THEN
          scripterr "continue used outside of a do(), script will be exited", serrBadOp
-        ELSEIF NOT (curcmd->kind = tyflow AND (curcmd->value = flowfor OR curcmd->value = flowwhile)) THEN
+        ELSEIF NOT (curcmd->kind = tyflow ANDALSO (curcmd->value = flowfor ORELSE curcmd->value = flowwhile)) THEN
          '--if this do isn't a for's or while's, then just repeat it, discarding the returned value
          scrst.pos -= 1
          .curargn -= 1
@@ -684,18 +684,18 @@ DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->a
 SELECT CASE cmdptr->kind
  CASE tynumber
   pushstack(scrst, cmdptr->value)
- CASE tyglobal
-  IF cmdptr->value < 0 OR cmdptr->value > maxScriptGlobals THEN
-   showbug "Illegal global variable id " & cmdptr->value
-   si.state = sterror
-   EXIT SUB
-  END IF
-  pushstack(scrst, global(cmdptr->value))
  CASE tylocal
   pushstack(scrst, heap(si.frames(0).heap + cmdptr->value))
  CASE tynonlocal
   DIM id as integer = cmdptr->value
   pushstack(scrst, heap(si.frames(id SHR 8).heap + (id AND 255)))
+ CASE tyglobal
+  IF cmdptr->value < 0 ORELSE cmdptr->value > maxScriptGlobals THEN
+   showbug "Illegal global variable id " & cmdptr->value
+   si.state = sterror
+   EXIT SUB
+  END IF
+  pushstack(scrst, global(cmdptr->value))
  CASE IS >= tymath, tyflow
   si.depth += 1
   '2 for state + args + 5 just-in-case for extra state stuff pushed to stack (atm just switch, +1 ought to be sufficient)
