@@ -693,7 +693,7 @@ SELECT CASE cmdptr->kind
  CASE IS >= tymath, tyflow
   si.depth += 1
   '2 for state + args + 5 just-in-case for extra state stuff pushed to stack (atm just switch, +1 ought to be sufficient)
-  checkoverflow(scrst, 7 + cmdptr->argc)
+  'checkoverflow(scrst, 7 + cmdptr->argc)
   pushstack(scrst, si.ptr)
   pushstack(scrst, si.curargn)
   curcmd = cmdptr
