@@ -735,16 +735,24 @@ IF si.curargn >= curcmd->argc THEN
   si.curargn = 0
   scriptret = 0'--default returnvalue is zero
 '/
-  scrst.pos -= curcmd->argc
-  retvalsbase = scrst.pos
+  DIM stkpos as integer ptr = scrst.pos - curcmd->argc
+  'scrst.pos -= curcmd->argc
+  'retvalsbase = scrst.pos
+  retvalsbase = stkpos
   scriptmath
   'fast_math += 1
   si.depth -= 1
+  /'
   popstack(scrst, si.curargn)
   popstack(scrst, si.ptr)
-  curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
   '--push return value
   pushstack(scrst, scriptret)
+  '/
+  si.curargn = stkpos[-1]
+  si.ptr = stkpos[-2]
+  curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
+  stkpos[-2] = scriptret
+  scrst.pos = stkpos - 1  '-2 +1
   GOTO finishedarg
  ' ELSEIF curcmd->kind = tyflow THEN
  '   IF curcmd->value = flowdo ORELSE curcmd->value = flowthen ORELSE curcmd->value = flowelse THEN
