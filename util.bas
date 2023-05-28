@@ -1170,7 +1170,7 @@ END SUB
 SUB checkoverflow (st as Stack, byval amount as integer = 1)
   WITH st
     IF .pos - .bottom + amount >= .size THEN
-      .size += STACK_SIZE_INC
+      .size += amount + STACK_SIZE_INC
       IF .size > STACK_SIZE_INC * 4 THEN .size += STACK_SIZE_INC
       'debug "new stack size = " & .size & " * 4  pos = " & (.pos - .bottom) & " amount = " & amount
       'debug "nowscript = " & nowscript & " " & scrat(nowscript).id & " " & scriptname(scrat(nowscript).id) 
