@@ -671,8 +671,21 @@ si.state = stnext
 
 DIM as integer ptr dataptr = si.scrdata
 
+DIM argn as integer = si.curargn
+DIM argc as integer = curcmd->argc
+
 quickrepeat:
-DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + si.curargn))
+DIM slowmath as bool = NO
+
+IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN argc = 0
+'logand, logor, lognot need special handing
+IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN slowmath = YES : argc = 0
+
+
+quickerrepeat:   'DO
+DO
+
+DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + argn))
 
 ' Process an arg here if possible, otherwise stop
 SELECT CASE cmdptr->kind
@@ -687,6 +700,7 @@ SELECT CASE cmdptr->kind
   IF cmdptr->value < 0 ORELSE cmdptr->value > maxScriptGlobals THEN
    showbug "Illegal global variable id " & cmdptr->value
    si.state = sterror
+   si.curargn = argn
    EXIT SUB
   END IF
   pushstack(scrst, global(cmdptr->value))
@@ -695,7 +709,7 @@ SELECT CASE cmdptr->kind
   '2 for state + args + 5 just-in-case for extra state stuff pushed to stack (atm just switch, +1 ought to be sufficient)
   'checkoverflow(scrst, 7 + cmdptr->argc)
   pushstack(scrst, si.ptr)
-  pushstack(scrst, si.curargn)
+  pushstack(scrst, argn) 'si.curargn)
   curcmd = cmdptr
   si.ptr = (cast(intptr_t, cmdptr) - cast(intptr_t, dataptr)) shr 2  ' \ sizeof(int32)
   si.curargn = 0
@@ -711,20 +725,34 @@ SELECT CASE cmdptr->kind
   'Even for flow, first arg always needs evaluation, so don't leave yet!
   'If there are no args, then time to stop and evaluate it (this is not a math command)
   'EXIT SUB
-  IF curcmd->argc = 0 THEN EXIT SUB
+  argc = cmdptr->argc
+  IF argc = 0 THEN  EXIT SUB
+  argn = 0
   GOTO quickrepeat
  CASE ELSE
   scripterr "Illegal statement type " & cmdptr->kind, serrError
   si.state = sterror
+  si.curargn = argn
   EXIT SUB
 END SELECT
 
-finishedarg:
+argn += 1
+LOOP WHILE argn < argc
+'finishedarg:
 ' Move on the the next arg and decide whether to fast track its execution
 
-si.curargn += 1
-IF si.curargn >= curcmd->argc THEN
- IF curcmd->kind = tymath THEN
+'si.curargn += 1
+'IF si.curargn >= curcmd->argc THEN
+
+
+'Got here because argn = (real) argc, or is logor/logand/if/for
+
+ IF curcmd->kind <> tymath ORELSE slowmath THEN
+  si.curargn = argn
+  EXIT SUB
+ END IF
+
+quickmath:
   'Optimisation
 /'  Here's the prologue (from a *previous* iteration through the above SELECT)
   si.depth += 1
@@ -753,18 +781,30 @@ IF si.curargn >= curcmd->argc THEN
   curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
   stkpos[-2] = scriptret
   scrst.pos = stkpos - 1  '-2 +1
-  GOTO finishedarg
- ' ELSEIF curcmd->kind = tyflow THEN
- '   IF curcmd->value = flowdo ORELSE curcmd->value = flowthen ORELSE curcmd->value = flowelse THEN
- '   END IF
+
+' Returned to parent command/node. Maybe it's a math op too? Move on the the next arg and decide whether to fast track its execution
+
+si.curargn += 1
+IF si.curargn >= curcmd->argc THEN
+ IF curcmd->kind = tymath THEN
+  IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN EXIT SUB
+  GOTO quickmath
  END IF
  EXIT SUB
 END IF
-'FIXME: What about switch?
+
 IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN EXIT SUB
 'logand, logor, lognot need special handing
 IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN EXIT SUB
-GOTO quickrepeat
+
+
+argn = si.curargn
+argc = curcmd->argc
+slowmath = NO
+
+GOTO quickerrepeat   'LOOP
+
+
 END SUB
 
 SUB subreturn () 'si as OldScriptState)
@@ -782,7 +822,6 @@ ELSE
  si.curargn += 1
  si.state = stnext'---try next arg
  IF si.curargn >= curcmd->argc THEN EXIT SUB
- 'FIXME: What about switch?
  IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN EXIT SUB
  'logand, logor
  IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 21 THEN EXIT SUB
