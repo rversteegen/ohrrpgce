@@ -26,6 +26,8 @@ global variable, begin
   1, flames container
   2, testarray
   3, bubbles
+  4, read pixel sl
+  5, write pixel sl
 end
 
 
@@ -204,6 +206,9 @@ plotscript, main, begin
 
     $1 = "copy pixels"
     score2 += run benchmark (@benchmark: copy pixels, 1) / 5
+    copy pixels initialise
+    $1 = "copy pixels 2"
+    score2 += run benchmark (@benchmark: copy pixels 2, 1) / 5
 
     # Benchmarks excluded from the score
 
@@ -1415,4 +1420,27 @@ script, benchmark: copy pixels, begin
   free slice (fromsl)
   free slice (tosl)
   show backdrop(0)
+end
+
+script, copy pixels initialise, begin
+  readpixelsl := load hero sprite (0)
+  writepixelsl := load backdrop sprite (0)
+end
+
+script, benchmark: copy pixels 2, begin
+  variable (x, y, w, a,b,c,d, frame, pitch)
+  a := 1
+  b := 1
+  c := 1
+  d := 1
+  w := slice width (readpixelsl)
+  for (frame, 0, 7) do (
+    set sprite frame (readpixelsl, frame)
+    for (y, 0, slice height (readpixelsl) -- 1) do (
+      for (x, 0, w -- 1) do (
+        draw pix2 (writepixelsl, x + pitch, y, get pix (readpixelsl, a * x / b, c * y / d))
+      )
+    )
+    pitch += 32
+  )
 end
