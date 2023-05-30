@@ -81,6 +81,9 @@ plotscript, main, begin
   score += run benchmark (@benchmark: addition, loops)
   $1 = "increment"
   score += run benchmark (@benchmark: increment, loops)
+  # $1 = "mathop"
+  # score += run benchmark (@benchmark: mathop, loops)
+
   $1 = "array create delete"
   score += run benchmark (@benchmark: array create delete, loops) / 5
   $1 = "array length"
@@ -1052,6 +1055,13 @@ script, benchmark: recursive fibonacci, begin
 end
 
 #----
+
+script, benchmark: mathop, begin
+  variable (i,a,b,c)
+  for (i, 0, MICRO LOOPCOUNT / 10) do (
+    return((a / 0x10000) * b + ((a, and, 0xffff) * b + 0x8000) / 0x10000  + 2 * C / 3)
+  )
+end
 
 # a and b are 16 bit fixed point numbers, where b >= 1.0
 # Return a*b
