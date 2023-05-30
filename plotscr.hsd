@@ -791,6 +791,9 @@ define function, begin
 755,readpixel,3,0,0,0
 756,writepixel,4,0,0,0,0
 757,writepixel2,4,0,0,0,0
+
+762,create blank sprite,5,9,32,32,1,8  # Returns a sprite slice handle (type (default backdrop), width, height, frames, depth)
+
 end
 
 #--------------------------------------------------------------------------

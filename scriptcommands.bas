@@ -2202,6 +2202,7 @@ SUB script_commands(byval cmdid as integer)
    END WITH
   END IF
  CASE 265'--rgb
+  'FB standard macro; sets A=255.
   scriptret = RGB(bound(retvals(0),0,255), bound(retvals(1),0,255), bound(retvals(2),0,255))
  CASE 266'--extract color
   DIM c as RGBcolor = TYPE(retvals(0))
@@ -5330,7 +5331,25 @@ SUB script_commands(byval cmdid as integer)
 
 
  'CASE 757  'finish pixel buffer (buffer, x, y, col)
-  
+
+ CASE 762  '--create blank sprite (type, width, height, frames, depth)
+  DIM as integer sprtype = retvals(0), frames = retvals(1), w = retvals(2), h = retvals(3), depth
+  '-1 is sprTypeFrame
+  IF bound_arg(sprtype, -1, sprTypeLastPickable, "sprite type") ANDALSO _
+     bound_arg(frames, 1, 1000, "frame number") ANDALSO _
+     bound_arg(w, 1, maxFrameSize, "width") ANDALSO _
+     bound_arg(h, 1, maxFrameSize, "height") THEN
+   IF depth <> 8 ANDALSO depth <> 24 THEN
+    scripterr "Bitdepth should be 8 or 24",
+   ELSE
+    DIM fr as Frame ptr
+    fr = frame_new(w, h, frames, YES, NO, (depth = 24))
+    sl = NewSliceOfType(slSprite, SliceTable.scriptsprite)
+    SetSpriteToFrame sl, fr
+    ' ChangeSpriteSlice sl, spritetype, record, pal
+    scriptret = create_plotslice_handle(sl)
+   END IF
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
