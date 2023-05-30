@@ -462,7 +462,7 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
  DIM i as integer
 
  '--decrement the animation wait ticks, and don't proceed until they are zero
- IF bat.wait_frames > 0 THEN bat.wait_frames -= 1: IF bat.wait_frames > 0 THEN EXIT SUB
+ IF bat.wait_frames > 0 THEN bat.wait_frames -= 1: IF bat.wait_frames > 0 THEN debug "...wait" : EXIT SUB
  
  '--special handling when we are waiting for all motion to stop
  IF bat.wait_frames = -1 THEN
@@ -538,6 +538,7 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
    CASE 9 'waitforall()
     bat.wait_frames = -1
    CASE 10 'inflict(targ, target_count)
+debug "attack " & attack.id & " anim inflict"
     DIM targ as integer = popdw
     DIM tcount as integer = popdw
     battle_attack_do_inflict targ, tcount, attack, bat, bslot(), formdata
@@ -548,6 +549,7 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     'unimplemented
    CASE 13 'wait(ticks)
     bat.wait_frames = popdw
+debug "attack " & attack.id & " anim waiting"
    CASE 14 'walktoggle(who)
     ww = popdw
     bslot(ww).frame = frameSTAND
@@ -810,6 +812,8 @@ END SUB
 
 SUB battle_attack_anim_cleanup (byref attack as AttackData, byref bat as BattleState, bslot() as BattleSprite, formdata as Formation)
  
+debug  "anim_cleanup"
+
  '--hide the caption when the animation is done
  IF attack.caption_time = 0 THEN
   '--clear duration-timed caption
@@ -3267,9 +3271,14 @@ SUB check_death(byval deadguy as integer, byval killing_attack as integer, byref
  IF is_hero(deadguy) ANDALSO gam.hero(deadguy).id = -1 THEN EXIT SUB
  IF is_enemy(deadguy) ANDALSO formdata.slots(deadguy - 4).id = -1 THEN EXIT SUB
 
+ IF bslot(deadguy).stat.cur.hp = 0 THEN
+  debug "check_death: 0HP "&  deadguy
+ END IF
+
  '--Check to see if this is an already-dead enemy doing a bequest attack
  DIM already_bequested as bool = NO
  IF bslot(deadguy).bequesting = YES THEN
+  debug " ..bequesting"
   IF has_queued_attacks(deadguy) THEN
    EXIT SUB
   END IF
@@ -3279,11 +3288,14 @@ SUB check_death(byval deadguy as integer, byval killing_attack as integer, byref
  END IF
  IF bslot(deadguy).self_bequesting THEN
   'Must wait until self-bequest attack is completely finished
+  debug " ..self_bequesting"
   EXIT SUB
  END IF
 
  '--Do not proceed unless the target is dead
  IF bslot(deadguy).stat.cur.hp > 0 THEN EXIT SUB
+
+ debug " ..CLEANUP"
 
  '--deadguy is really dead (includes already dead heroes or empty hero slots)
  'Death animation is not done yet here, so be cautious about what gets cleaned up here.
@@ -4160,6 +4172,8 @@ END FUNCTION
 SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bslot() as BattleSprite, t() as integer)
  DIM i as integer
 
+debug "generate atkscript " & attack.id
+
  '--check for item consumption
  '(Note: this is different from attack item costs)
  IF bslot(bat.acting).consume_item >= 0 THEN
@@ -4753,6 +4767,7 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
  
  '--if there is a caption and display time isn't "Not at all"
  IF attack.caption <> "" AND attack.caption_time >= 0 THEN
+debug "setting caption " & attack.caption
   DIM ticks as integer = attack.caption_delay
   IF attack.caption_time = 0 THEN
    ticks += 16383  '--full duration
