@@ -29,8 +29,9 @@
 
 TYPE PixelBuffer
  fr as Frame ptr
- sprtype as SpriteType
- record as integer
+ sprset as Frame ptr
+ ' sprtype as SpriteType
+ ' record as integer
  frameno as integer
 END TYPE
 
@@ -5271,25 +5272,40 @@ SUB script_commands(byval cmdid as integer)
   END IF
 
 
- CASE 754  'get sprite pixels (spritetype, spriteset, frame)
-  DIM id as integer = 0
-  WITH pixelbuffers(id)
-   .frameno = retvals(2)
-   DIM sprset as Frame ptr = frame_load(retvals(0), retvals(1))
-   IF sprset THEN
-    IF .frameno >= 0 ANDALSO .frameno < sprset->arraylen THEN
-     .fr = sprset + .frameno
-     scriptret = make_handle(HandleType.PixelBuffer, id)
+ CASE 754  'get sprite pixels (spritetype, spriteset, frame, bufnum)
+  DIM bufnum as integer = retvals(3)
+  IF bound_arg(bufnum, 0, UBOUND(pixelbuffers), "bufnum") THEN
+   WITH pixelbuffers(bufnum)
+    .frameno = retvals(2)
+    DIM sprset as Frame ptr = frame_load(retvals(0), retvals(1))
+    IF sprset THEN
+     IF .frameno >= 0 ANDALSO .frameno < sprset->arraylen THEN
+      .sprset = sprset
+      .fr = sprset + .frameno
+      scriptret = make_handle(HandleType.PixelBuffer, id)
+     END IF
     END IF
-   END IF
-  END WITH
- CASE 755  'read pixel (buffer, x, y)
+   END WITH
+  END IF
+ CASE 763  'set buffer frame (bufnum, frame)
+  DIM bufnum as integer = retvals(0)
+  IF bound_arg(bufnum, 0, UBOUND(pixelbuffers), "bufnum") THEN
+   WITH pixelbuffers(bufnum)
+    IF retvals(1) >= 0 ANDALSO retvals(1) < .sprset->arraylen THEN
+     .frameno = retvals(1)
+     .fr = .sprset + .frameno
+    END IF
+   END WITH
+  END IF
+
+
+ CASE 755  'read buf pixel func (buffer, x, y)
   DIM buf as PixelBuffer ptr
   buf = get_arg_pixelbuffer(0)
   IF buf THEN
    scriptret = readpixel(buf->fr, retvals(1), retvals(2))
   END IF
- CASE 756  'write pixel (buffer, x, y, col)
+ CASE 756  'write buf pixel (buffer, x, y, col)
   DIM buf as PixelBuffer ptr
   buf = get_arg_pixelbuffer(0)
   IF buf THEN
@@ -5309,16 +5325,15 @@ SUB script_commands(byval cmdid as integer)
    end with
   END IF
 
- CASE 757  'write pixel2 (buffer, x, y, col)
-  DIM buf as PixelBuffer ptr
-  buf = get_arg_pixelbuffer(0)
-  IF buf THEN
+ CASE 757  'write bufnum pixel (buffernum, x, y, col)
+  DIM bufnum as integer = retvals(0)
+  IF bufnum >= 0 ANDALSO bufnum <= UBOUND(pixelbuffers) ANDALSO pixelbuffers(bufnum).fr THEN
    'putpixel(buf->fr, retvals(1), retvals(2), retvals(3))
-   with *buf->fr
+   with *pixelbuffers(bufnum).fr
     dim as uinteger x = retvals(1), y = retvals(2), c = retvals(3)
     if x < 0 orelse x >= .w orelse y < 0 orelse y >= .h then
     'if x >= .w orelse y >= .h then
-     
+     'noop
     else
      if .image then
       .image[.pitch * (y) + (x)] = c
@@ -5327,6 +5342,31 @@ SUB script_commands(byval cmdid as integer)
      end if
     end if
    end with
+  END IF
+
+
+ CASE 760  'read bufnum pixel func (buffer, x, y)
+  DIM bufnum as integer = retvals(0)
+  IF bufnum >= 0 ANDALSO bufnum <= UBOUND(pixelbuffers) ANDALSO pixelbuffers(bufnum).fr THEN
+   scriptret = readpixel(pixelbuffers(bufnum).fr, retvals(1), retvals(2))
+  END IF
+
+ CASE 761  'read bufnum pixel (buffer, x, y)
+  DIM bufnum as integer = retvals(0)
+  IF bufnum >= 0 ANDALSO bufnum <= UBOUND(pixelbuffers) ANDALSO pixelbuffers(bufnum).fr THEN
+   'scriptret = readpixel(pixelbuffers(bufnum).fr, retvals(1), retvals(2))
+   dim fr as Frame ptr = pixelbuffers(bufnum).fr
+    dim as uinteger x = retvals(1), y = retvals(2)
+    if x >= fr->w orelse y >= fr->h then
+     scriptret = 0 'scripterr "OOB"
+    else
+     if fr->image then
+      scriptret = fr->image[fr->pitch * (y) + (x)]
+     elseif fr->surf then
+      scriptret = cast(integer ptr, fr->surf->pColorData)[fr->surf->pitch * y + x]
+     end if
+    end if
+
   END IF
 
 

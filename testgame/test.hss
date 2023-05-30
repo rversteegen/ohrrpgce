@@ -746,25 +746,51 @@ end
 
 
 
-plotscript, benchmark: copy pixels, begin
-  variable (fromsl, tosl, x, y, w, a,b,c,d, frame, pitch)
-  a := 1
+# plotscript, benchmark: copy pixels, begin
+#   variable (fromsl, tosl, x, y, w, a,b,c,d, frame, pitch)
+#   a := 1
+#   b := 1
+#   c := 1
+#   d := 1
+#   fromsl := load hero sprite (0)
+#   tosl := load backdrop sprite (0)
+#   w := slice width (fromsl)
+#   for (frame, 0, 7) do (
+#     set sprite frame (fromsl, frame)
+#     for (y, 0, slice height (fromsl) -- 1) do (
+#       for (x, 0, w -- 1) do (
+#         draw pix (tosl, x + pitch, y, get pix (fromsl, a * x / b, c * y / d))
+#       )
+#     )
+#     pitch += 32
+#   )
+#   free slice (fromsl)
+#   free slice (tosl)
+#   show backdrop(0)
+# end
+
+
+
+plotscript, zbenchmark: copy pixels, begin
+  variable (x, y, w, h, a,b,c,d, frame, pitch)
+  a := 256
   b := 1
-  c := 1
+  c := 256
   d := 1
-  fromsl := load hero sprite (0)
-  tosl := load backdrop sprite (0)
-  w := slice width (fromsl)
+  get sprite pixels (spritetype:backdrop, 0, 0, 0)
+  get sprite pixels (spritetype:hero, 0, 0, 1)
+  w := 32#slice width (readpixelsl)
+  h := 40#slice height (readpixelsl)
   for (frame, 0, 7) do (
-    set sprite frame (fromsl, frame)
-    for (y, 0, slice height (fromsl) -- 1) do (
+    set buffer frame (1, frame)
+    for (y, 0, h -- 1) do (
       for (x, 0, w -- 1) do (
-        draw pix (tosl, x + pitch, y, get pix (fromsl, a * x / b, c * y / d))
+        write bufnum pixel (0, x + pitch, y, read bufnum pixel (1, a * x / 256, c * y / 256))
       )
     )
     pitch += 32
   )
-  free slice (fromsl)
-  free slice (tosl)
-  show backdrop(0)
+  show backdrop (0)
 end
+
+

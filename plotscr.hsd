@@ -787,10 +787,17 @@ define function, begin
 753,drawpix,4,0,0,0,0
 758,drawpix2,4,0,0,0,0
 759,getpix,3,0,0,0
-754,getspritepixels,3,0,0,0
-755,readpixel,3,0,0,0
-756,writepixel,4,0,0,0,0
-757,writepixel2,4,0,0,0,0
+
+754,getspritepixels,4,0,0,0,0
+763,set buffer frame,2,0,0
+
+
+756,write buf pixel,4,0,0,0,0
+757,write bufnum pixel,4,0,0,0,0
+
+755,read buf pixel func,3,0,0,0
+760,read bufnum pixel func,3,0,0,0
+761,read bufnum pixel,3,0,0,0
 
 762,create blank sprite,5,9,32,32,1,8  # Returns a sprite slice handle (type (default backdrop), width, height, frames, depth)
 
