@@ -660,7 +660,7 @@ IF curcmd->kind <> tyflow THEN
 END IF
 END SUB
 
-SUB subdoarg () '(si as OldScriptState)
+PRIVATE SUB subdoarg () '(si as OldScriptState)
 
 DIM byref si as OldScriptState = scrat(nowscript)
 
@@ -821,7 +821,7 @@ GOTO quickerrepeat   'LOOP
 
 END SUB
 
-SUB subreturn () 'si as OldScriptState)
+PRIVATE SUB subreturn () 'si as OldScriptState)
 DIM byref si as OldScriptState = scrat(nowscript)
 
 si.depth -= 1
@@ -879,7 +879,7 @@ subreturn
 
 END SUB
 
-FUNCTION readscriptvar (byval id as integer) as integer
+PRIVATE FUNCTION readscriptvar (byval id as integer) as integer
  SELECT CASE id
   CASE IS < 0 'local/nonlocal variable
    id = -id - 1
@@ -891,7 +891,7 @@ FUNCTION readscriptvar (byval id as integer) as integer
  END SELECT
 END FUNCTION
 
-SUB writescriptvar (byval id as integer, byval newval as integer)
+PRIVATE SUB writescriptvar (byval id as integer, byval newval as integer)
  SELECT CASE id
   CASE IS < 0 'local/nonlocal variable
    id = -id - 1
