@@ -675,17 +675,14 @@ DIM argn as integer = si.curargn
 DIM argc as integer = curcmd->argc
 
 quickrepeat:
-DIM slowmath as bool = NO
 
-IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN argc = 0
-'logand, logor, lognot need special handing
-IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN slowmath = YES : argc = 0
-
+DIM checked_slow as bool = NO
 
 quickerrepeat:   'DO
 DO
 
 DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + argn))
+
 
 ' Process an arg here if possible, otherwise stop
 SELECT CASE cmdptr->kind
@@ -737,7 +734,25 @@ SELECT CASE cmdptr->kind
 END SELECT
 
 argn += 1
-LOOP WHILE argn < argc
+IF argn >= argc THEN EXIT DO
+
+IF checked_slow = NO THEN
+
+ IF curcmd->kind = tyflow ANDALSO (curcmd->value = flowif ORELSE curcmd->value >= flowfor) THEN
+  si.curargn = argn
+  EXIT SUB
+ END IF
+
+ 'logand, logor, lognot need special handing
+ IF curcmd->kind = tymath ANDALSO (curcmd->value >= 20 ANDALSO curcmd->value <= 22) THEN
+  si.curargn = argn
+  EXIT SUB
+ END IF
+
+ checked_slow = YES
+END IF
+
+LOOP
 'finishedarg:
 ' Move on the the next arg and decide whether to fast track its execution
 
@@ -747,7 +762,7 @@ LOOP WHILE argn < argc
 
 'Got here because argn = (real) argc, or is logor/logand/if/for
 
- IF curcmd->kind <> tymath ORELSE slowmath THEN
+ IF curcmd->kind <> tymath THEN
   si.curargn = argn
   EXIT SUB
  END IF
@@ -800,7 +815,6 @@ IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22
 
 argn = si.curargn
 argc = curcmd->argc
-slowmath = NO
 
 GOTO quickerrepeat   'LOOP
 
