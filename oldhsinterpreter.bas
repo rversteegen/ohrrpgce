@@ -671,6 +671,8 @@ si.state = stnext
 
 DIM as integer ptr dataptr = si.scrdata
 
+DIM stkpos as integer ptr = scrst.pos
+
 DIM argn as integer = si.curargn
 DIM argc as integer = curcmd->argc
 
@@ -679,25 +681,32 @@ quickrepeat:
 DIM checked_slow as bool = NO
 
 quickerrepeat:   'DO
+DIM as ScriptCommand ptr cmdptr = any
+dim kind as integer = any, value as integer = any
+
 DO
 
-DIM as ScriptCommand ptr cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + argn))
+cmdptr = cast(ScriptCommand ptr, dataptr + *(@curcmd->args(0) + argn))
 
 
 ' Process an arg here if possible, otherwise stop
 SELECT CASE cmdptr->kind
  CASE tynumber
-  pushstack(scrst, cmdptr->value)
+  stkpos[0] = cmdptr->value
+  stkpos += 1
  CASE tylocal
-  pushstack(scrst, heap(si.frames(0).heap + cmdptr->value))
+  stkpos[0] = heap(si.frames(0).heap + cmdptr->value)
+  stkpos += 1
  CASE tynonlocal
   DIM id as integer = cmdptr->value
-  pushstack(scrst, heap(si.frames(id SHR 8).heap + (id AND 255)))
+  stkpos[0] = heap(si.frames(id SHR 8).heap + (id AND 255))
+  stkpos += 1
  CASE tyglobal
   IF cmdptr->value < 0 ORELSE cmdptr->value > maxScriptGlobals THEN
-   showbug "Illegal global variable id " & cmdptr->value
    si.state = sterror
    si.curargn = argn
+   scrst.pos = stkpos
+   showbug "Illegal global variable id " & cmdptr->value
    EXIT SUB
   END IF
   pushstack(scrst, global(cmdptr->value))
@@ -705,8 +714,16 @@ SELECT CASE cmdptr->kind
   si.depth += 1
   '2 for state + args + 5 just-in-case for extra state stuff pushed to stack (atm just switch, +1 ought to be sufficient)
   'checkoverflow(scrst, 7 + cmdptr->argc)
+
+  scrst.pos = stkpos
+
   pushstack(scrst, si.ptr)
   pushstack(scrst, argn) 'si.curargn)
+  'stkpos[0] = si.ptr
+  'stkpos[1] = argn
+  'stkpos += 2
+  stkpos = scrst.pos
+
   curcmd = cmdptr
   si.ptr = (cast(intptr_t, cmdptr) - cast(intptr_t, dataptr)) shr 2  ' \ sizeof(int32)
   si.curargn = 0
@@ -723,13 +740,14 @@ SELECT CASE cmdptr->kind
   'If there are no args, then time to stop and evaluate it (this is not a math command)
   'EXIT SUB
   argc = cmdptr->argc
-  IF argc = 0 THEN  EXIT SUB
+  IF argc = 0 THEN scrst.pos = stkpos :  EXIT SUB
   argn = 0
   GOTO quickrepeat
  CASE ELSE
-  scripterr "Illegal statement type " & cmdptr->kind, serrError
   si.state = sterror
   si.curargn = argn
+  scrst.pos = stkpos
+  scripterr "Illegal statement type " & cmdptr->kind, serrError
   EXIT SUB
 END SELECT
 
@@ -738,14 +756,20 @@ IF argn >= argc THEN EXIT DO
 
 IF checked_slow = NO THEN
 
- IF curcmd->kind = tyflow ANDALSO (curcmd->value = flowif ORELSE curcmd->value >= flowfor) THEN
+kind = curcmd->kind
+value = curcmd->value
+
+
+ IF kind = tyflow ANDALSO (value = flowif ORELSE value >= flowfor) THEN
   si.curargn = argn
+  scrst.pos = stkpos
   EXIT SUB
  END IF
 
  'logand, logor, lognot need special handing
- IF curcmd->kind = tymath ANDALSO (curcmd->value >= 20 ANDALSO curcmd->value <= 22) THEN
+ IF kind = tymath ANDALSO (value >= 20 ANDALSO value <= 22) THEN
   si.curargn = argn
+  scrst.pos = stkpos
   EXIT SUB
  END IF
 
@@ -764,6 +788,7 @@ LOOP
 
  IF curcmd->kind <> tymath THEN
   si.curargn = argn
+  scrst.pos = stkpos
   EXIT SUB
  END IF
 
@@ -778,43 +803,62 @@ quickmath:
   si.curargn = 0
   scriptret = 0'--default returnvalue is zero
 '/
-  DIM stkpos as integer ptr = scrst.pos - curcmd->argc
-  'scrst.pos -= curcmd->argc
+  'DIM stkpos as integer ptr = scrst.pos - curcmd->argc
+scrst.pos = stkpos
+  scrst.pos -= curcmd->argc
+  'stkpos -= curcmd->argc
+
   'retvalsbase = scrst.pos
   retvalsbase = stkpos
+
+  'In case an error happens and the debugger entered, but scriptmath doesn't use these directly
+  '(actually, maybe use stkpos before popping the args??)
+  scrst.pos = stkpos
+  si.curargn = argn
+
   scriptmath
   'fast_math += 1
   si.depth -= 1
-  /'
+  
   popstack(scrst, si.curargn)
   popstack(scrst, si.ptr)
   '--push return value
   pushstack(scrst, scriptret)
-  '/
-  si.curargn = stkpos[-1]
-  si.ptr = stkpos[-2]
-  curcmd = cast(ScriptCommand ptr, si.scrdata + si.ptr)
-  stkpos[-2] = scriptret
-  scrst.pos = stkpos - 1  '-2 +1
+  
+  'si.curargn = stkpos[-1]
+  'si.ptr = stkpos[-2]
+  'USe cmdptr instead of curcmd because it's a local
+  cmdptr = cast(ScriptCommand ptr, si.scrdata + si.ptr)
+kind = cmdptr->kind
+value = cmdptr->value
+  curcmd = cmdptr
+  'stkpos[-2] = scriptret
+  'scrst.pos = stkpos - 1  '-2 +1
+
+  'stkpos -= 1  '-2 +1
+  'scrst.pos = stkpos
+
+  stkpos = scrst.pos
 
 ' Returned to parent command/node. Maybe it's a math op too? Move on the the next arg and decide whether to fast track its execution
 
 si.curargn += 1
-IF si.curargn >= curcmd->argc THEN
- IF curcmd->kind = tymath THEN
-  IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN EXIT SUB
+IF si.curargn >= cmdptr->argc THEN
+ IF kind = tymath THEN
+  IF value >= 20 ANDALSO value <= 22 THEN EXIT SUB
   GOTO quickmath
  END IF
+
  EXIT SUB
 END IF
 
-IF curcmd->kind = tyflow THEN IF curcmd->value = flowif ORELSE curcmd->value >= flowfor THEN EXIT SUB
+IF kind = tyflow THEN IF value = flowif ORELSE value >= flowfor THEN EXIT SUB
 'logand, logor, lognot need special handing
-IF curcmd->kind = tymath THEN IF curcmd->value >= 20 ANDALSO curcmd->value <= 22 THEN EXIT SUB
+IF kind = tymath THEN IF value >= 20 ANDALSO value <= 22 THEN EXIT SUB
 
 
 argn = si.curargn
-argc = curcmd->argc
+argc = cmdptr->argc
 
 GOTO quickerrepeat   'LOOP
 
