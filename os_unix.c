@@ -914,7 +914,7 @@ int checked_system(const char* cmdline) {
 //waitable is true if you want cleanup_process to wait for the command to finish (ignored on
 //           Windows: always waitable)
 ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable, boolint show_output) {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	// Early versions of the NDK don't have popen
 	return 0;
 #else
