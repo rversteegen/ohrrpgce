@@ -47,6 +47,13 @@ extern "C"
 end extern
 #endif
 
+#ifdef __FB_JS__
+	'Assume we're not allowed to access unaligned memory (only true when targetting asm.js,
+	'it's OK in wasm)
+	'TODO: .bmp load/save code still makes unaligned memory accesses
+	#define ALIGNED_MEMORY
+#endif
+
 
 'Note: While non-refcounted frames work (at last check), it's not used anywhere, and you most probably do not need it
 'NOREFC is also used to indicate uncached Palette16's. Note Palette16's are NOT refcounted in the way as frames
@@ -5509,31 +5516,62 @@ end destructor
 	#if typeof(state.member) <> integer and typeof(state.member) <> long
 		#error "UPDATE_STATE: bad member type"
 	#endif
-	outbuf += CHR(tcmdState) & "      "
-	*Cast(short ptr, @outbuf[len(outbuf) - 6]) = Offsetof(PrintStrState, member)
-	*Cast(long ptr, @outbuf[len(outbuf) - 4]) = Cast(long, value)
+	dim dataptr as intptr_t = any
+	#ifdef ALIGNED_MEMORY
+		'6 plus 3 character for extra alignment
+		outbuf += CHR(tcmdState) & "         "
+		dataptr = cast(intptr_t, @outbuf[len(outbuf) - 9])
+		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+	#else
+		outbuf += CHR(tcmdState) & "      "
+		dataptr = @outbuf[len(outbuf) - 6]
+	#endif
+	*cast(long ptr, dataptr) = cast(long, value)
+	*cast(long ptr, dataptr+4) = Offsetof(PrintStrState, member)
+
 	state.member = value
 #endmacro
 
 'Interprets a control sequence (at 0-based offset ch in outbuf) written by UPDATE_STATE,
 'modifying a member of state.
-#define READ_MEMBER(state, outbuf, ch) _
-	/' dim offset as long = *Cast(short ptr, @outbuf[ch + 1]) '/ _
-	/' dim newval as long = *Cast(long ptr, @outbuf[ch + 3]) '/ _
-	*Cast(long ptr, Cast(byte ptr, @state) + *Cast(short ptr, @outbuf[ch + 1])) = _
-		*Cast(long ptr, @outbuf[ch + 3]) : _
-	ch += 6  '7 bytes in total, assume inside FOR loop that increments ch
+#macro READ_MEMBER(state, outbuf, ch)
+	dim dataptr as intptr_t = @outbuf[ch + 1]
+	#ifdef ALIGNED_MEMORY
+		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+		ch += 9  '10 bytes in total, assume inside FOR loop that increments ch
+	#else
+		ch += 6  '7 bytes in total, assume inside FOR loop that increments ch
+	#endif
+	'Assume inside FOR loop that also increments ch
+	dim newval as long = *Cast(long ptr, dataptr)
+	dim offset as long = *Cast(short ptr, dataptr + 4)
+	*Cast(long ptr, Cast(byte ptr, @state) + offset) = newval
+#endmacro
 
 #define APPEND_CMD0(outbuf, cmd_id) _
 	outbuf += CHR(cmd_id)
 
-#define APPEND_CMD1(outbuf, cmd_id, value) _
-	outbuf += CHR(cmd_id) & "    " : _
-	*Cast(long ptr, @outbuf[len(outbuf) - 4]) = Cast(long, value)
+#macro APPEND_CMD1(outbuf, cmd_id, value)
+	outbuf += CHR(cmd_id) & "       "
+	dim dataptr as intptr_t = @outbuf[len(outbuf) - 7]
+	#ifdef ALIGNED_MEMORY
+		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+	#endif
+	*cast(long ptr, dataptr) = cast(long, value)
+#endmacro
 
-#define READ_VALUE(variable, outbuf, ch) _
-	variable = *Cast(long ptr, @outbuf[ch + 1]) : _
-	ch += 4  '5 bytes in total, assume inside FOR loop that increments ch
+'Read a 4-byte data value written by APPEND_CMD1
+#macro READ_VALUE(variable, outbuf, ch)
+	dim dataptr as intptr_t = @outbuf[ch + 1]
+	#ifdef ALIGNED_MEMORY
+		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+		ch += 7
+	#else
+		ch += 4
+	#endif
+	'Assume inside FOR loop that also increments ch
+	variable = *Cast(long ptr, dataptr)
+#endmacro
 
 'Processes starting from z[state.charnum] until the end of the line, returning a string
 'which describes a line fragment. It contains printing characters plus command sequences
