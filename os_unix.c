@@ -168,6 +168,9 @@ void fatal_signal_handler(int signum, siginfo_t *si, void *ucontext) {
 // that so that we can tell whether to report a fatal bug or just a fatal error
 // (if using hook_fb_End() we don't know what the error number is)
 boolint setup_exception_handler() {
+#ifdef __EMSCRIPTEN__
+	return NO;
+#else
 	early_debuginfo("setup_exception_handler");
 	struct sigaction sa;
 	sa.sa_sigaction = fatal_signal_handler;
@@ -182,6 +185,7 @@ boolint setup_exception_handler() {
 	sigaction(SIGINT, &sa, NULL);   // C-c on terminal
 	sigaction(SIGQUIT, &sa, NULL);  // C-\ on terminal
 	return YES;
+#endif
 }
 
 void os_open_logfile(const char *path) {
@@ -899,6 +903,10 @@ bool file_ready_to_read(int fd) {
 
 // Interpret system() return value. Returns exit code or -1 on error.
 int checked_system(const char* cmdline) {
+#ifdef __EMSCRIPTEN__
+	debug(errError, "Ignoring system(): %s", cmdline);
+	return -1;
+#else
 	int waitstatus = system(cmdline);
 	int ret = -1;
 	if (waitstatus == -1)
@@ -914,6 +922,7 @@ int checked_system(const char* cmdline) {
 	else
 		debug(errError, "system(%.30s...): unknown return %d", cmdline, waitstatus);
 	return ret;
+#endif
 }
 
 //Partial implementation. The returned process handle can't be used for much
@@ -977,7 +986,7 @@ ProcessHandle open_process (FBSTRING *program, FBSTRING *args, boolint waitable,
 // to this version, which can't pipe multiple programs,
 // and there is no Windows implementation of this function.
 int run_process_and_get_output(FBSTRING *program, FBSTRING *args, FBSTRING *output) {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	// Early versions of the NDK don't have popen
 	return -1;
 #else
@@ -1063,7 +1072,7 @@ void kill_process (ProcessHandle process) {
 //Cleans up resources associated with a ProcessHandle
 void cleanup_process (ProcessHandle *processp) {
 	// Early versions of the NDK don't have popen
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
 	if (processp && *processp) {
 		if ((*processp)->file)
 			pclose((*processp)->file); //FIXME: don't use popen/close, parent will freeze if the child does
