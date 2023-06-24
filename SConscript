@@ -44,6 +44,8 @@ FRAMEWORKS_PATH = os.path.expanduser("~/Library/Frameworks")  # Frameworks searc
 builddir = Dir('.').abspath + os.path.sep
 rootdir = Dir('#').abspath + os.path.sep
 
+for_node = int (ARGUMENTS.get ('for_node', False))
+
 release = int (ARGUMENTS.get ('release', False))
 verbose = int (ARGUMENTS.get ('v', False))
 if verbose:
@@ -342,6 +344,8 @@ if tiny:
     FBFLAGS += ["-O", "2"]  # Currently no effect
 elif optimisations:
     CFLAGS.append ('-O3')
+    # Under Emscripten, linking with -O1 is a lot slower than both -O0 and -O2. -O0 is not much faster
+    # But can't link ohrrpgce-game with -O0, too many locals.
     CCLINKFLAGS.append ('-O2')  # For LTO
     if optimisations > 1:
         # Also optimise FB code. Only use -O2 instead of -O3 because -O3 produces about 10% larger
@@ -488,7 +492,7 @@ def translate_rb(source):
     return File(source)
 
 
-if portable and unix and not mac:
+if portable and unix and glibc:
     # Only implemented on GNU
     def check_lib_reqs(source, target, env):
         for targ in target:
@@ -536,7 +540,10 @@ else:
 if win32:
     exe_suffix = '.exe'
 elif web:
-    exe_suffix = ".html"
+    if for_node:
+        exe_suffix = '.js'
+    else:
+        exe_suffix = '.html'
 else:
     exe_suffix = ''
 
@@ -963,11 +970,20 @@ if linkgcc:
     #if mac:
         # -( -) not supported
     if web:
-            # preload file option maps ./data folder to /data  to the file system (MEMFS)
-            # This because required slices need to be accessible for Custom, and it's
-            # a convenient way to provide an .rpg for Game.
-            # -lidbfs.js to use localstorage, this just seems to make it available, saving games still goes to MEMFS
-            basexe_gcc_action = '$CXX $CXXFLAGS -o $TARGET -lidbfs.js --preload-file data --shell-file ohrrpgce-shell-template.html $SOURCES $CCLINKFLAGS'
+        extraflags = ''
+        # preload file option maps ./data folder to /data in the file system (MEMFS)
+        # This is needed by Custom, and it's a convenient way to provide an .rpg for Game.
+        if for_node:
+            extraflags += ' --pre-js print_to_console.js --post-js ' + os.path.join(libpath, 'fb_rtlib.js')
+        else:
+            # -lidbfs.js to use localstorage (but not used yet)
+            extraflags += ' -lidbfs.js --preload-file data'
+            if False:
+                # Use FB's default shell
+                extraflags += ' --shell-file ' + os.path.join(libpath, 'fb_shell.html') + ' --post-js ' + os.path.join(libpath, 'fb_rtlib.js')
+            else:
+                extraflags += ' --shell-file ohrrpgce-shell-template.html'
+        basexe_gcc_action = '$CXX $CXXFLAGS -o $TARGET ' + extraflags + ' $SOURCES $CCLINKFLAGS'
     else:
         basexe_gcc_action = '$CC -o $TARGET $SOURCES "-Wl,-(" $CCLINKFLAGS "-Wl,-)"'
 
@@ -1139,28 +1155,29 @@ for k in music:
 if web:
     EMFLAGS = []
 
-    EMFLAGS += ['USE_OFFSET_CONVERTER']
     #EMFLAGS += ['USE_PTHREADS=1']
 
-    if False: #not linkgcc:
-        # These flags don't work
-        EMFLAGS += ['WASM=0']
-        #EMFLAGS += ['ASYNCIFY']
-        EMFLAGS += ['WARN_UNALIGNED=1']
-    else:
-        #EMFLAGS += ['BINARYEN_ASYNC_COMPILATION=0']
-        EMFLAGS += ['ASYNCIFY']
-        #EMFLAGS += ['WASM=0']
-        EMFLAGS += ['DEMANGLE_SUPPORT=1']
+    wasm = int(ARGUMENTS.get('wasm', '1'))
+    EMFLAGS += ['WASM=' + str(wasm)]
+
+    #EMFLAGS += ['BINARYEN_ASYNC_COMPILATION=0']
+    EMFLAGS += ['ASYNCIFY']
+
+    if wasm:
+        # Needed to convert wasm offsets to function names
+        EMFLAGS += ['USE_OFFSET_CONVERTER']
+    EMFLAGS += ['DEMANGLE_SUPPORT=1']
 
     #EMFLAGS += ['SHARED_MEMORY=1']
-    EMFLAGS += ['INITIAL_MEMORY=512MB']
+    EMFLAGS += ['INITIAL_MEMORY=256MB']
     #EMFLAGS += ['ALLOW_MEMORY_GROWTH=1']
     EMFLAGS += ['TOTAL_STACK=128MB']
-    EMFLAGS += ['ASSERTIONS=1']
 
-    # this should catch the problem at allocation
-    #EMFLAGS += ['SAFE_HEAP=1']
+    if debug >= 3:
+        EMFLAGS += ['ASSERTIONS=2']
+        # Check for bad pointer access including null pointers and alignment faults
+        EMFLAGS += ['SAFE_HEAP=1']
+        #EMFLAGS += ['WARN_UNALIGNED=1']
 
     emsdlflags = []
     if 'sdl' in gfx:
@@ -1177,6 +1194,10 @@ if web:
     else:
         env['FBLINKERFLAGS'] += emlinkflags
         commonenv['FBLINKERFLAGS'] += emlinkflags + emsdlflags
+
+    # Commandline programs should quit when done. Avoids a warning.
+    env['CCLINKFLAGS'] += ['-s', 'EXIT_RUNTIME']
+    env['FBLINKERFLAGS'] += ['-s', 'EXIT_RUNTIME']
 
     #commonenv['CCLINKFLAGS'] += ['-s','EXPORTED_FUNCTIONS=[\'_SDL_AtomicGet\', \'_SDL_AtomicSet\']']
 
@@ -1942,6 +1963,12 @@ Options:
                        32 or 64           32 or 64 bit variant of the default
                                           arch (x86 or ARM).
                       Current (default) value: """ + arch + """
+  wasm=0|1|2          (For Emscripten)
+                      0: compile to asm.js to support older browsers
+                      1: (default) compile to WebAssembly (.wasm)
+                      2: compile to both and select best at runtime.
+  for_node=1          (For Emscripten) Produce <target>.js that can be run with
+                      node.js, instead of <target>.html requiring a web browser.
   sse2=0              (x86 only). Disable SSE & SSE2 instructions to support
                       Pentium Pro+ rather than Pentium 4+. Runs slower.
   eulib=...           Only needed when cross-compiling hspeak. Path to eu.a
