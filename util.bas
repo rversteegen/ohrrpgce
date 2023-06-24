@@ -2916,7 +2916,7 @@ FUNCTION decode_filename(filename as string) as string
 
 #endif
 
-  debug "decode_filename(" & filename & ") = " & ret
+  'debug "decode_filename(" & filename & ") = " & ret
   RETURN ret
 END FUNCTION
 
