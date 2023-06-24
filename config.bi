@@ -121,6 +121,10 @@ CONST build_info as string = _GSTR _ESTR " FB_ERR=" STRINGIFY(__FB_ERR__) _GENST
  #define USE_X11
 #endif
 
+#if defined(__FB_JS__)
+ #define NO_TLS
+#endif
+
 '' __FB_X86__ was added in FB 1.08. Older versions support x86 and ARM only
 #if (__FB_VER_MAJOR__ * 100 + __FB_VER_MINOR__ < 108) and (not defined(__FB_ARM__)) and (not defined(__FB_X86__))
  #define __FB_X86__

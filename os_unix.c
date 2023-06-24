@@ -1086,6 +1086,13 @@ boolint on_main_thread() {
 	return pthread_equal(pthread_self(), main_thread_handle) ? YES : NO;
 }
 
+
+#ifdef NO_TLS
+
+// Thread local storage functions aren't called
+
+#else
+
 TLSKey tls_alloc_key() {
 	pthread_key_t key;
 	int ret = pthread_key_create(&key, NULL);
@@ -1106,3 +1113,5 @@ void *tls_get(TLSKey key) {
 void tls_set(TLSKey key, void *value) {
 	pthread_setspecific((pthread_key_t)key, value);
 }
+
+#endif

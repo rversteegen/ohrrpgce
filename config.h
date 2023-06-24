@@ -32,7 +32,11 @@
 */
 
 #if (defined(unix) || defined(__unix__)) && !defined(__APPLE__) && !defined(__ANDROID__) && !defined(NO_X11) && !defined(__EMSCRIPTEN__)
-# define USE_X11 1
+# define USE_X11
+#endif
+
+#if defined(__EMSCRIPTEN__)
+# define NO_TLS
 #endif
 
 #ifdef __MINGW64_VERSION_MAJOR
