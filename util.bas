@@ -4803,3 +4803,9 @@ FUNCTION format_date(timeser as double) as string
  IF timeser = 0 THEN RETURN "0"
  RETURN FORMAT(timeser, "yyyy mmm dd hh:mm:ss")
 END FUNCTION
+
+'----------------------------------------------------------------------
+
+#IFDEF __FB_MAIN__
+ print "All passed."
+#ENDIF
