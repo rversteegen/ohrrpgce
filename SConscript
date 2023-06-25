@@ -977,7 +977,7 @@ if linkgcc:
             extraflags += ' --pre-js print_to_console.js --post-js ' + os.path.join(libpath, 'fb_rtlib.js')
         else:
             # -lidbfs.js to use localstorage (but not used yet)
-            extraflags += ' -lidbfs.js --preload-file data'
+            extraflags += ' -lidbfs.js --preload-file data --preload-file ohrrpgce_arguments.txt'
             if False:
                 # Use FB's default shell
                 extraflags += ' --shell-file ' + os.path.join(libpath, 'fb_shell.html') + ' --post-js ' + os.path.join(libpath, 'fb_rtlib.js')

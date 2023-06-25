@@ -148,7 +148,7 @@ DIM tmpkind as integer
 IF scriptprofiling THEN start_fibre_timing
 
 scriptinsts(nowscript).started = YES
-next_interpreter_check_time = TIMER + scriptCheckDelay
+next_interpreter_check_time = TIMER + 0.1'scriptCheckDelay
 interruption_grace_period = YES
 
 interpretloop:
@@ -515,6 +515,9 @@ FUNCTION interpreter_occasional_checks () as integer
  IF calls_since_check < 250 THEN RETURN NO
  calls_since_check = 0
  IF TIMER > next_interpreter_check_time THEN
+  #IFDEF __FB_JS__
+   sleep 5
+  #ENDIF
   IF interrupting_keypress THEN
    IF interruption_grace_period THEN
     debuginfo "Script interpreter: ignoring interruption"
@@ -525,7 +528,7 @@ FUNCTION interpreter_occasional_checks () as integer
     RETURN script_interrupt()
    END IF
   END IF
-  next_interpreter_check_time = TIMER + scriptCheckInterval
+  next_interpreter_check_time = TIMER + 0.1'scriptCheckInterval
   interruption_grace_period = NO
  END IF
  RETURN NO
