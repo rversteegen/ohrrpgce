@@ -142,6 +142,7 @@ function music_get_info() as string
 	'Especially on Linux must make sure we don't load a different (system) .so
 	'to the one we're linked to (possibly a library in linux/$arch/)
 	'Don't really need to bother with dylib_noload on Windows
+/'
 	libhandle = dylib_noload(SONAME)
 	if libhandle then
 		_Mix_GetNumMusicDecoders = dylibsymbol(libhandle, "Mix_GetNumMusicDecoders")
@@ -155,7 +156,7 @@ function music_get_info() as string
 	else
 		debug "dylib_noload(" & SONAME & ") failed. Continuing"
 	end if
-
+'/
 	dim ver as const SDL_version ptr
 	if gfxbackend <> "sdl" andalso gfxbackend <> "sdl2" then
 		#ifdef SDL_MIXER2
