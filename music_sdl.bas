@@ -51,24 +51,41 @@ extern "C"
 
 declare function SDL_RWFromLump(byval lump as Lump ptr) as SDL_RWops ptr
 
-'The decoder enum functions are only available in SDL_mixer > 1.2.8 which is the version shipped with
-'Debian 6.0 Squeeze and hence older Ubuntu. Squeeze was superceded by 7.0 Wheezy in May 2013.
-'So don't depend on these functions.
-dim shared _Mix_GetNumMusicDecoders as function () as Sint32
-dim shared _Mix_GetNumChunkDecoders as function () as Sint32
-dim shared _Mix_GetMusicDecoder as function (byval index as Sint32) as zstring ptr
-dim shared _Mix_GetChunkDecoder as function (byval index as Sint32) as zstring ptr
 
 'We might not actually link to libmodplug, but want the type/enum declarations.
 'Warning: does #inclib "modplug", which we don't actually want.
 'Luckily as long as not building with "scons linkgcc=0", #inclibs are ignored.
 #include "modplug.bi"
+'#cmdline nolib "modplug"  'FB 1.10+
+
+#ifdef __FB_JS__
+
+#define HAVEFUNC(funcname)  true
+
+#else
+
+#define HAVEFUNC(funcname)  (funcname <> NULL)
+
+'The decoder enum functions are only available in SDL_mixer > 1.2.8 which is the version shipped with
+'Debian 6.0 Squeeze and hence older Ubuntu. Squeeze was superceded by 7.0 Wheezy in May 2013.
+'So don't depend on these functions.
+#undef Mix_GetNumMusicDecoders
+dim shared Mix_GetNumMusicDecoders as function () as Sint32
+#undef Mix_GetNumChunkDecoders
+dim shared Mix_GetNumChunkDecoders as function () as Sint32
+#undef Mix_GetMusicDecoder
+dim shared Mix_GetMusicDecoder as function (byval index as Sint32) as zstring ptr
+#undef Mix_GetChunkDecoder
+dim shared Mix_GetChunkDecoder as function (byval index as Sint32) as zstring ptr
 
 'These are only available if SDL_mixer has been statically linked with libmodplug and
 'exports its symbols (as our builds of SDL_mixer for Windows and Mac do)
-dim shared _ModPlug_GetSettings as sub (byval settings as ModPlug_Settings ptr)
-dim shared _ModPlug_SetSettings as sub (byval settings as const ModPlug_Settings ptr)
+#undef ModPlug_GetSettings
+dim shared ModPlug_GetSettings as sub (byval settings as ModPlug_Settings ptr)
+#undef ModPlug_SetSettings
+dim shared ModPlug_SetSettings as sub (byval settings as const ModPlug_Settings ptr)
 
+#endif  'ifndef __FB_JS__
 
 #ifndef MIX_INIT_MID
 	'Exists in SDL_mixer 2 only (but missing from older FB headers).
@@ -138,25 +155,29 @@ function music_get_info() as string
 		ret = "music_sdl"
 	#endif
 
-	dim libhandle as any ptr
-	'Especially on Linux must make sure we don't load a different (system) .so
-	'to the one we're linked to (possibly a library in linux/$arch/)
-	'Don't really need to bother with dylib_noload on Windows
-/'
-	libhandle = dylib_noload(SONAME)
-	if libhandle then
-		_Mix_GetNumMusicDecoders = dylibsymbol(libhandle, "Mix_GetNumMusicDecoders")
-		_Mix_GetNumChunkDecoders = dylibsymbol(libhandle, "Mix_GetNumChunkDecoders")
-		_Mix_GetMusicDecoder = dylibsymbol(libhandle, "Mix_GetMusicDecoder")
-		_Mix_GetChunkDecoder = dylibsymbol(libhandle, "Mix_GetChunkDecoder")
-		'libmodplug is statically linked into our Windows SDL_mixer.dll
-		'and our SDL2_mixer.dll before 2.6.1 (which switched to libxmp-lite),
-		_ModPlug_GetSettings = dylibsymbol(libhandle, "ModPlug_GetSettings")
-		_ModPlug_SetSettings = dylibsymbol(libhandle, "ModPlug_SetSettings")
-	else
-		debug "dylib_noload(" & SONAME & ") failed. Continuing"
-	end if
-'/
+	#ifndef __FB_JS__
+		dim libhandle as any ptr
+		'Especially on Linux must make sure we don't load a different (system) .so
+		'to the one we're linked to (possibly a library in linux/$arch/)
+		'Don't really need to bother with dylib_noload on Windows
+
+		#define TRYLOAD(procedure) procedure = dylibsymbol(libhandle, #procedure)
+
+		libhandle = dylib_noload(SONAME)
+		if libhandle then
+			TRYLOAD(Mix_GetNumMusicDecoders)
+			TRYLOAD(Mix_GetNumChunkDecoders)
+			TRYLOAD(Mix_GetMusicDecoder)
+			TRYLOAD(Mix_GetChunkDecoder)
+			'libmodplug is statically linked into our Windows SDL_mixer.dll
+			'and our SDL2_mixer.dll before 2.6.1 (which switched to libxmp-lite),
+			TRYLOAD(ModPlug_GetSettings)
+			TRYLOAD(ModPlug_SetSettings)
+		else
+			debug "dylib_noload(" & SONAME & ") failed. Continuing"
+		end if
+	#endif
+
 	dim ver as const SDL_version ptr
 	if gfxbackend <> "sdl" andalso gfxbackend <> "sdl2" then
 		#ifdef SDL_MIXER2
@@ -185,11 +206,11 @@ function music_get_info() as string
 		#endif
 
 		have_modplug = NO
-		if _Mix_GetNumMusicDecoders andalso _Mix_GetMusicDecoder then
+		if HAVEFUNC(Mix_GetNumMusicDecoders) andalso HAVEFUNC(Mix_GetMusicDecoder) then
 			ret += ", Music decoders:"
-			for i as integer = 0 to _Mix_GetNumMusicDecoders() - 1
+			for i as integer = 0 to Mix_GetNumMusicDecoders() - 1
 				if i > 0 then ret += ","
-				dim form as string = *_Mix_GetMusicDecoder(i)
+				dim form as string = *Mix_GetMusicDecoder(i)
 				ret += form
 
 				'SDL2_mixer lists the file formats in the list of decoders,
@@ -232,19 +253,21 @@ function music_get_info() as string
 			supported_formats = FORMAT_BAM or FORMAT_MIDI or FORMAT_MODULES or FORMAT_OGG or FORMAT_WAV
 		end if
 
-		if _Mix_GetNumChunkDecoders andalso _Mix_GetChunkDecoder then
+		if HAVEFUNC(Mix_GetNumChunkDecoders) andalso HAVEFUNC(Mix_GetChunkDecoder) then
 			'BTW, SDL_mixer 1.2 doesn't support playing .mp3 sound effects (chunks)!
 			ret += " Sample decoders:"
-			for i as integer = 0 to _Mix_GetNumChunkDecoders() - 1
+			for i as integer = 0 to Mix_GetNumChunkDecoders() - 1
 				if i > 0 then ret += ","
-				ret += *_Mix_GetChunkDecoder(i)
+				ret += *Mix_GetChunkDecoder(i)
 			next
 		end if
 
 		ret += ")"
 	end if
 
-	if libhandle then dylibfree(libhandle)
+	#ifndef __FB_JS__
+		if libhandle then dylibfree(libhandle)
+	#endif
 
 	return ret
 end function
@@ -408,7 +431,7 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 
 		music_stop
 
-		#ifndef __FB_WIN32__
+		#if not defined(__FB_WIN32__) and not defined(__FB_JS__)
 			if getmusictype(songname) and FORMAT_MODULES then
 				'Hack. Work around SDL_mixer bug 1499: SDL_mixer (before Jan 2021)
 				'and SDL2_mixer (before 2.6.0) did not enable loop points in modplug
@@ -833,7 +856,7 @@ type ModplugSettingsMenu extends ModularMenu
 end type
 
 sub ModplugSettingsMenu.update ()
-	_ModPlug_SetSettings(@settings)
+	ModPlug_SetSettings(@settings)
 
 	redim menu(4)
 	state.last = ubound(menu)
@@ -865,14 +888,14 @@ function ModplugSettingsMenu.each_tick () as bool
 end function
 
 function modplug_settings_menu () as bool
-	if _ModPlug_GetSettings = NULL or _ModPlug_SetSettings = NULL then return NO
+	if HAVEFUNC(ModPlug_GetSettings) = NO orelse HAVEFUNC(ModPlug_SetSettings) = NO then return NO
 
 	dim menu as ModplugSettingsMenu
 	menu.floating = YES
 	menu.tooltip = "ModPlug settings (not saved)"
-	_ModPlug_GetSettings(@menu.settings)
+	ModPlug_GetSettings(@menu.settings)
 	menu.run()
-	_ModPlug_SetSettings(@menu.settings)
+	ModPlug_SetSettings(@menu.settings)
 	return YES
 end function
 
@@ -880,7 +903,7 @@ function music_settings_menu () as bool
 	return modplug_settings_menu()
 end function
 
-#ifndef __FB_WIN32__
+#if not defined(__FB_WIN32__) and not defined(__FB_JS__)
 'Try to override SDL_mixer's disabling of loop points in ModPlug.
 'Does not affect any currently playing module.
 'Not needed if using our SDL_mixer.dll on Windows.
@@ -896,7 +919,7 @@ sub enable_modplug_looping ()
 	'Don't go loading modplug if SDL_mixer isn't using it
 	if have_modplug = NO then exit sub
 
-	if _ModPlug_GetSettings = NULL orelse _ModPlug_SetSettings = NULL then
+	if HAVEFUNC(ModPlug_GetSettings) = NO orelse HAVEFUNC(ModPlug_SetSettings) = NO then
 		'Using NULL as the module handle doesn't work, as SDL_mixer doesn't
 		'load modplug into the global namespace.
 		#ifdef __FB_DARWIN__
@@ -907,10 +930,10 @@ sub enable_modplug_looping ()
 		end if
 		if modplug_handle then
 			debuginfo "Loaded libmodplug"
-			_ModPlug_GetSettings = dylibsymbol(modplug_handle, "ModPlug_GetSettings")
-			_ModPlug_SetSettings = dylibsymbol(modplug_handle, "ModPlug_SetSettings")
+			ModPlug_GetSettings = dylibsymbol(modplug_handle, "ModPlug_GetSettings")
+			ModPlug_SetSettings = dylibsymbol(modplug_handle, "ModPlug_SetSettings")
 
-			if _ModPlug_GetSettings = NULL orelse _ModPlug_SetSettings = NULL then
+			if HAVEFUNC(ModPlug_GetSettings) = NO orelse HAVEFUNC(ModPlug_SetSettings) = NO then
 				debuginfo "ModPlug_Get/SetSettings missing!"
 				exit sub
 			end if
@@ -921,13 +944,13 @@ sub enable_modplug_looping ()
 	end if
 
 	dim settings as ModPlug_Settings
-	_ModPlug_GetSettings(@settings)
+	ModPlug_GetSettings(@settings)
 	if settings.mLoopCount = -1 then
 		'debuginfo "ModPlug looping already enabled"
 	else
 		debuginfo "Enabling ModPlug looping"
 		settings.mLoopCount = -1
-		_ModPlug_SetSettings(@settings)
+		ModPlug_SetSettings(@settings)
 	end if
 end sub
 #endif
