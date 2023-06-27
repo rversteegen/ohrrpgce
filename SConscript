@@ -979,7 +979,7 @@ if linkgcc:
         basexe_gcc_action = '$CC -o $TARGET $SOURCES "-Wl,-(" $CCLINKFLAGS "-Wl,-)"'
 
     basexe = Builder(action = [basexe_gcc_action, check_binary, handle_symbols], suffix = exe_suffix,
-                     src_suffix = '.bas', emitter = compile_bas_modules)
+                     src_suffix = '.bas', emitter = compile_bas_modules, prefix=destdir) #'webout/')
 
     env['BUILDERS']['BASEXE'] = basexe
 
@@ -1258,10 +1258,10 @@ elif unix:  # Unix+X11 systems: Linux & BSD
     if not minos and ('sdl' in gfx or 'fb' in gfx):
         # These files are taken from SDL2, so gfx_sdl2 doesn't need them
         common_modules += ['lib/SDL/SDL_x11clipboard.c', 'lib/SDL/SDL_x11events.c']
-    if gfx == ['console'] or minos:
+    if gfx == ['console']:
         commonenv['FBFLAGS'] += ['-d', 'NO_X11']
         commonenv['CFLAGS'] += ['-DNO_X11']
-    else:
+    elif not minos:
         # All graphical gfx backends need the X11 libs
         common_libraries += 'X11 Xext Xpm Xrandr Xrender Xinerama'.split (' ')
         common_modules += ['lib/x11_printerror.c']
