@@ -58,6 +58,11 @@
     </div>
     <hr/>
     <div class="emscripten">
+      Add file
+      <input type="file" id="ohrfileinput" onchange="load_file()">
+      Location:
+      <input type="text" readonly id="ohrfilepath" >
+      <!-- <input type="button" onclick="syncFS()" value="Save"> -->
       <input type="checkbox" id="resize">Resize canvas
       <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
       &nbsp;&nbsp;&nbsp;
@@ -72,9 +77,53 @@
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
 
+      document.getElementById('ohrfilepath').value = "/workspace/";
+
+      let reader= new FileReader();
+
+      function load_file() {
+        let files = document.getElementById('ohrfileinput').files;
+        let path = document.getElementById('ohrfilepath').value;
+        let file = files[0];
+
+        // Define the loadend event handler
+        reader.addEventListener('loadend', function() {
+          console.log("writing file: "+file.name+" to location: "+path)
+          FS.writeFile(path + file.name, new Uint8Array(reader.result));
+        });
+
+        // Read the file as an ArrayBuffer
+        reader.readAsArrayBuffer(file);
+      }
+
+      function syncFS() {
+        console.log("syncing indexdb");
+
+          FS.syncfs(true, function(err) {
+            if (err) {
+            console.error("problem with FS"+ err)
+            } else {
+              console.debug("IndexDB filesystem ready");
+            }
+          });
+      }
+
       var Module = {
-        preRun: [],
         postRun: [],
+        preRun: [function() {
+          // make the game directory writable
+          FS.mkdir("/workspace");
+          FS.mount(IDBFS, {}, '/workspace');
+
+          FS.mkdir("/home/web_user/.ohrrpgce");
+          FS.mount(IDBFS, {}, '/home/web_user/.ohrrpgce');
+
+          // sync FS before application starts
+          Module['addRunDependency']("SYNC_DATA");
+          syncFS()
+          Module['removeRunDependency']("SYNC_DATA");
+
+        }],
         print: (function() {
           var element = document.getElementById('output');
           if (element) element.value = ''; // clear browser cache
