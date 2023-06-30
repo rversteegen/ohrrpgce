@@ -978,8 +978,11 @@ if linkgcc:
     else:
         basexe_gcc_action = '$CC -o $TARGET $SOURCES "-Wl,-(" $CCLINKFLAGS "-Wl,-)"'
 
+    target_prefix = destdir
+    if destdir:
+        target_prefix += os.path.sep
     basexe = Builder(action = [basexe_gcc_action, check_binary, handle_symbols], suffix = exe_suffix,
-                     src_suffix = '.bas', emitter = compile_bas_modules, prefix=destdir) #'webout/')
+                     src_suffix = '.bas', emitter = compile_bas_modules, prefix = target_prefix)
 
     env['BUILDERS']['BASEXE'] = basexe
 
@@ -1036,7 +1039,7 @@ if web:
     EMFLAGS += ['EXIT_RUNTIME']
 
     EMFLAGS += ['INITIAL_MEMORY=128MB']
-    #EMFLAGS += ['ALLOW_MEMORY_GROWTH=1']
+    EMFLAGS += ['ALLOW_MEMORY_GROWTH=1']
     #EMFLAGS += ['MALLOC=emmalloc']  # Simpler/smaller allocator
 
     if debug >= 3:

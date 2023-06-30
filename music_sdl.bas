@@ -848,6 +848,15 @@ end function
 '
 ' This is obsolete since we now use libxmp instead of libmodplug whenever possible.
 
+#ifdef __FB_JS__
+' Not linked to modplug.
+
+function music_settings_menu () as bool
+	return NO
+end function
+
+#else
+
 type ModplugSettingsMenu extends ModularMenu
 	settings as ModPlug_Settings
 
@@ -902,6 +911,8 @@ end function
 function music_settings_menu () as bool
 	return modplug_settings_menu()
 end function
+
+#endif
 
 #if not defined(__FB_WIN32__) and not defined(__FB_JS__)
 'Try to override SDL_mixer's disabling of loop points in ModPlug.
