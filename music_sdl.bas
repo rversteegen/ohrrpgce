@@ -657,7 +657,7 @@ sub sound_play(slot as integer, loopcount as integer, volume as single = 1.)
 			' which is just a simplification.
 			if Mix_PlayChannel(slot, .buf, loopcount) = -1 then
 				'E.g. a corrupt .ogg
-				debug "sfx " & .effectID & " Mix_PlayChannel failed:" & *Mix_GetError()
+				debug "sfx " & .effectID & " Mix_PlayChannel failed: " & *Mix_GetError()
 				exit sub
 			end if
 			.playing = YES

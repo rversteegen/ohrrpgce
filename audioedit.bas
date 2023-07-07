@@ -758,7 +758,9 @@ DO
     END IF
   CASE 1, 6
     IF sfxfile <> "" THEN 'play sfx
-      playsfx sfxnum, 0
+      IF playsfx(sfxnum, 0) = NO THEN
+       metadata += !"\nCouldn't play, possibly corrupt"
+      END IF
     END IF
 
   END SELECT

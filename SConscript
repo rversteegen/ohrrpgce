@@ -1098,7 +1098,7 @@ if win32:
         # Temp workaround for bug #1241 when compiling with mingw-w64 6.0.0 (currently used for official builds) to support Win95-2k
         base_modules += ['lib/___mb_cur_max_func.c']
     common_libraries += ['fbgfxmt', 'fbmt']   # For display_help_string
-    commonenv['FBFLAGS'] += ['-s','gui']  # Change to -s console to see 'print' statements in the console!
+    commonenv['FBFLAGS'] += ['-s','console']  # Change to -s console to see 'print' statements in the console!
     commonenv['CCLINKFLAGS'] += ['-lgdi32', '-Wl,--subsystem,windows']
     #env['CCLINKFLAGS'] += ['win32/CrashRpt1403.lib']  # If not linking the .dll w/ LoadLibrary
     env['CFLAGS'] += ['-I', 'win32/include']

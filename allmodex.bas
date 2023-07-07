@@ -1757,7 +1757,7 @@ end sub
 
 ' loopcount N to play N+1 times, -1 to loop forever
 ' See set_sfx_volume for description of volume_mult.
-sub playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1.)
+function playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1.) as bool
 	var prev_subtimer = main_timer.switch(TimerIDs.FileIO)
 	dim slot as integer
 	' If already loaded can reuse without reloading.
@@ -1767,13 +1767,14 @@ sub playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1
 	slot = sound_slot_with_id(num)
 	if slot = -1 then
 		slot = sound_load(find_sfx_lump(num), num)
-		if slot = -1 then exit sub
+		if slot = -1 then return NO
 	end if
 	'debug "playsfx volume_mult=" & volume_mult & " global_sfx_volume " & global_sfx_volume
 	sound_play(slot, loopcount, volume_mult * global_sfx_volume)
 	IF_PTR(sound_slotdata(slot))->original_volume = volume_mult
 	main_timer.switch(prev_subtimer)
-end sub
+	return YES
+end function
 
 sub resetsfx ()
 	' Stops playback and unloads cached sound effects
