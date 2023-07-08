@@ -343,6 +343,7 @@ FUNCTION gfx_sdl2_init(byval terminate_signal_handler as sub cdecl (), byval win
   SDL_SetHint("SDL_IME_INTERNAL_EDITING", "1")  'SDL_HINT_IME_INTERNAL_EDITING not in old FB headers
   'Return key on on-screen keyboard acts as 'done'
   SDL_SetHint("SDL_RETURN_KEY_HIDES_IME", "1")  'SDL_HINT_RETURN_KEY_HIDES_IME not in FB's header yet
+  SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas")
   'Don't minimise the window if it loses focus while fullscreen - it's annoying if you
   'have multiple monitors and you move the mouse to another monitor
   SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0")

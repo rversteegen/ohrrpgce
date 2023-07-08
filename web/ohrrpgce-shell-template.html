@@ -54,7 +54,7 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
     <div class="emscripten_border">
-      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=0></canvas>
     </div>
     <hr/>
     <div class="emscripten">
@@ -73,6 +73,18 @@
     <hr/>
     <textarea class="emscripten" id="output" rows="8"></textarea>
     <script type='text/javascript'>
+
+//       for (var elmt of document.getElementsByTagName('input')) {
+// //for (var id of ['output', 'ohrfileinput', 'ohrfilepath']) {
+//   //  var elmt = document.getElementById(id);
+// console.log(elmt);
+//           elmt.addEventListener('keydown', (event) => event.preventDefault());
+//           elmt.addEventListener('keypress', (event) => event.preventDefault());
+// console.log(elmt.onkeydown);
+//           // Don't block onkeyup
+//       }
+
+
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
