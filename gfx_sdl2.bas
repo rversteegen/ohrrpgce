@@ -28,6 +28,10 @@
 
 EXTERN "C"
 
+extern __fb_key_event_element as zstring ptr
+dim __fb_key_event_element as zstring ptr = @"#canvas"
+
+
 #define KMOD_META  KMOD_GUI  'Renamed in SDL2
 
 'Older FB releases (before 1.06?) only have headers for SDL 2.0.3 (Mar 2014). Declaring these is
