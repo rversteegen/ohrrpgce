@@ -29,7 +29,7 @@
 EXTERN "C"
 
 extern __fb_key_event_element as zstring ptr
-dim __fb_key_event_element as zstring ptr = @"#canvas"
+dim __fb_key_event_element as zstring ptr = NULL ' @"#canvas"
 
 
 #define KMOD_META  KMOD_GUI  'Renamed in SDL2
