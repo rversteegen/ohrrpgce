@@ -111,6 +111,7 @@ DECLARE SUB log_error(failed_call as zstring ptr, funcname as zstring ptr)
 
 DIM SHARED zoom as integer = 2  'Size of a pixel
 DIM SHARED smooth_zoom as integer = 2  'Amount to zoom before applying smoothing
+DIM SHARED prev_windsize as XYPair
 DIM SHARED smooth as integer = 0  'Smoothing mode (0 or 1)
 DIM SHARED mainwindow as SDL_Window ptr = NULL
 DIM SHARED mainrenderer as SDL_Renderer ptr = NULL
@@ -386,6 +387,7 @@ FUNCTION gfx_sdl2_init(byval terminate_signal_handler as sub cdecl (), byval win
   ret &= ") Render driver: "
 
   remember_window_size = 0
+  prev_windsize = 0
 
   sdlpalette = SDL_AllocPalette(256)
   CheckOK(sdlpalette = NULL, RETURN 0)
@@ -463,8 +465,11 @@ LOCAL FUNCTION recreate_window(byval bitdepth as integer = 0) as bool
       debug "Failed to open display (windowed = " & windowedmode & "): " & *SDL_GetError
       RETURN 0
     END IF
+
+    prev_windsize = windowsize
     EXIT DO
   LOOP
+
 
   DIM force_driver as string = read_config_str("gfx.gfx_sdl2.render_driver")
   IF LEN(force_driver) THEN
@@ -581,6 +586,7 @@ LOCAL SUB set_window_size(newframesize as XYPair, newzoom as integer, actually_r
       'If we're fullscreened, takes effect when unfullscreening (unless resizable_window,
       'in which case we restore previous size)
       SDL_SetWindowSize(mainwindow, zoom * framesize.w, zoom * framesize.h)
+prev_windsize = framesize * zoom
     END IF
     'Still should update the viewport if actually_resize = NO, because the window size
     'may have been changed externally (without this, the window becomes quite wobbly)
@@ -638,6 +644,17 @@ LOCAL FUNCTION present_internal(raw as any ptr, imagesz as XYPair, bitdepth as i
     set_window_size(imagesz, zoom, resize_requested = NO ANDALSO resize_pending = NO)
   END IF
   resize_pending = NO
+
+
+                DIM oldsz as XYPair
+                'DIM newsz as Float2 = XYF(evnt.window.data1, evnt.window.data2)
+                SDL_GetWindowSize(mainwindow, @oldsz.w, @oldsz.h)
+                IF prev_windsize <> oldsz THEN
+                  SDL_SetWindowSize(mainwindow, prev_windsize.w, prev_windsize.h)
+                END IF
+
+
+
 
   DIM pitch as integer = imagesz.w * IIF(bitdepth = 32, 4, 1)
 
@@ -814,6 +831,7 @@ SUB gfx_sdl2_setwindowed(byval towindowed as bool)
   leaving_fullscreen = (towindowed = YES ANDALSO windowedmode = NO)
   IF entering_fullscreen THEN
     remember_window_size = framesize * zoom
+    'remember_window_size = actual WindowSize...
     IF debugging_io THEN debuginfo "remembering window size " & remember_window_size
   END IF
 
@@ -860,12 +878,14 @@ SUB gfx_sdl2_setwindowed(byval towindowed as bool)
     'unmaximises under X11/xfce4 (at least), this doesn't happen on WinXP or Win10, so do it manually.
     'Likewise, on Windows if you change the zoom while fullscreened the window doesn't
     'restore its position when unfullscreening, though it does otherwise, and on xfce4.
+    'NOTE: returning to integer scale, doesn't matter.
     IF debugging_io THEN debuginfo "Restoring window size to " & remember_window_size
     DIM minsize as XYPair = min_window_resolution * zoom
     resize_request = large(min_window_resolution, remember_window_size \ zoom)
     'If the remembered size isn't different, nothing to do
     resize_requested = (resize_request <> framesize)
     SDL_SetWindowSize mainwindow, resize_request.w * zoom, resize_request.h * zoom
+    prev_windsize = resize_request * zoom
   END IF
 
   'Mouse region needs recomputing after either scale/zoom or window size change
@@ -1321,6 +1341,30 @@ SUB gfx_sdl2_process_events()
               IF debugging_io THEN debuginfo "set_window_size in response to SDL_WINDOWEVENT_RESIZED"
               IF resizable_window = NO THEN
                 set_window_size framesize, zoom, YES
+              ELSEIF prev_windsize <> 0 THEN
+
+
+'Disallow black bars
+
+                'DIM oldsz as XYPair
+                DIM newsz as Float2 = XYF(evnt.window.data1, evnt.window.data2)
+                'SDL_GetWindowSize(mainwindow, @oldsz.w, @oldsz.h)
+
+?prev_windsize , "->", newsz
+                DIM scales as Float2 = newsz / prev_windsize
+                DIM scale as double
+                IF scales.x * scales.y < 1.0 THEN
+                  'User decreased size
+                  scale = small(scales.x, scales.y)
+                ELSE
+                  scale = large(scales.x, scales.y)
+                END IF
+                newsz = TYPE<Float2>(prev_windsize) * scale
+?" resize to", newsz
+                SDL_SetWindowSize(mainwindow, newsz.w, newsz.h)
+
+                prev_windsize = newsz
+
               END IF
             END IF
           END IF
