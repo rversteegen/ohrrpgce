@@ -392,7 +392,9 @@ define function, begin
 363,nextsibling,1,0           #return the next sibling of a slice or 0 if none
 364,createcontainer,2,0,0     #create a container slice (width, height)
 365,setparent,2,0,0           #move a slice to a new parent
+365,setsliceparent,2,0,0           #move a slice to a new parent
 366,checkparentage,2,0,0      #check to see if a slice is a child (or grandchild) of another
+366,slicedescendsfrom,2,0,0   #check to see if a slice is a child (or grandchild) of another
 367,slicescreenx,1,0          #return a slice's x position relative to the screen
 368,slicescreeny,1,0          #return a slice's y position relative to the screen
 369,sliceiscontainer,1,0      #return true if a slice is a container
@@ -433,9 +435,11 @@ define function, begin
 404,lastchild,1,0             #find the last child of a parent slice
 405,ysortchildren,1,0         #sort the children of a slice by Y value
 406,setsortorder,2,0,0        #set sort value on a slice for sortchildren
+406,setslicesortorder,2,0,0        #set sort value on a slice for sortchildren
 407,sortchildren,2,0,1        #sort siblings by their setsortorder value
 408,previoussibling,1,0       #return the previous sibling of a slice or 0 if none
 409,getsortorder,1,0          #get sort value for sortchildren for a slice
+409,getslicesortorder,1,0          #get sort value for sortchildren for a slice
 410,getsliceextra,2,0,0       #get slice extra (0-2) data (slice, extra)
 411,setsliceextra,3,0,0,0     #set slice extra (0-2) data (slice, extra, value)
 412,getspritetype,1,0         #get type of a sprite slice or -1 if not
@@ -452,17 +456,22 @@ define function, begin
 423,gettextcolor,1,0          #return a text strings color
 424,settextcolor,2,0,0        #change a text strings color
 425,getwrap,1,0               #return true if a text slice wraps
+425,gettextwrap,1,0               #return true if a text slice wraps
 426,setwrap,2,0,1             #change the wrapping state of a text slice
+426,settextwrap,2,0,1             #change the wrapping state of a text slice
 427,sliceistext,1,0           #return true if the given slice handle is a text slice
 428,gettextbg,1,0             #return text background color
 429,settextbg,2,0,0           #change text background color
 430,getoutline,1,0            #return true if text uses outline
+430,gettextoutline,1,0            #return true if text uses outline
 431,setoutline,2,0,1          #change text's outline mode
+431,settextoutline,2,0,1          #change text's outline mode
 432,usemenuitem,1,0           #given a menu item handle, activate it
 433,sliceatpixel,6,0,0,0,0,1,0  #find descendant or child slices containing a screen position
 434,findcollidingslice,5,0,0,0,1,0 #find descendant or child slices colliding with a slice
 435,parentslice,1,0           #return a slice's parent
 435,sliceparent,1,0           #alias
+435,getsliceparent,1,0           #alias
 436,childcount,1,0            #return number of children of a slice
 437,lookupslice,2,0,0         #find a slice using a lookup code constant (lookup, root)
 438,resetgame,-1              #reset the game (newgame args)
@@ -603,8 +612,10 @@ define function, begin
 571,setactivebattlepauseonallmenus,1,0, #(true/false) change the global bitset (not saved)
 572,dissolvesprite,6,0,0,-1,0,0,1 #(slice handle, dissolve:type, ticks, start tick, backwards, auto animate)
 573,canceldissolve,1,0        #(slice handle) stop/reset dissolve
+573,cancelspritedissolve,1,0        #(slice handle) stop/reset dissolve
 574,spriteisdissolving,1,0    #(slice handle) return true if sprite is in the middle of a dissolve state
 575,waitfordissolve,1,0       #(slice handle) wait for an "dissolve sprite" command to finish (only if auto animate)
+575,waitforspritedissolve,1,0       #(slice handle) wait for an "dissolve sprite" command to finish (only if auto animate)
 576,hidevirtualgamepad,0      # force-hide virtual gamepad on platforms that support it
 577,showvirtualgamepad,0      # force-show virtual gamepad on platforms that support it
 578,autovirtualgamepad,0      # automatic show/hide virtual gamepad on platforms that support it (default)
@@ -1993,6 +2004,13 @@ script, move slice to screen pos, hsd:sl, hsd:newx, hsd:newy, hsd:ticks, begin
 end
 
 script, set padding, hsd:sl, hsd:newpadding, begin
+  set left padding  (hsd:sl, hsd:newpadding)
+  set right padding (hsd:sl, hsd:newpadding)
+  set top padding   (hsd:sl, hsd:newpadding)
+  set bottom padding(hsd:sl, hsd:newpadding)
+end
+
+script, set slice padding, hsd:sl, hsd:newpadding, begin
   set left padding  (hsd:sl, hsd:newpadding)
   set right padding (hsd:sl, hsd:newpadding)
   set top padding   (hsd:sl, hsd:newpadding)

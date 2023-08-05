@@ -8993,14 +8993,17 @@ end
 				<ref>lookupnextslice</ref>
 			</seealso>
 		</command>
-
-		<command id="checkparentage">
-			<canon>check parentage (handle, ancestor handle)</canon>
-			<shortname>check parentage</shortname>
+		<command id="slicedescendsfrom">
+			<canon>slice descends from (slice, ancestor)</canon>
+			<shortname>slice descends from</shortname>
+			<altcommand id="checkparentage">
+				<canon>check parentage (slice, ancestor)</canon>
+				<shortname>check parentage</shortname>
+			</altcommand>
 			<description>
-				Checks to see if <p>handle</p> is a <ref>descendent</ref> of <p>ancestor handle</p>.
+				Checks whether <p>slice</p> is a <ref>descendent</ref> of <p>ancestor</p>.
 				Returns <ref>true</ref> or <ref>false</ref>.
-				The result is <tt>false</tt> if <tt>handle == ancestor handle</tt>.
+				The result is <tt>false</tt> if <tt>slice == ancestor</tt>.
 			</description>
 			<seealso>
 				<ref>parentslice</ref>
