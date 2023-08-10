@@ -45,10 +45,14 @@ ENUM LoadOptions
 	optNone = 0
 	optNoDelay = 1        'Load whole file into memory immediately
 	optIgnoreMissing = 2  'Don't print an error if the file is missing
+	optLiteNodes = 4
 END ENUM
 
 TYPE DocPtr as Doc ptr
 TYPE NodePtr as Node ptr
+TYPE LiteNodePtr as LiteNode ptr
+
+
 
 #if defined(RELOADINTERNAL) or __FB_DEBUG__
 	TYPE HashPtr as ReloadHash ptr
@@ -61,6 +65,7 @@ TYPE NodePtr as Node ptr
 	TYPE Doc
 		version as integer
 		root as NodePtr
+		isLite as bool
 		strings as StringTableEntry ptr
 		numStrings as integer
 		numAllocStrings as integer
@@ -83,11 +88,10 @@ TYPE NodePtr as Node ptr
 	ENUM NodeFlags
 		nfNotLoaded = 1   'Children of this node haven't been loaded. NOTE: numChildren has real value!
 		nfProvisional = 2 'When saving, ignore this node if has no children
+		nfLite = 3 'When saving, ignore this node if has no children
 	END ENUM
-	
-	TYPE Node
-		'name as string
-		name as zstring ptr
+
+	TYPE LiteNode
 		namenum as short   'in the string table, used while loading
 		nodeType as ubyte
 		flags as ubyte
@@ -99,15 +103,21 @@ TYPE NodePtr as Node ptr
 				strSize as integer
 			End Type
 		end Union
-		numChildren as integer
-		children as NodePtr   'aka firstChild
-		lastChild as NodePtr
 		doc as DocPtr
+		' NOTE: if this is a LiteNode, not a Node, then these are pointers to LiteNodes
 		parent as NodePtr
 		nextSib as NodePtr
+		children as NodePtr   'aka firstChild
+	END TYPE
+
+	TYPE Node EXTENDS LiteNode
+		name as zstring ptr
+		numChildren as integer
+		lastChild as NodePtr
 		prevSib as NodePtr
 		fileLoc as integer
 	END TYPE
+
 #else
 	TYPE Doc
 		thisIsPrivate as ubyte
@@ -121,17 +131,17 @@ TYPE NodePtr as Node ptr
 Declare Function CreateDocument() as DocPtr
 Declare Function CreateNode overload(byval doc as DocPtr, nam as zstring ptr) as NodePtr
 Declare Function CreateNode(byval nod as NodePtr, nam as zstring ptr) as NodePtr
-Declare sub FreeChildren(byval nod as NodePtr)
+Declare sub FreeChildren(byval nod as LiteNodePtr)
 Declare sub FreeNode(byval nod as NodePtr)
 Declare sub FreeDocument(byval doc as DocPtr)
 Declare sub RenameNode(byval nod as NodePtr, newname as zstring ptr)
 Declare sub RemoveProvisionalNodes(byval nod as NodePtr)
-Declare sub MarkProvisional(byval nod as NodePtr)
-Declare sub SetContent Overload (byval nod as NodePtr, dat as string)
-Declare sub SetContent(byval nod as NodePtr, byval zstr as zstring ptr, byval size as integer)
-Declare sub SetContent(byval nod as NodePtr, byval dat as longint)
-Declare sub SetContent(byval nod as NodePtr, byval dat as double)
-Declare sub SetContent(byval nod as NodePtr)
+Declare sub MarkProvisional(byval nod as LiteNodePtr)
+Declare sub SetContent Overload (byval nod as LiteNodePtr, dat as string)
+Declare sub SetContent(byval nod as LiteNodePtr, byval zstr as zstring ptr, byval size as integer)
+Declare sub SetContent(byval nod as LiteNodePtr, byval dat as longint)
+Declare sub SetContent(byval nod as LiteNodePtr, byval dat as double)
+Declare sub SetContent(byval nod as LiteNodePtr)
 Declare sub AddSiblingBefore(byval sib as NodePtr, byval nod as NodePtr)
 Declare sub AddSiblingAfter(byval sib as NodePtr, byval nod as NodePtr)
 Declare sub AddChild(byval par as NodePtr, byval nod as NodePtr)
@@ -171,7 +181,7 @@ Declare Sub SwapSiblingNodes(byval nod1 as NodePtr, byval nod2 as NodePtr)
 Declare Sub SwapNodePrev(byval node as Nodeptr)
 Declare Sub SwapNodeNext(byval node as Nodeptr)
 Declare Function CloneNodeTree(byval nod as NodePtr, byval doc as DocPtr=0) as NodePtr
-Declare Function NodeHasAncestor(byval nod as NodePtr, byval possible_parent as NodePtr) as bool
+Declare Function NodeHasAncestor(byval nod as LiteNodePtr, byval possible_parent as LiteNodePtr) as bool
 
 'Helper functions:
 Declare Function GetOrCreateChild Overload (byval parent as NodePtr, n as zstring ptr) as NodePtr

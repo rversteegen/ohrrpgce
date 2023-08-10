@@ -202,7 +202,7 @@ sub RenameNode(byval nod as NodePtr, newname as zstring ptr)
 end sub
 
 'Efficiently free the children of a node
-sub FreeChildren(byval nod as NodePtr)
+sub FreeChildren(byval nod as LiteNodePtr)
 	BUG_IF(nod = NULL, "ptr already null")
 
 	if (nod->flags and nfNotLoaded) = 0 then
@@ -213,20 +213,23 @@ sub FreeChildren(byval nod as NodePtr)
 			FreeNode(child)
 			child = nextchild
 		loop
-		nod->numChildren = 0
-		nod->children = NULL
-		nod->lastChild = NULL
 	else
 		'FIXME: what's the best thing to do if the children aren't loaded?
 		nod->flags and= not nfNotLoaded
-		nod->numChildren = 0
+	end if
+	nod->children = NULL
+	if (nod->flags and nfLite) = 0 then
+		with *cast(NodePtr, nod)
+			.numChildren = 0
+			.lastChild = NULL
+		end with
 	end if
 end sub
 
 'destroys a node and any children still attached to it.
 'if it's still attached to another node, it will be removed from it
 '(TODO: node names are never freed from the string table. It doesn't matter)
-sub FreeNode(byval nod as NodePtr)
+sub FreeNode(byval nod as LiteNodePtr)
 	BUG_IF(nod = null, "ptr already null")
 
 	FreeChildren(nod)
@@ -235,22 +238,28 @@ sub FreeNode(byval nod as NodePtr)
 	'its list of children
 	if nod->parent <> 0 then
 		dim par as NodePtr = nod->parent
+		dim prev as LiteNodePtr
 		
 		if par->children = nod then
 			par->children = nod->nextSib
 		end if
-		if par->lastChild = nod then
-			par->lastChild = nod->prevSib
+		if nod->flags and nfNode then  'The parent and siblings have the same nfNode flag
+			if par->lastChild = nod then
+				par->lastChild = nod->prevSib
+			end if
+
+			par->numChildren -= 1
+
+			if nod->nextSib then
+				nod->nextSib->prevSib = nod->prevSib
+			end if
+
+			prev = nod->prevSib
+		else
+			prev = PrevSibling(nod)
 		end if
-		
-		par->numChildren -= 1
-		
-		if nod->nextSib then
-			nod->nextSib->prevSib = nod->prevSib
-		end if
-		
-		if nod->prevSib then
-			nod->prevSib->nextSib = nod->nextSib
+		if prev then
+			prev->nextSib = nod->nextSib
 		end if
 	end if
 	if nod->nodeType = rltString and nod->str <> 0 then RDeallocate(nod->str, nod->doc)
@@ -797,13 +806,13 @@ end sub
 
 'Make a node provisional, which means it will be deleted before the doc is
 'serialised if it has no children.
-sub MarkProvisional(byval nod as NodePtr)
+sub MarkProvisional(byval nod as LiteNodePtr)
 	BUG_IF(nod = NULL, "null node ptr")
 	nod->flags OR= nfProvisional
 end sub
 
 'Whether a node has a particular ancestor. Returns YES if nod = possible_parent.
-Function NodeHasAncestor(byval nod as NodePtr, byval possible_parent as NodePtr) as bool
+Function NodeHasAncestor(byval nod as LiteNodePtr, byval possible_parent as LiteNodePtr) as bool
 	if possible_parent = null then return NO
 	do while nod <> null
 		if nod = possible_parent then return YES
@@ -813,7 +822,7 @@ Function NodeHasAncestor(byval nod as NodePtr, byval possible_parent as NodePtr)
 end function
 
 'This marks a node as a string type and sets its data to the provided string
-sub SetContent (byval nod as NodePtr, dat as string)
+sub SetContent (byval nod as LiteNodePtr, dat as string)
 	if nod = null then exit sub
 	if nod->nodeType = rltString then
 		if nod->str then RDeallocate(nod->str, nod->doc)
@@ -827,7 +836,7 @@ end sub
 
 'This marks a node as a string type and sets its data to the provided binary blob
 'Passing zstr = NULL is valid, and result in uninitialised data
-sub SetContent(byval nod as NodePtr, byval zstr as zstring ptr, byval size as integer)
+sub SetContent(byval nod as LiteNodePtr, byval zstr as zstring ptr, byval size as integer)
 	if nod = null then exit sub
 	if nod->nodeType = rltString then
 		if nod->str then RDeallocate(nod->str, nod->doc)
@@ -841,7 +850,7 @@ sub SetContent(byval nod as NodePtr, byval zstr as zstring ptr, byval size as in
 end sub
 
 'This marks a node as an integer, and sets its data to the provided integer
-sub SetContent(byval nod as NodePtr, byval dat as longint)
+sub SetContent(byval nod as LiteNodePtr, byval dat as longint)
 	if nod = null then exit sub
 	if nod->nodeType = rltString then
 		if nod->str then RDeallocate(nod->str, nod->doc)
@@ -852,7 +861,7 @@ sub SetContent(byval nod as NodePtr, byval dat as longint)
 end sub
 
 'This marks a node as a floating-point number, and sets its data to the provided double
-sub SetContent(byval nod as NodePtr, byval dat as double)
+sub SetContent(byval nod as LiteNodePtr, byval dat as double)
 	if nod = null then exit sub
 	if nod->nodeType = rltString then
 		if nod->str then RDeallocate(nod->str, nod->doc)
@@ -864,7 +873,7 @@ end sub
 
 'This marks a node as a null node. It leaves the old data (but it's no longer accessible*)
 'addendum: * - unless it was a string, in which case it's gone.
-sub SetContent(byval nod as NodePtr)
+sub SetContent(byval nod as LiteNodePtr)
 	if nod = null then exit sub
 	if nod->nodeType = rltString then
 		if nod->str then RDeallocate(nod->str, nod->doc)
@@ -1621,6 +1630,19 @@ Function PrevSibling(byval nod as NodePtr, byval withname as zstring ptr = null)
 		wend
 	end if
 	return ret
+End Function
+
+Function PrevSibling(byval nod as LiteNodePtr) as NodePtr
+	if nod = null then return null
+	if nod->parent = null then return null
+	dim prev as NodePtr = null
+	dim ch as NodePtr = nod->parent->children
+	while ch
+		if ch = nod then exit while
+		prev = ch
+		ch = ch->nextsib
+	wend
+	return prev
 End Function
 
 Function NodeType(byval nod as NodePtr) as NodeTypes
