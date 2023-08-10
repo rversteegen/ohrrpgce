@@ -93,12 +93,15 @@ TYPE NodePtr as Node ptr
 		name as zstring ptr
 		namenum as short   'in the string table, used while loading
 		nodeType as ubyte
-		Union 'this saves sizeof(Double) bytes per node!
+		flags as ubyte
+		Union
 			num as longint
 			flo as double
-			str as zstring ptr
+			Type
+				str as zstring ptr
+				strSize as integer
+			End Type
 		end Union
-		strSize as integer
 		numChildren as integer
 		children as NodePtr   'aka firstChild
 		lastChild as NodePtr
@@ -106,7 +109,6 @@ TYPE NodePtr as Node ptr
 		parent as NodePtr
 		nextSib as NodePtr
 		prevSib as NodePtr
-		flags as integer
 		fileLoc as integer
 	END TYPE
 #else
