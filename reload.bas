@@ -1002,10 +1002,10 @@ sub SetRootNode(byval doc as DocPtr, byval nod as NodePtr)
 end sub
 
 'This is from xml2reload: is a node representable as a longint?
-local function NodeCompressible(byval node as NodePtr) as integer
-	if (ValLng(GetString(node)) <> 0 AND ValLng(GetString(node) & "1") <> ValLng(GetString(node))) or GetString(node) = "0" then
+local function NodeCompressible(byval nod as NodePtr) as integer
+	if (ValLng(GetString(nod)) <> 0 AND ValLng(GetString(nod) & "1") <> ValLng(GetString(nod))) or GetString(nod) = "0" then
 		return 1
-	elseif (Val(GetString(node)) <> 0 AND Val(GetString(node) & "1") <> Val(GetString(node))) or GetString(node) = "0" then
+	elseif (Val(GetString(nod)) <> 0 AND Val(GetString(nod) & "1") <> Val(GetString(nod))) or GetString(nod) = "0" then
 		return 1
 	end if
 	return 0
@@ -1016,30 +1016,30 @@ end function
 ' 1 - Lead/trailing whitespace, and if debugging = YES whether type will be lost, eg "" -> null
 ' 2 - Binary
 ' 3 - Long string or data, print hash
-local function NodeNeedsEncoding(byval node as NodePtr, byval debugging as bool, byval shortform as bool) as integer
-	if node = null then return 0
+local function NodeNeedsEncoding(byval nod as NodePtr, byval debugging as bool, byval shortform as bool) as integer
+	if nod = null then return 0
 
-	if node->nodeType <> rltString then
+	if nod->nodeType <> rltString then
 		return 0
 	end if
 
-	if shortform andalso node->strSize > 300 then
+	if shortform andalso nod->strSize > 300 then
 		return 3
 	end if
 
-	dim dat as ubyte ptr = node->str
-	for i as integer = 0 to node->strSize - 1
+	dim dat as ubyte ptr = nod->str
+	for i as integer = 0 to nod->strSize - 1
 		dim byt as ubyte = dat[i]
 		if byt < 32 then
 			if byt <> asc(!"\n") and byt <> asc(!"\r") and byt <> asc(!"\t") then return 2
 		end if
 	next
 
-	dim repr as string = GetString(node)
+	dim repr as string = GetString(nod)
 	if repr <> trim(repr, any !" \t\n\r") then return 1
 
 	if debugging then
-		if node->strSize = 0 orelse NodeCompressible(node) then return 1
+		if nod->strSize = 0 orelse NodeCompressible(nod) then return 1
 	end if
 
 	'Will UNIX/DOS newline differences cause problems?
@@ -1247,40 +1247,40 @@ Function GetChildByContent(byval nod as NodePtr, content as longint, name as zst
 End Function
 
 'This returns a node's content in string form.
-Function GetString(byval node as NodePtr) as string
-	if node = null then return ""
+Function GetString(byval nod as NodePtr) as string
+	if nod = null then return ""
 	
-	select case node->nodeType
+	select case nod->nodeType
 		case rltInt
-			return str(node->num)
+			return str(nod->num)
 		case rltFloat
-			return str(node->flo)
+			return str(nod->flo)
 		case rltNull
 			return ""
 		case rltString
 			'FB's string assignment will always do a strlen on zstring arguments, so we need to
 			'manually copy the data into a string, in case it is a binary blob containing null bytes
-			return blob_to_string(node->str, node->strSize)
+			return blob_to_string(nod->str, nod->strSize)
 		case else
-			return "Unknown value: " & node->nodeType
+			return "Unknown value: " & nod->nodeType
 	end select
 End Function
 
 'This returns a node's content in integer form. If the node is a string, and the string
 'does not represent an integer of some kind, it will likely return 0.
 'Also, null nodes are worth 0
-Function GetInteger(byval node as NodePtr) as longint
-	if node = null then return 0
+Function GetInteger(byval nod as NodePtr) as longint
+	if nod = null then return 0
 	
-	select case node->nodeType
+	select case nod->nodeType
 		case rltInt
-			return node->num
+			return nod->num
 		case rltFloat
-			return clngint(node->flo)
+			return clngint(nod->flo)
 		case rltNull
 			return 0
 		case rltString
-			return cint(*node->str)
+			return cint(*nod->str)
 		case else
 			return 0
 	end select
@@ -1289,18 +1289,18 @@ End Function
 'This returns a node's content in floating point form. If the node is a string, and the string
 'does not represent a number of some kind, it will likely return 0.
 'Also, null nodes are worth 0
-Function GetFloat(byval node as NodePtr) as double
-	if node = null then return 0.0
+Function GetFloat(byval nod as NodePtr) as double
+	if nod = null then return 0.0
 	
-	select case node->nodeType
+	select case nod->nodeType
 		case rltInt
-			return cdbl(node->num)
+			return cdbl(nod->num)
 		case rltFloat
-			return node->flo
+			return nod->flo
 		case rltNull
 			return 0.0
 		case rltString
-			return cdbl(*node->str)
+			return cdbl(*nod->str)
 		case else
 			return 0.0
 	end select
@@ -1308,24 +1308,24 @@ End Function
 
 'This returns a node's content in ZString form (i.e., a blob of data.) If the node
 'is not a string already, it will return null.
-Function GetZString(byval node as NodePtr) as zstring ptr
-	if node = null then return 0
+Function GetZString(byval nod as NodePtr) as zstring ptr
+	if nod = null then return 0
 	
-	if node->nodeType <> rltString then
+	if nod->nodeType <> rltString then
 		return 0
 	end if
 	
-	return node->str
+	return nod->str
 End Function
 
-Function GetZStringSize(byval node as NodePtr) as integer
-	if node = null then return 0
+Function GetZStringSize(byval nod as NodePtr) as integer
+	if nod = null then return 0
 	
-	if node->nodeType <> rltString then
+	if nod->nodeType <> rltString then
 		return 0
 	end if
 	
-	return node->strSize
+	return nod->strSize
 End Function
 
 'This resizes a node's string blob thing. If the node is not a string, it will
@@ -1336,25 +1336,25 @@ End Function
 'Finally, the new memory block will be bigger than newsize by 1 byte. This is for the
 'null terminator, in case you're storing an actual string in here. Please try not
 'to overwrite it :)
-Function ResizeZString(byval node as NodePtr, byval newsize as integer) as zstring ptr
-	if node = null then return 0
+Function ResizeZString(byval nod as NodePtr, byval newsize as integer) as zstring ptr
+	if nod = null then return 0
 	
-	if node->nodeType <> rltString then
+	if nod->nodeType <> rltString then
 		return 0
 	end if
 	
-	dim n as zstring ptr = node->str
+	dim n as zstring ptr = nod->str
 	
-	n = RReallocate(n, node->doc, newsize + 1)
+	n = RReallocate(n, nod->doc, newsize + 1)
 	
 	if n = 0 then return 0
 	
-	for i as integer = node->strSize to newsize
+	for i as integer = nod->strSize to newsize
 		n[i] = 0
 	next
 	
-	node->str = n
-	node->strSize = newsize
+	nod->str = n
+	nod->strSize = newsize
 	
 	return n
 	
@@ -1415,13 +1415,13 @@ end Function
 'Sets the child node of name n to a double value. If n doesn't exist, it adds it.
 'Also, adds a child of n called "str" with a formatted date string
 Function SetChildNodeDate(byval parent as NodePtr, n as zstring ptr, val as double) as NodePtr
-	dim node as NodePtr = SetChildNode(parent, n, val)
+	dim nod as NodePtr = SetChildNode(parent, n, val)
 
-	if node then
-		SetChildNode(node, "str", format_date(val))
+	if nod then
+		SetChildNode(nod, "str", format_date(val))
 	end if
 
-	return node
+	return nod
 end Function
 
 'Toggle a node to a zero/nonzero value (sets it to 0 or 1). Creates the node if it does not exist
@@ -1676,20 +1676,20 @@ Sub SwapSiblingNodes(byval nod1 as NodePtr, byval nod2 as NodePtr)
 	par->lastChild = holder(ubound(holder))
 End Sub
 
-sub SwapNodePrev(byval node as NodePtr)
-	if node = 0 then exit sub
+sub SwapNodePrev(byval nod as NodePtr)
+	if nod = 0 then exit sub
 	dim sib as NodePtr
-	sib = PrevSibling(node)
+	sib = PrevSibling(nod)
 	if sib = 0 then exit sub
-	SwapSiblingNodes(node, sib)
+	SwapSiblingNodes(nod, sib)
 end sub
 
-sub SwapNodeNext(byval node as NodePtr)
-	if node = 0 then exit sub
+sub SwapNodeNext(byval nod as NodePtr)
+	if nod = 0 then exit sub
 	dim sib as NodePtr
-	sib = NextSibling(node)
+	sib = NextSibling(nod)
 	if sib = 0 then exit sub
-	SwapSiblingNodes(node, sib)
+	SwapSiblingNodes(nod, sib)
 end sub
 
 'This clones a node and all its children and returns the cloned (parentless) node.
