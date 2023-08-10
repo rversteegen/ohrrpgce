@@ -181,10 +181,10 @@ Function CreateNode(byval doc as DocPtr, nam as zstring ptr) as NodePtr
 	doc->strings[ret->namenum].uses += 1
 	
 	ret->nodeType = rltNull
+	ret->flags = 0
 	ret->numChildren = 0
 	ret->children = null
 	ret->lastChild = null
-	ret->flags = 0
 	
 	return ret
 End function
@@ -1021,7 +1021,7 @@ local function NodeNeedsEncoding(byval node as NodePtr, byval debugging as bool,
 		return 0
 	end if
 
-	if shortform and node->nodeType = rltString andalso node->strSize > 300 then
+	if shortform andalso node->strSize > 300 then
 		return 3
 	end if
 
