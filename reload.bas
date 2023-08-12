@@ -193,6 +193,7 @@ end function
 
 'FIXME: the old name is never freed
 sub RenameNode(byval nod as NodePtr, newname as zstring ptr)
+	nod->doc->strings[nod->namenum].uses -= 1
 	nod->namenum = AddStringToTable(newname, nod->doc)
 	nod->doc->strings[nod->namenum].uses += 1
 end sub
@@ -357,15 +358,16 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 			return null
 	end select
 
-	ret->numChildren = ReadVLI(vf)
+	dim nchildren as integer = ReadVLI(vf)
 
 	if doc->delayLoading and force_recursive = NO then
 		ret->fileLoc = vftell(vf)
 		ret->flags OR= nfNotLoaded
+		ret->numChildren = nchildren
 
 		vfseek(vf, size + here, SEEK_SET)
 	else
-		for i as integer = 0 to ret->numChildren - 1
+		for i as integer = 0 to nchildren - 1
 			dim nod as NodePtr
 			nod = LoadNode(vf, doc, force_recursive)
 			if nod = null then
@@ -373,7 +375,6 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 				'debug "LoadNode: node @" & here & " child " & i & " node load failed"
 				return null
 			end if
-			ret->numChildren -= 1
 			AddChild(ret, nod)
 		next
 
@@ -553,7 +554,7 @@ Function AddStringToTable(name as zstring ptr, byval doc as DocPtr) as integer
 		dim s as StringTableEntry ptr = RReallocate(doc->strings, doc, sizeof(StringTableEntry) * (doc->numAllocStrings * 2))
 		if s = 0 then 'panic
 			showbug "Error resizing string table"
-			return -1
+			return 0
 		end if
 		for i as integer = doc->numAllocStrings to doc->numAllocStrings * 2 - 1
 			s[i].str = 0
@@ -575,6 +576,7 @@ Function AddStringToTable(name as zstring ptr, byval doc as DocPtr) as integer
 end function
 
 'RELOADBASIC internal function
+'Builds a mapping from Node namenums to nameindexs, which are fixed IDs assigned to each Node name in reloadbasic.py
 sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval func_num as integer, byval func_bits_size as integer, byval signature as integer, byval total_num_names as integer)
 	'debug "BuildNameIndexTable, func_num = " & func_num & " doc->numStrings = " & doc->numStrings
 	dim allocated_table as bool = NO
@@ -722,7 +724,6 @@ sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as
 
 	content_start_loc = Buffered_tell(f)
 
-	BUG_IF(nod->namenum = -1, "node without valid name index")
 	WriteVLI(f, nod->namenum)
 
 	select case nod->nodeType
@@ -731,14 +732,14 @@ sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as
 			'They can also have children.
 			Buffered_putc(f, rliNull)
 		case rltInt 'this is good enough, don't need VLI for this
-			if nod->num > 2147483647 or nod->num < -2147483648 then
+			if nod->num > 2147483647 orelse nod->num < -2147483648 then
 				Buffered_putc(f, rliLong)
 				Buffered_write(f, @(nod->num), 8)
-			elseif nod->num > 32767 or nod->num < -32768 then
+			elseif nod->num > 32767 orelse nod->num < -32768 then
 				Buffered_putc(f, rliInt)
 				dim temp as long = nod->num
 				Buffered_write(f, @temp, 4)
-			elseif nod->num > 127 or nod->num < -128 then
+			elseif nod->num > 127 orelse nod->num < -128 then
 				Buffered_putc(f, rliShort)
 				dim temp as short = nod->num
 				Buffered_write(f, @temp, 2)
@@ -1702,7 +1703,7 @@ Function CloneNodeTree(byval nod as NodePtr, byval doc as DocPtr=0) as NodePtr
 	else
 		n = CreateNode(nod, NodeName(nod))
 	end if
-	select case NodeType(nod)
+	select case nod->nodeType
 		case rltInt:
 			SetContent(n, GetInteger(nod))
 		case rltFloat:
@@ -1711,10 +1712,10 @@ Function CloneNodeTree(byval nod as NodePtr, byval doc as DocPtr=0) as NodePtr
 			SetContent(n, GetString(nod))
 	end select
 	dim ch as NodePtr
-	ch = FirstChild(nod)
+	ch = nod->children
 	while ch
 		AddChild(n, CloneNodeTree(ch, doc))
-		ch = NextSibling(ch)
+		ch = ch->nextSib
 	wend
 	return n
 End Function
