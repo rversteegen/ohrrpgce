@@ -1250,7 +1250,7 @@ class ReloadBasicFunction(object):
                 # Don't need to include if there's no CASE ELSE
                 # I would use CASE -1, but FB forbids it... crazy
                 select_cases.append("CASE INVALID_INDEX:  'Only if %s has no children\n" % readnode.parent_nodeptr)
-            select_cases.append('CASE ELSE:  %s "%s: unexpected node %s/" & *%s->name' % (self.warn_func, self.cur_filepos, node_path, readnode.child_nodeptr))
+            select_cases.append('CASE ELSE:  %s "%s: unexpected node %s/" & NodeName(%s)' % (self.warn_func, self.cur_filepos, node_path, readnode.child_nodeptr))
         select_cases = "".join("    " + c for c in select_cases)
 
         checks_text = "".join(checks_text)

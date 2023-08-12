@@ -89,11 +89,9 @@ TYPE NodePtr as Node ptr
 	END ENUM
 	
 	TYPE Node
-		'name as string
-		name as zstring ptr
-		namenum as short   'in the string table, used while loading
-		nodeType as ubyte
-		flags as ubyte
+		namenum as short        'Index in doc->strings[]. 0 is always ""
+		nodeType as ubyte       'enum NodeTypes
+		flags as ubyte          'bitmask of NodeFlags
 		Union
 			num as longint
 			flo as double
@@ -110,6 +108,8 @@ TYPE NodePtr as Node ptr
 		nextSib as NodePtr
 		prevSib as NodePtr
 		fileLoc as integer
+
+		DECLARE FUNCTION name() as zstring ptr
 	END TYPE
 #else
 	TYPE Doc

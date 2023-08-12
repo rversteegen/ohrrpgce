@@ -188,7 +188,7 @@ FUNCTION LoadExtraVector(ex_node as Node ptr, byref extravec as integer vector, 
         CASE "repeat"
           repeats = GetInteger(ch)
         CASE ELSE
-          reporterr strprintf("Error loading %s: unknown extra data type %s", thing_or_file, ch->Name), serrError
+          reporterr strprintf("Error loading %s: unknown extra data type ", thing_or_file) & NodeName(ch), serrError
           RETURN NO
       END SELECT
 

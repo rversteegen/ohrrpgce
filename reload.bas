@@ -176,8 +176,6 @@ Function CreateNode(byval doc as DocPtr, nam as zstring ptr) as NodePtr
 	ret->doc = doc
 	
 	ret->namenum = AddStringToTable(nam, doc)
-	
-	ret->name = doc->strings[ret->namenum].str
 	doc->strings[ret->namenum].uses += 1
 	
 	ret->nodeType = rltNull
@@ -196,8 +194,6 @@ end function
 'FIXME: the old name is never freed
 sub RenameNode(byval nod as NodePtr, newname as zstring ptr)
 	nod->namenum = AddStringToTable(newname, nod->doc)
-	
-	nod->name = nod->doc->strings[nod->namenum].str
 	nod->doc->strings[nod->namenum].uses += 1
 end sub
 
@@ -319,12 +315,10 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 	ret = CreateNode(doc, "")
 	ret->namenum = cshort(ReadVLI(vf))
 
-	if ret->namenum < 0 or ret->namenum >= doc->numStrings then
+	if ret->namenum < 0 orelse ret->namenum >= doc->numStrings then
 		reporterr doc->filename & " corrupt: node has invalid name #" & ret->namenum, serrMajor
 		ret->namenum = 0
 	else
-		'debug "Node has valid name: #" & ret->namenum & " " & *doc->strings[ret->namenum].str
-		ret->name = doc->strings[ret->namenum].str
 		doc->strings[ret->namenum].uses += 1
 	end if
 
@@ -1083,7 +1077,7 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 
 	'no-name nodes aren't valid xml
 	dim xmlname as string
-	if len(*nod->name) = 0 then
+	if nod->namenum = 0 then  ' namenum 0 is ""
 		xmlname = "r:_"
 	else
 		xmlname = *nod->name
@@ -1095,7 +1089,7 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 		exit sub
 
 /'  Currently these no-name nodes are eaten by xml2reload (and all but the last are lost), so we never see these
-	elseif debugging = NO andalso nod->nodeType <> rltNull andalso nod->numChildren = 0 andalso *nod->name = "" then
+	elseif debugging = NO andalso nod->nodeType <> rltNull andalso nod->numChildren = 0 andalso nod->namenum = 0 then
 		'A no-name node like this is typically created when translating from xml;
 		'so hide the tags
 		ind -= 1
@@ -1107,8 +1101,9 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 		'find the attribute children and print them
 		dim n as NodePtr = nod->children
 		do while n <> null
-			if n->name[0] = asc("@") then
-				print #fh, " " & *(n->name + 1) & "=""";
+			dim name as zstring ptr = n->name()
+			if name[0] = asc("@") then
+				print #fh, " " & *(name + 1) & "=""";
 				print #fh, GetString(n);
 				print #fh, """";
 			end if
@@ -1205,7 +1200,7 @@ Function GetChildByName(byval nod as NodePtr, byval nam as zstring ptr) as NodeP
 		wend
 	else
 		while child <> null
-			if *child->name = *nam then return child
+			if *nod->doc->strings[child->namenum].str = *nam then return child
 			child = child->nextSib
 		wend
 	end if
@@ -1630,9 +1625,13 @@ Function NodeType(byval nod as NodePtr) as NodeTypes
 	return nod->nodeType
 End Function
 
+Private Function Node.name() as zstring ptr
+	return this.doc->strings[this.namenum].str
+End Function
+
 Function NodeName(byval nod as NodePtr) as string
 	if nod = null then return ""
-	return *nod->name
+	return *nod->doc->strings[nod->namenum].str
 End Function
 
 Sub SwapSiblingNodes(byval nod1 as NodePtr, byval nod2 as NodePtr)
