@@ -201,7 +201,10 @@ end sub
 sub FreeChildren(byval nod as NodePtr)
 	BUG_IF(nod = NULL, "ptr already null")
 
-	if nod->notLoaded = false then
+	if nod->notLoaded then
+		'We won't be loading them, then.
+		nod->notLoaded = false
+	else
 		dim as NodePtr child = nod->children, nextchild
 		do while child
 			nextchild = child->nextSib
@@ -209,14 +212,11 @@ sub FreeChildren(byval nod as NodePtr)
 			FreeNode(child)
 			child = nextchild
 		loop
-		nod->numChildren = 0
-		nod->children = NULL
-		nod->lastChild = NULL
-	else
-		'FIXME: what's the best thing to do if the children aren't loaded?
-		nod->notLoaded = false
-		nod->numChildren = 0
 	end if
+	'Have to reset these manually since we prevent FreeNode from doing so
+	nod->numChildren = 0
+	nod->children = null
+	nod->lastChild = null
 end sub
 
 'destroys a node and any children still attached to it.
@@ -398,17 +398,19 @@ Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 
 	vfseek(vf, ret->fileLoc, SEEK_SET)
 
-	for i as integer = 0 to ret->numChildren - 1
-		dim nod as NodePtr = LoadNode(vf, ret->doc, recursive)
-		if nod = null then
-			'debug "LoadNode: node @" & ret->fileLoc & " child " & i & " node load failed"
-			return NO
-		end if
-		ret->numChildren -= 1
-		AddChild(ret, nod)
-	next
+	dim nchildren as integer = ret->numChildren
 
 	ret->notLoaded = false
+	ret->children = null   'Wipe ret->fileLoc
+	ret->numChildren = 0
+
+	for i as integer = 0 to nchildren - 1
+		dim nod as NodePtr = LoadNode(vf, ret->doc, recursive)
+		if nod = null then
+			return NO
+		end if
+		AddChild(ret, nod)
+	next
 
 	return YES
 End Function
@@ -780,6 +782,10 @@ sub RemoveProvisionalNodes(byval nod as NodePtr)
 		else
 			nod->provisional = false
 		end if
+	end if
+
+	if nod->notLoaded then
+		LoadNode(nod, YES)
 	end if
 
 	dim as NodePtr n, nextn
@@ -1692,10 +1698,13 @@ sub SwapNodeNext(byval nod as NodePtr)
 end sub
 
 'This clones a node and all its children and returns the cloned (parentless) node.
+'Fully loads delay-loaded nodes.
 'The doc is an optional doc ptr that new new node should belong to. If omitted, the clone
 'will be in the same doc as the original node
 Function CloneNodeTree(byval nod as NodePtr, byval doc as DocPtr=0) as NodePtr
 	BUG_IF(nod = NULL, "null node ptr", NULL)
+	if nod->notLoaded then LoadNode(nod, YES)
+
 	dim n as NodePtr
 	if doc then
 		n = CreateNode(doc, NodeName(nod))

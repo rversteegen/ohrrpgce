@@ -88,6 +88,7 @@ TYPE NodePtr as Node ptr
 		nodeType as ubyte         'enum NodeTypes
 		notLoaded :1 as boolean   'Children of this node haven't been loaded. But numChildren has real value!
 		provisional :1 as boolean 'When saving, skip this node if it has no children
+		numChildren as integer
 
 		Union
 			num as longint
@@ -97,14 +98,15 @@ TYPE NodePtr as Node ptr
 				strSize as integer
 			End Type
 		end Union
-		numChildren as integer
-		children as NodePtr   'aka firstChild
+		Union
+			children as NodePtr   'If notLoaded = false. aka firstChild
+			fileLoc as integer    'If notLoaded = true. File offset from which to load this node
+		End Union
 		lastChild as NodePtr
 		doc as DocPtr
 		parent as NodePtr
 		nextSib as NodePtr
 		prevSib as NodePtr
-		fileLoc as integer
 
 		DECLARE FUNCTION name() as zstring ptr
 	END TYPE
