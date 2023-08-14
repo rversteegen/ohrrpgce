@@ -179,7 +179,6 @@ Function CreateNode(byval doc as DocPtr, nam as zstring ptr) as NodePtr
 	doc->strings[ret->namenum].uses += 1
 	
 	ret->nodeType = rltNull
-	ret->flags = 0
 	ret->numChildren = 0
 	ret->children = null
 	ret->lastChild = null
@@ -202,7 +201,7 @@ end sub
 sub FreeChildren(byval nod as NodePtr)
 	BUG_IF(nod = NULL, "ptr already null")
 
-	if (nod->flags and nfNotLoaded) = 0 then
+	if nod->notLoaded = false then
 		dim as NodePtr child = nod->children, nextchild
 		do while child
 			nextchild = child->nextSib
@@ -215,7 +214,7 @@ sub FreeChildren(byval nod as NodePtr)
 		nod->lastChild = NULL
 	else
 		'FIXME: what's the best thing to do if the children aren't loaded?
-		nod->flags and= not nfNotLoaded
+		nod->notLoaded = false
 		nod->numChildren = 0
 	end if
 end sub
@@ -360,9 +359,9 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 
 	dim nchildren as integer = ReadVLI(vf)
 
-	if doc->delayLoading and force_recursive = NO then
+	if doc->delayLoading andalso force_recursive = NO then
 		ret->fileLoc = vftell(vf)
-		ret->flags OR= nfNotLoaded
+		ret->notLoaded = true
 		ret->numChildren = nchildren
 
 		vfseek(vf, size + here, SEEK_SET)
@@ -393,7 +392,7 @@ End Function
 'call LoadNode before the node's children are first accessed!
 Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 	if ret = null then return NO
-	if (ret->flags AND nfNotLoaded) = 0 then return YES
+	if ret->notLoaded = false then return YES
 
 	dim vf as VFile ptr = ret->doc->fileHandle
 
@@ -408,9 +407,9 @@ Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 		ret->numChildren -= 1
 		AddChild(ret, nod)
 	next
-	
-	ret->flags AND= NOT nfNotLoaded
-	
+
+	ret->notLoaded = false
+
 	return YES
 End Function
 
@@ -713,7 +712,7 @@ sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as
 	BUG_IF(nod = NULL, "null node ptr")
 
 	'first, if a node isn't loaded, we need to do so.
-	if nod->flags AND nfNotLoaded then
+	if nod->notLoaded then
 		LoadNode(nod, YES)
 	end if
 
@@ -774,12 +773,12 @@ end sub
 'delete if they have no children, or unmark as provisional otherwise
 sub RemoveProvisionalNodes(byval nod as NodePtr)
 	if nod = null then exit sub
-	if nod->flags AND nfProvisional then
+	if nod->provisional then
 		if nod->numChildren = 0 then
 			FreeNode(nod)
 			exit sub
 		else
-			nod->flags AND= NOT nfProvisional
+			nod->provisional = false
 		end if
 	end if
 
@@ -796,7 +795,7 @@ end sub
 'serialised if it has no children.
 sub MarkProvisional(byval nod as NodePtr)
 	BUG_IF(nod = NULL, "null node ptr")
-	nod->flags OR= nfProvisional
+	nod->provisional = true
 end sub
 
 'Whether a node has a particular ancestor. Returns YES if nod = possible_parent.
@@ -1068,7 +1067,7 @@ end sub
 sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as bool, byval shortform as bool, byval ind as integer = 0)
 	if nod = null then exit sub
 	
-	if nod->flags AND nfNotLoaded then
+	if nod->notLoaded then
 		LoadNode(nod, YES)
 	end if
 
@@ -1171,7 +1170,7 @@ Function FindDescendentByName(byval nod as NodePtr, nam as zstring ptr) as NodeP
 	if nod = null then return null
 	if *nod->name = *nam then return nod
 	
-	if nod->flags AND nfNotLoaded then LoadNode(nod, YES)
+	if nod->notLoaded then LoadNode(nod, YES)
 	
 	dim child as NodePtr
 	dim ret as NodePtr
@@ -1188,8 +1187,8 @@ Function GetChildByName(byval nod as NodePtr, byval nam as zstring ptr) as NodeP
 	'Not recursive!
 	'does not find self.
 	if nod = null then return null
-	
-	if nod->flags AND nfNotLoaded then LoadNode(nod, NO)
+
+	if nod->notLoaded then LoadNode(nod, NO)
 	dim child as NodePtr = nod->children
 
 	if nod->numChildren >= 10 then  'cutoff chosen with reloadtest speed tests
@@ -1212,7 +1211,7 @@ End Function
 Function GetChildByNameIndex(byval nod as NodePtr, byval nameindex as integer) as NodePtr
 	if nod = null then return null
 	
-	if nod->flags AND nfNotLoaded then LoadNode(nod, NO)
+	if nod->notLoaded then LoadNode(nod, NO)
 
 	dim table as short ptr = nod->doc->nameIndexTable
 	dim child as NodePtr = nod->children
@@ -1227,7 +1226,7 @@ End Function
 'Other overloads unimplemented
 Function GetChildByContent(byval nod as NodePtr, content as longint, name as zstring ptr = null, reverse as bool = NO) as NodePtr
 	if nod = null then return null
-	if nod->flags AND nfNotLoaded then LoadNode(nod, NO)
+	if nod->notLoaded then LoadNode(nod, NO)
 
 	dim child as NodePtr
 	child = iif(reverse, nod->lastChild, nod->children)
@@ -1498,7 +1497,7 @@ end function
 Function AppendChildNode(byval parent as NodePtr, n as zstring ptr) as NodePtr
 	if parent = 0 then return 0
 
-	if parent->flags AND nfNotLoaded then LoadNode(parent, NO)
+	if parent->notLoaded then LoadNode(parent, NO)
 
 	dim ret as NodePtr
 	ret = CreateNode(parent->doc, n)
@@ -1535,7 +1534,7 @@ Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval wit
 	'Return the index'th child node, or 0 if no such child exists
 	'This could be slow for long child lists, so don't use it unless you really need it
 	if parent = 0 then return 0
-	if parent->flags AND nfNotLoaded then LoadNode(parent, NO)
+	if parent->notLoaded then LoadNode(parent, NO)
 	dim i as integer
 	dim ch as Node Ptr
 	ch = parent->children
@@ -1567,7 +1566,7 @@ end Function
 'Return number of children with this name
 Function CountChildren(byval nod as NodePtr, byval withname as zstring ptr) as integer
 	if nod = null then return 0
-	if nod->flags AND nfNotLoaded then LoadNode(nod, NO)
+	if nod->notLoaded then LoadNode(nod, NO)
 	dim count as integer = 0
 	dim ch as NodePtr = nod->children
 	while ch
@@ -1584,7 +1583,7 @@ end Function
 
 Function FirstChild(byval nod as NodePtr, byval withname as zstring ptr = null) as NodePtr
 	if nod = null then return null
-	if nod->flags AND nfNotLoaded then LoadNode(nod, NO)
+	if nod->notLoaded then LoadNode(nod, NO)
 	dim ret as NodePtr = nod->children
 	if ret = null then return null
 	if withname then

@@ -585,7 +585,7 @@ def reload_HashZString(string):
 READNODE_TEMPLATE = """\
 DIM {it} as NodePtr
 IF {node} THEN
-{buildtable}  IF {node}->flags AND nfNotLoaded THEN LoadNode({node}, NO)
+{buildtable}  IF {node}->notLoaded THEN LoadNode({node}, NO)
   {it} = {node}->children
 END IF
 WHILE {it}
@@ -602,7 +602,7 @@ WEND
 READNODE_DEFAULTS_TEMPLATE = """\
 DIM {it} as NodePtr = NULL
 IF {node} THEN
-{buildtable}  IF {node}->flags AND nfNotLoaded THEN LoadNode({node}, NO)
+{buildtable}  IF {node}->notLoaded THEN LoadNode({node}, NO)
   {it} = {node}->children
 END IF
 DIM {nameindex} as integer = INVALID_INDEX

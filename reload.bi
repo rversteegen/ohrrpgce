@@ -82,16 +82,13 @@ TYPE NodePtr as Node ptr
 		'nameIndexTableBits as uinteger ptr
 		RBFuncBits as uinteger ptr
 	END TYPE
-	
-	ENUM NodeFlags
-		nfNotLoaded = 1   'Children of this node haven't been loaded. NOTE: numChildren has real value!
-		nfProvisional = 2 'When saving, ignore this node if has no children
-	END ENUM
-	
+
 	TYPE Node
-		namenum as short        'Index in doc->strings[]. 0 is always ""
-		nodeType as ubyte       'enum NodeTypes
-		flags as ubyte          'bitmask of NodeFlags
+		namenum as short          'Index in doc->strings[]. 0 is always ""
+		nodeType as ubyte         'enum NodeTypes
+		notLoaded :1 as boolean   'Children of this node haven't been loaded. But numChildren has real value!
+		provisional :1 as boolean 'When saving, skip this node if it has no children
+
 		Union
 			num as longint
 			flo as double
