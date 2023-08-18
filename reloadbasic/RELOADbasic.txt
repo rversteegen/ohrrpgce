@@ -57,6 +57,20 @@ inside ReadNode block (more there).
 
 Inside a WITHNODE nested inside a READNODE you can write CONTINUE READNODE and EXIT READNODE.
 
+= SelectNode =
+Syntax:
+  SELECTNODE nodevar
+    CASENAME "..." [, "..."]
+      ...
+    ...
+    [CASE ELSE ...]
+  END SELECTNODE
+
+This is equivalent to SELECT CASE NodeName(nodevar), but much more efficient since integers
+are compared rather than strings. The nodevar is any Node ptr expression, such as variable or
+a .ptr nodespec.
+Multiple names can be put on one CASENAME line. CASE ELSE works as usual.
+
 = ReadNode =
 Syntax:
   READNODE nodespec AS nodevar [, IGNOREALL] [, DEFAULT]

@@ -132,6 +132,11 @@ def readNodeContinue():     return "continue", "readnode"
 def withNode():             return "withnode", CHECKPNT, nodeSpec, "as", identifier
 def withNodeEnd():          return "end", "withnode"
 
+def selectNode():           return "selectnode", CHECKPNT, QUES, ("as", "const"), expression
+def selectNodeEnd():        return "end", "selectnode"
+def caseName():             return "casename", CHECKPNT, string, STAR, (",", string), QUES, (":", tokenList)
+
+
 def loadArray():            return "loadarray", CHECKPNT, dottedIdentifier, "(", "$", identifier, ")", "=", expression
 
 # Not implemented
@@ -144,6 +149,7 @@ def directive():            return "#", re.compile("warn_func|error_func"), CHEC
 # Ignore DIM lines which definitely don't declare Node ptrs
 def lineGrammar():          return [(AND(re.compile('(end\s+)?(dim.*node|readnode|withnode|loadarray|private|local|static|sub|function|constructor|destructor|property|operator|starttest|endtest|#)', re.I)),
                                      [dimStatement, readNode, readNodeEnd, withNode, withNodeEnd,
+                                      selectNode, selectNodeEnd, caseName,
                                       functionStart, functionEnd, subStart, subEnd, loadArray, directive]),
                                     tokenList]
 
