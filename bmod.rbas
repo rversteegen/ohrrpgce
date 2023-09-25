@@ -2679,11 +2679,11 @@ SUB reset_battle_state (byref bat as BattleState)
 
   setup_battle_slices bat
 
-  DIM battleres as XYPair
+  DIM battleres as XYPair = (gen(genResolutionX), gen(genResolutionY))
   IF prefbit(53) THEN '"Battles don't display at 320x200"
-   battleres = XY(gen(genResolutionX), gen(genResolutionY))
+   'battleres = XY(gen(genResolutionX), gen(genResolutionY))
   ELSE
-   battleres = XY(320, 200)
+   battleres = small(battleres, XY(320, 200))
   END IF
 
   IF battleres.w >= 320 THEN
@@ -2695,17 +2695,20 @@ SUB reset_battle_state (byref bat as BattleState)
   END IF
 
   .spell_col_width = 104
-  .spell_columns = 3
-  '.spell_columns = bound((battleres.w - .spell_margin*2 + 10) \ .spell_col_width, 1, 4)
+  '.spell_columns = 3
+  .spell_columns = bound((battleres.w - .spell_margin*2 + 10) \ .spell_col_width, 1, 4)
+  DIM spell_rows as integer = 24 \ .spell_columns
 
-  .spell_box = XYWH(5, 6, 310, 95)
+  '.spell_box = XYWH(5, 6, 310, 95)
+  .spell_box = XYWH(.spell_margin, 6, battleres.w - .spell_margin * 2, 31 + 8 * spell_rows)
 
   .item_col_width = 96
-  .item_columns = 3
-  '.item_columns = bound((battleres.w - .item_margin*2 + 10) \ .item_col_width, 1, 4)
+  '.item_columns = 3
+  .item_columns = bound((battleres.w - .item_margin*2 + 10) \ .item_col_width, 1, 4)
 
   'Note: unlike spell_box, the item description is drawn below the bottom of item_box
-  .item_box = XYWH(8, 4, 304, 0)  'w = battlere.w - .item_margin * 2
+  '.item_box = XYWH(8, 4, 304, 0)  'w = battlere.w - .item_margin * 2
+  .item_box = XYWH(.item_margin, 4, battleres.w - .item_margin * 2, 0)
   .item_box.high = small(78, 8 + ((last_inv_slot() + 1) \ .item_columns) * 8)
 
   .item_scroll_rect = .item_box + XYWH(12, 1, -12, -2)
