@@ -5527,30 +5527,32 @@ end destructor
 'Note: in order to support members that are less than 4 bytes (eg palette colours) some hackery is done, and
 'members greater than 4 bytes aren't supported
 #macro UPDATE_STATE(outbuf, member, value)
-	'Ugh! FB doesn't allow sizeof in #if conditions!
-	#if typeof(state.member) <> integer and typeof(state.member) <> long
-		#error "UPDATE_STATE: bad member type"
-	#endif
-	dim dataptr as intptr_t = any
-	#ifdef ALIGNED_MEMORY
-		'6 plus 3 character for extra alignment
-		outbuf += CHR(tcmdState) & "         "
-		dataptr = cast(intptr_t, @outbuf[len(outbuf) - 9])
-		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
-	#else
-		outbuf += CHR(tcmdState) & "      "
-		dataptr = @outbuf[len(outbuf) - 6]
-	#endif
-	*cast(long ptr, dataptr) = cast(long, value)
-	*cast(long ptr, dataptr+4) = Offsetof(PrintStrState, member)
+	scope
+		'Ugh! FB doesn't allow sizeof in #if conditions!
+		#if typeof(state.member) <> integer and typeof(state.member) <> long
+			#error "UPDATE_STATE: bad member type"
+		#endif
+		dim dataptr as any ptr = any
+		#ifdef ALIGNED_MEMORY
+			'6 plus 3 character for extra alignment
+			outbuf += CHR(tcmdState) & "         "
+			dataptr = @outbuf[len(outbuf) - 9]
+			dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+		#else
+			outbuf += CHR(tcmdState) & "      "
+			dataptr = @outbuf[len(outbuf) - 6]
+		#endif
+		*cast(long ptr, dataptr) = cast(long, value)
+		*cast(short ptr, dataptr+4) = Offsetof(PrintStrState, member)
 
-	state.member = value
+		state.member = value
+	end scope
 #endmacro
 
 'Interprets a control sequence (at 0-based offset ch in outbuf) written by UPDATE_STATE,
 'modifying a member of state.
 #macro READ_MEMBER(state, outbuf, ch)
-	dim dataptr as intptr_t = @outbuf[ch + 1]
+	dim dataptr as any ptr = @outbuf[ch + 1]
 	#ifdef ALIGNED_MEMORY
 		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
 		ch += 9  '10 bytes in total, assume inside FOR loop that increments ch
@@ -5567,25 +5569,29 @@ end destructor
 	outbuf += CHR(cmd_id)
 
 #macro APPEND_CMD1(outbuf, cmd_id, value)
-	outbuf += CHR(cmd_id) & "       "
-	dim dataptr as intptr_t = @outbuf[len(outbuf) - 7]
-	#ifdef ALIGNED_MEMORY
-		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
-	#endif
-	*cast(long ptr, dataptr) = cast(long, value)
+	scope
+		outbuf += CHR(cmd_id) & "       "
+		dim dataptr as any ptr = @outbuf[len(outbuf) - 7]
+		#ifdef ALIGNED_MEMORY
+			dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+		#endif
+		*cast(long ptr, dataptr) = cast(long, value)
+	end scope
 #endmacro
 
 'Read a 4-byte data value written by APPEND_CMD1
 #macro READ_VALUE(variable, outbuf, ch)
-	dim dataptr as intptr_t = @outbuf[ch + 1]
-	#ifdef ALIGNED_MEMORY
-		dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
-		ch += 7
-	#else
-		ch += 4
-	#endif
-	'Assume inside FOR loop that also increments ch
-	variable = *Cast(long ptr, dataptr)
+	scope
+		dim dataptr as any ptr = @outbuf[ch + 1]
+		#ifdef ALIGNED_MEMORY
+			dataptr = (dataptr + 3) and not 3  'Align to next multiple of 4
+			ch += 7
+		#else
+			ch += 4
+		#endif
+		'Assume inside FOR loop that also increments ch
+		variable = *Cast(long ptr, dataptr)
+	end scope
 #endmacro
 
 'Processes starting from z[state.charnum] until the end of the line, returning a string
