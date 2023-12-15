@@ -286,12 +286,32 @@ function gfx_fb_supports_variable_resolution() as bool
 	return YES
 end function
 
+'Modify the 'zoom' global.
+'The caller must call gfx_fb_update_screen_mode if this returns YES.
+local function maybe_set_zoom(value as integer) as bool
+	if value >= 1 andalso value <= 16 andalso value <> zoom then
+		if window_state.fullscreen then
+			'We are using a computed zoom, ignore the request
+			remember_windowed_zoom = value
+		else
+			zoom = value
+			return YES
+		end if
+	end if
+end function
+
 sub gfx_fb_get_settings(byref settings as GfxSettings)
 	settings.upscaler = smooth   '0/1
+	settings.upscaler_zoom = zoom
 end sub
 
 sub gfx_fb_set_settings(settings as GfxSettings)
 	smooth = settings.upscaler
+?"gfx_fb_set_settings zoom="&zoom & " upscaler_zoom=" & settings.upscaler_zoom
+	if maybe_set_zoom(settings.upscaler_zoom) then
+?" ...update scren"
+		gfx_fb_update_screen_mode
+	end if
 end sub
 
 function gfx_fb_setoption(byval opt as zstring ptr, byval arg as zstring ptr) as integer
@@ -305,15 +325,7 @@ function gfx_fb_setoption(byval opt as zstring ptr, byval arg as zstring ptr) as
 	dim as integer ret = 0
 	dim as bool screen_mode_changed = NO
 	if *opt = "zoom" or *opt = "z" then
-		if value >= 1 and value <= 16 then
-			if window_state.fullscreen then
-				'We are using a computed zoom, ignore the request
-				remember_windowed_zoom = value
-			else
-				zoom = value
-				screen_mode_changed = YES
-			end if
-		end if
+		screen_mode_changed = maybe_set_zoom(value)
 		ret = 1
 	elseif *opt = "smooth" or *opt = "s" then
 		if value = 1 or value = -1 then  'arg optional
