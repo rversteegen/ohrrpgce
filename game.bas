@@ -511,7 +511,7 @@ setvispage vpage, NO
 '==================================== Unlump ==================================
 
 ' Don't show "Loading..." (nor upgrade messages) on consoles, to give more control to the game
-IF running_on_console = NO THEN
+IF running_as_console = NO THEN
  ' If coming from the browser, this is drawn on top of the file path at the top.
  rectangle 0, 0, rWidth, 17, uilook(uiBackground), vpage
  'edgeboxstyle pCentered, 3, rWidth - 8, 14, 0, vpage  'Rectangle behind "Loading"
@@ -599,7 +599,7 @@ xbload game + ".fnt", current_font(), "font missing from " + sourcerpg
 
 '--upgrade obsolete RPG files (if possible)
 IF NOT running_under_Custom THEN
- DIM show_upgrade_messages as bool = (gam.started_by_run_game = NO) AND (running_on_console = NO)
+ DIM show_upgrade_messages as bool = (gam.started_by_run_game = NO) AND (running_as_console = NO)
  upgrade show_upgrade_messages
 END IF
 
@@ -5158,7 +5158,7 @@ END SUB
 'Return whether the virtual gamepad should be shown
 FUNCTION calc_virtual_gamepad_state() as bool
  'None of this matters unless we are running on a platform that actually uses a virtual gamepad
- IF NOT running_on_mobile() THEN RETURN NO
+ IF NOT running_on(Platforms.AnyMobile) THEN RETURN NO
 
  IF gam.pad.script_hide_virtual_gamepad THEN RETURN NO
  IF gam.pad.script_show_virtual_gamepad THEN RETURN YES

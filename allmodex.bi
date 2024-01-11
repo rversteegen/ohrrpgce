@@ -782,6 +782,33 @@ End Type
 '==========================================================================================
 '                                        Platforms
 
+enum Platforms
+	ANYMASK          = &hff00
+	AnyDesktop       = &h0100
+	AnyMobile        = &h0200
+	AnyConsole       = &h0400
+	AnyAndroid       = &h1000
+	AnyPlaystation   = &h2000
+	AnyXbox          = &h4000
+	AnyNintendo      = &h8000
+
+	Windows         =  1 + AnyDesktop
+	Mac             =  2 + AnyDesktop
+	Linux           =  3 + AnyDesktop
+	Unix            =  4 + AnyDesktop  'Other than Mac/Linux
+	Web             =  5
+	AndroidPhoneTab =  6 + AnyMobile  + AnyAndroid  'Phone or tablet, not a console or ChromeOS
+	AndroidConsole  =  7 + AnyConsole + AnyAndroid  'Other than OUYA
+	Ouya            =  8 + AnyConsole + AnyAndroid
+	'The following are possible Blackbox port targets
+	XboxOne         =  9 + AnyConsole + AnyXbox
+	XboxSeriesX     = 10 + AnyConsole + AnyXbox
+	PSVita          = 11 + AnyConsole + AnyPlaystation
+	PS4             = 12 + AnyConsole + AnyPlaystation
+	PS5             = 13 + AnyConsole + AnyPlaystation
+	Switch          = 14 + AnyConsole + AnyNintendo
+end enum
+
 declare sub show_virtual_keyboard()
 declare sub hide_virtual_keyboard()
 declare sub show_virtual_gamepad()
@@ -791,6 +818,18 @@ declare sub remap_android_gamepad(player as integer, gp as GamePadMap)
 declare sub remap_touchscreen_button (button_id as integer, ohr_scancode as integer)
 
 declare function read_environment_key(key as string) as string
+
+declare function running_on(which as Platforms) as bool
+declare function running_as(which as Platforms) as bool
+
+' running_as(Platforms.AnyConsole)
+
+' running_as_platform AND Platforms.IsConsole
+' get_platform AND Platforms.IsConsole
+' as_platform() AND Platforms.IsConsole
+' on_platform AND Platforms.IsConsole
+' on_platform AND Platforms.IsConsole
+
 declare function running_on_console() as bool
 declare function running_on_mobile() as bool
 declare function running_on_ouya() as bool 'Only use this for things that strictly require OUYA, like the OUYA store

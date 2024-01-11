@@ -440,7 +440,7 @@ END SUB
 
 FUNCTION use_touch_textboxes() as bool
  'Also applies to mouse-click textboxes
- IF running_on_mobile() THEN
+ IF running_on(Platforms.AnyMobile) THEN
   IF get_gen_bool("/mobile_options/touch_textboxes/enabled") THEN RETURN YES
  END IF
  IF get_gen_bool("/mouse/click_textboxes") THEN
@@ -1297,11 +1297,11 @@ DIM holdscreen as integer
 holdscreen = allocatepage
 copypage vpage, holdscreen
 
-IF running_on_console() THEN
+IF running_as_console() THEN
  'native virtual keyboard does not work on OUYA right now, so do this instead.
  gam.hero(who).name = gamepad_virtual_keyboard(gam.hero(who).name, limit)
  ret = YES
-ELSEIF running_on_mobile() THEN
+ELSEIF running_on(Platforms.AnyMobile) THEN
  hide_virtual_gamepad()
  gam.pad.being_shown = NO
  gam.hero(who).name = touch_virtual_keyboard(gam.hero(who).name, limit, prompt)
@@ -1565,7 +1565,7 @@ SUB remap_virtual_gamepad(nodename as string)
 END SUB
 
 FUNCTION should_disable_virtual_gamepad() as bool
- IF NOT running_on_mobile() THEN RETURN NO
+ IF NOT running_on(Platforms.AnyMobile) THEN RETURN NO
  DIM root as NodePtr = get_general_reld()
  DIM mobile as NodePtr = root."mobile_options".ptr
  IF mobile = 0 THEN mobile = SetChildNode(root, "mobile_options")
@@ -1573,7 +1573,7 @@ FUNCTION should_disable_virtual_gamepad() as bool
 END FUNCTION
 
 FUNCTION should_hide_virtual_gamepad_when_suspendplayer() as bool
- IF NOT running_on_mobile() THEN RETURN NO
+ IF NOT running_on(Platforms.AnyMobile) THEN RETURN NO
  DIM root as NodePtr = get_general_reld()
  RETURN root."mobile_options"."hide_virtual_gamepad_when_suspendplayer".integer.default(NO) <> 0
 END FUNCTION
@@ -1979,7 +1979,7 @@ NEXT i
 END SUB
 
 FUNCTION default_margin() as integer
- IF running_on_console() THEN
+ IF running_on(Platforms.AnyConsole) THEN
   'On OUYA, default to a safe 8% margin
   RETURN 8
  END IF

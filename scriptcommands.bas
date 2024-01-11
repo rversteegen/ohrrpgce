@@ -3588,15 +3588,11 @@ SUB script_commands(byval cmdid as integer)
   setbit gen(), genSuspendBits, suspenddoors, 0
  CASE 553 '--running on desktop
   'The web port could be run on a phone, so return false
-#IF defined(__FB_ANDROID__) OR defined(__FB_JS__) OR defined(__FB_BLACKBOX__)
- scriptret = 0
-#ELSE
- scriptret = 1
-#ENDIF
+  scriptret = IIF(running_as_platform AND Platforms.IsDesktop, 1, 0)
  CASE 554 '--running on mobile
-  scriptret = IIF(running_on_mobile(), 1, 0)
+  scriptret = IIF(running_as_mobile(), 1, 0)
  CASE 555 '--running on console
-  scriptret = IIF(running_on_console(), 1, 0)
+  scriptret = IIF(running_as_console(), 1, 0)
  CASE 565 '--string sprintf (dest string id, format string id, args...)
   IF valid_plotstr(retvals(0), serrBadOp) AND valid_plotstr(retvals(1), serrBadOp) THEN
    plotstr(retvals(0)).s = script_sprintf()
@@ -4412,7 +4408,7 @@ SUB script_commands(byval cmdid as integer)
  CASE 556 '--input string with virtual keyboard (string ID, maxlen, onlyplayer=-1)
   'This command tries to guess the best method for your current platform
   IF valid_plotstr(retvals(0)) THEN
-   IF running_on_mobile() THEN
+   IF running_on(Platforms.AnyMobile) THEN
     'Mobile with touchscreen. Player argument ignored for now.
     hide_virtual_gamepad()
     gam.pad.being_shown = NO
@@ -5280,14 +5276,26 @@ SUB script_commands(byval cmdid as integer)
  CASE 765 '--xbox request account picker
   #IFDEF __FB_BLACKBOX__
    blackbox_request_account_picker()
+  #ELSE
+   IF running_as_platform AND Platforms.IsXbox THEN
+    show_overlay_message "xbox request account picker"
+   END IF
   #ENDIF
  CASE 766 '--ps5 start story
   #IFDEF __FB_BLACKBOX__
    blackbox_start_story()
+  #ELSE
+   IF running_as_platform = Platforms.PS5 THEN
+    show_overlay_message "PS5 start story"
+   END IF
   #ENDIF
  CASE 767 '--ps5 end story
   #IFDEF __FB_BLACKBOX__
    blackbox_end_story()
+  #ELSE
+   IF running_as_platform = Platforms.PS5 THEN
+    show_overlay_message "PS5 end story"
+   END IF
   #ENDIF
  CASE 768 '--set rich presence(token name, substitution = -1)
   'Steam or Blackbox

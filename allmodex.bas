@@ -12062,6 +12062,20 @@ end sub
 '                           Platform specific wrapper functions
 '==========================================================================================
 
+function running_on_platform() as Platforms
+	' defined(__FB_ANDROID__) OR 
+	#IF defined(__FB_JS__)
+		return Platforms.web
+		' OR defined(__FB_BLACKBOX__)
+		'scriptret = 0
+	#ELSE
+		return Platforms.Unix
+	#ENDIF
+end function
+
+function running_as_platform() as Platforms
+	return running_on_platform()
+end function
 
 sub show_virtual_keyboard()
 	'Does nothing on platforms that have real keyboards
@@ -12229,3 +12243,30 @@ sub email_files(address as string, subject as string, message as string, file1 a
 		debug "email_files only supported on Android"
 	#endif
 end sub
+/'
+
+enum Platforms
+	NAMEMASK        = &h00000F
+	ISMASK          = &h0F0000
+	IsDesktop       = &h010000
+	Windows         = &h010101
+	Mac             = &h010202
+	Linux           = &h010303
+	Web             = &h020404
+	IsMobile        = &h040000
+	IsAndroid       = &h080000
+	IsConsole       = &h100000
+	AndroidPhoneTab = &h0C05
+	AndroidConsole  = &h1806   'Other than OUYA
+	Ouya            = &h1807
+	IsXbox          = &h2000
+	Xboxone         = &h3008
+	Seriesx         = &h3009
+	IsPlaystation   = &h4000
+	PSVita          = &h500A
+	PS4             = &h500B
+	PS5             = &h500C
+	IsNintendo      = &h8000
+	Switch          = &h900D
+end enum
+'/

@@ -4902,13 +4902,13 @@ FUNCTION get_buttonname_code(byval n as integer) as string
    num = GetInteger(bcode)
    IF num = n THEN
     'Other consoles might possibly need more specific platform checks here
-    IF running_on_console() THEN
-     IF running_on_ouya() THEN
+    IF running_as_console() THEN
+     IF running_as_ouya() THEN
       plat_key = "ouya"
      ELSE
       plat_key = "console"
      END IF
-    ELSEIF running_on_mobile() THEN
+    ELSEIF running_on(Platforms.AnyMobile) THEN
      plat_key = "touchscreen"
     ELSE
      plat_key = "keyboard"
