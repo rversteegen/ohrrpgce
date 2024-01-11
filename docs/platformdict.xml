@@ -106,25 +106,26 @@
 				For testing, key-value pairs can be placed in
 				<tt><b>gamename</b>_config.ini</tt> next to the .rpg, or in ohrrpgce_config.ini,
 				in the form <tt>env.<b>key</b>=<b>value</b></tt>,
-				e.g. <tt>env.SYS=PS4</tt>.
+				e.g. <tt>env.sys=PS4</tt>.
 				Available keys include:
 				<ul>
 					<li>
-						SYS - one of: XBOXONE, PS4, PSVITA, WINDOWS, SWITCH, PS5, SERIESX
+						"sys" - one of: XBOXONE, PS4, PSVITA, WINDOWS, SWITCH, PS5, SERIESX
 					</li>
 					<li>
-						ASIABUTTONS - one of "0" or "1".
+						"asiabuttons" - one of "0" or "1".
 						If "1", confirm is circle and cancel is cross (Nintendo or by user preference on PS).
 					</li>
 					<li>
-						REGION - may be empty, or may be NA, EU, JP, depending on the game.
+						"region" - may be empty, or may be NA, EU, JP, depending on the game.
 					</li>
 					<li>
-						GAMERTAG - the currently logged in profile's name (Xbox One). 
+						"gamertag" - the currently logged in profile's name (Xbox One).
 					</li>
 				</ul>
 			</description>
-			<example>read environment(1, $2="SYS")
+			<example>
+read environment(1, $2="sys")
 if (string equal(1, $2="PS4")) then (
 	...
 )</example>
