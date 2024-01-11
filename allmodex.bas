@@ -5241,16 +5241,58 @@ end sub
 '    pixels from the start of one dash to the next one. Should be >= 2.
 'dash_len:
 '    Dash length in pixels. Shoudl be < dash_cycle.
-sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2 as integer, c as integer, dash_cycle as integer = 0, dash_len as integer = 0)
+sub drawline (dest as Frame ptr, x1i as integer, y1i as integer, x2i as integer, y2i as integer, c as integer, dash_cycle as integer = 0, dash_len as integer = 0)
 	'Uses Bresenham's algorithm
 
 	dim byref cliprect as ClipState = get_cliprect(dest)
+
+	'Draw from one pixel center to another.
+	'"Integer" type pixel coordinates are at the center of pixels, while whole (integer)-valued
+	'floating point coords are at the boundaries between pixels.
+	dim as double x1 = x1i + 0.5, y1 = y1i + 0.5, x2 = x2i + 0.5, y2 = y2i + 0.5
+
+	'Perform clipping
+
+	if x1 > x2 then
+		swap x1, x2
+		swap y1, y2
+	end if
+	if x1 < cliprect.l then
+		if x2 < cliprect.l then exit sub
+
+		'So x1 < cliprect.l <= x2
+		y1 = y1 + (y2 - y1) * (cliprect.l - x1) / (x2 - x1)
+		x1 = cliprect.l
+	end if
+	'cliprect.r/b are inclusive
+	if x2 > cliprect.r + 1 then
+		if x1 > cliprect.r + 1 then exit sub
+
+		'So x1 <= cliprect.r + 1 < x2
+		y2 = y1 + (y2 - y1) * (cliprect.r + 1 - x1) / (x2 - x1)
+		x2 = cliprect.r + 1
+	end if
 
 	if y1 > y2 then
 		'swap ends, we only draw downwards
 		swap y1, y2
 		swap x1, x2
 	end if
+	if y1 < cliprect.t then
+		if y2 < cliprect.t then exit sub
+
+		'So y1 < cliprect.t <= y2
+		x1 = x1 + (x2 - x1) * (cliprect.t - y1) / (y2 - y1)
+		y1 = cliprect.t
+	end if
+	if y2 > cliprect.b + 1 then
+		if y1 > cliprect.b + 1 then exit sub
+
+		'So y1 <= cliprect.b + 1 < y2
+		x2 = x1 + (x2 - x1) * (cliprect.b + 1 - y1) / (y2 - y1)
+		y2 = cliprect.b + 1
+	end if
+
 
 	dim as integer stepX, stepY
 
@@ -5273,36 +5315,38 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 	'All the deltas are fractions of a pixel scaled to integers
 	'by multiplying by 2*deltaMAJOR
 
-	dim as integer deltaX, deltaY
+	dim as double deltaX, deltaY
 
 	deltax = abs(x2 - x1)
 	deltay = y2 - y1  'is positive due to above swap
 
-	dim as integer delta    'Accumulated fraction of a pixel error
+	dim as double delta    'Accumulated fraction of a pixel error
 
-	dim as integer delta_add, delta_sub
+	dim as double delta_add, x, y
+	'dim as integer delta_add, delta_sub
 	dim as integer length, majorstep, minorstep
 
 	if deltaX > deltaY then
-		length = deltaX
-		delta_add = 2*deltaY
-		delta_sub = 2*deltaX
+		delta_add = deltaY / deltaX
+		'delta_add = 2*deltaY
+		'delta_sub = 2*deltaX
 		minorstep = stepY * dest->pitch
 		majorstep = stepX
 	else
-		length = deltaY
-		delta_add = 2*deltaX
-		delta_sub = 2*deltaY
+		delta_add = deltaX / deltaY
+		'delta_add = 2*deltaX
+		'delta_sub = 2*deltaY
 		minorstep = stepX
 		majorstep = stepY * dest->pitch
 	end if
-	delta = -delta_sub \ 2  'Start at the center of a pixel
+	'delta = -delta_sub \ 2  'Start at the center of a pixel
+	'delta = -0.5
 
-	/'
-	'Perform clipping (not correct/finished)
-	dim itstart as integer
-	if y1 < cliprect.t then
-		if y2 < cliprect.t then exit sub  'Ensures delta_add & delta_sub > 0
+
+/'
+		'length2 = sqrt(deltaX^2 + deltaY^2)
+
+
 		if deltaX > deltaY then
 			delta += (cliprect.t - y1) * delta_add
 			itstart = delta \ delta_add
@@ -5320,18 +5364,65 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 		end if
 		y1 = cliprect.t
 	end if
+
+	if delta > 0 then
+		'Happens if we clipped
+		itstart = delta \ delta_add
+
+	end if
 	'/
+x = x1
+y=y1
+	if x1 < x2 then
+		x1i = cint(int(x1))  'floor function
+		x2i = cint(int(x2))  'floor function
+		if x2i = x2 then x2i -= 1
+	else
+		x1i = cint(int(x1))  'floor function
+		if x1i = x1 then x1i -= 1
+		x2i = cint(int(x2))  'floor function
+	end if
+	y1i = cint(int(y1))
+	y2i = cint(int(y2))
+	if y2i = y2 then y2i -= 1
+
+	dim firststep as double
+	if deltaX > deltaY then
+		length = abs(x2i - x1i) + 1
+		delta = fmod(y1, 1.0) - 1.0
+		if x1 < x2 then
+			'firststep = 1.0 - fmod(x1, 1.0)
+			firststep = 1.0 - (x1 - x1i)
+		else
+			'firststep = fmod(x1, 1.0)
+			firststep = x1 - x1i
+		end if
+	else
+		length = y2i - y1i + 1
+		'firststep = 1.0 - fmod(y1, 1.0)
+		firststep = (y1i + 1.0) - y1
+		if x1 < x2 then
+			delta = fmod(x1, 1.0) - 1.0
+		else
+			delta = -fmod(x1, 1.0)
+		end if
+	end if
+	' If firststep is less than 1.0 (a full pixel), the first delta += delta_add will
+	' be too much, compensate for that.
+	delta -= delta_add * (1.0 - firststep)
+
+	if length = 0 then exit sub
 
 	dim sptr as ubyte ptr
 	dim sptr32 as RGBcolor ptr
 	dim is32bit as bool
 	if dest->image then
-		sptr = dest->image + (y1 * dest->pitch) + x1
+		sptr = dest->image + (y1i * dest->pitch) + x1i
 		is32bit = NO
 	elseif dest->surf then
 		ERROR_IF(dest->surf->format <> SF_32bit, "surf not 32bit")
 		ERROR_IF(dest->surf->pitch <> dest->pitch, "mismatched pitch")
-		sptr32 = dest->surf->pColorData + (y1 * dest->surf->pitch) + x1
+		sptr32 = dest->surf->pColorData + (y1i * dest->surf->pitch) + x1i
 		sptr = cast(ubyte ptr, sptr32)
 		minorstep *= 4
 		majorstep *= 4
@@ -5344,8 +5435,42 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 
 	dim dash_accum as integer
 
-	for it as integer = 0 to length
-		if POINT_CLIPPED(x1, y1) = NO then
+	BUG_IF(POINT_CLIPPED(x1i, y1i), "drawline clipping broken")
+
+	dim it as integer = 0 'to length
+
+		for it = 1 to length
+			x1i = cint(int(x))  'floor function
+			if x1 >= x2 then
+				if x1i = x then x1i -= 1
+			end if
+
+			BUG_IF(POINT_CLIPPED(x1i, int(y)), "drawline clipping broken")
+			putpixel dest, x1i, int(y), c
+			if deltaX > deltaY then
+				x += stepX
+				y += delta_add
+			else
+				x += stepX * delta_add
+				y += 1.0 'stepY
+			end if
+		next
+'	else
+' 		while int(y) <= int(y2)
+' 			BUG_IF(POINT_CLIPPED(int(x), int(y)), "drawline clipping broken")
+' 			putpixel dest, int(x), int(y), c
+' 			x += stepX * delta_add
+' 			y += 1.0 'stepY
+' 		wend
+' 	end if
+' -
+
+	dim buggy as bool
+/'
+	do
+		if POINT_CLIPPED(x1i, y1i) then buggy = true
+		'BUG_IF(POINT_CLIPPED(x1i, y1i), "drawline clipping broken")
+		'if POINT_CLIPPED(x1, y1) = NO then
 			if dash_cycle = 0 then
 				if is32bit then
 					*cast(integer ptr, sptr) = c
@@ -5363,16 +5488,26 @@ sub drawline (dest as Frame ptr, x1 as integer, y1 as integer, x2 as integer, y2
 				dash_accum += 1
 				if dash_accum = dash_cycle then dash_accum = 0
 			end if
-		end if
+		'end if
+
+		it += 1
+		if it = length then exit do
+
 		delta += delta_add
 		if delta > 0 then
 			sptr += minorstep
-			delta -= delta_sub
-			if deltaX > deltaY then y1 += stepY else x1 += stepX
+			delta -= 1.0
+			'delta -= delta_sub
+			if deltaX > deltaY then y1i += stepY else x1i += stepX''''
 		end if
 		sptr += majorstep
-		if deltaX > deltaY then x1 += stepX else y1 += stepY
-	next
+		if deltaX > deltaY then x1i += stepX else y1i += stepY''''
+		if deltaX > deltaY then x += stepX : y += delta_add * stepY else y += stepY : x += delta_add * stepX
+	loop
+'/	
+	BUG_IF(POINT_CLIPPED(x1i, y1i), "post drawline clipping broken")
+	BUG_IF(buggy, "drawline bugcheck broken")
+
 end sub
 
 sub paintat (dest as Frame ptr, x as integer, y as integer, c as integer)
