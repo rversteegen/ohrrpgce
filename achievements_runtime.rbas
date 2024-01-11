@@ -109,6 +109,7 @@ namespace Achievements
           if progress <> null then
             progress->value = achievement."value".integer
             progress->rewarded = achievement."rewarded".exists
+            'FIXME: rewarded_date is not actually saved. And it's not used.
             progress->rewarded_date = achievement."rewarded_date".double
 
             ach_debug("loading progress of #" & id & ": value=" & progress->value & " rewarded=" & progress->rewarded)
@@ -262,8 +263,6 @@ namespace Achievements
   end function
 
   private sub reward_achievement(index as integer)
-    dim needs_persist as boolean = false
-
     with get_definition_by_index(index)
       ach_debug("Rewarding #" & .id & " '" & .name & "' Steam ID '" & .steam_id & "'")
       if .steam_id <> "" then
@@ -282,7 +281,7 @@ namespace Achievements
         if NodeByPath(persist, path) = 0 then
           ach_debug("...not in persist.reld... adding now!")
           dim achievement as NodePtr = NodeByPath(persist, path, true)
-          SetChildNodeDate(achievement, "rewarded_date", NOW())
+          SetChildNodeDate(achievement, "rewarded_date", .rewarded_date)
           write_persist_reld
         else
           ach_debug("...already in persist.reld, skip adding")
