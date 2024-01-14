@@ -1508,8 +1508,10 @@ SUB AchievementsEditor.define_items()
     DIM ach as Node ptr = FirstChild(root, "achievement")
     WHILE ach
       DIM nextach as Node ptr = NextSibling(ach, "achievement")
-      'IF defitem_act(GetString(ach) & " " & blank_default(ach."name".string, "[unnamed]")) THEN
-      IF defitem_act(GetString(ach) & " " & ach."name".string) THEN
+      ' Show the achievement ID and name, or the steam_id if the name's blank
+      DIM steam_id as string
+      IF ach."steam_id".exists THEN steam_id = "[" + ach."steam_id".string + "]"
+      IF defitem_act(GetString(ach) & " " & blank_default(ach."name".string, steam_id)) THEN
         cur_ach = ach
         enter_submenu "detail"
       END IF
