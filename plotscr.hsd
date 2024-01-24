@@ -808,6 +808,11 @@ define function, begin
 773,playstationcontroller,1,0 # The specified controller is a playstation-style one
 774,xboxcontroller,1,0        # The specified controller is an xbox-style one
 775,nintendocontroller,1,0    # The specified controller is a nintendo-style one
+776,addkeybind,3,1,0,0        # Add a new keybind (player, control key, scancode)
+777,removekeybind,3,1,0,0     # Remove any matching keybind (player, control key, [scancode]) or (player, scancode)
+778,suspendkeybind,3,1,0,0    # Suspend any matching keybind (player, control key, [scancode]) or (player, scancode)
+779,resumekeybind,3,1,0,0     # Resume any matching keybind (player, control key, [scancode]) or (player, scancode)
+780,getkeybind,3,1,0,0        # Look for matching keybinds (player, control/scancode, [count/get count])
 
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end

@@ -5325,6 +5325,51 @@ SUB script_commands(byval cmdid as integer)
   DIM sys as string = read_environment_key("sys")
   scriptret = IIF(sys = "SWITCH", 1, 0)
 
+ CASE 776 '--add keybind (player, control key, scancode)
+  DIM player as integer = retvals(0)
+  DIM control as ccCode = retvals(1)
+  DIM scancode as KBScancode = retvals(2)
+  IF valid_player_strict(player) ANDALSO bound_arg(control, ccFIRST, ccLAST, "control 'key' constant") THEN
+   IF in_bound(scancode, 1, scJoyLAST) THEN
+    get_keymap(player).add(control, scancode)
+   ELSE
+    scripterr "add keybind: 3rd arg should a 'key:' or 'joy:' constant, not " & scancode
+   END IF
+  END IF
+ CASE 777, 778, 779 '--remove keybind, suspend keybind, resume keybind (player, control key, [scancode]) or (player, scancode, 0)
+  DIM player as integer = retvals(0)
+  DIM key1 as KBScancode = retvals(1)  'cc* or KB or joy or 0 (invalid)
+  DIM key2 as KBScancode = retvals(2)  '
+  IF valid_player_strict(player) ANDALSO valid_key(key1) ANDALSO valid_scancode(key2) THEN
+   '.remove(), .suspend(), .resume() are tolerant of all invalid args so need not worry about it
+   '(We don't throw an error if key1 = 0)
+   SELECT CASE cmdid
+    CASE 777:  get_keymap(player).remove(key1, key2)
+    CASE 778:  get_keymap(player).suspend(key1, key2)
+    CASE 779:  get_keymap(player).resume(key1, key2)
+   END SELECT
+  END IF
+ CASE 780 '--get keybind (player, control/scancode, [count])
+  DIM player as integer = retvals(0)
+  DIM key as ccCode = retvals(1)
+  DIM count as integer = retvals(2)
+  IF valid_player_strict(player) ANDALSO valid_key(key) THEN
+   'I don't think it's very useful to have a direct way to ask "is {key} mapped to {control}?",
+   'so we're not providing a way to pass the 2nd arg to find().
+   DIM byref keymap as PlayerKeymap = get_keymap(player)
+   DIM ret as integer = keymap.find(key, , count)
+   IF count < 0 THEN  'count = 'get count'
+    scriptret = ret
+   ELSEIF ret >= 0 THEN  'Returned a controls() index
+    IF key < 0 THEN  'Control key, return the scancode
+     scriptret = keymap.controls(ret).scancode
+    ELSE  'Scancode, return control key
+     scriptret = keymap.controls(ret).ckey
+    END IF
+   ELSE  'Nothing found
+    scriptret = 0
+   END IF
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
@@ -5938,9 +5983,17 @@ END FUNCTION
 
 
 'This doesn't check how many players there are/how many joysticks are plugged in, because it's not an error
-'to poll a missing player/joystick
+'to poll a missing player/joystick, although maxPlayers=4 is the real limit (might be raised in future).
+'Allows player 0, which means "any player/input device".
 FUNCTION valid_player_num(byval player as integer) as bool
-  RETURN bound_arg(player, 0, 15, "player number", , serrBadOp)
+ 'player < 0 is illegal, > 16 is considered absurd
+ RETURN bound_arg(player, 0, 16, "player number", , serrBadOp)
+END FUNCTION
+
+'Allmodex keybinding functions only accept players 1 to maxPlayers, and we want to show an error
+'if you try to create a keybind that can't be created.
+FUNCTION valid_player_strict(byval player as integer) as bool
+ RETURN bound_arg(player, 1, maxPlayers, "player number", , serrBadOp)
 END FUNCTION
 
 FUNCTION valid_item_slot(byval item_slot as integer) as bool
@@ -6089,8 +6142,16 @@ END FUNCTION
 'A KBScancode (which is misnamed): a control key ("... key") or keyboard key ("key:...") or joystick button ("joy:...")
 'But does NOT allow scMouse* constants. Does allow some scancodes that aren't mapped to any keys, including 0.
 FUNCTION valid_key(byval key as integer, byval errlvl as scriptErrEnum = serrBadOp) as bool
- RETURN bound_arg(key, scKEYVAL_FIRST, scKEYVAL_LAST, "scancode", , errlvl)
+ RETURN bound_arg(key, scKEYVAL_FIRST, scKEYVAL_LAST, "scancode or control key", , errlvl)
 END FUNCTION
+
+'A keyboard key ("key:...") or joystick button ("joy:...") scancode.
+'Does NOT allow cc* ("... key") or scMouse* constants. Does allow some scancodes aren't mapped to any keys, including 0
+'Note: valid_key should usually be used instead
+FUNCTION valid_scancode(byval scancode as integer) as bool
+ RETURN bound_arg(scancode, 0, scKEYVAL_LAST, "scancode", , serrBadOp)
+END FUNCTION
+
 
 '==========================================================================================
 '                             Utility functions for default arguments 

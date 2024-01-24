@@ -136,6 +136,7 @@ DECLARE FUNCTION menu_item_handle_by_slot(byval menuslot as integer, byval mislo
 DECLARE FUNCTION find_menu_item_slot_by_string(byval menuslot as integer, s as string, byval mislot as integer=0, byval visible_only as bool=YES) as integer
 
 DECLARE FUNCTION valid_player_num(byval player as integer) as bool
+DECLARE FUNCTION valid_player_strict(byval player as integer) as bool
 DECLARE FUNCTION valid_item_slot(byval item_slot as integer) as bool
 DECLARE FUNCTION valid_item(byval itemid as integer) as bool
 DECLARE FUNCTION valid_hero_caterpillar_rank(who as integer) as bool
@@ -159,6 +160,7 @@ DECLARE FUNCTION valid_color(index as integer) as bool
 DECLARE FUNCTION valid_box_style(index as integer) as bool
 DECLARE FUNCTION valid_spriteset(spritetype as SpriteType, record as integer) as bool
 DECLARE FUNCTION valid_key(byval scancode as integer, byval errlvl as scriptErrEnum = serrBadOp) as bool
+DECLARE FUNCTION valid_scancode(byval scancode as integer) as bool
 
 DECLARE SUB greyscalepal
 DECLARE SUB tweakpalette (byval r as integer, byval g as integer, byval b as integer, byval first as integer = 0, byval last as integer = 255)
