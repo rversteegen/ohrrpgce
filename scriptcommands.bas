@@ -5349,7 +5349,7 @@ SUB script_commands(byval cmdid as integer)
     CASE 779:  get_keymap(player).resume(key1, key2)
    END SELECT
   END IF
- CASE 780 '--get keybind (player, control/scancode, [count])
+ CASE 780 '--find keybind (player, control/scancode, [count])
   DIM player as integer = retvals(0)
   DIM key as ccCode = retvals(1)
   DIM count as integer = retvals(2)

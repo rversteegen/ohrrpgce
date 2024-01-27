@@ -27,6 +27,7 @@ plotscript, run all tests, begin
   show string at(message 2, 0, 191)
 
   keyval tests
+  keybind tests
   suspend and wait tests
   keyboard input tests
   #basic control tests
@@ -197,6 +198,57 @@ script, suspend and wait tests, begin
   test wait for scancode(key:F1)
 
 end
+
+script, keybind tests, begin
+  assert(find keybind(1, key:enter) == use key)
+  assert(find keybind(1, joy:a) == use key)
+  assert(find keybind(1, joy:b) == cancel key)
+
+  subscript, is bound, player, control, key, begin
+    variable (count, i, k)
+    count := find keybind(player, control, get count)
+    tracevalue(player, control, key, count)
+    assert (find keybind(player, control, count) == 0)
+    if (count) then (assert (find keybind(player, control, count -- 1) <> 0))
+    for (i, 0, count -- 1) do (
+      k := find keybind(player, control, i)
+      assert(k)  # Check getcount accurate
+    )
+    for (i, 0, count -- 1) do (
+      k := find keybind(player, control, i)
+      if (k == key) then (exit (true))
+    )
+    exit (false)
+  end
+
+  assert(is bound(1, use key, key:space))
+  assert(is bound(1, use key, joy:a))
+  assert(is bound(1, cancel key, joy:a) == false)
+  assert(is bound(1, cancel key, joy:b))
+  assert(is bound(1, down key, joy:down))
+  assert(is bound(1, down key, key:down))
+
+  remove keybind(1, down key)
+  assert(find keybind(1, down key) == 0)
+  assert(find keybind(1, down key, get count) == 0)
+  assert(is bound(2, down key, joy:down))
+  remove keybind(1, up key, key:up)
+  assert(find keybind(1, up key) == joy:up)
+
+  add keybind(1, down key, key:s)
+  assert(find keybind(1, down key) == key:s)
+  assert(find keybind(1, key:s) == down key)
+  add keybind(1, down key, key:down)
+  add keybind(1, down key, joy:down)
+
+  add keybind(1, up key, key:up)
+
+  # Removing nonexistent keybind not an error
+  remove keybind(1, use key, 0)
+  remove keybind(1, use key, key:k)
+
+end
+
 
 ########################################################################
 
