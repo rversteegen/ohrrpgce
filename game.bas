@@ -43,7 +43,7 @@ DECLARE SUB update_npcs ()
 DECLARE SUB pick_npc_action(npci as NPCInst, npcdata as NPCType)
 DECLARE FUNCTION perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCType) as bool
 DECLARE SUB npchitwall (npci as NPCInst, npcdata as NPCType, collision_type as WalkaboutCollisionType)
-DECLARE FUNCTION find_useable_npc () as NPCIndex
+DECLARE FUNCTION find_useable_npc (rank as integer = 0) as NPCIndex
 DECLARE SUB interpret_scripts ()
 DECLARE SUB update_heroes(force_step_check as bool=NO)
 DECLARE SUB doloadgame(byval load_slot as integer, prefix as string="")
@@ -855,44 +855,50 @@ DO
     user_trigger_hero_pathfinding()
    END IF
   END IF
-  IF herow(0).xygo = 0 THEN
-   'While on a vehicle, menu and use keys are handled in vehicle_controls()
-   IF carray(ccUse) > 1 ANDALSO vstate.active = NO ANDALSO usenpc(0, find_useable_npc()) THEN
-    cancel_hero_pathfinding(0)
-   ELSE
+  FOR player as integer = 1 TO caterpillar_size()
+   DIM rank as integer = player - 1
 
-    'Find the most recently pressed direction
-    '...unless backcompat bit is set to keep old "hero will move"/"trying to move direction"
-    'scripts (used by "fake parallax" script) working the same
-    DIM setdir as DirNum = -1
-    DIM best_time as integer = INT_MAX
-    DIM fixedpriority as bool = prefbit(57)  '"Use old direction key tiebreaking"
-    IF keyval(ccRight) ANDALSO (fixedpriority ORELSE keypress_time(ccRight) < best_time) THEN
-     setdir = dirRight
-     best_time = keypress_time(ccRight)
-    END IF
-    IF keyval(ccLeft) ANDALSO (fixedpriority ORELSE keypress_time(ccLeft) < best_time) THEN
-     setdir = dirLeft
-     best_time = keypress_time(ccLeft)
-    END IF
-    IF keyval(ccDown) ANDALSO (fixedpriority ORELSE keypress_time(ccDown) < best_time) THEN
-     setdir = dirDown
-     best_time = keypress_time(ccDown)
-    END IF
-    IF keyval(ccUp) ANDALSO (fixedpriority ORELSE keypress_time(ccUp) < best_time) THEN
-     setdir = dirUp
-     best_time = keypress_time(ccUp)
-    END IF
-    IF setdir = dirUp    THEN herow(0).ygo = 20
-    IF setdir = dirDown  THEN herow(0).ygo = -20
-    IF setdir = dirLeft  THEN herow(0).xgo = 20
-    IF setdir = dirRight THEN herow(0).xgo = -20
-    IF setdir <> -1 THEN
-     (herodir(0)) = setdir
-     cancel_hero_pathfinding(0)
+   IF herow(rank).xygo = 0 THEN
+    'While on a vehicle, menu and use keys are handled in vehicle_controls()
+    IF player_keyval(ccUse, player) > 1 ANDALSO vstate.active = NO ANDALSO usenpc(0, find_useable_npc(rank)) THEN
+     cancel_hero_pathfinding(rank)
+    ELSE
+
+     'Find the most recently pressed direction
+     '...unless backcompat bit is set to keep old "hero will move"/"trying to move direction"
+     'scripts (used by "fake parallax" script) working the same
+     DIM setdir as DirNum = -1
+     DIM best_time as integer = INT_MAX
+     DIM fixedpriority as bool = prefbit(57)  '"Use old direction key tiebreaking"
+     IF player_keyval(ccRight, player) ANDALSO (fixedpriority ORELSE keypress_time(ccRight, player) < best_time) THEN
+      setdir = dirRight
+      best_time = keypress_time(ccRight, player)
+     END IF
+     IF player_keyval(ccLeft, player) ANDALSO (fixedpriority ORELSE keypress_time(ccLeft, player) < best_time) THEN
+      setdir = dirLeft
+      best_time = keypress_time(ccLeft, player)
+     END IF
+     IF player_keyval(ccDown, player) ANDALSO (fixedpriority ORELSE keypress_time(ccDown, player) < best_time) THEN
+      setdir = dirDown
+      best_time = keypress_time(ccDown, player)
+     END IF
+     IF player_keyval(ccUp, player) ANDALSO (fixedpriority ORELSE keypress_time(ccUp, player) < best_time) THEN
+      setdir = dirUp
+      best_time = keypress_time(ccUp, player)
+     END IF
+     IF setdir = dirUp    THEN herow(rank).ygo = 20
+     IF setdir = dirDown  THEN herow(rank).ygo = -20
+     IF setdir = dirLeft  THEN herow(rank).xgo = 20
+     IF setdir = dirRight THEN herow(rank).xgo = -20
+     IF setdir <> -1 THEN
+      (herodir(rank)) = setdir
+      cancel_hero_pathfinding(rank)
+     END IF
     END IF
    END IF
-  END IF
+
+  NEXT
+
  END IF
  IF readbit(gen(), genSuspendBits, suspendwalkabouts) = 0 THEN
   FOR i as integer = 0 TO 3
@@ -1502,7 +1508,7 @@ SUB update_heroes(force_step_check as bool=NO)
 
  'Caterpillar hero movement: if enabled and the leader is about to move
  ' then make other heroes trail along by updating the caterpillar history
- IF readbit(gen(), genSuspendBits, suspendcaterpillar) = 0 THEN
+ IF caterpillar_is_suspended() = NO THEN
   'Normal caterpillar
   IF herow(0).xygo <> 0 THEN
    updatecaterpillarhistory
@@ -1537,7 +1543,7 @@ SUB update_heroes(force_step_check as bool=NO)
 
   'If caterpillar is not suspended, only the leader's motion determines a step
   '(a limitation of the caterpillar party).
-  IF readbit(gen(), genSuspendBits, suspendcaterpillar) = 0 THEN
+  IF caterpillar_is_suspended() = NO THEN
    didgo(whoi) = didgo(0)
    notmidstep(whoi) = notmidstep(0)
   END IF
@@ -4155,12 +4161,12 @@ END SUB
 '==========================================================================================
 
 
-'--Look in front of the leader for an activatable NPC.
+'--Look in front of a given hero for an activatable NPC.
 '--WARNING: has side-effects: assumes result is passed to usenpc
-FUNCTION find_useable_npc() as NPCIndex
- DIM ux as integer = herox(0)
- DIM uy as integer = heroy(0)
- wrapaheadxy ux, uy, herodir(0), 20, 20
+FUNCTION find_useable_npc(rank as integer = 0) as NPCIndex
+ DIM ux as integer = herox(rank)
+ DIM uy as integer = heroy(rank)
+ wrapaheadxy ux, uy, herodir(rank), 20, 20
 
  FOR j as NPCIndex = 0 TO UBOUND(npc)
   WITH npc(j)
