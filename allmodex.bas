@@ -286,6 +286,7 @@ type KeyArray extends Object
 	declare sub update_keydown_times(inputst as InputStateFwd)
 	'In following, key is a KBScancode or JoyButton depending on subclass
 	declare function key_repeating(key as integer, repeat_wait as integer, repeat_rate as integer, inputst as InputStateFwd) as KeyBits
+	declare abstract function key_is_pressed(key as KBScancode) as bool
 	declare abstract function keyval(key as integer, repeat_wait as integer = 0, repeat_rate as integer = 0, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 	declare abstract function anykey(player as integer, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 	declare sub clearkeys()
@@ -300,6 +301,7 @@ type KeyboardState extends KeyArray
 	declare sub update_keybits()
 	declare function is_arrow_key(key as KBScancode) as bool
 	declare function numpad_alias_key(key as KBScancode) as KBScancode
+	declare function key_is_pressed(key as KBScancode) as bool
 	declare function keyval(key as KBScancode, repeat_wait as integer = 0, repeat_rate as integer = 0, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 	declare function anykey(player as integer, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 end type
@@ -326,6 +328,7 @@ type JoystickState extends KeyArray
 	declare constructor()
 	declare sub update_keybits(joynum as integer)
 	declare function is_arrow_key(key as JoyButton) as bool
+	declare function key_is_pressed(key as JoyButton) as bool
 	declare function keyval(key as JoyButton, repeat_wait as integer = 0, repeat_rate as integer = 0, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 	declare function anykey(player as integer, inputst as InputStateFwd, byref down_ms as integer) as KeyBits
 end type
@@ -333,6 +336,7 @@ end type
 ' Keyboard and joystick state which is separate for recording and replaying.
 ' (In future will include mouse too, once record/replay is implemented for mouse)
 type InputState
+	need_mod_state_update as bool
 	'Shared between keyboard and joysticks
 	elapsed_ms as integer               'Time since last setkeys call (used by key_repeating)
 	repeat_wait as integer = 500        'ms before keys start to repeat
@@ -344,6 +348,7 @@ type InputState
 	keymaps(1 to maxPlayers) as PlayerKeymap 'Set of keybinds for each player.
 
 	declare function controlkey(player as integer, cc as ccCode, repeat_wait as integer = 0, repeat_rate as integer = 0, byref down_ms as integer, check_keyboard as bool = YES) as KeyBits
+	declare sub update_mod_keys()
 	declare sub reset_keymaps()
 end type
 
@@ -2070,6 +2075,12 @@ function KeyboardState.anykey(player as integer, inputst as InputState, byref do
 					dim key as KBScancode = .controls(idx).scancode
 					BUG_IF(key < 0 orelse key > scKEYVAL_LAST, "Bad Keybind.scancode", 0)
 					bound_keys(key) = true
+
+					key = .controls(idx).mod_scancode
+					if key <> scAnyModKey then
+						BUG_IF(key < 0 orelse key > scKEYVAL_LAST, "Bad Keybind.scancode", 0)
+						bound_keys(key) = true
+					end if
 				next
 			end with
 		next
@@ -2091,6 +2102,10 @@ function KeyboardState.anykey(player as integer, inputst as InputState, byref do
 				if key <= scLAST then  'Not a joystick button
 					ret or= this.keyval(key, , , inputst, down_ms)
 				end if
+				key = .controls(idx).mod_scancode
+				if key <= scLAST then  'Not a joystick button or scAnyModKey
+					ret or= this.keyval(key, , , inputst, down_ms)
+				end if
 			next
 		end with
 	end if
@@ -2108,6 +2123,10 @@ function JoystickState.anykey(player as integer, inputst as InputState, byref do
 			if button >= joyButton1 andalso button <= joyLAST then  'Check not a keyboard key
 				ret or= this.keyval(button, , , inputst, down_ms)
 			end if
+			button = .controls(idx).mod_scancode - scJoyOFFSET
+			if button >= joyButton1 andalso button <= joyLAST then  'Check not keyboard or scAnyModKey
+				ret or= this.keyval(button, , , inputst, down_ms)
+			end if
 		next
 	end with
 	'for button as JoyButton = joyButton1 to joyLAST
@@ -2116,6 +2135,55 @@ function JoystickState.anykey(player as integer, inputst as InputState, byref do
 	return ret
 end function
 
+'Set .mod_state for each control
+sub InputState.update_mod_keys()
+	for player as integer = 1 to maxPlayers
+		dim byref joy as JoystickState = this.joys(player - 1)
+		dim byref keymap as PlayerKeymap = this.keymaps(player)
+		dim idx as integer
+
+		'The set of all scancodes which have a keybind with a modifier key which is pressed:
+		'those keybinds shadow any keybinds for the same scancode with no modifier.
+		dim shadowed_keys as HashTable
+		shadowed_keys.construct()
+
+		for idx = 0 to ubound(keymap.controls)
+			with keymap.controls(idx)
+				if .mod_scancode = 0 then
+					'Delay until we have shadowed_keys
+				elseif .mod_scancode = scAnyModKey then
+					'Never shadowed
+					.mod_state = YES
+				elseif .mod_scancode <= scLAST then  'Keyboard
+					BUG_IF(.mod_scancode < 0 orelse .mod_scancode > scLAST, "Bad Keybind.mod_scancode " & .mod_scancode,)
+
+					.mod_state = this.kb.key_is_pressed(.mod_scancode)
+					shadowed_keys.set(.scancode, YES)
+				else  'Joystick
+					BUG_IF(.mod_scancode andalso (.mod_scancode < scJoyButton1 orelse .mod_scancode > scJoyLAST), "Bad Keybind.mod_scancode " & .mod_scancode)
+					.mod_state = joy.key_is_pressed(.mod_scancode - scJoyOFFSET)
+					shadowed_keys.set(.scancode, YES)
+				end if
+
+			end with
+		next
+
+		for idx = 0 to ubound(keymap.controls)
+			with keymap.controls(idx)
+				if .mod_scancode = 0 then
+					if shadowed_keys.get_int(.scancode) then
+						.mod_state = YES
+					else
+						.mod_state = NO
+					end if
+				end if
+			end with
+		next
+	next
+
+	this.need_mod_state_update = NO
+end sub
+
 'Calculate value of a control key for one player, bitwise-ORing all non-suspended (except anykey) keys mapped to it
 'player:  1 to 4.
 'cc:      ccFIRST <= cc < 0
@@ -2123,6 +2191,11 @@ end function
 'down_ms: set to max down_ms of any key or initial value.
 function InputState.controlkey (player as integer, cc as ccCode, repeat_wait as integer = 0, repeat_rate as integer = 0, byref down_ms as integer, check_keyboard as bool = YES) as KeyBits
 	if player < 1 orelse player > maxPlayers then return 0
+	dim byref joy as JoystickState = this.joys(player - 1)
+
+	if this.need_mod_state_update then
+		this.update_mod_keys()
+	end if
 
 	dim ret as KeyBits
 
@@ -2132,13 +2205,13 @@ function InputState.controlkey (player as integer, cc as ccCode, repeat_wait as 
 			ret = this.kb.anykey(player, this, down_ms)
 		end if
 
-		ret or= this.joys(player - 1).anykey(player, this, down_ms)
+		ret or= joy.anykey(player, this, down_ms)
 		return ret
 	end if
 
 	for idx as integer = 0 to ubound(this.keymaps(player).controls)
 		with this.keymaps(player).controls(idx)
-			if cc = .ckey andalso .suspended = NO then
+			if cc = .ckey andalso .mod_state andalso .suspended = NO then
 				'Shouldn't happen; if the Keybind is blank then .ckey=0
 				BUG_IF(.scancode <= 0 orelse .scancode > scJoyLAST, "Bad Keybind.scancode " & .scancode, 0)
 
@@ -2147,12 +2220,25 @@ function InputState.controlkey (player as integer, cc as ccCode, repeat_wait as 
 						ret or= this.kb.keyval(.scancode, repeat_wait, repeat_rate, this, down_ms)
 					end if
 				else  'Joystick
-					ret or= this.joys(player - 1).keyval(.scancode - scJoyOFFSET, repeat_wait, repeat_rate, this, down_ms)
+					ret or= joy.keyval(.scancode - scJoyOFFSET, repeat_wait, repeat_rate, this, down_ms)
 				end if
 			end if
 		end with
 	next
 	return ret
+end function
+
+'Just check whether a key (or a numpad alias) is pressed, without repeat
+function KeyboardState.key_is_pressed(key as KBScancode) as bool
+	if this.keys(key) then return YES
+	dim key2 as KBScancode = this.numpad_alias_key(key)
+	if key2 then
+		if this.keys(key2) then return YES
+	end if
+end function
+
+function JoystickState.key_is_pressed(key as JoyButton) as bool
+	if this.keys(key) then return YES
 end function
 
 'Get state of a real keyboard key: cc* and joy* scancodes not supported
@@ -2232,6 +2318,8 @@ sub clearkey(k as KBScancode, clear_key_repeat as bool = YES)
 	if clear_key_repeat then
 		inputst->kb.key_down_ms(k) = 0
 	end if
+	'Because we don't clear key-down, don't need to do this
+	'inputst->need_mod_state_update = YES
 end sub
 
 'Erase a new keypress bit and optionally cancel key repeat from the real keyboard state,
@@ -2241,6 +2329,8 @@ sub real_clearkey(k as KBScancode, clear_key_repeat as bool = YES)
 	if clear_key_repeat then
 		real_input.kb.key_down_ms(k) = 0
 	end if
+	'Because we don't clear key-down, don't need to do this
+	'real_input.need_mod_state_update = YES
 end sub
 
 'Erase all new keypress bits and cancel key repeat. Does not affect key-down state.
@@ -2263,6 +2353,8 @@ sub clearkeys()
 	mouse_state.clearclick(mouseLeft)
 	mouse_state.clearclick(mouseRight)
 	mouse_state.clearclick(mouseMiddle)
+	'Because we don't clear key-down, don't need to do this
+	'real_input.need_mod_state_update = YES
 end sub
 
 
@@ -2678,34 +2770,34 @@ sub PlayerKeymap.reset (player as integer)
 		usebut = scJoy(A)   'Cross
 		menubut = scJoy(B)  'Circle
 	end if
-	controls(0) = TYPE(scJoy(Up),    ccUp)
-	controls(1) = TYPE(scJoy(Down),  ccDown)
-	controls(2) = TYPE(scJoy(Left),  ccLeft)
-	controls(3) = TYPE(scJoy(Right), ccRight)
-	controls(4) = TYPE(usebut,       ccUse)
-	controls(5) = TYPE(menubut,      ccCancel)
-	controls(6) = TYPE(menubut,      ccMenu)
-	controls(7) = TYPE(scJoy(Start), ccMenu)
-	controls(8) = TYPE(menubut,      ccRun)
+	controls(0) = TYPE(scJoy(Up),    0, ccUp)
+	controls(1) = TYPE(scJoy(Down),  0, ccDown)
+	controls(2) = TYPE(scJoy(Left),  0, ccLeft)
+	controls(3) = TYPE(scJoy(Right), 0, ccRight)
+	controls(4) = TYPE(usebut,       0, ccUse)
+	controls(5) = TYPE(menubut,      0, ccCancel)
+	controls(6) = TYPE(menubut,      0, ccMenu)
+	controls(7) = TYPE(scJoy(Start), 0, ccMenu)
+	controls(8) = TYPE(menubut,      0, ccRun)
 
 	if player = 1 then
-		controls(9)  = TYPE(scUp,     ccUp)
-		controls(10)  = TYPE(scDown,   ccDown)
-		controls(11)  = TYPE(scLeft,   ccLeft)
-		controls(12)  = TYPE(scRight,  ccRight)
+		controls(9)  = TYPE(scUp,     0, ccUp)
+		controls(10) = TYPE(scDown,   0, ccDown)
+		controls(11) = TYPE(scLeft,   0, ccLeft)
+		controls(12) = TYPE(scRight,  0, ccRight)
 		#ifdef IS_GAME
-			controls(13)  = TYPE(scCtrl,   ccUse)  'Wiped by reset_to_basic_keymap
+			controls(13)  = TYPE(scCtrl,   0, ccUse)  'Wiped by reset_to_basic_keymap
 		#endif
-		controls(14)  = TYPE(scSpace,  ccUse)
-		controls(15)  = TYPE(scEnter,  ccUse)
+		controls(14) = TYPE(scSpace,  0, ccUse)
+		controls(15) = TYPE(scEnter,  0, ccUse)
 		#ifdef IS_GAME
-			controls(16)  = TYPE(scAlt,    ccMenu)  'Wiped by reset_to_basic_keymap
-			controls(17)  = TYPE(scAlt,    ccCancel)  'Wiped by reset_to_basic_keymap
+			controls(16)  = TYPE(scAlt,    0, ccMenu)  'Wiped by reset_to_basic_keymap
+			controls(17)  = TYPE(scAlt,    0, ccCancel)  'Wiped by reset_to_basic_keymap
 		#endif
-		controls(18)  = TYPE(scEsc,    ccMenu)
-		controls(19) = TYPE(scEsc,    ccCancel)
-		controls(20) = TYPE(scEsc,    ccFlee)
-		controls(21) = TYPE(scTab,    ccFlee)  'Who knew?
+		controls(18) = TYPE(scEsc,    0, ccMenu)
+		controls(19) = TYPE(scEsc,    0, ccCancel)
+		controls(20) = TYPE(scEsc,    0, ccFlee)
+		controls(21) = TYPE(scTab,    0, ccFlee)  'Who knew?
 	end if
 end sub
 
@@ -2732,13 +2824,34 @@ end sub
 'Returns an index in controls() that matches a ccCode and/or KBScancode, or -1 if not found,
 'or if count = -1 then returns number of matches.
 'count tells which index to return if multiple match, counting from 0 for the first.
-'Pass either a cc* constant, a sc* constant, or both cc* and sc* (in that order). That is:
-'cc_or_sc is a cc* constant, sc omitted: matches all keybinds to that control
-'cc_or_sc is a sc* constant, sc omitted: matches all keybinds from that scancode
-'cc_or_sc is a cc* constant, sc is a sc* constant: matches all keybinds from that scancode to control
-function PlayerKeymap.find (cc_or_sc as KBScancode, sc as KBScancode = 0, count as integer = 0) as integer
+'Pass either a control key (cc* constant), one or two sc* constants (2nd being a modifier),
+'or both cc* and one/two sc* (in that order). That is:
+'control
+'control, scancode, [mod_scancode]
+'scancode, [mod_scancode]
+''control, scancode
+'mod_scancode must match, e.g. scAnyModKey doesn't match scNone (the default)
+'E.g. cc_or_sc a cc* constant, sc a sc* constant matches all keybinds from that scancode without modifier
+'to that control.
+function PlayerKeymap.find (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0, count as integer = 0) as integer
 	for i as integer = 0 to ubound(this.controls)
 		with this.controls(i)
+			dim matching as bool
+			if cc_or_sc < 0 andalso sc <> 0 then
+				if .ckey = cc_or_sc andalso .scancode = sc then
+					if .mod_scancode = sc2 orelse sc2 = scAnyModKey then matching = YES
+				end if
+			elseif cc_or_sc < 0 andalso sc = 0 then
+				if .ckey = cc_or_sc then matching = YES
+			elseif cc_or_sc > 0 then
+				if .scancode = cc_or_sc andalso .mod_scancode = sc then matching = YES
+			end if
+			if matching then
+				if count = 0 then return i
+				count -= 1
+			end if
+
+			/'
 			if sc = 0 then
 				if .ckey = cc_or_sc orelse .scancode = cc_or_sc then
 					if count = 0 then return i
@@ -2750,6 +2863,7 @@ function PlayerKeymap.find (cc_or_sc as KBScancode, sc as KBScancode = 0, count 
 					count -= 1
 				end if
 			end if
+			'/
 		end with
 	next
 	if count < 0 then return -count - 1  'Number of matches
@@ -2760,7 +2874,7 @@ end function
 'If the exactly same keybind already exists, nothing is done.
 'controlc: which control to add a binding for.
 'scanc: a sc* or scJoy* constant, not a cc* constant.
-sub PlayerKeymap.add (controlc as ccCode, scanc as KBScancode)
+sub PlayerKeymap.add (controlc as ccCode, scanc as KBScancode, mod_scanc as KBScancode = 0)
 	if in_bound(controlc, ccFIRST, ccLAST) = NO then
 		debug strprintf("PlayerKeymap.add: invalid control=%d", controlc)
 		exit sub
@@ -2771,7 +2885,7 @@ sub PlayerKeymap.add (controlc as ccCode, scanc as KBScancode)
 	end if
 
 	'Only add if doesn't already exist
-	dim idx as integer = this.find(controlc, scanc)
+	dim idx as integer = this.find(controlc, scanc, mod_scanc)
 	if idx < 0 then
 		'Reuse any deleted slot
 		idx = this.find(0, 0)
@@ -2783,36 +2897,38 @@ sub PlayerKeymap.add (controlc as ccCode, scanc as KBScancode)
 		with this.controls(idx)
 			.ckey = controlc
 			.scancode = scanc
+			.mod_scancode = mod_scanc
 		end with
 	end if
 end sub
 
 'Delete (blank out) all matching keybinds; see PlayerKeymap.find() about matching.
-sub PlayerKeymap.remove (cc_or_sc as KBScancode, sc as KBScancode = 0)
+sub PlayerKeymap.remove (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
 	do
-		dim idx as integer = this.find(cc_or_sc, sc)
+		dim idx as integer = this.find(cc_or_sc, sc, sc2)
 		if idx < 0 then exit sub
 		with this.controls(idx)
 			.ckey = 0
 			.scancode = 0
+			.mod_scancode = 0
 			.suspended = NO
 		end with
 	loop
 end sub
 
 'Suspends all matching keybinds; see PlayerKeymap.find() about matching.
-sub PlayerKeymap.suspend (cc_or_sc as KBScancode, sc as KBScancode = 0)
+sub PlayerKeymap.suspend (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
 	do
-		dim idx as integer = this.find(cc_or_sc, sc)
+		dim idx as integer = this.find(cc_or_sc, sc, sc2)
 		if idx < 0 then exit sub
 		this.controls(idx).suspended = YES
 	loop
 end sub
 
 'Resumes all matching keybinds; see PlayerKeymap.find() about matching.
-sub PlayerKeymap.resume (cc_or_sc as KBScancode, sc as KBScancode = 0)
+sub PlayerKeymap.resume (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
 	do
-		dim idx as integer = this.find(cc_or_sc, sc)
+		dim idx as integer = this.find(cc_or_sc, sc, sc2)
 		if idx < 0 then exit sub
 		this.controls(idx).suspended = NO
 	loop
@@ -3124,6 +3240,9 @@ sub setkeys (enable_inputtext as bool = NO)
 			replay_input.joys(joynum).update_keydown_times(replay_input)
 		next
 	end if
+
+	real_input.need_mod_state_update = YES
+	replay_input.need_mod_state_update = YES
 
 	'Taking a screenshot with gfx_directx is very slow, so avoid timing that
 	if log_slow then debug_if_slow(starttime, 0.005, replay.active)

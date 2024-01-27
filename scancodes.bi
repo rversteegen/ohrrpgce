@@ -199,6 +199,9 @@ CONST scMouseMiddle = 182
 'The following are only returned by waitforkey!
 CONST scResize = 200   'The window was resized
 
+'This is a special input value used for PlayerKeymap.find(). "any mod key" in HS.
+CONST scAnyModKey = 255
+
 '--- Control code scancodes (type: ccCode)
 
 CONST ccLAST = -1

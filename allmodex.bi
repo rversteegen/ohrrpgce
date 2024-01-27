@@ -465,8 +465,15 @@ DECLARE SUB frame_export_gif (fr as Frame Ptr, fname as string, maspal() as RGBc
 ' Mapping from a scancode to a cc* control code/action. Can be blank.
 Type Keybind
 	scancode as KBScancode          'Either a keyboard or joystick KBScancode. 0 if blank.
+	mod_scancode as KBScancode      'A modifier key which must be pressed down, or 0 meaning "no
+					'modifier (used by any other keybind with this .scancode) pressed"
+					'E.g. Ctrl-Up should cause Up to be ignored.
 	ckey as ccCode                  'A cc* virtual scancode. 0 if blank.
 	suspended as bool               'Suspended keybinds don't cause keypresses
+	'Runtime state:
+	mod_state as bool               'Current pressed state of the mod key this tick. If
+					'mod_scancode=0, then true if there's no other keybind with
+					'this .scancode and any non-zero .mod_scancode
 End Type
 
 ' A set of keybinds (KB/Joy scancode to ccKey) for one player.
@@ -476,11 +483,11 @@ Type PlayerKeymap
 	controls(any) as Keybind
 
 	declare sub reset (player as integer)
-	declare sub add (controlc as ccCode, scanc as KBScancode)
-	declare sub remove (cc_or_sc as KBScancode, sc as KBScancode = 0)
-	declare sub suspend (cc_or_sc as KBScancode, sc as KBScancode = 0)
-	declare sub resume (cc_or_sc as KBScancode, sc as KBScancode = 0)
-	declare function find (cc_or_sc as KBScancode, sc as KBScancode = 0, count as integer = 0) as integer
+	declare sub add (controlc as ccCode, scanc as KBScancode, modc as KBScancode = 0)
+	declare sub remove (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
+	declare sub suspend (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
+	declare sub resume (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
+	declare function find (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0, count as integer = 0) as integer
 End Type
 
 declare function get_keymap (player as integer = 1) byref as PlayerKeymap
