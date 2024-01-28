@@ -408,6 +408,7 @@ FUNCTION script_keyval (byval key as KBScancode, byval player as integer = 0, by
    CASE scRight:  ret OR= player_keyval(ccRight, player, down_ms, , , NO)
    CASE scEnter:  ret OR= player_keyval(ccUse, player, down_ms, , , NO)
    CASE scEsc:    ret OR= player_keyval(ccMenu, player, down_ms, , , NO)
+   CASE scAlt:    ret OR= player_keyval(ccCancel, player, down_ms, , , NO)
   END SELECT
  END IF
 

@@ -483,7 +483,7 @@ Type PlayerKeymap
 	controls(any) as Keybind
 
 	declare sub reset (player as integer)
-	declare sub add (controlc as ccCode, scanc as KBScancode, modc as KBScancode = 0)
+	declare sub add (controlc as ccCode, scanc as KBScancode, mod_scanc as KBScancode = 0)
 	declare sub remove (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
 	declare sub suspend (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)
 	declare sub resume (cc_or_sc as KBScancode, sc as KBScancode = 0, sc2 as KBScancode = 0)

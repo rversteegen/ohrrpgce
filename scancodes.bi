@@ -229,6 +229,7 @@ CONST scKEYVAL_LAST = scJoyLAST
 'The following is NOT a real scancode and in general can't be used
 CONST SftCtl = 1000  'Shift or Ctrl
 
+
 '------------------------------------------------------------------------------
 '                            Joystick scancodes
 'Indices used by JoystickState

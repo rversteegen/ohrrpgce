@@ -2744,6 +2744,38 @@ end constructor
 
 '======================================== Keymaps ========================================
 
+
+/'
+sub PlayerKeyMapping.set_A_B_swapped(swapped as bool)
+
+	if swap_joystick_use_cancel = NONBOOL then
+		'Cache setting
+		'This is a Blackbox setting, "0" or "1", true on Nintendo and player-configurable on PS
+		swap_joystick_use_cancel = (str2int(read_environment_key("asiabuttons"), 0) <> 0)
+	end if
+
+	if swap_joystick_use_cancel then
+		this.scancode = scJoyAswapB 
+		usebut = joyB
+		menubut = joyA
+	else
+		usebut = joyA   'Cross
+		menubut = joyB  'Circle
+	end if
+
+	if AB_are_swapped = swapped then exit sub
+
+	AB_are_swapped = swapped
+
+	for player as integer = 1 to ubound(this.keymaps)
+		for idx as integer = 0 to ubound(this.keymaps(player).controls)
+			if controls(idx).scancode = scJoyButton1
+		end if
+	next
+end sub
+'/
+
+
 'Setup default keyboard and gamepad keybinds
 'FIXME: this is called before main() to initialise the real_input/replay_input globals, but depends on
 'global_config_file, which won't be properly initialised. So flush_gfx_config_settings calls again
@@ -3210,6 +3242,9 @@ sub setkeys (enable_inputtext as bool = NO)
 	'While playing back a recording we still poll for keyboard
 	'input, but this goes in the separate real_input.kb.keys() array so it's
 	'invisible to the game.
+
+	'if real_input.initialised_controls = NO then real_input.init_controls
+	'if replay_input.initialised_controls = NO then replay_input.init_controls
 
 	dim time_passed as double = TIMER - last_setkeys_time
 	real_input.elapsed_ms = bound(1000 * time_passed, 0, 255)

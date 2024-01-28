@@ -1840,6 +1840,7 @@ INTERTEST = Phony ('interactivetest',
                    [test_args + T+'interactivetest.rpg --replayinput ' + T+'interactivetest.ohrkey',
                     'grep -q "TRACE: TESTS SUCCEEDED" g_debug.txt'],
                    buildsource = buildtests)
+env.Alias ('intertest', source = INTERTEST)
 # This prevents more than one copy of Game from being run at once
 # (doesn't matter where g_debug.txt is actually placed).
 # The Alias prevents scons . from running the tests.
