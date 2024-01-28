@@ -4835,6 +4835,20 @@ SUB general_reld_init_buttonnames(root_node as NodePtr)
  NEXT i
 END SUB
 
+' DIM SHARED default_controls(...) = { _
+'            ""
+
+' }
+
+SUB general_reld_init_keymap(root_node as NodePtr)
+ DIM parent as Node ptr = SetChildNode(root_node, "keymap", "default")
+
+ FOR i as integer = 0 to LAST_PREDEFINED_BUTTON_NAME_ID
+  DIM node as Node ptr = AppendChildNode(parent, "control", i)
+  'Don't create any child nodes. They should take default values if they do not exist
+ NEXT i
+END SUB
+
 SUB write_general_reld()
  IF gen_reld_doc THEN
   DIM filename as string = workingdir & SLASH & "general.reld"
@@ -4886,6 +4900,13 @@ SUB update_general_data ()
  '' Buttonnames
  IF NOT root_node."buttonnames".exists THEN
   general_reld_init_buttonnames root_node
+ END IF
+
+ '' keymap
+ ' In future we could support multiple keymap nodes with the string value of the node being a name and the first
+ ' one being the default.
+ IF NOT root_node."keymap".exists THEN
+  general_reld_init_keymap root_node
  END IF
 
  write_general_reld()

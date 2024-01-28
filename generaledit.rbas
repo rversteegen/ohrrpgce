@@ -718,6 +718,64 @@ SUB PlatformOptionsEditor.define_items()
   IF defitem_act("Button name strings for text boxes...") THEN edit_button_name_strings
 END SUB
 
+
+
+TYPE KeymapEditor EXTENDS EditorKit
+  DECLARE CONSTRUCTOR ()
+  DECLARE SUB define_items ()
+  DECLARE SUB edit_button_scancode (deletable as bool)
+  DECLARE SUB button_list (parent as Node ptr)
+  DECLARE SUB gamepad_button_menu_items (byval gamepad_node as NodePtr, use_dpad as bool, default_scancodes() as integer)
+
+  gen_root as NodePtr
+  vgp as NodePtr
+  vgpb as NodePtr
+
+  buttons(11) as string = {"A", "B", "X", "Y", "L1", "R1", "L2", "R2", "UP", "RIGHT", "DOWN", "LEFT"}
+  ouya_buttons(11) as string = {"O", "A", "U", "Y", "L1", "R1", "L2", "R2", "UP", "RIGHT", "DOWN", "LEFT"}
+  'xperia_buttons(11) as string = {"X?", "O?", "Square", "Triangle", "L1", "R1", "Doesn't Exist", "Doesn't Exist", "UP", "RIGHT", "DOWN", "LEFT"}
+  default_scancodes(11) as integer = {scEnter, scESC, scESC, scESC, scPageUp, scPageDown, scHome, scEnd, scUp, scRight, scDown, scLeft}
+  default_scancodes_multiplayer(11) as integer = {scEnter, scESC, scESC, scESC, scPageUp, scPageDown, scHome, scEnd, scUp, scRight, scDown, scLeft}
+  player_who(3) as string = {"First", "Second", "Third", "Fourth"}
+END TYPE
+
+SUB edit_key_mappings ()
+  DIM editor as KeymapEditor
+  editor.run()
+  write_general_reld()
+END SUB
+
+CONSTRUCTOR KeymapEditor
+  helpkey = "keymappings"
+/'
+  VAR gen_root = get_general_reld()
+  'update_general_data ensures this exists
+  root_node = GetChildByName(gen_root, "key_mappings")
+  BUG_IF(root_node = NULL, "key_mappings node missing")
+
+  GetOrCreateChild(gen_root, "console_options")
+  GetOrCreateChild(gen_root, "gamepad")
+
+  vgp = mobile."virtual_gamepad".ptr
+  IF vgp = NULL THEN
+    vgp = AppendChildNode(mobile, "virtual_gamepad")
+    AppendChildNode(vgp, "button", scEnter)
+    AppendChildNode(vgp, "button", scESC)
+  END IF
+
+  vgpb = mobile."virtual_gamepad_battle".ptr
+  IF vgpb = NULL THEN
+    vgpb = AppendChildNode(mobile, "virtual_gamepad_battle")
+    AppendChildNode(vgpb, "button", scEnter)
+    AppendChildNode(vgpb, "button", scESC)
+  END IF
+'/
+END CONSTRUCTOR
+
+SUB KeymapEditor.define_items()
+
+END SUB
+
 FUNCTION prompt_for_scancode () as KBScancode
   'Return a user-specified scancode, or -1 if cancelled.
 
