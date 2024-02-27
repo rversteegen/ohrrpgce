@@ -12,8 +12,11 @@ define function, begin
   @obsolete, 2,obsoletecmd,0
   @obsolete(replacement,"Message"), 3,obsoletecmd2,0
   @obsolete(error), 4,removedcmd,0
+  5,gameover,0           # ERROR
   5,globalvar,0          # ERROR
   6,constant,0           # ERROR
+  6,"text",0             # ERROR  (known failure)
+  6,@text,0              # ERROR  (known failure)
   @obsolete(), 100,__obsolete,0      # OK
 end
 
@@ -21,12 +24,6 @@ script, div, a, b ()
 
 defineoperator(100, eqstr, stringcompare)
 defineoperator(100, div, div)
-defineoperator(100, oper, constant)  # ERROR
-defineoperator(100, oper, globalvar) # ERROR  (known failure)
-## Could only allow scripts and commands that take at least two args
-##defineoperator(100, oper, a script)               # OK
-##defineoperator(100, oper, a plotscript)           # ERROR
-##defineoperator(100, oper, noop)                   # ERROR
 
 
 ## Check for errors given extra commas, and for operators in illegal positions
@@ -43,7 +40,14 @@ script, comma and operator tests, begin
   1,-2                   # WARN
   ,-2                    # WARN
   -2,                    # WARN
+  noop4                  # OK
+  noop4()                # OK
   noop4(1,-2)            # OK
+  noop4(1,2,3,4,5)       # ERROR
+  noop4(,)               # ERROR
+  ## These probably don't particularly need to be disallowed
+  noop4(0 ,)             # OK
+  noop(),                # OK (?)
   noop4(endsin:,endsin:) # OK
   1,:=2                  # ERROR
   1,--2                  # ERROR
@@ -56,14 +60,19 @@ script, comma and operator tests, begin
   (1) eqstr (2 + 3)      # OK
   (1) div (2 + 3)        # OK
   noop4(1,mod,2)         # OK
-  #if,(xx) then()         # WARN
+  #if,(xx) then()         # WARN (?)
+  ## This is pretty common I think
   if(xx), then()         # OK
-  #if(xx) then,()         # WARN
+  #if(xx) then,()         # WARN (?)
+  if(,xx) then()         # ERROR
+  if(xx,) then()         # OK (?)
+  for(,xx,1,0)do()       # ERROR
+  for(xx,1,0,)do()       # OK (?)
+  for(xx,1,0),do()       # OK
   noop4((1), (2))        # OK
   noop4(-2)              # OK
   noop4((2) -- (1))      # OK
   ## These error checks aren't implemented; they're hard to catch
-  noop(),                # ERROR  (known failure)
   noop,()                # ERROR  (known failure)
   noop4(noop,())         # ERROR  (known failure)
   ## This fails because parsed as noop(0), but noop takes no args
@@ -73,36 +82,46 @@ script, comma and operator tests, begin
   noop4(,--2)            # ERROR
   noop4( ,  , 0)         # ERROR
   noop4( , 0)            # ERROR
-  ## These probably don't particularly need to be disallowed
-  noop4(0 ,)             # OK
-  variable(,yy)          # ERROR  (explict check for this)
+  ## There's an explicit check for leading ,
+  variable(,yy)          # ERROR
   variable(yy,)          # OK  (??)
   variable()             # OK  (??)
+  #variable,(yy)          # WARN  (??)
   ## $ is treated as a unary operator
+  $                      # ERROR
   $,0=""                 # ERROR
   $0,=""                 # ERROR
   $0=,""                 # ERROR
   noop4($0="")           # OK
   noop4(1,$0="")         # OK
   noop4(,$0="")          # ERROR
-  ## Warnings for logical errors
-  if (xx == 2||3||4) then()      # WARN   (known failure)
 end
 
 end                      # ERROR
 begin                    # ERROR
-script, foo, end         # ERROR
 ()                       # ERROR
 
 script, string tests, begin
+  $0=""                  # OK
+  $0+""                  # OK
+  $ 0 = ""               # OK
+  $ 0 + ""               # OK
+  $globalvar=""          # OK
+  $(globalvar+3)=""      # OK
+  $noop4=""              # OK
+  $noop4()=""            # OK
+  $noop4(1)=""           # OK
   $0="", 232             # WARN
   $0="" 232              # ERROR   (known failure)
   "asdasd"               # ERROR
+  globalvar:=""          # ERROR
+  globalvar=""           # ERROR
 end
 
-script, number tests, x, begin
+script, number tests, x = 0, begin
   x := 000 0000              # OK
   x := - 14                  # OK
+  - 14                       # WARN
   ## tab characters
   x := -	1	4    # OK
   x := 14a                   # ERROR
@@ -115,16 +134,13 @@ script, number tests, x, begin
   x := 0b                    # ERROR
   ## Space after the 0 not supported... but we don't care one way or the other
   ##x := 0 x1
-  ## - is not a valid token, and identifiers can't start with -
   x := -                     # ERROR
-  variable(-)                # ERROR
-  variable(-y)               # ERROR
   x := -x                    # ERROR
   x := -(1+2)                # ERROR
-  ## Numbers which aren't 32 bit
-  x := 0x100000000           # ERROR
   x := 0o1                   # OK
   x := 0o8                   # ERROR
+  x := 0o0 8                 # ERROR
+  x := 0o0 7                 # OK
   x := 0oa                   # ERROR
   x := 0b0                   # OK
   x := 0xa                   # OK
@@ -136,10 +152,18 @@ script, number tests, x, begin
   x := 0xffffffff            # OK
   x := -0xffffffff           # OK
   x := -2147483648           # OK
+  ## Numbers which aren't 32 bit
+  x := 0x100000000           # ERROR
   x := -2147483649           # ERROR
   x := 1.                    # ERROR
   x := 1.0                   # ERROR
   x := .0                    # ERROR
+  x := 0x1.                  # ERROR
+  x := 0x1.0                 # ERROR
+  x := 0x1 .                 # ERROR
+  x := 0o1.                  # ERROR
+  x := 0o.                   # ERROR
+  x := 0o.0                  # ERROR
 end
 
 script, math warnings, x, begin
@@ -161,106 +185,550 @@ end
 script, include tests, begin
   include                    # ERROR
   include,                   # ERROR
-  include, "foo"  bar        # ERROR
-## "Found unexpected text"
-  include, "foo.hss  bar     # ERROR
-## "Expected " at end of line"
+  include, "foo"  bar        # ERROR: "Found unexpected text"
+  include, "foo.hss  bar     # ERROR: "Expected " at end of line"
 end
 
-script, flow tests, dummy, begin
+script, toplevel inside script tests, begin
+  script, somescript()            # ERROR
+  defineconstant(0,con2)          # ERROR
+  defineoperator(0,oper,div)      # ERROR
+  globalvariable(8,global8)       # ERROR
+  definescript(1, somescript, 0)  # ERROR
+  definetrigger(8,functor)        # ERROR
+  definefunction(8,funct8,0)      # ERROR
+end
+
+script, flow tests, dummy, arg, begin
+  dummy                  # WARN
   (dummy)                # WARN
   ()                     # ERROR
+  )(                     # ERROR
 
-  if(dummy) then() else()
-  else()                 # ERROR
+  if()                   # ERROR
+  if                     # ERROR
   then()                 # ERROR
-  break                  # ERROR  (known failure)
-  continue               # ERROR  (known failure)
-  return                 # ERROR
-  return()               # ERROR
-  exitreturning          # ERROR
-  exitreturning(1,2)     # ERROR
-  exit(1,2)              # ERROR
+  then                   # ERROR
+  else()                 # ERROR
+  else                   # ERROR
+  elseif(dummy) then()   # ERROR
+  elseif(dummy)          # ERROR
+  elseif                 # ERROR
+  elseif()               # ERROR
+  ## Wish to test this line in front of various statements, since 'if' gobbles then/else
+  if(dummy) then()
+  else()                 # OK
+  else() else()          # ERROR
+  then()                 # ERROR
+  then                   # ERROR
+  if()                   # ERROR
+  if(dummy)              # ERROR
 
   if () then()           # ERROR
-  if(dummy,dummy) then() # ERROR
-  if(dummy) if(dummy) then() # ERROR
-  if(dummy) else()           # OK
-  if(dummy) else() then()    # ERROR
-  dummy := variable(foo)     # ERROR
+  if (,) then()          # ERROR
+  if, then()             # ERROR
+  if (false) then()      # WARN
+  if (true) then()       # WARN
+  if() then              # ERROR
+  if(then())             # ERROR
+  if (dummy)             # ERROR
+  if (dummy) then        # ERROR
+  if (dummy) then,else() # ERROR
+  if (dummy) then,else   # ERROR
+  if (dummy) then() else # ERROR  (known failure)
+  if (dummy) then() else, noop  # ERROR  (known failure)
+  if(dummy,dummy) then()        # ERROR
+  if(dummy) if(dummy) then()    # ERROR
+  if(dummy) else()              # OK
+  if(dummy) else() then()       # ERROR
+  if(dummy) elseif(arg) then()   # OK
+  if(dummy) el se if(arg) then() # OK
+  if(dummy) else,if(arg) then()  # ERROR
+  if(dummy) else(if(arg) then()) # OK
+  if(dummy) elseif(0) then()     # WARN
+  if(dummy) elseif(arg) then() else() # OK
+  if(dummy) elseif(arg) else()   # OK
+  if(dummy) else if(arg) else if(arg) else () # OK
   (if(dummy) else())         # ERROR   (known failure)
   if(if(1)then(1))then()     # ERROR
   dummy := if(1)then(1)      # ERROR
   if(assert(1))then()        # ERROR
+  if(dummy) exit             # ERROR
+  if(dummy) exit()           # ERROR
   if($1="")then()            # OK
-  if() then                  # ERROR
-  if(then())                 # ERROR
+  if(arg:=0)then()           # OK
+  if((noop()))then()         # OK
+  ## Warnings for logical errors
+  if(arg==2||3||4) then()    # WARN   (known failure)
+
+  dummy := variable(foo)     # ERROR
   if(dummy) variable(x) then()  # ERROR
   if(dummy) then(variable(x))   # OK
+  if(dummy) then(variable)   # ERROR
+  if(variable(bla),dummy) then() # ERROR
+  if(dummy,variable(bla)) then() # ERROR
+  variable                   # ERROR (elsewhere)
+  variable(())               # ERROR
+  variable((yy))             # ERROR
+  variable,variable(xx)      # ERROR
+
+  return                 # ERROR
+  return()               # ERROR
+  return(1)              # OK
+  return(1,2)            # ERROR
+  return(noop)           # OK
+  return(exitscript)     # ERROR
+  return(1,variable(foo)) # ERROR
+  return(if(1)then(1))   # ERROR
+  exitreturning          # ERROR
+  exitreturning()        # ERROR
+  exitreturning(1)       # OK
+  exitreturning(1,2)     # ERROR
+  exitscript             # OK
+  exitscript()           # OK
+  exitscript(1)          # ERROR
+  exitscript(1,2)        # ERROR
+  exit                   # OK
+  exit()                 # OK
+  exit(1)                # OK
+  exit(1,2)              # ERROR
+  exit(arg+1)            # OK
+  exit(exit)             # ERROR
+
+  ## break used outside of a do() exits the script, for backcompat
+  break                  # WARN  (known failure)
+  ## continue used outside of a do() throws a runtime error and does nothing
+  continue               # ERROR  (known failure)
+
+  do                     # ERROR
+  do()                   # OK
+  (do())                 # ERROR  (known failure)
+  do(variable(foo))      # OK
+  do(variable)           # ERROR
+  do(noop)               # OK
+  do(do())               # OK
+  do(continue)           # OK
+  do(break)              # OK
+  do(continue())         # OK (?)
+  do(break())            # OK (?)
+  do(continue(1))        # OK
+  do(break(1))           # OK
+  do(continue(1,2))      # ERROR
+  do(break(1,2))         # ERROR
+  do(continue(arg))      # OK
+  do(break(arg))         # OK
+  ## continue/break with arg <= 0 causes a runtime error and does nothing
+  do(break(0))           # ERROR  (known failure)
+  do(break(-1))          # ERROR  (known failure)
+  do(continue(0))        # ERROR  (known failure)
+  do(continue(-1))       # ERROR  (known failure)
+
+  for                    # ERROR
+  for()do()              # ERROR
+  for(arg)do()           # ERROR
+  for(arg,0)do()         # ERROR
+  for(arg,0,0)do()       # OK
+  for(arg,1,0)do()       # OK
+  for(,1,0)do()          # ERROR
+  for(arg,0,0)           # ERROR
+  for(arg,0,0)do         # ERROR
+  for(arg,0,0)then()     # ERROR
+  (for(arg,0,0)do())     # ERROR  (known failure)
+  for(0,0,0)do()         # ERROR
+  for(arg+1,0,0)do()     # ERROR
+  for(arg,arg+1,0,0)do() # OK
+  for(arg,0,0,1)do()     # OK
+  for(arg,arg,arg,arg)do()  # OK
+  for(arg,0,0,1,0)do()   # ERROR
+  for(arg,0,0,0)do()     # OK (?)
+  for(undefed,0,0,1)do() # ERROR
+  for((arg,0,0,1))do()   # ERROR
+  for(arg,(0,0,1))do()   # ERROR
+  for(0,arg,arg,arg)do() # ERROR
+
+  while                  # ERROR
+  while()                # ERROR
+  while()do()            # ERROR
+  while(0)do()           # WARN  (known failure)
+  while(1)do()           # OK
+  while(1,2)do()         # ERROR
+  while()then()          # ERROR
+  while, do()            # ERROR
+  while(1)(do())         # ERROR
+  while(1)do(variable)   # ERROR
+  while(1)do(continue)   # OK
+  while(1)do(break)      # OK
+
+  case                                         # ERROR
+  case()                                       # ERROR
+  case(1)                                      # ERROR
+  switch                                       # ERROR
+  switch(arg)                                  # ERROR
+  switch(arg)do()                              # OK
+  switch(arg), do()                            # OK
+  switch()do()                                 # ERROR
+  switch, do()                                 # ERROR
+  switch(1,2)do()                              # ERROR
+  switch(arg)then()                            # ERROR
+  switch(variable(foo),arg)do()                # ERROR
+  switch(arg), variable(foo), do()             # ERROR
+  switch(arg)do(variable(foo))                 # ERROR
+  switch(arg)do(case)                          # ERROR
+  switch(arg)do(case())                        # ERROR  (known failure)
+  switch(arg)do(case(1))                       # OK
+  switch(arg)do(case(1)do())                   # OK
+  switch(arg)do(do(case(1)do()))               # ERROR
+  switch(arg)do(case()do())                    # ERROR  (known failure)
+  switch(arg)do(case, do())                    # ERROR
+  switch(arg)do(case(1,2)do())                 # OK
+  switch(arg)do(case(1,1)do())                 # WARN  (known failure)
+  switch(arg)do(case(1) noop)                  # OK
+  switch(arg)do(case() noop)                   # ERROR  (known failure)
+  switch(arg)do(case(1), noop)                 # OK
+  switch(arg)do(noop, case(1))                 # ERROR
+  switch(arg)do(case(1) noop, case(2) noop4)   # OK
+  switch(arg)do(case(1) do(), case)            # ERROR
+  switch(arg)do(case(1) do(), case())          # ERROR  (known failure)
+  switch(arg)do(case(1), case(2) noop4)        # OK
+  switch(arg)do(case(1), variable(foo), case(2)) # OK
+  switch(arg)do(case(1) case(2) noop4)         # OK
+  switch(arg)do(case() case(2) noop4)          # ERROR  (known failure)
+  switch(arg)do(case(1) case(2)do() case(3)do())  # OK
+  switch(arg)do(case(1)do(continue), case(2)do()) # OK
+  switch(arg)do(case(1) continue, case(2)do()) # OK
+  switch(arg)do(case(1) continue)              # OK
+  switch(arg)do(continue, case(1))             # ERROR
+  switch(arg)do(case(1)do(break), case(2)do()) # OK
+  switch(arg)do(case(1) break, case(2)do())    # OK
+  switch(arg)do(break, case(1)do())            # ERROR
+  switch(arg)do(case(1) noop, break)           # OK
+  switch(arg)do(case(1) break, noop)           # OK (warn?)
+  switch(arg)do(case(1)do(), case(else) noop4) # OK
+  switch(arg)do(case(1)do(), case(else))       # OK
+  switch(arg)do(case(1)do(), else())           # OK
+  switch(arg)do(case(1)do() else())            # OK
+  ## Whether else() without case() is allowed doesn't matter, but should at least be consistent
+  switch(arg)do(else())                        # OK (?) (known failure)
+  switch(arg)do(case(else)do())                # OK (?)
+  switch(arg)do(case(else)noop)                # OK (?)
+  switch(arg)do(case(1) noop, else())           # OK
+  switch(arg)do(case(1)do(), case(else)do(), case(2)do())  # ERROR
+  switch(1)do(case(arg)do(), case(arg+1)do())  # OK
+  switch(arg)do(case(1)if(arg)then(case(2)))   # ERROR
+  switch(arg)do(case(1)if(arg)then()case(2))   # OK
+  switch(arg)do(case(1)if(arg)then()else())    # OK
+  switch(arg)do(case(1)if(arg)then()else() else())  # OK
+  switch(arg)do(case(1)if(arg)then()else() else() else())  # ERROR
+
+  ## NOTE: don't add any non-OK/ERROR/WARN statements at the end of or anywhere else in this script,
+  ## want some of the above tests to be the last thing in the script.
+end
+
+script, call tests, begin
+  ## Test default script arguments (already tested math functions)
+  ## This script has args: arg, arg2=2
+  namespace tests        # ERROR
+  namespace tests()      # ERROR
+  namespace tests(1)     # OK
+  namespace tests(1,2)   # OK
+  namespace tests(1,2,3) # ERROR
+
+  ## Testing @obsolete warnings and errors
+  obsoletecmd            # WARN
+  obsoletecmd2           # WARN
+  removedcmd             # ERROR
+  obsoletescript         # WARN
 
   ## In case of of a missing bracket, ideally hspeak would throw an error here
   ## instead of complaining the next script/declaration appears inside this script.
   ## (This test fails because the error gets thrown on a different line.)
   if (key is pressed(key:M) then (pick hero())  # ERROR   (known failure)
 
-end
+  noop
+end ## FIXME
 
-############################### Namespace tests ###############################
-## Testing whether various types of names are properly disallowed
+######################## (Some) Top-level parsing tests ########################
+## (Aside from identifier validity; mostly tests differing between toplevels)
 
+defineoperator(100, oper, div)       # OK
+defineoperator(100, oper, constant)  # ERROR
+defineoperator(100, oper, globalvar) # ERROR  (known failure)
+defineoperator(100, oper)            # ERROR
+defineoperator(100, "div", div)      # ERROR  (known failure)
+defineoperator(100, oper, "div")     # ERROR  (known failure)
+defineoperator(100, oper, 42)        # ERROR
+defineoperator(100, 42, div)         # ERROR
+defineoperator(div, oper, div)       # ERROR
+defineoperator("d", oper, div)       # ERROR
+defineoperator(100, oper, notdefined) # OK (?)
+defineoperator(100, @oper, div)      # ERROR  (known failure)
+defineoperator(100, oper, @div)      # ERROR  (known failure)
+
+## Ideally would only allow scripts and commands that take at least two args,
+## but it's too early in parsing to tell
+##defineoperator(100, oper, a script)               # OK
+##defineoperator(100, oper, a plotscript)           # ERROR
+##defineoperator(100, oper, noop)                   # ERROR
+
+definetrigger                       # ERROR (elsewhere)
+definetrigger()                     # OK
+definetrigger(10, )                 # ERROR
+definetrigger(10,functor)           # OK
+definetrigger(10,"functor")         # ERROR  (known failure)
+definetrigger(10,@functor)          # ERROR  (known failure)
+definetrigger(10)                   # ERROR
+definetrigger(10, )                 # ERROR
+definetrigger(functor)              # ERROR
+definetrigger(10,functor), functor, myfunc()   # OK
+definetrigger(10,functor), functor()           # ERROR
+
+globalvariable                   # ERROR  (elsewhere)
+globalvariable()                 # OK
+globalvariable, begin, end       # OK
 globalvariable(one,global)       # ERROR
 globalvariable(two,globalvar2)   # OK
-globalvariable(2,globalvar)      # ERROR
+globalvariable(two,globalvar2,)  # OK
 globalvariable(1,globalvar2)     # ERROR
-globalvariable(2,one)            # ERROR
+globalvariable(-1,ok)            # ERROR
+globalvariable(50000,glob)       # OK
+globalvariable(50001,glob)       # ERROR
+globalvariable(8,_)              # OK
 globalvariable(8,G2,9,G3)        # OK
 globalvariable(8,G2,9,G2)        # ERROR
 globalvariable(8)                # ERROR
 globalvariable(8,G2,9)           # ERROR
-globalvariable(9,begin)          # ERROR
-globalvariable(9,+)              # ERROR
-globalvariable(9,add)            # ERROR
-globalvariable(9,mod)            # ERROR
-globalvariable(9,eqstr)          # ERROR
-globalvariable(9,div)            # ERROR
-globalvariable(-1,ok)            # ERROR
-globalvariable(9,script)         # ERROR
-## (subscript isn't a trigger type like script/plotscript are)
-globalvariable(9,subscript)      # ERROR
-globalvariable(9,return)         # ERROR
-globalvariable(9,exitreturning)  # ERROR
-globalvariable(9,exit)           # ERROR
-globalvariable(9,flowtests)      # ERROR
+globalvariable(8-1,G2)           # ERROR
+globalvariable(8_,G2)            # ERROR
 
-defineconstant(1,begin)          # ERROR
+defineconstant                   # ERROR  (elsewhere)
+defineconstant()                 # OK
+defineconstant, begin, end       # OK
+defineconstant(constant,const)   # OK
+defineconstant(constant,const,)  # OK
+defineconstant(8)                # ERROR
+defineconstant(8,const,9)        # ERROR
+defineconstant(-2147483648,const) # OK
+defineconstant(2147483648,toobig) # ERROR
 
-script, namespace tests, arg, begin
-  variable(noop)         # ERROR
-  variable(script)       # ERROR
-  variable(variable)     # ERROR
-  variable(globalvariable) # ERROR
-  variable(globalvar)    # ERROR
-  variable(constant)     # ERROR
-  variable(flow tests)   # ERROR
-  variable(arg)          # ERROR
-  variable(1)            # ERROR
-  variable(a.)           # ERROR
-  variable(add)          # ERROR
-  variable(mod)          # ERROR
-  variable(eqstr)        # ERROR
-  variable(div)        # ERROR
-  variable(:=)           # ERROR
-  variable(x:=y)         # ERROR
-  variable($)            # ERROR
-  variable($+)           # ERROR
+script                           # ERROR  (elsewhere)
+script, scrip                    # ERROR  (elsewhere)
+script, scrip, end               # ERROR
+script, scrip, ()                # OK
+script, scrip, x = 1 ()          # OK
+script, scrip, x = ()            # ERROR
+script, scrip, = 1 ()            # ERROR
+script, scrip, = ()              # ERROR
+script, scrip, x, = ()           # ERROR
+script, scrip, x =, 1 ()         # ERROR
+script, scrip, x, = 1 ()         # ERROR
+script, scrip, x = constant ()   # OK
+script, scrip, x=1, y=2 ()       # OK
+script, scrip, x  , y=2 ()       # OK
+script, scrip, x=1, y   ()       # ERROR
+script, scrip, x = "1" ()        # ERROR
+
+
+######################### Namespace & identifier tests #########################
+## Testing whether various invalid or already-defined identifiers are properly disallowed
+
+globalvariable(8,glob8)          # OK
+#### Invalid identifiers
+## It makes sense to test these repeatedly for at least constants, scripts, and variables/globals
+## because of code path differences (especially constants)
+globalvariable(8, )              # ERROR
+globalvariable(8,())             # ERROR
+globalvariable(8,8)              # ERROR
+## - is not a valid token, and identifiers can't start with -
+globalvariable(8,-)              # ERROR
+globalvariable(8,--)             # ERROR
+globalvariable(8,-glob8)         # ERROR
+globalvariable(8,glob-8)         # OK
+## . is rejected by the lexer in all cir, which is unnecessary. This is just to document that behaviour.
+globalvariable(8,glob.8)         # ERROR  (?)
+globalvariable(8,glob=8)         # ERROR
+globalvariable(8,glob{})         # ERROR
+globalvariable(8,glob[])         # ERROR
+globalvariable(8,glob"8")        # ERROR
+globalvariable(8,"glob8")        # ERROR  (known failure)
+globalvariable(8,@glob)          # ERROR  (known failure)
+globalvariable(8,$)              # ERROR
+globalvariable(8,$"")            # ERROR
+globalvariable(8,$1="")          # ERROR
+#### Invalid ID tokens (incomplete)
+globalvariable("8",glob)         # ERROR
+globalvariable($1="",glob)       # ERROR
+#### Names already used or reserved
+## Need to check defining global after script and vice versa, and so
+## forth for all pairs of defineable types. Here we check global last.
+## Several of the typenames here come from HSpeak's sources and are not used elsewhere.
+globalvariable(8,end)            # ERROR   paren     -> global
+globalvariable(8,foreach)        # ERROR   unimpl    -> global
+globalvariable(8,definescript)   # ERROR   toplevel  -> global
+globalvariable(8,return)         # ERROR   flow      -> global
+## subscript and variable are the only "keywords", they are very special cases
+globalvariable(8,subscript)      # ERROR   keyword   -> global
+globalvariable(8,variable)       # ERROR   keyword   -> global
+globalvariable(8,@obsolete)      # ERROR   attribute -> global
+globalvariable(8,plotscript)     # ERROR   trigger   -> global
+globalvariable(8,assert)         # ERROR   macro     -> global
+globalvariable(8,constant)       # ERROR   constant  -> global
+globalvariable(8,add)            # ERROR   math      -> global
+## Throw in test for whitespace/capitalisation
+globalvariable(8, NO OP)         # ERROR   function  -> global
+globalvariable(1,globalvar)      # ERROR   global    -> global, same ID
+globalvariable(8,globalvar)      # ERROR   global    -> global, different ID
+globalvariable(8,flowtests)      # ERROR   script    -> global
+globalvariable(8,@globalvar)     # ERROR   reference -> global  (known failure)
+globalvariable(8,mod)            # ERROR   operator  -> global
+## These tokens are both operators and something else with the same name
+globalvariable(8,+)              # ERROR   separator -> operator -> global
+globalvariable(8,and)            # ERROR   math      -> operator -> global
+globalvariable(8,div)            # ERROR   script    -> operator -> global
+
+#### Invalid identifiers
+defineconstant(8, )              # ERROR
+defineconstant(8,())             # ERROR
+defineconstant(8,8)              # ERROR
+defineconstant(8,-)              # ERROR
+defineconstant(8,--)             # ERROR
+defineconstant(8,-const8)        # ERROR
+defineconstant(8,const-8)        # OK
+defineconstant(8,const.8)        # ERROR  (?)
+defineconstant(8,const=8)        # ERROR
+defineconstant(8,const{})        # ERROR
+defineconstant(8,const[])        # ERROR
+defineconstant(8,const"8")       # ERROR
+defineconstant(8,"const8")       # ERROR  (known failure)
+defineconstant(8,@const)         # ERROR  (known failure)
+defineconstant(8,$)              # ERROR
+defineconstant(8,$"")            # ERROR
+defineconstant(8,$1="")          # ERROR
+#### Invalid ID tokens (incomplete)
+defineconstant("8",const)         # ERROR
+defineconstant($1="",const)       # ERROR
+#### Names already used or reserved
+## Because constants are parsed in an early pass, some of these cause errors elsewhere.
+defineconstant(8,end)            # ERROR   paren     -> constant
+defineconstant(8,foreach)        # ERROR   unimpl    -> constant
+defineconstant(8,definescript)   # ERROR   toplevel  -> constant
+defineconstant(8,return)         # ERROR   flow      -> constant
+defineconstant(8,subscript)      # ERROR   keyword   -> constant
+defineconstant(8,variable)       # ERROR   keyword   -> constant
+defineconstant(8,@obsolete)      # ERROR   attribute -> constant
+defineconstant(8,plotscript)     # ERROR   trigger   -> constant
+defineconstant(8,assert)         # ERROR   macro     -> constant
+defineconstant(1,constant)       # WARN    constant  -> constant, same value
+defineconstant(2,constant)       # ERROR   constant  -> constant, different value
+defineconstant(8,add)            # ERROR   math      -> constant
+defineconstant(8, NO OP)         # ERROR   function  -> constant  (elsewhere)
+defineconstant(8,globalvar)      # ERROR   global    -> constant  (elsewhere)
+defineconstant(8,flowtests)      # ERROR   script    -> constant  (elsewhere)
+defineconstant(8,@globalvar)     # ERROR   reference -> constant  (known failure)
+defineconstant(8,mod)            # ERROR   operator  -> constant  (elsewhere)
+defineconstant(8,+)              # ERROR   separator -> operator -> constant
+defineconstant(8,and)            # ERROR   math      -> operator -> constant
+defineconstant(8,div)            # ERROR   script    -> operator -> constant  (elsewhere)
+
+
+#### Invalid identifiers
+script,  ,()            # ERROR
+script, (),()           # ERROR
+script, 8 ()            # ERROR
+script, - ()            # ERROR
+script, -- ()           # ERROR
+script, -scrip ()       # ERROR
+script, scrip-t ()      # OK
+script, scrip=8 ()      # ERROR
+script, scrip.8 ()      # ERROR  (?)
+script, scrip{} ()      # ERROR
+script, scrip[] ()      # ERROR
+script, scrip"8" ()     # ERROR  (known failure)
+script, "scrip" ()      # ERROR  (known failure)
+script, @scrip ()       # ERROR  (known failure)
+script, $ ()            # ERROR
+script, $"" ()          # ERROR
+script, $1="" ()        # ERROR
+#### Invalid script arg identifiers (incomplete)
+script, scrip,"8" ()    # ERROR
+script, scrip,var"8" () # ERROR
+script, scrip,@var ()   # ERROR
+#### Names already used or reserved
+script, end ()          # ERROR   paren     -> script
+script, foreach ()      # ERROR   unimpl    -> script
+script, definescript () # ERROR   toplevel  -> script
+script, return ()       # ERROR   flow      -> script
+script, subscript ()    # ERROR   keyword   -> script
+script, variable ()     # ERROR   keyword   -> script
+script, variable (foo)  # ERROR
+script, @obsolete ()    # ERROR   attribute -> script
+script, plotscript ()   # ERROR   trigger   -> script
+script, assert ()       # ERROR   macro     -> script
+script, constant ()     # ERROR   constant  -> script
+script, add ()          # ERROR   math      -> script
+script, NO OP ()        # ERROR   function  -> script
+script, globalvar ()    # ERROR   global    -> script
+script, flowtests ()    # ERROR   script    -> script
+script, @globalvar ()   # ERROR   reference -> script  (known failure)
+script, mod ()          # ERROR   operator  -> script
+script, + ()            # ERROR   separator -> operator -> script
+script, and ()          # ERROR   math      -> operator -> script
+script, div ()          # ERROR   script    -> operator -> script
+
+
+
+script, namespace tests, arg, arg2=2, begin
   variable(v)
-  variable(@v)           # ERROR  (known failure)
-  variable(@obsolete)    # ERROR
 
-  ## subscript args and variables can shadow outer locals, but not globals or other names
+  variable(v:=1)               # ERROR
+  #### Invalid identifiers
+  variable(8)                  # ERROR
+  variable(-)                  # ERROR
+  variable(--)                 # ERROR
+  variable(-var8)              # ERROR
+  variable(var-8)              # OK
+  variable(var.8)              # ERROR (?)
+  variable(var=8)              # ERROR
+  variable(var{})              # ERROR
+  variable(var[])              # ERROR
+  variable(var"8")             # ERROR
+  variable("var8")             # ERROR  (known failure)
+  variable(@var)               # ERROR  (known failure)
+  variable($)                  # ERROR
+  variable($"")                # ERROR
+  variable($1="")              # ERROR
+  #### Names already used or reserved
+  variable(end)                # ERROR   paren     -> variable
+  variable(foreach)            # ERROR   unimpl    -> variable
+  variable(definescript)       # ERROR   toplevel  -> variable
+  variable(return)             # ERROR   flow      -> variable
+  variable(subscript)          # ERROR   keyword   -> variable
+  variable(variable)           # ERROR   keyword   -> variable
+  variable(@obsolete)          # ERROR   attribute -> variable
+  variable(plotscript)         # ERROR   trigger   -> variable
+  variable(assert)             # ERROR   macro     -> variable
+  variable(constant)           # ERROR   constant  -> variable
+  variable(add)                # ERROR   math      -> variable
+  variable( NO OP)             # ERROR   function  -> variable
+  variable(globalvar)          # ERROR   global    -> variable
+  variable(flowtests)          # ERROR   script    -> variable
+  variable(@globalvar)         # ERROR   reference -> variable  (known failure)
+  variable(mod)                # ERROR   operator  -> variable
+  variable(+)                  # ERROR   separator -> operator -> variable
+  variable(and)                # ERROR   math      -> operator -> variable
+  variable(div)                # ERROR   script    -> operator -> variable
+  variable(V)                  # ERROR   variable  -> variable
+  variable(arg)                # ERROR   argument  -> variable
+  subscript, s(), variable(s)  # ERROR   subscript -> variable
+  variable(vv,vv)              # ERROR
+
+
   subscript, sub ()                               # OK
+  ## subscript args and variables can shadow outer locals, but not globals or other names
   subscript, sub, globalvar ()                    # ERROR
   subscript, sub, constant ()                     # ERROR
+  subscript, globalvar ()                         # ERROR
+  subscript, constant ()                          # ERROR
+  subscript, NO OP ()                             # ERROR
   subscript, sub, NO OP ()                        # ERROR
   subscript, sub, namespace tests ()              # ERROR
   subscript, sub, sub ()                          # ERROR
@@ -274,6 +742,7 @@ script, namespace tests, arg, begin
   subscript, sub, W (subscript, sub2, w ())       # OK
   subscript, sub, W (), subscript, sub2, w ()     # OK
   subscript, sub, W (subscript, sub2, w (), subscript, sub3, w ())  # OK
+
   v := subscript, sub ()                          # ERROR
   @obsolete("message") subscript, sub ()          # OK
   @obsolete, @obsolete(blarg), subscript, sub ()  # OK
@@ -288,21 +757,53 @@ script, namespace tests, arg, begin
   subscript, foo (subscript, sub ()), subscript, sub ()  # ERROR (?) (known failure)
   subscript, sub (), subscript, foo (variable (sub))     # ERROR (?)
   subscript, foo (variable (sub)), subscript, sub ()     # ERROR (?)
-  ## Operators (builtin or from defineoperator above)
-  subscript, add ()                               # ERROR
-  subscript, sub, add ()                          # ERROR
-  subscript, mod ()                               # ERROR
-  subscript, sub, mod ()                          # ERROR
-  subscript, eqstr ()                             # ERROR
-  subscript, sub, eqstr ()                        # ERROR
-  subscript, div ()                               # ERROR
-  subscript, sub, div ()                          # ERROR
 
-  ## Testing @obsolete warnings and errors
-  obsoletecmd            # WARN
-  obsoletecmd2           # WARN
-  removedcmd             # ERROR
-  obsoletescript         # WARN
+  #### Names already used or reserved
+  subscript, end ()          # ERROR   paren     -> script
+  subscript, foreach ()      # ERROR   unimpl    -> script
+  subscript, definescript () # ERROR   toplevel  -> script
+  subscript, return ()       # ERROR   flow      -> script
+  subscript, subscript ()    # ERROR   keyword   -> script
+  subscript, variable ()     # ERROR   keyword   -> script
+  subscript, variable (foo)  # ERROR
+  subscript, @obsolete ()    # ERROR   attribute -> script
+  subscript, plotscript ()   # ERROR   trigger   -> script
+  subscript, assert ()       # ERROR   macro     -> script
+  subscript, constant ()     # ERROR   constant  -> script
+  subscript, add ()          # ERROR   math      -> script
+  subscript, NO OP ()        # ERROR   function  -> script
+  subscript, globalvar ()    # ERROR   global    -> script
+  subscript, flowtests ()    # ERROR   script    -> script
+  subscript, @globalvar ()   # ERROR   reference -> script  (known failure)
+  subscript, mod ()          # ERROR   operator  -> script
+  subscript, + ()            # ERROR   separator -> operator -> script
+  subscript, and ()          # ERROR   math      -> operator -> script
+  subscript, div ()          # ERROR   script    -> operator -> script
+
+  #### Arguments: Names already used or reserved
+  subscript, s, end ()          # ERROR   paren     -> script
+  subscript, s, foreach ()      # ERROR   unimpl    -> script
+  subscript, s, definescript () # ERROR   toplevel  -> script
+  subscript, s, return ()       # ERROR   flow      -> script
+  subscript, s, subscript ()    # ERROR   keyword   -> script
+  subscript, s, variable ()     # ERROR   keyword   -> script
+  subscript, s, variable (foo)  # ERROR
+  subscript, s, @obsolete ()    # ERROR   attribute -> script
+  subscript, s, plotscript ()   # ERROR   trigger   -> script
+  subscript, s, assert ()       # ERROR   macro     -> script
+  subscript, s, constant ()     # ERROR   constant  -> script
+  subscript, s, add ()          # ERROR   math      -> script
+  subscript, s, NO OP ()        # ERROR   function  -> script
+  subscript, s, globalvar ()    # ERROR   global    -> script
+  subscript, s, flowtests ()    # ERROR   script    -> script
+  subscript, s, @globalvar ()   # ERROR   reference -> script  (known failure)
+  subscript, s, mod ()          # ERROR   operator  -> script
+  subscript, s, + ()            # ERROR   separator -> operator -> script
+  subscript, s, and ()          # ERROR   math      -> operator -> script
+  subscript, s, div ()          # ERROR   script    -> operator -> script
+
+
+
 end
 
 definescript(1, missing script, 0)                # ERROR

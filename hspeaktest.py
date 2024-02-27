@@ -11,6 +11,8 @@ keywords:
            spot newly introduced bugs. (There are a lot of known hspeak bugs!)
 -'elsewhere':  (ERROR/WARN): this line causes an error/warning message for a
            line other than this one.
+The comment can freely contain anything else. '(?)' has no effect, it just
+indicates the correct behaviour is unclear.
 HSpeak is invoked repeatedly, with only one tagged line present at a time.
 Lines beginning with ## are not passed to hspeak.
 

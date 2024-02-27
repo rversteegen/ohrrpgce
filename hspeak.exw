@@ -2263,9 +2263,13 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure mustnt_be_a_number(Token s)
-  --note that identifiers are allowed to start with -
-  if length(exclude(s[CMD_TEXT],"-0123456789"))=0 and count('-',s[CMD_TEXT])!=length(s[CMD_TEXT]) then
+--Check that a token isn't a integer literal, a string literal, or a defined integer constant.
+--This is nearly
+procedure mustnt_be_a_literal(Token s)
+  --If this token is defined as a constant then it has been replaced with its decimal value by the lexer.
+  --If it is a non-base 10 value, it's also been converted to decimal (without spaces).
+  --(Note that identifiers are not allowed to start with -)
+  if length(exclude(s[CMD_TEXT],"-0123456789"))=0 and equal(s[CMD_TEXT],"--")=false then
     --Work backwards to figured out if constant substitution has occurred on s[CMD_TEXT]
     sequence src_position
     sequence const_src_position
@@ -2276,7 +2280,7 @@ procedure mustnt_be_a_number(Token s)
 
     object const_data
     const_data=map:get(constant_list,original_text,{})
-    if length(const_data) then
+    if length(const_data)=233 then
       const_src_position=decode_srcpos(const_data[CONST_POS])
       msg=sprintf_utf("Expected a name, but found "&COLYEL&"%s"&COLRED&" which is defined as a constant on line %d of "&COLPNK&"%s"&COLRED&" with the value "&COLYEL&"%d"&COLRED,
                       {
@@ -2291,6 +2295,10 @@ procedure mustnt_be_a_number(Token s)
 
     src_error(msg, s[CMD_POS])
   end if
+  
+  -- if s[CMD_TEXT][1]='"' then
+  --   src_error("Expected a name, but found string "&COLYEL &s[CMD_TEXT] &COLRED, s[CMD_POS])
+  -- end if
 end procedure
 
 ---------------------------------------------------------------------------
@@ -2327,7 +2335,7 @@ procedure check_undefined_constant(Token s, atom value)
    else
      check_for_reserved(s[CMD_TEXT],s[CMD_POS],"constant name")
    end if
-   mustnt_be_a_number(s)
+   mustnt_be_a_literal(s)
 end procedure
 
 ---------------------------------------------------------------------------
@@ -2341,7 +2349,7 @@ procedure check_undefined_string(Token s, string expect)
   --Check global_scope
   check_for_reserved(s[CMD_TEXT],s[CMD_POS],expect)
   --Check constant_list and for number literals
-  mustnt_be_a_number(s)
+  mustnt_be_a_literal(s)
 
   --Search for an in-scope subscript of that name (subscripts aren't shadowed)
   --Also, when check_for_reserved is called from inside parse_script, script names haven't been added to global_scope yet
@@ -2402,7 +2410,7 @@ function try_string_to_number(Token s)
   atom result
   result=floor(string_to_object(s[CMD_TEXT],0))
   if not string_is_int32(s[CMD_TEXT]) then
-    src_error(sprintf_utf("Expected number but found "&COLYEL&"%s"&COLRED,{s[CMD_TEXT]}),s[CMD_POS])
+    src_error(sprintf_utf("Expected a number but found "&COLYEL&"%s"&COLRED&". Expressions aren't allowed here, except for defined constants.",{s[CMD_TEXT]}),s[CMD_POS])
   end if
   return(result)
 end function
@@ -2536,6 +2544,7 @@ procedure parse_constant_block(TokenList block)
     num=try_string_to_number({enforce_constants(block[i][CMD_TEXT]),block[i][CMD_POS]})
     check_undefined_constant(block[i+1],num)
     name=block[i+1][CMD_TEXT]
+    color_print("defconst %s=%d %s\n", { block[i][CMD_TEXT], num, name})
     pos=block[i+1][CMD_POS]
     map:put(constant_list,name,{num,pos})
     map:put(global_scope,name,{KIND_CONSTANT,num,pos})
@@ -2632,8 +2641,8 @@ procedure parse_operator_block(TokenList block)
       src_error("expected name but defineoperator block ended",block[i][CMD_POS])
     end if
     num=try_string_to_number(block[i])
-    mustnt_be_a_number(block[i+1])
-    mustnt_be_a_number(block[i+2])
+    mustnt_be_a_literal(block[i+1])
+    mustnt_be_a_literal(block[i+2])
     name=block[i+1][CMD_TEXT]
     truename=block[i+2][CMD_TEXT]
     pos=block[i+2][CMD_POS]
@@ -5723,3 +5732,5 @@ opt_wait_for_key(was_warnings)
 if was_warnings = true then
   abort(2)
 end if
+
+pretty_print(stdout, {"@subs: %s %s\n", value("@subs"), GET_SUCCESS, string_is_int32("@subs") }, {3} )
