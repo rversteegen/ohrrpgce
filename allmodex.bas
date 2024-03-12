@@ -10882,7 +10882,9 @@ sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Pa
 	if tex = null then
 		'gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
 
-		if triangulation >= 2 then
+		if ubound(vertices) = 2 then
+			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
+		elseif triangulation >= 2 then
 			gfx_renderQuadColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
 		elseif triangulation = 1 then
 			gfx_renderTriangleColor(cast(VertexPC ptr, @vertices(0)), @destrect, dest_surface, @opts)
@@ -10901,7 +10903,9 @@ sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Pa
 
 	elseif use_colors then
 		'gfx_renderQuadTextureColor(@vertices(0), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
-		if triangulation >= 2 then
+		if ubound(vertices) = 2 then
+			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation >= 2 then
 			gfx_renderQuadTextureColor(cast(VertexPTC ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 		elseif triangulation = 1 then
 			gfx_renderTriangleTextureColor(cast(VertexPTC ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
@@ -10919,7 +10923,9 @@ sub draw_polygon(tex as Frame ptr, masterpal as RGBPalette ptr = NULL, pal as Pa
 
 
 	else
-		if triangulation >= 2 then
+		if ubound(vertices) = 2 then
+			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
+		elseif triangulation >= 2 then
 			gfx_renderQuadTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)
 		elseif triangulation = 1 then
 			gfx_renderTriangleTexture(cast(VertexPT ptr, @vertices(0)), src_surface, masterpal, pal, @destrect, dest_surface, @opts)

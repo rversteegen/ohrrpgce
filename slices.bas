@@ -3007,16 +3007,16 @@ end sub
 sub RotozoomPolygonSlice(sl as Slice ptr, angle as double = 0., origin as Float2 = XYF(0,0), scale as Float2 = XYF(0,0), smooth as integer = 0, cache_scaled as bool = NO)
 
  with *sl->PolygonData
+  dim npoints as integer = ubound(.vertices) + 1
   'For each vertex v, transform v --> (v - origin) * M_rotozoom + origin,
   'where M_rotozoom is the matrix for rotation by 'angle' and scaling by 'scale'.
-  for i as integer = 0 to 3
+  for i as integer = 0 to npoints - 1
    .vertices(i).pos -= origin
   next
   dim matrix as Float3x3
   scaleRotateMatrix @matrix, angle * -M_PI / 180, scale, origin
   ?"Quad scale by " & scale
 
-  dim npoints as integer = ubound(.vertices) + 1
   'dim newvert(npoints) as VertexPTC  'vec2Transform can't write inplace
   vec2Transform @.vertices(0).pos, sizeof(VertexPTC), @.vertices(0).pos, sizeof(VertexPTC), npoints, matrix
   'memcpy @.vertices(0), @.newvert(0), sizeof(VertexPTC) * npoints
