@@ -1211,6 +1211,7 @@ enum TimerIDs explicit
   'For gfx_slice_timer
   Map = 2
   Text = 3
+  Polygon = 4
 
   'For gfx_op_timer
   Dissolve = 2

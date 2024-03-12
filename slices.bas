@@ -3041,9 +3041,12 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
  with *sl->PolygonData
   if ubound(.vertices) < 2 then exit sub
 
-  dim subtimer as TimerIDs = 0
+  dim as TimerIDs op_subtimer = 0, slice_subtimer = 0
   if gfx_op_timer.enabled then
-   subtimer = gfx_op_timer.substart(TimerIDs.Rotozoom)
+   op_subtimer = gfx_op_timer.substart(TimerIDs.Rotozoom)
+  end if
+  if gfx_slice_timer.enabled then
+   slice_subtimer = gfx_slice_timer.substart(TimerIDs.Polygon)
   end if
 
   LoadSpriteSliceImageAndTransform sl
@@ -3053,7 +3056,8 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
 
   spr = .img.sprite
   if spr = 0 then
-   if subtimer then gfx_op_timer.substop subtimer
+   gfx_slice_timer.substop slice_subtimer
+   if op_subtimer then gfx_op_timer.substop op_subtimer
    showbug "null slice .sprite ptr"
    sl->Visible = NO  'prevent error loop
    exit sub
@@ -3112,7 +3116,8 @@ Sub DrawPolygonSlice(byval sl as Slice ptr, byval page as integer)
   end if
   '/
 
-  if subtimer then gfx_op_timer.substop subtimer
+  gfx_slice_timer.substop slice_subtimer
+  if op_subtimer then gfx_op_timer.substop op_subtimer
  end with
 end sub
 
