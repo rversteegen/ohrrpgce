@@ -102,7 +102,8 @@ DECLARE FUNCTION get_handle_typed_slice(byval handle as integer, byval sltype as
 #DEFINE get_arg_typed_slice(argno, sltype, errlvl...)  get_handle_typed_slice(retvals(argno), sltype, errlvl)
 
 #DEFINE get_arg_containersl(argno)   get_arg_typed_slice(argno, slContainer)
-#DEFINE get_arg_spritesl(argno)      get_arg_typed_slice(argno, slSprite)
+#DEFINE get_arg_spritesl(argno)      get_arg_typed_slice(argno, slSprite)  'Sprite OR Polygon
+#DEFINE get_arg_polygonsl(argno)     get_arg_typed_slice(argno, slPolygon)  'Just Polygon
 #DEFINE get_arg_textsl(argno)        get_arg_typed_slice(argno, slText)
 #DEFINE get_arg_rectsl(argno)        get_arg_typed_slice(argno, slRectangle)
 #DEFINE get_arg_linesl(argno)        get_arg_typed_slice(argno, slLine)

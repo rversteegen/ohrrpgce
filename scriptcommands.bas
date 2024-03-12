@@ -2412,8 +2412,8 @@ SUB script_commands(byval cmdid as integer)
   sl = get_arg_spritesl(0)
   IF sl THEN
    DIM newsl as Slice Ptr
-   newsl = NewSliceOfType(slSprite, SliceTable.scriptsprite)
-   'Only sprite data is copied!
+   newsl = NewSliceOfType(sl->SliceType, SliceTable.scriptsprite)
+   'Only sprite/polygon data is copied!
    sl->Clone(sl, newsl)
    scriptret = create_plotslice_handle(newsl)
   END IF
@@ -5372,9 +5372,9 @@ SUB script_commands(byval cmdid as integer)
     RotozoomSlice sl, retvals(1), @origin
    END IF
 
-  CASE 779 '--reset slice transform(sl)
-   sl = get_arg_spritesl(0)
-   IF sl THEN ResetSpriteTransform(sl)
+  ' CASE 779 '--reset slice transform(sl)
+  '  sl = get_arg_spritesl(0)
+  '  IF sl THEN ResetSpriteTransform(sl)
 
    /'
   CASE 780 '--set slice vertices(sl, topright.x, topright.y, bottomleft.x, bottomleft.y, [bottomright.x, bottomright.y])
@@ -5396,7 +5396,39 @@ SUB script_commands(byval cmdid as integer)
    END IF
    '/
 
-
+ CASE 779 '--create polygon (num vertices, fill type, w, h)
+  IF bound_arg(retvals(0), 3, 4, "num vertices") ANDALSO bound_arg(retvals(1), 0, fillLAST, "fill type") THEN
+   sl = NewSliceOfType(slPolygon, SliceTable.scriptsprite)
+   sl->Width = retvals(0)
+   sl->Height = retvals(1)
+   ' IF retvals(0) <> 4 THEN  'TODO: hacky, PolygonDefaultInit should be called (once) instead
+   '  REDIM PRESERVE sl->PolygonData->vertices(retvals(0) - 1)
+   ' END IF
+   sl->PolygonData->fill_type = retvals(1)
+   sl->PolygonData->triangulation = 2
+   PolygonDefaultInit sl, retvals(0)
+   scriptret = create_plotslice_handle(sl)
+  END IF
+ CASE 780 '--put vertex (sl, vertex idx, x, y, div)
+  sl = get_arg_polygonsl(0)
+  IF sl ANDALSO bound_arg(retvals(1), 0, UBOUND(sl->PolygonData->vertices), "vertex number") THEN
+   WITH sl->PolygonData->vertices(retvals(1))
+    .pos.x = retvals(2) / retvals(4)
+    .pos.y = retvals(3) / retvals(4)
+   END WITH
+  END IF
+ CASE 781 '--set vertex color (sl, vertex idx, col, opacity)
+  sl = get_arg_polygonsl(0)
+  IF sl ANDALSO bound_arg(retvals(1), 0, UBOUND(sl->PolygonData->vertices), "vertex number") THEN
+   WITH sl->PolygonData->vertices(retvals(1))
+    IF CAST(uinteger, retvals(2)) < 256 THEN
+     .col = master(retvals(2))
+    ELSE
+     .col.col = retvals(2)
+    END IF
+    .col.a = retvals(3) * 255 \ 100
+   END WITH
+  END IF
 
 
  CASE ELSE
@@ -5723,6 +5755,7 @@ FUNCTION get_handle_typed_slice(byval handle as integer, byval sltype as SliceTy
  DIM sl as Slice ptr = get_handle_slice(handle, errlvl)
  IF sl = NULL THEN RETURN sl
  IF sl->SliceType <> sltype THEN
+  IF sltype = slSprite ANDALSO sl->SliceType = slPolygon THEN RETURN sl  'Polygon inherits from Sprite
   slice_bad_op sl, "is not a " & SliceTypeName(sltype)
   RETURN NULL
  END IF

@@ -814,6 +814,10 @@ define function, begin
 777,rotate slice,3,0,0,0             #(sl, angle, change xy)
 778,rotate slice about,4,0,0,0,0       #(sl, angle, x, y)
 
+ 779,create polygon,4 , 4,0,0,0   # (num vertices, fill type, w, h)
+ 780,put vertex,5, 0,0,0,0,1  # (sl, vertex idx, x, y, div)
+ 781,set vertex color, 4,0,0,0,100 # (sl, vertex idx, col, opacity)
+
 # Don't forget to update maxScriptCmdID in const.bi when adding new commands
 end
 
@@ -2345,6 +2349,10 @@ define constant, begin
 7,spritetype:border
 8,spritetype:portrait
 9,spritetype:backdrop
+0,polyfill:SingleColor
+1,polyfill:Color
+2,polyfill:Texture
+3,polyfill:TextureColor
 0,autosort:Off
 1,autosort:Custom
 2,autosort:Y
