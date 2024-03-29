@@ -5777,9 +5777,13 @@ SUB rpg_sanity_checks
  END IF
 
  'Check script file formats
- IF isfile(game + ".hsp") THEN
+ DIM has_scripts as bool = NO
+ IF real_isfile(game + ".hsp") THEN
+  'Allow manual pre-unlumping and deleting the .hsp to avoid an extra unlump and lots of temp files.
   unlumpfile game + ".hsp", "hs", tmpdir
-
+  has_scripts = YES
+ END IF
+ IF has_scripts ORELSE real_isfile(tmpdir + "hs") THEN
   DIM hs_header as HSHeader
   load_hsp_header tmpdir & "hs", hs_header
   WITH hs_header

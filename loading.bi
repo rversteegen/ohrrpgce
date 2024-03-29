@@ -217,7 +217,7 @@ DECLARE FUNCTION last_hero_formation_id() as integer
 DECLARE SUB save_hero_formation(byref hform as HeroFormation, byval form_num as integer)
 DECLARE SUB write_hero_formation(byval par as NodePtr, byref hform as HeroFormation)
 
-DECLARE SUB load_hsp_header(filename as string, header as HSHeader)
+DECLARE SUB load_hsp_header(filename as string, header as HSHeader, expect_exists as bool = YES)
 DECLARE SUB load_script_triggers_and_names()
 
 DECLARE SUB save_string_list(array() as string, filename as string)

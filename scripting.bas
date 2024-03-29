@@ -993,10 +993,10 @@ SUB load_hsp ()
  DIM header as HSHeader
 
  IF isfile(game + ".hsp") THEN
-  'TODO: should really delete all existing .hsz files, to catch missing scripts
+  'TODO: should really delete all existing .hsz files, to catch missing scripts while live-previewing
   unlump game + ".hsp", tmpdir
-  load_hsp_header tmpdir & "hs", header
  END IF
+ load_hsp_header tmpdir & "hs", header, NO
 
  debuginfo "plotscr.hsd version: " & header.plotscr_version
  IF LEN(header.plotscr_version) THEN

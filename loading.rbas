@@ -4564,12 +4564,14 @@ END SUB
 ' Most loading code is in scripting.bas
 
 'reads ths HS/HSS header lump of a .hs/.hsp file
-SUB load_hsp_header(filename as string, header as HSHeader)
+SUB load_hsp_header(filename as string, header as HSHeader, expect_exists as bool = YES)
  WITH header
   .valid = NO
   DIM fh as integer
   IF OPENFILE(filename, FOR_INPUT, fh) THEN
-   debug "load_hsp_header: Could not open " & filename
+   IF expect_exists THEN
+    debug "load_hsp_header: Could not open " & filename
+   END IF
    EXIT SUB
   END IF
   DIM buf as string
