@@ -368,7 +368,11 @@ TYPE BattleState
  mouse_running as integer   'Counts the number of ticks the right mouse button has been held for the crappy running system
  alert_ticks as integer     'Number of ticks remaining to display .alert
  alert as string            'Separate message from caption, used only for 'CANNOT RUN'
- tog as integer             'Alternates 0,1,0,1 tick by tick
+ tick as integer            '= 1 at 18.2 times a second, otherwise 0
+ halftick as integer        '= 1 every second tick (9.1 Hz), otherwise 0
+ tog as integer             'Alternates 0,1,0,1 frame by frame, use only for text UI flash colors
+ ticker_ms as double        'Milliseconds since last .tick
+ tick_tog as integer        '.ticks since last .halftick
  laststun as integer
  vic as VictoryState
  rew as RewardsState
@@ -380,8 +384,8 @@ TYPE BattleState
  debug_show_info as integer    '0=nothing, 1=show_enemy_meters, 2=display_attack_queue
  debug_player_control as bool  'Set .under_player_control on all (new) enemies
  'The following don't do anything right now, but are handy to leave in
- test_view_mode as integer 'used for debugging new display stuff with F9
- test_future as integer    'used for debugging new display stuff with F9
+ test_view_mode as integer 'used for debugging new display stuff with C/S+F10
+ test_future as integer    'used for debugging new display stuff with C/S+F10
 END TYPE
 
 

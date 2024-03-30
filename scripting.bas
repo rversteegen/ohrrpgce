@@ -1299,7 +1299,7 @@ SUB print_script_profiling
   debug " %time       time    cmdtime   childtime    time/call    #calls     #cmds  script name " _
         & IIF(time_specific_cmdid, SPACE(14) & "#calls &  time for " & commandname(time_specific_cmdid), "")
  ELSE
-  debug " %time       time  childtime    time/call    #calls   script name"
+  debug " %time       time   childtime    time/call    #calls  script name"
  END IF
 
  FOR i as integer = 0 TO numscripts - 1

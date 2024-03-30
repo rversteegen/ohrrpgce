@@ -186,7 +186,8 @@ FUNCTION battle (byval form as integer) as bool
  '--main battle loop
  setkeys
  DO
-  setwait 55  'Adjusting framerate in-battle is not implemented
+  setwait bat.speedcontrol
+
   #IFNDEF NO_TEST_GAME
    IF running_under_Custom THEN try_to_reload_files_inbattle
   #ENDIF
@@ -195,7 +196,19 @@ FUNCTION battle (byval form as integer) as bool
   setkeys
   main_timer.substop TimerIDs.IOBackend
 
+  bat.tick = 0
+  bat.halftick = 0
+  bat.ticker_ms += bat.speedcontrol
+  IF bat.ticker_ms >= 55 THEN
+   bat.ticker_ms -= 55
+   bat.tick = 1
+   IF bat.tick_tog THEN bat.halftick = 1
+   bat.tick_tog XOR= 1
+  END IF
+  'Should bat.tog actually be equal to .halftick, so UI flashing is the same as before?
+  'Ideally would be customisable throughout the engine.
   bat.tog XOR= 1
+
   playtimer
 
   '--background animation
@@ -206,14 +219,17 @@ FUNCTION battle (byval form as integer) as bool
 
    ''--This will be disabled when it is no longer needed. If Ctrl/Shift+F10 is needed
    ''--for something more important don't hesitate to claim it
-   'IF (keyval(scSHIFT) > 0 OR keyval(scCTRL) > 0) AND keyval(scF10) > 1 THEN
+   IF (keyval(scShift) > 0 OR keyval(scCtrl) > 0) AND keyval(scF10) > 1 THEN
+    bat.speedcontrol = IIF(bat.speedcontrol = 55, 16.666, 55)
+    show_overlay_message "speedcontrol=" & bat.speedcontrol
+
    ' loopvar bat.test_view_mode, 0, 2
    ' SELECT CASE bat.test_view_mode
    '  CASE 0: bat.test_future = NO : notification "bat.test_view_mode Classic"
    '  CASE 1: notification "bat.test_view_mode Flicker"
    '  CASE 2: bat.test_future = YES : notification "bat.test_view_mode Future"
    ' END SELECT
-   'END IF
+   END IF
   END IF
 
   IF keyval(scPause) > 1 THEN battle_pause
@@ -1334,13 +1350,34 @@ SUB decrement_attack_queue_delays(bslot() as BattleSprite)
  NEXT i
 END SUB
 
+'Beware rounding!
+FUNCTION int_ticks_to_frames(num as integer) as integer
+ RETURN num * 55 / bat.speedcontrol
+END FUNCTION
+
+'Warning, this can cause sever rounding. Speeds should probably be converted to floats instead,
+'or usie
+FUNCTION int_per_tick_to_per_frame(num as integer) as integer
+ DIM ret as integer = num * bat.speedcontrol / 55
+ IF num <> 0 ANDALSO ret = 0 THEN RETURN SGN(num)  'Never round to 0!
+ RETURN ret
+END FUNCTION
+
+'Given a speed in px/tick (55ms a tick), tell how many pixels to move this frame.
+'Returns a different value each frame due to rounding.
+FUNCTION speed_this_frame(speed as integer) as integer
+ DIM lastpos as integer = (bat.ticker_ms - bat.speedcontrol) * speed / 55
+ DIM newpos as integer = bat.ticker_ms * speed / 55
+ RETURN newpos - lastpos
+END FUNCTION
+
 SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as HeroDef)
  'This sub is intended to apply animation effects triggered elsewhere.
  'FIXME: due to messy code, plenty of animation stuff might still happen elsewhere
  DIM i as integer
  '--First, things that only heroes can do
  FOR i = 0 TO 3
-  IF bat.vic.state = vicNONE AND bslot(i).walk = 1 THEN bslot(i).frame = bslot(i).frame XOR bat.tog
+  IF bat.vic.state = vicNONE AND bslot(i).walk = 1 THEN bslot(i).frame XOR= bat.halftick
   ' Change weak heroes to weak unless the hero is attacking.
   ' Note that enforce_weak_picture doesn't change from weak to normal frame if
   ' the hero is not weak; the whole method of deciding .frame is broken.
@@ -1348,7 +1385,7 @@ SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as He
   ' so I don't see under what conditions this check is even needed... a hero is
   ' injured in the middle of an animation? Battlescripting?
   IF (bat.atk.id >= 0 AND bat.acting = i) = NO THEN enforce_weak_picture i, bslot(), bat
-  IF bat.vic.state > vicNONE AND bslot(i).stat.cur.hp > 0 AND bat.tog = 0 THEN
+  IF bat.vic.state > vicNONE AND bslot(i).stat.cur.hp > 0 AND bat.halftick = 0 THEN
    IF st(i).skip_victory_dance THEN
     bslot(i).frame = frameVICTORYB
    ELSE
@@ -1359,14 +1396,23 @@ SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as He
  '--Then apply movement forces for all things, heroes, enemies, attacks, weapons
  FOR i = 0 TO 23
   WITH bslot(i)
-   IF .xmov <> 0 THEN .x = .x + (.xspeed * SGN(.xmov)): .xmov = .xmov - SGN(.xmov)
-   IF .ymov <> 0 THEN .y = .y + (.yspeed * SGN(.ymov)): .ymov = .ymov - SGN(.ymov)
-   IF .zmov <> 0 THEN .z = .z + (.zspeed * SGN(.zmov)): .zmov = .zmov - SGN(.zmov)
+   IF .xmov THEN
+    .x += speed_this_frame(.xspeed) * SGN(.xmov)   ' Are negative move ticks still used?
+    IF bat.tick THEN .xmov -= SGN(.xmov)
+   END IF
+   IF .ymov THEN
+    .y += speed_this_frame(.yspeed) * SGN(.ymov)
+    IF bat.tick THEN .ymov -= SGN(.ymov)
+   END IF
+   IF .zmov THEN
+    .z += speed_this_frame(.zspeed) * SGN(.zmov)
+    IF bat.tick THEN .zmov -= SGN(.zmov)
+   END IF
   END WITH
  NEXT i
  '--then, stuff that only attacks can do
  FOR i = 12 TO 23 '--for each attack sprite
-  IF bslot(i).vis THEN
+  IF bat.tick ANDALSO bslot(i).vis THEN
    WITH bslot(i)
     .anim_index += 1
     '--each pattern ends with a -1. If we have found it, loop around
@@ -1386,10 +1432,11 @@ SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as He
     'ENEMIES DEATH THROES
     IF is_enemy(i) THEN
      IF .fleeing THEN  'running away
-      .x = .x - 10
+      .x -= speed_this_frame(10)
       .d = 1
      END IF
-     .dissolve -= 1
+     'Note dissolve and appear animations still happen at 18fps for now
+     .dissolve -= bat.tick
      IF .dissolve = 0 THEN
       'Make dead enemy invisible (this should have already happened in check_death)
       'The check_death code will actually do most removal/cleanup, which will
@@ -1405,7 +1452,7 @@ SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as He
  FOR i = 0 TO 11
   IF bslot(i).appeartype >= 0 ANDALSO bslot(i).dissolve_appear <= bslot(i).appeartime THEN
    IF is_enemy(i) THEN
-    bslot(i).dissolve_appear += 1
+    bslot(i).dissolve_appear += bat.tick
    END IF
   END IF
  NEXT i
@@ -1434,9 +1481,9 @@ SUB battle_crappy_run_handler(byref bat as BattleState, bslot() as BattleSprite)
  DIM try_run as bool = NO
  IF carray(ccRun) > 1 THEN try_run = YES
  'The delay of 10 ticks on bat.mouse_running similates the typematic repeat delay of holding ESC
- IF bat.mouse_running > 10 THEN try_run = YES
+ IF bat.mouse_running > 10 THEN try_run = YES  'TODO
  IF try_run ANDALSO prefbit(17) = NO THEN '"Disable ESC to run from battle" off
-  bat.flee = bat.flee + 1
+  bat.flee += 1  'TODO
  END IF
  DIM i as integer
  IF bat.flee > 0 AND bat.flee < 4 THEN
@@ -1570,6 +1617,7 @@ SUB update_battlesprite_slices(bat as BattleState, bslot() as BattleSprite)
     END IF
     ChangeSpriteSlice .sprite, , , , , fliph
 
+    'Note dissolve and appear animations still happen at 18fps for now
     IF is_enemy(i) andalso .appeartype >= 0 andalso .dissolve_appear <= .appeartime then
      'TODO: switch to auto-animating dissolve instead of manually setting the current tick
      '(but make sure to preserve the one tick delay at start of battle before appear starts)
@@ -1654,9 +1702,9 @@ SUB update_battle_ui_slices(bat as BattleState, bslot() as BattleSprite)
   
   area->Visible = NO
   IF bat.caption_time > 0 THEN
-   bat.caption_time -= 1
+   bat.caption_time -= bat.tick
    IF bat.caption_delay > 0 THEN
-    bat.caption_delay -= 1
+    bat.caption_delay -= bat.tick
    ELSE
     area->Visible = YES
    END IF
@@ -1689,8 +1737,10 @@ SUB update_battle_ui_slices(bat as BattleState, bslot() as BattleSprite)
    area->Pos = XY(0, 0)
    area->Size = XY(0, 0)
   END IF
-  
-  update_battle_toggle_bounce bat, area
+
+  IF bat.tick THEN  ' Or run at full speed?
+   update_battle_toggle_bounce bat, area
+  END IF
 
   area = LookupSlice(SL_BATTLE_PLAYER_TURN_OVERLAY, ui_layer, , area)
  LOOP
@@ -1808,7 +1858,7 @@ SUB update_battle_hero_or_enemy_info_slice(sl as Slice Ptr, bat as BattleState, 
   update_stat_meter bat, bspr.lifemeter, 100, bspr.stat.cur.hp, bspr.stat.max.hp, uiHealthBar, col
   'Update color for real
   col = uiHealthBar * -1 - 1
-  IF bspr.lifemeter = 100 ANDALSO bspr.stat.cur.hp > bspr.stat.max.hp ANDALSO bat.menu_mode = batMENUHERO ANDALSO bat.tog <> 0 THEN
+  IF bspr.lifemeter = 100 ANDALSO bspr.stat.cur.hp > bspr.stat.max.hp ANDALSO bat.menu_mode = batMENUHERO ANDALSO bat.tog THEN
    col = uiHealthBarFlash * -1 - 1
   END IF
   RecursivelyUpdateColor hp_meter, col, uiHealthBar * -1 - 1, uiHealthBarFlash * -1 - 1
@@ -1830,7 +1880,7 @@ SUB update_battle_hero_or_enemy_info_slice(sl as Slice Ptr, bat as BattleState, 
   update_stat_meter bat, bspr.mpmeter, 100, bspr.stat.cur.mp, bspr.stat.max.mp, uiMPBar, col
   'Update color for real
   col = uiMPBar * -1 - 1
-  IF bspr.mpmeter = 100 ANDALSO bspr.stat.cur.mp > bspr.stat.max.mp ANDALSO bat.menu_mode = batMENUHERO ANDALSO bat.tog <> 0 THEN
+  IF bspr.mpmeter = 100 ANDALSO bspr.stat.cur.mp > bspr.stat.max.mp ANDALSO bat.menu_mode = batMENUHERO ANDALSO bat.tog THEN
    col = uiMPBarFlash * -1 - 1
   END IF
   RecursivelyUpdateColor mp_meter, col, uiMPBar * -1 - 1, uiMPBarFlash * -1 - 1
@@ -1887,6 +1937,7 @@ SUB update_indicator_slice (sl as Slice Ptr, lookup_code as integer, active as b
  
 END SUB
 
+'Ensure 'layer' has 12 copies of its TARGETTING_TEMPLATE child
 SUB instantiate_battle_targetting_slices (layer as Slice Ptr)
  IF layer = 0 THEN EXIT SUB
  DIM templ as Slice Ptr = LookupSlice(SL_BATTLE_TARGETTING_TEMPLATE, layer)
@@ -1917,6 +1968,7 @@ SUB update_battle_targetting_slices (layer as Slice Ptr, bat as BattleState, bsp
  END WITH
 END SUB
 
+'Ensure 'layer' has 12 copies of its TARG_HOVER_TEMPLATE child
 SUB instantiate_battle_targ_hover_slices (layer as Slice Ptr)
  IF layer = 0 THEN EXIT SUB
  DIM templ as Slice Ptr = LookupSlice(SL_BATTLE_TARG_HOVER_TEMPLATE, layer)
@@ -2839,6 +2891,9 @@ SUB reset_battle_state (byref bat as BattleState)
   .anim_ready = NO
   .wait_frames = 0
   .ticks = 0
+  .speedcontrol = 16.666  'TODO: make adjustable, or use same as rest of the game
+  .ticker_ms = 0
+  .tick_tog = 0
 
   .level_mp_caption = readglobalstring(160, "Level MP", 20)
   .cancel_spell_caption = readglobalstring(51, "(CANCEL)", 10)
@@ -5434,7 +5489,7 @@ SUB battle_animate_running_away (bslot() as BattleSprite)
   IF gam.hero(i).id >= 0 ANDALSO bslot(i).stat.cur.hp > 0 THEN
    WITH bslot(i)
     IF .vis THEN
-     .xmov = 10
+     .xmov = 10  'Move to the right for 10 ticks
      .xspeed = 6
      .walk = 1
      .d = 1
