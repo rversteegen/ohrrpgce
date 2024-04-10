@@ -1,5 +1,5 @@
 /* OHRRPGCE - low level file interface layer
- * (C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+ * (C) Copyright 1997-2024 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
  * Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
  */
 
@@ -21,6 +21,10 @@
 
 // Max value returned by FREEFILE. Equal to 255.
 #define MAX_FNUM FB_MAX_FILES - FB_RESERVED_FILES
+
+#ifdef PROFILE_IO
+IOCounter count_fopens, count_reopens, count_fseeks, count_freads, count_fread_bytes, count_fwrites, count_fwrite_bytes;
+#endif
 
 // This array stores information about any open file that was opened using OPENFILE.
 // Indexed by file number as returned by FREEFILE, not by the index used internally in rtlib
@@ -134,9 +138,11 @@ int file_wrapper_close(FB_FILE *handle) {
 	return fb_DevFileClose(handle) || res;
 }
 
-/*
+#ifdef PROFILE_IO
+
 int file_wrapper_seek(FB_FILE *handle, fb_off_t offset, int whence) {
-	// Nothing here yet
+	count_fseeks.frame += 1;
+
 	return fb_DevFileSeek(handle, offset, whence);
 }
 
@@ -146,10 +152,12 @@ int file_wrapper_tell(FB_FILE *handle, fb_off_t *pOffset) {
 }
 
 int file_wrapper_read(FB_FILE *handle, void *value, size_t *pValuelen) {
-	// Nothing here yet
-	return fb_DevFileRead(handle, value, pValuelen);
+	int ret = fb_DevFileRead(handle, value, pValuelen);
+	PROFILE_FREAD(*pValuelen);  // The actual amount read
+	return ret;
 }
-*/
+
+#endif
 
 int file_wrapper_write(FB_FILE *handle, const void *value, size_t valuelen) {
 	FileInfo *infop = get_fileinfo(handle);
@@ -167,6 +175,7 @@ int file_wrapper_write(FB_FILE *handle, const void *value, size_t valuelen) {
 		}
 		return 1;
 	} else {
+		PROFILE_FWRITE(valuelen);
 		infop->dirty = true;
 		return fb_DevFileWrite(handle, value, valuelen);
 	}
@@ -176,9 +185,15 @@ int file_wrapper_write(FB_FILE *handle, const void *value, size_t valuelen) {
 static FB_FILE_HOOKS lumpfile_hooks = {
 	fb_DevFileEof,
 	file_wrapper_close,
-	fb_DevFileSeek,       //file_wrapper_seek,
-	fb_DevFileTell,       //file_wrapper_tell,
-	fb_DevFileRead,       //file_wrapper_read,
+#ifdef PROFILE_IO
+	file_wrapper_seek,
+	file_wrapper_tell,
+	file_wrapper_read,
+#else
+	fb_DevFileSeek,
+	fb_DevFileTell,
+	fb_DevFileRead,
+#endif
 	fb_DevFileReadWstr,
 	file_wrapper_write,
 	fb_DevFileWriteWstr,  // Ought to intercept this
@@ -402,6 +417,7 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 	// close all lazyclosed files when the hook changes.
 	*fnum = try_reuse_open_file(filename->data, (OPENBits)(openbits & SAVE_OPENBITS_MASK));
 	if (*fnum > 0) {
+		PROFILE_REOPEN();
 		// Add to log of recent files? Probably slow to do that 10000 times.
 		//log_openfile(filename->data);
 		return FB_RTERROR_OK;
@@ -421,6 +437,11 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 	FilterActionEnum action = DONT_HOOK;
 	if (pfnLumpfileFilter)
 		action = pfnLumpfileFilter(&file_to_open, explicit_write ? YES : NO, allow_lump_writes ? YES : NO);
+
+#ifdef PROFILE_IO
+	PROFILE_FOPEN();
+	printf("OPENFILE(%s)\n", filename->data)
+#endif
 
 	if (action == HOOK) {
 		if (!allow_lump_writes) {
@@ -789,9 +810,10 @@ void vfclose(VFile *file) {
 }
 
 unsigned int vfread(void *restrict ptr, unsigned int size, unsigned int nmemb, VFile *file) {
-	if (file->type == VFile::CFILE)
+	if (file->type == VFile::CFILE) {
+		PROFILE_FREAD(size * nmemb);
 		return fread(ptr, size, nmemb, file->cfile);
-	else {
+	} else {
 		ssize_t bytes = size * nmemb;
 		size_t ret = nmemb;
 		if (bytes > file->length - file->position) {
@@ -805,9 +827,10 @@ unsigned int vfread(void *restrict ptr, unsigned int size, unsigned int nmemb, V
 }
 
 int vfgetc(VFile *file) {
-	if (file->type == VFile::CFILE)
+	if (file->type == VFile::CFILE) {
+		PROFILE_FREAD(1);
 		return fgetc(file->cfile);
-	else {
+	} else {
 		if (file->position == file->length)
 			return EOF;
 		return (unsigned char)file->data[file->position++];
@@ -824,9 +847,10 @@ unsigned int vfwrite(const void *restrict ptr, unsigned int size, unsigned int n
 }
 
 size_t vfseek(VFile *file, ssize_t offset, int whence) {
-	if (file->type == VFile::CFILE)
+	if (file->type == VFile::CFILE) {
+		PROFILE_FSEEK();
 		return fseek(file->cfile, offset, whence);
-	else {
+	} else {
 		if (whence == SEEK_SET)
 			file->position = offset;
 		else if (whence == SEEK_CUR)

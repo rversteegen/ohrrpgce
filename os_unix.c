@@ -53,6 +53,7 @@
 #include "errorlog.h"
 #include "os.h"
 #include "array.h"
+#include "lumpfile.h"
 
 static pthread_t main_thread_handle;
 
@@ -440,6 +441,7 @@ boolint copy_file_replacing(const char *source, const char *destination) {
 		debug(errError, "copy_file_replacing: could not fopen(%s, r): %s", source, strerror(errno));
 		goto err;
 	}
+	PROFILE_FOPEN();
 
 	fseek(src, 0, SEEK_END);
 	len = ftell(src);
@@ -449,17 +451,20 @@ boolint copy_file_replacing(const char *source, const char *destination) {
 		debug(errError, "copy_file_replacing: could not fopen(%s, w): %s", destination, strerror(errno));
 		goto err;
 	}
-	
+	PROFILE_FOPEN();
+
 	while (len > 0) {
 		bytes_to_copy = (len >= COPYBUF_SIZE) ? COPYBUF_SIZE : len;
 		if (fread(copybuf, 1, bytes_to_copy, src) != bytes_to_copy) {
 			debug(errError, "copy_file_replacing: fread(%s) error: %s", source, strerror(errno));
 			goto err;
 		}
+		PROFILE_FREAD(bytes_to_copy);
 		if (fwrite(copybuf, 1, bytes_to_copy, dst) != bytes_to_copy) {
 			debug(errError, "copy_file_replacing: fwrite(%s) error: %s", destination, strerror(errno));
 			goto err;
 		}
+		PROFILE_FWRITE(bytes_to_copy);
 		len -= bytes_to_copy;
 	}	
 	fclose(src);

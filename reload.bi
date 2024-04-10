@@ -215,7 +215,11 @@ Declare Function DocumentMemoryUsage(byval doc as DocPtr) as longint
 	Declare Function GetChildByNameIndex(byval nod as NodePtr, byval nameindex as integer) as NodePtr
 #endif
 
+#ifdef PROFILE_IO
+	extern count_loadnodes as IOCounter
+#endif
 
 End Namespace
+
 
 #endif

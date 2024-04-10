@@ -25,6 +25,36 @@ int FileWrapper_read(FileWrapper*, void* buffer, int size, int maxnum);
 void log_openfile(const char *filename);
 boolint read_recent_files_list(int idx, const char **filename, double *opentime);
 
+#ifdef PROFILE_IO
+
+// TODO: currently we only tally fseek/fread/fwrite calls for hooked files
+// (lumps) and VFiles (Reload.LoadDocument), but ideally want to tally everything other
+// than in-memory VFiles, including IO in the music backend, gif.h, lodepng, etc.
+
+struct IOCounter {
+	int frame;  // The count this frame
+	int total;  // Accumulated count
+};
+
+// Reopens are OPENFILEs after a lazyclose
+extern struct IOCounter count_fopens, count_reopens, count_fseeks, count_freads, count_fread_bytes, count_fwrites, count_fwrite_bytes;
+
+#define PROFILE_FOPEN() count_fopens.frame += 1
+#define PROFILE_REOPEN() count_reopens.frame += 1
+#define PROFILE_FREAD(bytes) do { count_freads.frame += 1; count_fread_bytes.frame += (bytes); } while(0)
+#define PROFILE_FWRITE(bytes) do { count_fwrites.frame += 1; count_fwrite_bytes.frame += (bytes); } while(0)
+#define PROFILE_FSEEK() count_fseeks.frame += 1
+
+#else
+
+#define PROFILE_FOPEN()
+#define PROFILE_REOPEN()
+#define PROFILE_FREAD(bytes)
+#define PROFILE_FWRITE(bytes)
+#define PROFILE_FSEEK()
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

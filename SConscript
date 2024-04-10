@@ -383,6 +383,10 @@ else:
 if not web:
     CFLAGS += ['-ffunction-sections', '-fdata-sections']
 
+if int(ARGUMENTS.get('profile_io', 0)):
+    FBFLAGS += ['-d', 'PROFILE_IO']
+    CFLAGS += ['-DPROFILE_IO']
+
 # Backend selection.
 if 'gfx' in ARGUMENTS:
     gfx = ARGUMENTS['gfx']
@@ -1894,7 +1898,7 @@ if transpile_dir and len(BUILD_TARGETS) != 1:
 Help ("""
 Usage:  scons [SCons options] [options] [targets]
 
-Options:
+Feature options:
   gfx=BACKENDS        Graphics backends, concatenated with +. Options:
                         """ + " ".join(gfx_map.keys()) + """
                       (Don't try to use gfx_dummy!)
@@ -1904,6 +1908,11 @@ Options:
   music=BACKEND       Music backend. Options:
                         """ + " ".join(music_map.keys()) + """
                       Current (default) value: """ + "+".join(music) + """
+  upgrade=0           (Game only.) Disable support for upgrading old games.
+                      As a sideeffect, don't copy .rpgdirs when playing them.
+  profile_io=1        Spam file IO stats to the console (doesn't capture all IO)
+
+Build options:
   release=1           Sets the default settings used for releases, including
                       nightly builds (which you can override):
                       Equivalent to debug=0 gengcc=1, and also portable=1
@@ -1931,8 +1940,6 @@ Options:
                       even less debug info), lto=1 and use -Os. Runs slower
                       (scripts by ~20%).  Adding lto=0 hugely shortens build time,
                       is not much larger, but even slower.
-  upgrade=0           (Game only.) Disable support for upgrading old games.
-                      As a sideeffect, don't copy .rpgdirs when playing them.
   pdb=1               (Windows only.) Produce .pdb debug info files, for CrashRpt
                       and BreakPad crash analysis. .pdb files are put in win32/.
                       Visual Studio or Visual C++ Build Tools must be installed.

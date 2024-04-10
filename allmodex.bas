@@ -815,6 +815,42 @@ sub stop_recording_video()
 	recordvid = NULL
 end sub
 
+'==========================================================================================
+
+#ifdef PROFILE_IO
+
+function counter_str overload(ctr as IOCounter) as string
+	ctr.total += ctr.frame
+	counter_str = ctr.frame & "/" & ctr.total
+	ctr.frame = 0
+end function
+
+function counter_str overload(ctr as IOCounter, byte_ctr as IOCounter) as string
+	return counter_str(ctr) & " (bytes: " & counter_str(byte_ctr) & ")"
+end function
+
+'(Ideally would like to call each frame but not called each frame during fades
+'or when screen isn't updated (if io_pollkeyevents called instead), but IO
+'shouldn't happen then anyway)
+sub print_profile_io ()
+	if count_loadnodes.frame or _
+	   count_fopens.frame or _
+	   count_reopens.frame or _
+	   count_fseeks.frame or _
+	   count_freads.frame or _
+	   count_fwrites.frame then
+		print "THISFRAME/TOTAL: " _
+		      & !" opens: " & counter_str(count_fopens) _
+		      & !"\t reopens: " & counter_str(count_reopens) _
+		      & !"\t fseeks: " & counter_str(count_fseeks) _
+		      & !"\t freads: " & counter_str(count_freads, count_fread_bytes) _
+		      & !"\t fwrites: " & counter_str(count_fwrites, count_fwrite_bytes) _
+		      & !"\t LoadNodes: " & counter_str(count_loadnodes) _
+	end if
+end sub
+
+#endif
+
 
 '==========================================================================================
 '                                        Video pages
@@ -1313,6 +1349,10 @@ end function
 sub setvispage (page as integer, skippable as bool = YES)
 	' Remember last page
 	last_setvispage = page
+
+	#ifdef PROFILE_IO
+		print_profile_io
+	#endif
 
 	' Drop frames to reduce CPU usage if FPS too high
 	frame_index += 1

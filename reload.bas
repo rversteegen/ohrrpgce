@@ -49,6 +49,11 @@ Type ReloadHash
 end Type
 
 
+#ifdef PROFILE_IO
+	dim count_loadnodes as IOCounter
+#endif
+
+
 '===================================================================================================
 '= Private Heap abstraction
 '= On Windows, we can create a private heap to manage our memory. The advantage is that when the
@@ -309,6 +314,10 @@ end sub
 'Loads a node from a binary file, into a document
 'If force_recurse is true, load recursively even if document marked for delayed loading.
 Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool) as NodePtr
+	#ifdef PROFILE_IO
+		count_loadnodes.frame += 1
+	#endif
+
 	dim size as integer
 	vfread(@size, 4, 1, vf)
 
@@ -394,11 +403,16 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 End Function
 
 'This loads a node's children if loading has been delayed, either recursively or not, returning success
-'Note: won't do a recursive load if the node is loaded already but its child aren't, so you will have to
-'call LoadNode before the node's children are first accessed!
+'Note: won't do a recursive load if the node is loaded already but its children aren't (meaning they're missing
+'their children), so you can't just call this on the root node to load the whole document. (There's no
+'function for that.)
 Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 	if ret = null then return NO
 	if (ret->flags AND nfNotLoaded) = 0 then return YES
+
+	#ifdef PROFILE_IO
+		'print "Delayed LoadNode " & ret->doc->fileName & ":" & Reload.Ext.GetNodePath(ret)
+	#endif
 
 	dim vf as VFile ptr = ret->doc->fileHandle
 

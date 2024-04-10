@@ -224,6 +224,16 @@ declare function vfseek(byval file as VFile ptr, byval offset as ssize_t, byval 
 declare function vftell(byval file as VFile ptr) as size_t
 declare function vflength(byval file as VFile ptr) as size_t
 
+
+#ifdef PROFILE_IO
+	type IOCounter
+		frame as integer  ' The count this frame
+		total as integer  ' Accumulated count
+	end type
+
+	extern as IOCounter count_fopens, count_reopens, count_fseeks, count_freads, count_fread_bytes, count_fwrites, count_fwrite_bytes
+#endif
+
 end extern
 
 
