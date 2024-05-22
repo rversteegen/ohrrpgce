@@ -46,22 +46,25 @@ enum OPENBits {
 
 
 enum FilterActionEnum {
-	HOOK = 1,     // Open and hook it
-	DONT_HOOK = 2,// Open but don't hook it
-	DENY = 3,     // Don't open the file, return illegal function call error
-	HIDE = 4,     // Don't open the file, return file not found
+	HOOK = 1,        // Open and hook it
+	HOOK_WATCH = 2,  // Open and hook but only for PROFILE_IO purposes, don't send modified messages
+	DONT_HOOK = 3,   // Open but don't hook it
+	DENY = 4,        // Don't open the file, return illegal function call error
+	HIDE = 5,        // Don't open the file, return file not found
 };
 
 #ifdef __cplusplus
 struct FileInfo {
 	std::string name;
-	bool hooked;          // Send lump modified messages if dirty, and is locked, if locking enabled.
-	bool dirty;           // File has been written to
+	bool hooked;          // Installed hooks so we can monitor changes and update .dirty
+	bool watch_only;      // Opened with HOOK_WATCH. Don't lock or send modified messages. Implies .hooked
+	bool locked;          // Have asked the OS to lock it. Implies .hooked
+	bool dirty;           // File has been written to. Send lump modified messages on close.
+	bool in_use;          // Isn't lazyclosed
 	bool reported_error;  // Don't show more than one error
 	enum OPENBits openbits;  // Mode/access/encoding bits it was opened with; other bits excluded.
-	int in_use;           // Hasn't been lazyclosed
 
-	FileInfo() : hooked(false), dirty(false), reported_error(false), openbits(), in_use(false) {};
+	FileInfo() : hooked(false), watch_only(false), locked(false), dirty(false), in_use(false), reported_error(false), openbits() {};
 };
 
 extern "C" {

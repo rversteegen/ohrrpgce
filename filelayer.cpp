@@ -86,25 +86,32 @@ static FileInfo *&get_fileinfo(FB_FILE *handle) {
 	return get_fileinfo(FB_FILE_FROM_HANDLE(handle));
 }
 
-// Called when a hooked file is opened or reused and lock_hooked_files==true
-void lock_hooked_file(FB_FILE *handle, const char *filename) {
-	if (handle->access & FB_FILE_ACCESS_WRITE) {
-		//debuginfo("write-locking %s", filename);
-		lock_file_for_write((FILE *)handle->opaque, filename, 1000);
-	} else {
-		//debuginfo("read-locking %s", filename);
-		lock_file_for_read((FILE *)handle->opaque, filename, 1000);
+// On opening or reusing a hooked (but not watch_only) file, lock it as necessary
+void maybe_lock_hooked_file(FileInfo *infop, FB_FILE *handle) {
+	if (infop->hooked && !infop->watch_only && lock_hooked_files) {
+		const char *filename = infop->name.c_str();
+
+		if (handle->access & FB_FILE_ACCESS_WRITE) {
+			//debuginfo("write-locking %s", filename);
+			lock_file_for_write((FILE *)handle->opaque, filename, 1000);
+		} else {
+			//debuginfo("read-locking %s", filename);
+			lock_file_for_read((FILE *)handle->opaque, filename, 1000);
+		}
+		//debuginfo("locks: can-read:%d  can-write:%d", 1 - test_locked(filename, 0), 1 - test_locked(filename, 1));
+
+		infop->locked = true;
 	}
-	//debuginfo("locks: can-read:%d  can-write:%d", 1 - test_locked(filename, 0), 1 - test_locked(filename, 1));
 }
 
 // Called when a hooked file is closed or lazyclosed
 void closing_hooked_file(FB_FILE *handle, FileInfo *infop) {
-	if (lock_hooked_files) {
+	if (infop->locked) {
 		//debuginfo("unlocking %s", infop->name.c_str());
 		unlock_file((FILE *)handle->opaque);  // Only needed on Windows
+		infop->locked = false;
 	}
-	if (infop->dirty) {
+	if (infop->dirty && !infop->watch_only) {
 		//fprintf(stderr, "%s was dirty\n", infop->name.c_str());
 		send_lump_modified_msg(infop->name.c_str());
 	}
@@ -239,9 +246,6 @@ int lump_file_opener(FB_FILE *handle, const char *filename, size_t filename_len)
 	if (ret) return ret;
 
 	handle->hooks = &lumpfile_hooks;
-
-	if (lock_hooked_files)
-		lock_hooked_file(handle, filename);
 	return 0;
 }
 
@@ -315,8 +319,7 @@ static int try_reuse_open_file(const char* filename, enum OPENBits openbits) {
 		}
 	}
 
-	if (info->hooked && lock_hooked_files)
-		lock_hooked_file(handle, filename);
+	maybe_lock_hooked_file(info, handle);
 
 	// I found the most horrific thing in the rtlib source...  EOF for
 	// FOR BINARY files doesn't actually check EOF, it compares the
@@ -440,7 +443,12 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 
 #ifdef PROFILE_IO
 	PROFILE_FOPEN();
-	printf("OPENFILE(%s)\n", filename->data)
+	printf("OPENFILE(%s)\n", filename->data);
+	if (action == DONT_HOOK) {
+		// Partially hook it anyway so that we can tally all reads, writes, and seeks.
+		// This may have some side effects?
+		action = HOOK_WATCH;
+	}
 #endif
 
 	if (action == HOOK) {
@@ -448,10 +456,8 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 			// If we implicitly asked for writing, then reduce to read access.
 			access = FB_FILE_ACCESS_READ;
 		}
-		if (encod != FB_FILE_ENCOD_ASCII) {
-			debug(errShowBug, "OPENFILE: ENCODING not implemented for hooked files");
-			return FB_RTERROR_ILLEGALFUNCTIONCALL;
-		}
+		fnOpen = lump_file_opener;
+	} else if (action == HOOK_WATCH) {
 		fnOpen = lump_file_opener;
 	} else if (action == DONT_HOOK) {
 		if (encod == FB_FILE_ENCOD_ASCII)
@@ -464,6 +470,11 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 		return FB_RTERROR_FILENOTFOUND;
 	} else {
 		fatal_error("OPENFILE: Invalid action returned by filter function");
+		return FB_RTERROR_ILLEGALFUNCTIONCALL;
+	}
+
+	if (fnOpen == lump_file_opener && encod != FB_FILE_ENCOD_ASCII) {
+		debug(errShowBug, "OPENFILE: ENCODING not implemented for hooked files");
 		return FB_RTERROR_ILLEGALFUNCTIONCALL;
 	}
 
@@ -492,8 +503,12 @@ FB_RTERROR OPENFILE(FBSTRING *filename, enum OPENBits openbits, int *fnum) {
 		FileInfo *infop = new FileInfo();
 		infop->in_use = true;
 		infop->name = filename->data;
-		infop->hooked = (action == HOOK);
+		infop->hooked = (action == HOOK || action == HOOK_WATCH);
+		infop->watch_only = (action == HOOK_WATCH);
 		infop->openbits = (OPENBits)(openbits & SAVE_OPENBITS_MASK);
+
+		maybe_lock_hooked_file(infop, handle);
+
 		openfiles_mutex.lock();
 		openfiles[*fnum] = infop;
 		openfiles_mutex.unlock();
