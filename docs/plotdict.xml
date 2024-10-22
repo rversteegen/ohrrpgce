@@ -12667,6 +12667,20 @@ end</example>
 				if it doesn't already exist).
 			</description>
 		</command>
+		<command id="savedgamescount">
+			<canon>saved games count</canon>
+			<shortname>saved games count</shortname>
+			<description>
+				Returns the number of saved games
+				save games count
+script, count save slots, begin
+  variable (slot, count)
+  for (slot, 1, 1000) do (
+    if (save slot used(slot)) then (count += 1)
+  )
+  return (count)
+end
+
 		<reference ref="sendemail" />
 		<reference ref="getloadscript" />
 		<reference ref="setloadscript" />

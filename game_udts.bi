@@ -124,7 +124,6 @@ END TYPE
 TYPE ScriptWantSignals
   box as integer      'Textbox, or 0 for none (can't ask to show box 0)
   door as integer     'Door number +1
-  door_fadescreen as bool 'When a door is triggered: whether to fade the screen
   battle as integer   'Formation number +1
   teleport as bool    'Map num has changed, call preparemap()
   usenpc as integer   'NPC instance +1
@@ -132,6 +131,7 @@ TYPE ScriptWantSignals
   loadgame as integer 'Save slot +1. Must be a used (valid) save slot.
   loadgame_prefix as string 'Used to distinguish quickload slot. Normally ""
   resetgame as bool   'Called "reset game"
+  fade as bool        'Used by resetgame, loadgame, door: whether to fade the screen
   dont_quit_to_loadmenu as bool 'If no title screen, don't quit to the load menu.
 
   script_args(any) as integer  'Arguments to newgame/loadgame

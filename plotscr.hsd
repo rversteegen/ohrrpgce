@@ -931,6 +931,14 @@ script,autosave,begin
   else(saveinslot(lastsaveslot),return(lastsaveslot))
 end
 
+script, saved games count, begin
+  variable(hsd:slot, hsd:count)
+  for (hsd:slot, 1, 1000) do (
+    if (save slot used(hsd:slot)) then (hsd:count += 1)
+  )
+  return (hsd:count)
+end
+
 script,stringtoglobals,hsd:stringID,hsd:start,hsd:length,begin
   variable(hsd:temp,hsd:padding)
   if (hsd:stringID>=0,and,hsd:stringID<=maximum string id) then(
@@ -1195,6 +1203,11 @@ end
 script,set load script,hsd:ID=0,begin
   write general(57,hsd:ID)
 end
+
+script,save slot count,begin
+  return(readgeneral(197))
+end
+
 
 script,hsd:pref bit index,hsd:bitnum, begin
   if (hsd:bitnum >= 48) then (

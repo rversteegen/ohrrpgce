@@ -697,6 +697,7 @@ gam.want.teleport = NO
 gam.want.usenpc = 0
 gam.want.loadgame = 0
 gam.want.loadgame_prefix = ""
+gam.want.fade = NO
 gam.want.dont_quit_to_loadmenu = NO
 'gam.want.resetgame reset after title/loadmenu
 load_non_elemental_elements gam.non_elemental_elements()
@@ -724,8 +725,12 @@ IF get_gen_bool("/mouse/show_cursor") THEN showmousecursor 'Without this, the de
 
 DIM load_slot as integer = -1
 DIM load_slot_prefix as string = ""
-'.resetgame is YES when resetgame was called so we are skipping straight to launching the game
-IF gam.want.resetgame = NO THEN
+IF gam.want.loadgame > 0 THEN
+ 'gam.want.loadgame can be set at this point (only) by "run game".
+ load_slot = gam.want.loadgame - 1
+ load_slot_prefix = gam.want.loadgame_prefix
+ELSEIF gam.want.resetgame = NO THEN
+ '.resetgame is YES when resetgame was called so we are skipping straight to launching the game
  queue_fade_in
  IF prefbit(11) = NO THEN  '"Skip title screen" is off
   IF titlescreen() = NO THEN EXIT DO
@@ -738,6 +743,7 @@ IF gam.want.resetgame = NO THEN
   load_slot = pickload()
  END IF
 END IF
+gam.want.loadgame = 0
 gam.want.resetgame = NO
 'DEBUG debug "picked save slot " & load_slot
 
@@ -749,15 +755,15 @@ IF load_slot = -2 THEN
  fadeout uilook(uiFadeoutQuit)
  EXIT DO
 ELSEIF load_slot >= 0 THEN
- fadeout uilook(uiFadeoutLoadGame)
+ IF gam.want.no_fade = NO THEN fadeout uilook(uiFadeoutLoadGame)
  doloadgame load_slot
-ELSE
+ELSE 'load_slot = -1
  'New game
  refresh_purchases()
  'clear existing achievement progress (with no save file to refresh from)
  Achievements.runtime_load(null)
  'This fadeout means that resetgame fades out the screen although gameover doesn't
- fadeout uilook(uiFadeoutNewGame)
+ IF gam.want.no_fade = NO THEN fadeout uilook(uiFadeoutNewGame)
  'Clear the screen so that there's no garbage shown behind the prompt to rename the starting hero
  clearpage dpage
  clearpage vpage
@@ -2583,7 +2589,7 @@ SUB interpret_scripts()
  END IF
  gam.want.box = 0
  IF gam.want.door > 0 THEN
-  usedoor gam.want.door - 1, gam.want.door_fadescreen
+  usedoor gam.want.door - 1, gam.want.fade
   gam.want.door = 0
  END IF
  IF gam.want.battle > 0 THEN

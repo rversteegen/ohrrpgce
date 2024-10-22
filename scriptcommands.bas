@@ -619,7 +619,7 @@ SUB script_commands(byval cmdid as integer)
   IF immediate_showtextbox ANDALSO gam.want.box > 0 THEN loadsay gam.want.box: gam.want.box = 0
  CASE 15'--use door
   gam.want.door = retvals(0) + 1
-  gam.want.door_fadescreen = get_optional_arg(1, 1) <> 0
+  gam.want.fade = get_optional_arg(1, 1) <> 0
   script_start_waiting(0)
  CASE 16'--fight formation
   IF retvals(0) >= 0 AND retvals(0) <= gen(genMaxFormation) THEN
@@ -6195,12 +6195,12 @@ END FUNCTION
 
 ' Implementation of "run game".
 LOCAL SUB run_game ()
- ' Not being able to load the game should always show an error (use serrMajor for everything)
+ ' Not being able to run the game should always show an error (use serrMajor for everything)
  IF valid_plotstr(retvals(0), serrMajor) = NO THEN RETURN
 
  IF running_under_Custom THEN
   ' This would require more work to implement
-  scripterr "Sorry, you can't use " + current_command_name() + " while Testing Game"
+  scripterr "Sorry, you can't use " + current_command_name() + " while Testing Game", serrMajor
   RETURN
  END IF
 
@@ -6218,6 +6218,10 @@ LOCAL SUB run_game ()
  END IF
 
  gam.want.rungame = path
+ REDIM gam.want.script_args(-1 TO curcmd->argc - 1)
+ FOR i as integer = 0 TO curcmd->argc - 1  'flexible argument number!
+  gam.want.script_args(i) = retvals(i)
+ NEXT
  ' TODO: when switching to fibres, should call exit_interpreter() or something like that instead
  script_start_waiting()
 END SUB
