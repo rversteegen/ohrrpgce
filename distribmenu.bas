@@ -20,6 +20,7 @@
 TYPE FnGatherFiles as FUNCTION (build_variant as string, basename as string, destdir as string, distinfo as DistribState) as bool
 
 DECLARE FUNCTION distribute_game_as_windows_zip (dest_override as string = "") as string
+DECLARE FUNCTION distribute_game_as_windows95_zip (dest_override as string = "") as string
 DECLARE FUNCTION distribute_game_as_windows_installer (dest_override as string = "") as string
 DECLARE FUNCTION distribute_game_as_linux_tarball (which_arch as string, dest_override as string = "") as string
 DECLARE FUNCTION distribute_game_as_web_zip (dest_override as string = "") as string
@@ -195,6 +196,8 @@ SUB DistribMenu.toplevel_menu()
  IF defitem_act("Package for Steam...") THEN enter_submenu "steam"
 
  section "Obsolete targets"
+
+ IF defitem_act("Export Windows 9X .zip (Pentium Pro PCs)") THEN presave : distribute_game_as_windows95_zip
 
  IF defitem_act("Export Mac OS X App Bundle (old 32bit Macs)") THEN presave : distribute_game_as_mac_app "x86"
  IF NOT tools_for_mac THEN
@@ -1890,6 +1893,10 @@ END FUNCTION
 
 FUNCTION distribute_game_as_windows_zip (dest_override as string = "") as string
  RETURN package_game("sdl2", "$pkgname.zip", dest_override, NO, @gather_files_for_windows)
+END FUNCTION
+
+FUNCTION distribute_game_as_windows95_zip (dest_override as string = "") as string
+ RETURN package_game("win95", "$pkgname-win9X.zip", dest_override, NO, @gather_files_for_windows)
 END FUNCTION
 
 FUNCTION distribute_game_as_windows_installer (dest_override as string = "") as string
