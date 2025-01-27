@@ -119,6 +119,7 @@ TYPE SliceEditState
  expand_extra as bool
  expand_sort as bool
  expand_meta as bool
+ expand_attributes as bool
 
  tool as SliceTool = SliceTool.pick
  focus as SliceEditorFocus        'What gets keyboard input. focusMenu or focusPicker only.
@@ -1881,7 +1882,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
     DIM expand as bool
     expand = .expand_dimensions OR .expand_visible OR .expand_alignment OR _
              .expand_special OR .expand_padding OR .expand_movement OR .expand_sort OR _
-             .expand_meta OR .expand_extra
+             .expand_meta OR .expand_extra OR .expand_attributes
     expand XOR= YES
     .expand_dimensions = expand
     .expand_visible = expand
@@ -1892,6 +1893,7 @@ SUB slice_edit_detail (byref ses as SliceEditState, edslice as Slice ptr, sl as 
     .expand_movement = expand
     .expand_meta = expand
     .expand_extra = expand
+    .expand_attributes = expand
    END WITH
    state.need_update = YES
   END IF
@@ -2504,6 +2506,13 @@ SUB slice_edit_detail_refresh (byref ses as SliceEditState, byref state as MenuS
    str_array_append menu(), "ID: " & .Context->description()
    sliceed_rule_none rules(), "metadata"
   END IF
+  IF v_len(.Context->attributes) THEN
+   sliceed_header menu(), rules(), "[Attributes]", @ses.expand_attributes
+   FOR idx as integer = 0 TO v_len(.Context->attributes) - 1
+    WITH .Context->attributes[idx]
+     a_append menu(), " X: " & .X
+     sliceed_rule rules(), "attribute", erIntgrabber, @.X, INT_MIN, INT_MAX
+   NEXT
  END IF
  IF ses.privileged THEN
   a_append menu(), "Protected: " & yesorno(.Protect)
