@@ -2348,6 +2348,7 @@ SUB set_item_plank_state (byval sl as Slice Ptr, byval state as PlankItemState)
    END SELECT
   CASE slRectangle:
    sl->Visible = YES
+   DIM raise as bool = NO
    SELECT CASE state
     CASE plankNORMAL:          sl->Visible = NO
     CASE plankSEL:             ChangeRectangleSlice sl, , uiItemScreenHighlight2 * -1 - 1
@@ -2355,10 +2356,15 @@ SUB set_item_plank_state (byval sl as Slice Ptr, byval state as PlankItemState)
     CASE plankSELDISABLE:      ChangeRectangleSlice sl, , uiItemScreenHighlight2 * -1 - 1
     CASE plankSPECIAL:         sl->Visible = NO
     CASE plankSELSPECIAL:      ChangeRectangleSlice sl, , uiItemScreenHighlight2 * -1 - 1
-    CASE plankITEMSWAP:        ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1
-    CASE plankITEMSWAPDISABLE: ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1
-    CASE plankITEMSWAPSPECIAL: ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1
+    CASE plankITEMSWAP:        ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1 : raise = YES
+    CASE plankITEMSWAPDISABLE: ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1 : raise = YES
+    CASE plankITEMSWAPSPECIAL: ChangeRectangleSlice sl, , uiItemScreenSwapHighlight2 * -1 - 1 : raise = YES
    END SELECT
+   IF raise THEN
+    sl->Parent->Y = -2
+   ELSE
+    sl->Parent->Y = 0
+   END IF
  END SELECT
 END SUB
 
@@ -2443,7 +2449,7 @@ SUB item_screen_refresh(byref st as ItemScreenState)
  update_item_plank st.ps.cur, st
 
  st.swapcur = 0
- expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, st.ps.cur, st.swapcur
+ expand_slice_text_insert_codes st.ps.m, @ExpandTextItemScreen, st.ps.cur, st.swapcur  '???
  update_plank_scrolling st.ps
  
 END SUB
