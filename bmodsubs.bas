@@ -1513,6 +1513,8 @@ END SUB
 'Generate attacker animation when hero attacks
 SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSprite, t() as integer)
 
+ DIM offscreen as RectPoints = battle_offscreen_bounds(bslot(who).size)
+
  SELECT CASE attack.attacker_anim
   ' Animations using the cast animation
   CASE atkrAnimCast, atkrAnimStandingCast
@@ -1584,6 +1586,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
 
   CASE atkrAnimRunInUnhide
    anim_setz who, 0
+'FIMXE
    anim_setpos who, 320 + bslot(t(0)).w / 2, bslot(t(0)).y, 0
    anim_setframe who, frameSTAND
    anim_unhide who
@@ -1631,6 +1634,7 @@ SUB anim_enemy (byval who as integer, attack as AttackData, bslot() as BattleSpr
   anim_setdir who, 0
  CASE atkrAnimRunInUnhide
   anim_setz who, 0
+'FIXME
   anim_setpos who, 0 - bslot(t(0)).w / 2, bslot(t(0)).y, 0
   anim_unhide who
   anim_absmove who, bslot(t(0)).x, bslot(t(0)).y, 10

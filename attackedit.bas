@@ -23,7 +23,7 @@ DECLARE SUB atk_edit_split_bitsets(recbuf() as integer, tempbuf() as integer)
 DECLARE FUNCTION readattackname(recbuf() as integer) as string
 DECLARE SUB update_attack_editor_for_fail_conds(recbuf() as integer, caption() as string, byval AtkCapFailConds as integer)
 DECLARE SUB attack_editor_build_damage_menu(recbuf() as integer, menu() as string, menutype() as integer, caption() as string, menucapoff() as integer, workmenu() as integer, state as MenuState, dmgbit() as string, maskeddmgbit() as string, damagepreview as string)
-DECLARE SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
+DECLARE SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, menu() as string, state as MenuState)
 DECLARE SUB attack_editor_build_sounds_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
 DECLARE FUNCTION browse_base_attack_stat(byval base_num as integer) as integer
 
@@ -164,6 +164,7 @@ CONST AtkMiscAct = 165
 CONST AtkExtra0 = 166
 CONST AtkExtra1 = 167
 CONST AtkExtra2 = 168
+CONST AtkAttackAnimParam = 169
 
 'Next menu item is 165 (remember to update MnuItems)
 
@@ -255,6 +256,7 @@ CONST AtkDatSpawnEnemy = 352
 CONST AtkDatExtra0 = 353
 CONST AtkDatExtra1 = 354
 CONST AtkDatExtra2 = 355
+CONST AtkDatAttackAnimParam = 356
 
 'anything past this requires expanding the data
 
@@ -416,7 +418,7 @@ DIM recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer '--stores the combined
 STATIC copy_recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer
 STATIC have_copy as bool
 
-CONST MnuItems = 168
+CONST MnuItems = 169
 DIM menu(MnuItems) as string
 DIM menutype(MnuItems) as integer
 DIM menuoff(MnuItems) as integer
@@ -426,8 +428,8 @@ DIM menucapoff(MnuItems) as integer
 
 DIM capindex as integer = 0
 REDIM caption(-1 TO -1) as string
-DIM max(51) as integer
-DIM min(51) as integer
+DIM max(52) as integer
+DIM min(52) as integer
 
 'Limit(0) is not used
 
@@ -448,12 +450,13 @@ CONST AtkLimPic = 1
 max(AtkLimPic) = gen(genMaxAttackPic)
 
 CONST AtkLimAnimPattern = 2
-max(AtkLimAnimPattern) = 3
+max(AtkLimAnimPattern) = 4
 menucapoff(AtkAnimPattern) = capindex
 addcaption caption(), capindex, "Cycle Forward"
 addcaption caption(), capindex, "Cycle Back"
 addcaption caption(), capindex, "Oscillate"
 addcaption caption(), capindex, "Random"
+addcaption caption(), capindex, "Dither"
 
 CONST AtkLimTargClass = 3
 max(AtkLimTargClass) = 17
@@ -820,7 +823,11 @@ CONST AtkLimSpawnEnemy = 51
 max(AtkLimSpawnEnemy) = gen(genMaxEnemy) + 1 'Must be updated!
 min(AtkLimSpawnEnemy) = 0
 
-'next limit is 51 (remember to update the max() and min() dims)
+CONST AtkLimAnimParam = 52
+max(AtkLimAnimParam) = 500
+min(AtkLimAnimParam) = 0
+
+'next limit is 53 (remember to update the max() and min() dims)
 
 '----------------------------------------------------------------------
 '--menu content
@@ -867,7 +874,7 @@ menutype(AtkPal) = 12
 menuoff(AtkPal) = AtkDatPal
 menulimits(AtkPal) = AtkLimPal16
 
-menu(AtkAnimPattern) = "Animation Pattern:"
+menu(AtkAnimPattern) = " Animation Pattern:"
 menutype(AtkAnimPattern) = 2000 + menucapoff(AtkAnimPattern)
 menuoff(AtkAnimPattern) = AtkDatAnimPattern
 menulimits(AtkAnimPattern) = AtkLimAnimPattern
@@ -965,12 +972,12 @@ menutype(AtkCaption) = 3'goodstring
 menuoff(AtkCaption) = AtkDatCaption
 menulimits(AtkCaption) = AtkLimStr38
 
-menu(AtkCapTime) = "Display Caption:"
+menu(AtkCapTime) = " Display Caption:"
 menutype(AtkCapTime) = 3000 + menucapoff(AtkCapTime)
 menuoff(AtkCapTime) = AtkDatCapTime
 menulimits(AtkCapTime) = AtkLimCapTime
 
-menu(AtkCaptDelay) = "Delay Before Caption:"
+menu(AtkCaptDelay) = " Delay Before Caption:"
 menutype(AtkCaptDelay) = 19'ticks
 menuoff(AtkCaptDelay) = AtkDatCaptDelay
 menulimits(AtkCaptDelay) = AtkLimCaptDelay
@@ -1258,7 +1265,7 @@ menutype(AtkDamageColor) = 23'color
 menuoff(AtkDamageColor) = AtkDatDamageColor
 menulimits(AtkDamageColor) = AtkLimColorIndex
 
-menu(AtkAlignToTarget) = "Attack Animation Align to Target..."
+menu(AtkAlignToTarget) = " Animation Align to Target..."
 menutype(AtkAlignToTarget) = 1
 
 menu(AtkChangeControllable) = "Change Target Control:"
@@ -1300,6 +1307,12 @@ menu(AtkExtra2) = "Extra Data 2:"
 menutype(AtkExtra2) = 0
 menuoff(AtkExtra2) = AtkDatExtra2
 menulimits(AtkExtra2) = AtkLimInt
+
+menu(AtkAttackAnimParam) = " Animation parameter:"
+'menu(AtkAttackAnimParam) = " Wave spacing (pixels):"
+menutype(AtkAttackAnimParam) = 0
+menuoff(AtkAttackAnimParam) = AtkDatAttackAnimParam
+menulimits(AtkAttackAnimParam) = AtkLimAnimParam
 
 '----------------------------------------------------------
 '--menu structure
@@ -1814,7 +1827,7 @@ DO
 
  IF state.need_update THEN
   IF helpkey = "attack_appearance" THEN
-   attack_editor_build_appearance_menu recbuf(), workmenu(), state
+   attack_editor_build_appearance_menu recbuf(), workmenu(), menu(), state
   END IF
   IF helpkey = "attack_sounds" THEN
    attack_editor_build_sounds_menu recbuf(), workmenu(), state
@@ -2014,26 +2027,46 @@ SUB update_attack_editor_for_fail_conds(recbuf() as integer, caption() as string
  NEXT
 END SUB
 
-SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
+SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, menu() as string, state as MenuState)
+  DIM atkanim as integer = recbuf(AtkDatAnimAttack)
+
   FOR i as integer = 2 TO UBOUND(workmenu)
    workmenu(i) = AtkBlankMenuItem
   NEXT
   workmenu(0) = AtkBackAct
-  workmenu(1) = AtkPic
-  workmenu(2) = AtkPal
-  workmenu(3) = AtkAnimAttack
-  workmenu(4) = AtkAnimPattern
-  workmenu(5) = AtkAnimAttacker
-  workmenu(6) = AtkAlignToTarget
-  workmenu(7) = AtkDelay
-  workmenu(8) = AtkTurnDelay
-  workmenu(9) = AtkDramaticPause
-  workmenu(10) = AtkCaption
-  workmenu(11) = AtkCapTime
-  workmenu(12) = AtkCaptDelay
-  workmenu(13) = AtkDamageColor
+  workmenu(1) = AtkAnimAttack
+  IF atkanim <> atkAnimNull THEN
+   workmenu(2) = AtkPic
+   workmenu(3) = AtkPal
+   workmenu(4) = AtkAnimPattern
+   workmenu(5) = AtkAlignToTarget
+
+   IF atkanim = atkAnimScreenCenter THEN
+    workmenu(6) = AtkAttackAnimSpeed
+    workmenu(7) = AtkAttackAnimMoveX
+    workmenu(8) = AtkAttackAnimMoveY
+   ELSEIF atkanim = atkAnimWave THEN
+    workmenu(6) = AtkAttackAnimParam
+    menu(AtkAttackAnimParam) = " Wave spacing (pixels):"
+   ELSE
+    'workmenu(6) = AtkAttackAnimSpeed
+    'workmenu(7) = AtkAttackAnimDwell
+    'workmenu(8) = AtkAttackAnimParam
+
+    workmenu(6) = AtkAttackAnimParam
+    menu(AtkAttackAnimParam) = " Wave spacing (pixels):"
+   END IF
+  END IF
+  workmenu(9) = AtkAnimAttacker
+  workmenu(10) = AtkDelay
+  workmenu(11) = AtkTurnDelay
+  workmenu(12) = AtkDramaticPause
+  workmenu(14) = AtkCaption
+  workmenu(15) = AtkCapTime
+  workmenu(16) = AtkCaptDelay
+  workmenu(17) = AtkDamageColor
   'Be careful when adding new menu items here. See that more are sometimes apended below
-  state.last = 13
+  state.last = 17
 
   DIM anim as integer = recbuf(AtkDatAnimAttacker)
   IF     anim = atkrAnimStrike _
@@ -2041,13 +2074,14 @@ SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integ
   ORELSE anim = atkrAnimTeleport _
   ORELSE anim = atkrAnimStandingStrike _
   THEN
-   workmenu(15) = AtkWepPic
-   state.last = 15
+
+   workmenu(19) = AtkWepPic
+   state.last = 19
    IF recbuf(AtkDatWepPic) > 0 THEN
-    workmenu(16) = AtkWepPal
-    workmenu(17) = AtkWepHand0
-    workmenu(18) = AtkWepHand1
-    state.last = 18
+    workmenu(20) = AtkWepPal
+    workmenu(21) = AtkWepHand0
+    workmenu(22) = AtkWepHand1
+    state.last = 22
    END IF
   END IF
    

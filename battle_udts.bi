@@ -303,7 +303,7 @@ END TYPE
 
 '--These patterns are used for attack animation frame oscillation
 TYPE AttackAnimationPattern
- frame(10) as integer
+ frame(13) as integer
 END TYPE
 
 CONST turnACTIVE = 0 'Take turns when asynchonous ready-meters fill
@@ -350,11 +350,12 @@ TYPE BattleState
  anim_ready as bool         'Indicates whether the current animation has been generated
  anim_t(11) as integer 'targets for currently animating attack
  anim_blocking_delay as integer 'whether the currently animating attack had a blocking delay (to make chains inherit non-blocking)
- animpat(3) as AttackAnimationPattern = _
+ animpat(4) as AttackAnimationPattern = _
         { ({0,0,1,1,2,2,-1}), _
           ({2,2,1,1,0,0,-1}), _
           ({0,0,1,1,2,2,1,1,0,0,-1}), _
-          ({-1,-1}) }
+          ({-1,-1}), _
+          ({0,1,0,1,2,1,2,1,0,2,0,2,-1}) }
  backdrop_sl as Slice ptr
  curbg as integer      'Current background
  bg_tick as integer    'Number of ticks since last background frame change

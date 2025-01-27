@@ -42,7 +42,6 @@ DECLARE SUB reset_rewards_state (byref rew as RewardsState)
 DECLARE SUB show_victory (byref bat as BattleState, bslot() as BattleSprite, page as integer)
 DECLARE SUB trigger_victory(byref bat as BattleState, bslot() as BattleSprite)
 DECLARE SUB fulldeathcheck (byval killing_attack as integer, bat as BattleState, bslot() as BattleSprite, formdata as Formation)
-DECLARE SUB anim_flinchstart(byval who as integer, bslot() as BattleSprite, byref attack as AttackData)
 DECLARE SUB flinch_anim_eachtick(byval who as integer, bslot() as BattleSprite)
 DECLARE SUB update_battle_slices(bat as BattleState, bslot() as BattleSprite)
 DECLARE SUB update_battlesprite_slices(bat as BattleState, bslot() as BattleSprite)
@@ -561,8 +560,19 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
    CASE 11 'setz(who,z)
     ww = popdw
     bslot(ww).z = popdw
-   CASE 12
-    'unimplemented
+   CASE 12 'absmovespeed(who, x, y, speed)
+    'I think it's ideal to move exactly `speed` distance each tick and then possibly
+    'less than that on the last tick. Instead, for now, we compute ticks and move the same amount each tick.
+    ww = popdw  'who
+    DIM destpos as XYPair
+    destpos.x = popdw
+    destpos.y = popdw
+    DIM speed as integer = large(1, popdw)  'In pixels/sec
+    IF bslot(ww).sl THEN
+     DIM dist as double = SQR(xypair_distance_squared(bslot(ww).sl->Pos, destpos))
+     ticks = dist / (speed * (55. / 1000))  '55ms per tick
+     SetSliceTarg bslot(ww).sl, destpos.x, destpos.y, ticks
+    END IF
    CASE 13 'wait(ticks)
     bat.wait_frames = popdw
    CASE 14 'walktoggle(who)
@@ -669,6 +679,19 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     'This command queues the end of the flinch 3 ticks later
     ww = popdw
     bslot(ww).flinch_anim = 6
+  CASE 29 'relmovespeed(who, x, y, speed)
+    ww = popdw  'who
+    DIM movedist as XYPair
+    movedist.x = popdw
+    movedist.y = popdw
+    DIM speed as integer = large(1, popdw)  'In pixel/sec
+    DIM dist as double = SQR(movedist.x * movedist.x + movedist.y * movedist.y)
+    ticks = dist / (speed * (55. / 1000))
+    WITH bslot(ww)
+     IF .sl THEN
+      SetSliceTarg .sl, .x + movedist.x, .y + movedist.y, ticks
+     END IF
+    END WITH
 
   END SELECT
  LOOP UNTIL bat.wait_frames <> 0 OR bat.atk.id = -1
@@ -1569,7 +1592,7 @@ SUB update_battle_slices(bat as BattleState, bslot() as BattleSprite)
 END SUB
 
 SUB update_battlesprite_slices(bat as BattleState, bslot() as BattleSprite)
- FOR i as integer = 0 TO 24
+ FOR i as integer = 0 TO UBOUND(bslot)
   WITH bslot(i)
    IF .sl = NULL THEN CONTINUE FOR  'Empty slot
 
@@ -3130,9 +3153,19 @@ SUB anim_absmove(byval who as integer, byval tox as integer, byval toy as intege
  pushdw 8: pushdw who: pushdw tox: pushdw toy: pushdw ticks
 END SUB
 
+' Move to an XY position at certain speed (px/sec)
+SUB anim_absmovespeed(byval who as integer, byval tox as integer, byval toy as integer, byval speed as integer)
+ pushdw 12: pushdw who: pushdw tox: pushdw toy: pushdw speed
+END SUB
+
 ' Move relative from the current position in `ticks` ticks.
 SUB anim_relmove(byval who as integer, byval byx as integer, byval byy as integer, byval ticks as integer)
  pushdw 20: pushdw who: pushdw byx: pushdw byy: pushdw ticks
+END SUB
+
+' Move relative from the current position at `speed` px/sec
+SUB anim_relmovespeed(byval who as integer, byval byx as integer, byval byy as integer, byval speed as integer)
+ pushdw 29: pushdw who: pushdw byx: pushdw byy: pushdw speed
 END SUB
 
 ' For zticks ticks, move zstep pixels/tick
@@ -4520,6 +4553,7 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
     'find the target's position
     targetpos = attack_placement_over_target(attack, t(i), bat, bslot(), atkimgdirection)
     'make the projectile move to the target
+'QWERT
     anim_absmove 12, targetpos.x, targetpos.y, 5
     anim_abszmove 12, targetpos.z, 5
     anim_waitforall
@@ -4595,6 +4629,7 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
    FOR i = 0 TO tcount - 1
     targetpos = attack_placement_over_target(attack, t(i), bat, bslot(), atkimgdirection)
     IF attack.attack_anim = atkAnimProjectile OR attack.attack_anim = atkAnimMeteor THEN
+'QUERT
      anim_absmove 12 + i, targetpos.x, targetpos.y, flight_ticks
      anim_abszmove 12 + i, targetpos.z, flight_ticks
     ELSE  'attack.attack_anim = atkAnimReverseProjectile
@@ -4747,13 +4782,16 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
  '----WAVE
  IF attack.attack_anim = atkAnimWave THEN
   DIM offscreen as RectPoints = battle_offscreen_bounds(bslot(12).size)
+  DIM spacing as integer '= attack.attack_anim_param
+  IF spacing <= 0 THEN spacing = 15
   DIM wave_start_x as integer
   wave_start_x = offscreen.left
   IF is_hero(bat.acting) THEN wave_start_x = offscreen.right
   DIM x_velocity as integer
   x_velocity = IIF(is_hero(bat.acting), -16, 16)
-  ' Time it takes each sprite to move across screen, total time is more
-  DIM ticks as integer = 1 + (offscreen.right - offscreen.left) \ ABS(x_velocity)
+  ' Time it takes the bottommost sprite to move across screen (it starts half the height of
+  ' the screen over the screen edge)
+  DIM ticks as integer = 1 + (offscreen.right - offscreen.left + (offscreen.bottom - offscreen.top) \ 2) \ ABS(x_velocity)
   ' Only use targetpos.y, and then only if there's just one target.
   targetpos = attack_placement_over_target(attack, t(0), bat, bslot(), atkimgdirection)
   anim_advance bat.acting, attack, bslot(), t()
@@ -4761,11 +4799,11 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
    FOR i = 0 TO 11
     IF tcount > 1 OR attack.targ_set = 1 THEN
      'Spread: a diagonal wave
-     anim_setpos 12 + i, wave_start_x, i * 15, atkimgdirection
+     anim_setpos 12 + i, wave_start_x - i * spacing \ 2, i * spacing, atkimgdirection
      anim_setz 12 + i, 0   'Can tweak this to change the effect
     ELSE
      'Single target: a horizontal line
-     anim_setpos 12 + i, wave_start_x, targetpos.y, atkimgdirection
+     anim_setpos 12 + i, wave_start_x - i * spacing, targetpos.y, atkimgdirection
      anim_setz 12 + i, targetpos.z
     END IF
    NEXT i
@@ -4774,12 +4812,14 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
    IF attack.sound_effect > 0 THEN anim_sound(attack.sound_effect - 1)
    'Stagger the time each sprite starts to move
    FOR i = 0 TO 11
+    'TODO: would be good if spacing for focused Wave was adjusted too,
+    'but each sprite is x_velocity apart: the movement in one tick
     anim_appear 12 + i
-    anim_velocity 12 + i, x_velocity, 0, ticks
-    anim_wait 1
+    anim_velocity 12 + i, x_velocity, 0, ticks + i
+    'anim_wait 1
    NEXT i
    anim_checkpoint
-   anim_wait 15
+   anim_wait 27
    anim_disappear 24
    anim_setframe bat.acting, frameSTAND
    FOR i = 0 TO tcount - 1

@@ -769,7 +769,7 @@ Type AttackData
 	wep_picture as integer
 	wep_pal as integer
 	wep_handle(1) as XYPair 'Handle offset ONLY applies when override_wep_pic is YES. Ignored when the hero's equipped weapon is used
-	anim_pattern as integer
+	anim_pattern as integer 'Frame sequence, an index into BattleState.animpat()
 	targ_class as integer
 	targ_set as integer
 	damage_math as integer
@@ -782,6 +782,9 @@ Type AttackData
 	extra_damage as integer
 	attacker_anim as AttackerAnimation
 	attack_anim as AttackAnimation
+	attack_anim_dwell as integer
+	attack_anim_speed as integer
+        attack_anim_param1 as integer  'For Wave: the spacing in pixels
 	attack_delay as integer   'In active-battle mode: ticks to delay (non-negative)
 	                          'In turn-based mode: number of attack queue slots (attacks) to delay,
 	                          'or negative to advance.
