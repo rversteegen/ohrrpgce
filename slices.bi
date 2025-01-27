@@ -240,8 +240,15 @@ Enum 'CoverModes
  coverFull = 3
 End Enum
 
+'Attributes are basically RELOAD nodes without children: you can ask t
+Enum SliceAttributeTypes
+ attyBool
+ attyInt
+End Enum
+
 Type SliceAttribute
  name as string
+ kind as SliceAttributeTypes
  value as integer
 End Type
 
