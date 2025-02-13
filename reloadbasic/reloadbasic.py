@@ -276,6 +276,9 @@ class TranslationIteratorWrapper(FileParsingIterator):
 
 def get_ident(astnode):
     """Translate identifier/dottedIdentifier ASTNode to string"""
+    if not isinstance(astnode, ASTNode):
+        print(astnode, repr(astnode))
+    assert isinstance(astnode, ASTNode)
     assert astnode.name in ('identifier', 'dottedIdentifier')
     return astnode[0].lower()
 
@@ -399,6 +402,9 @@ class NodeSpec(object):
             assert node.name == "nodeSpec"
 
         self.node = node
+        if not isinstance(node[0], ASTNode):
+            print(node)
+            print(cur_line)
         self.root_var = get_ident(node[0])
         self.indices = []    # either 'string' or 'identifier' (index variables) ASTNodes. Might be length 0!
         self._index_var_index = None  # The index in self.indices of the index variable if any
@@ -1390,7 +1396,7 @@ class ReloadBasicFunction(object):
             #self.used_temp_vars = 0
 
             nodetype = node.name
-            #print(lineno, nodetype, node)
+            print(lineno, nodetype, node)
             if nodetype == "tokenList":
                 replacements, prologue = self.freeform_translations(node)
                 #print "tokens", replacements, repr(prologue)

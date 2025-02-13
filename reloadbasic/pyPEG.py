@@ -222,19 +222,26 @@ class parser(object):
             res = resultSoFar
             if name:
                 if result:
+                    print("makenode:", name, result)
                     node = ASTNode(name, result)
                 else:
+                    print("makenode:", name, "with []")
                     node = ASTNode(name, [])
                 node.start = offset
                 node.end = offset + text_start_len - len(text)
                 #node.lineno = self.lineNo()
+                print("... from", node.start, node.end, textline[node.start : node.end])
+                print("... append onto", res)
                 res.append(node)
             elif result:
+                print("makenode no name", result)
+                print("... append onto", res)
                 if type(result) is type([]):
                     res.extend(result)
                 else:
                     res.extend([result])
             if self.packrat:
+                print("SAVE",(len(_textline), id(_pattern), _pattern), "=", (res, text))
                 self.memory[(len(_textline), id(_pattern))] = (res, text)
             return res, text
 
@@ -247,6 +254,7 @@ class parser(object):
             try:
                 result = self.memory[(len(textline), id(pattern))]
                 if result:
+                    print("FOUND",                 (len(textline), id(_pattern),_pattern), "=", result)
                     return result
                 else:
                     raise ParseFailure(offset)
@@ -256,6 +264,7 @@ class parser(object):
             # Assuming self.skipper has identical packrat setting
             try:
                 text = self.skipper.memory[len(textline)]
+                print("FOUND SKIP",                 len(textline), "=", text)
             except KeyError:
                 text = skip(self.skipper, textline, skipWS, skipComments)
                 self.skipper.memory[len(textline)] = text
@@ -348,6 +357,7 @@ class parser(object):
                                 result, newText = self.parseLine(text, p, result, skipWS, skipComments, newOffset, rulename)
                                 newOffset += len(text) - len(newText)
                                 text = newText
+                                print(f": while parsing {rulename} pattern {p} at <text>" + text[:10] + f"[...], got {result} & <text>" + newText)
                         except ParseFailure as e:
                             if checkpointed:
                                 raise FatalParseError("while parsing " + rulename + ", expected ", e.offset, expected = p)

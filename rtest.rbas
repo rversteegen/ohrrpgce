@@ -1,0 +1,4 @@
+function intgrabber_ms_as_frames() as bool
+'Does not parse. Fine when swapping these two nodespecs, or disabling packrat parsing.
+nzero..str   nspec."key"  
+end function
