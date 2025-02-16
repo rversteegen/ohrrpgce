@@ -9514,10 +9514,10 @@ CONST SPRCACHE_BASE_SZ = 4096  'bytes
  CONST SPRCACHEB_SZ = 8192  'in SPRITE_BASE_SZ units
 #ENDIF
 
-#if 0
+#if 1
         'Enable this to help track down sprite leaks.
         'Set TRACE_SPRITE to the particular spriteset you want to trace
-        #define TRACE_SPRITE  SPRITE_CACHE_KEY(sprTypeWalkabout, 1)  'walkabout set 1
+        #define TRACE_SPRITE  SPRITE_CACHE_KEY(sprTypeWalkabout, 0)  'walkabout set 1
         #macro TRACE_CACHE(fr, msg)
                 if fr->cacheentry andalso fr->cacheentry->key = TRACE_SPRITE then
                         debug msg ", spr " & TRACE_SPRITE & " refc=" & fr->refcount
@@ -9655,6 +9655,7 @@ local sub sprite_update_cache_range(minkey as integer, maxkey as integer)
 				'Insert the new organs
 				memcpy(oldframes, newframes, sizeof(Frame) * newframes->arraylen)
 				'Having removed everything from the donor, dispose of it
+				?"sprite_update_cache: Deallocing newframes " & newframes & " " & newframes->cachekey
 				if newframes->sprset then
 					delete newframes->sprset
 				end if
@@ -9675,6 +9676,7 @@ local sub sprite_update_cache_range(minkey as integer, maxkey as integer)
 				'from the cache and replace it with the new one, and increment the
 				'generation so that Sprite slices reload and switch to newframes.
 
+				?"--update_cache " & pt->key & " oldframes=" & oldframes
 				TRACE_CACHE(oldframes, "Removing from cache (frames changed), to be replaced")
 
 				'Decrements oldframes->refcount, but doesn't delete it, because we
@@ -10096,6 +10098,7 @@ end sub
 local sub frame_freemem(f as Frame ptr)
 	if f = 0 then exit sub
 	frame_delete_members f
+	if f->cachekey then ?"Delete frame " & f & " " & f->cachekey
 	deallocate(f)
 end sub
 
@@ -10225,6 +10228,9 @@ function frame_load_uncached(sprtype as SpriteType, record as integer) as Frame 
 			end if
 		end if
 	end if
+
+	?"frame_load_uncached " & sprtype & " " & record &" " & ret
+	ret->cachekey = SPRITE_CACHE_KEY(sprtype, record)
 
 	main_timer.switch(prev_subtimer)
 	return ret
@@ -12058,6 +12064,7 @@ function spriteset_load_global_animations(sprtype as SpriteType, rgfxdoc as Doc 
 
 	ret = spriteset_load_global_animations_uncached(sprtype, rgfxdoc)
 	DEBUG_ANIM_CACHE(? strprintf("load global_animations_cache(%d)", sprtype))
+	'?"load_global_animations_uncached " & sprtype
 	' ret has .refcount = 1
 	spriteset_global_animations_cache(sprtype) = ret
 	return ret->reference()
@@ -12070,6 +12077,7 @@ local sub update_spriteset_global_animations_cache(sprtype as SpriteType)
 	' If cached=NULL, creates a new AnimationSet with refc=1, otherwise returns cached with its animations replaced.
 	' If the animations don't exist, loads the defaults.
 	cached = spriteset_load_global_animations_uncached(sprtype, NULL, cached)
+	'?"update_global_animations " & sprtype
 
 	DEBUG_ANIM_CACHE(if cached then ? strprintf("update global_animations_cache(%d) refc=%d", sprtype, cached->refcount))
 end sub
@@ -12077,6 +12085,7 @@ end sub
 sub empty_spriteset_global_animations_cache()
 	for sprtype as SpriteType = lbound(spriteset_global_animations_cache) to ubound(spriteset_global_animations_cache)
 		var byref cached = spriteset_global_animations_cache(sprtype)
+		if cached then ? "delete global_animations_cache " & sprtype
 		if cached andalso cached->refcount > 1 then
 			debugc errBug, strprintf("global_animations_cache(%d) leak with refc=%d", sprtype, cached->refcount)
 		end if

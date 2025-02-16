@@ -75,6 +75,7 @@ Type Frame
                                     'will need to be freed at the same time
 				    'First Frame in array only.
 	defpal as int32    'Default palette or -1 if not loaded. Only set on first frame of array!
+        cachekey as integer
 End Type
 
 ' You can declare vectors of type "Frame ptr vector".

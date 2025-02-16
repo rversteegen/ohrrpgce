@@ -57,6 +57,7 @@ typedef struct Frame {
 	                    //will need to be freed at the same time
 	                    //First Frame in array only.
 	int defpal;      //Default palette or -1 if not loaded. Only set on first frame of array!
+ int cachekey;
 } Frame;
 
 Frame* frame_reference(Frame *p);
