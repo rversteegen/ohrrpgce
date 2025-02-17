@@ -135,6 +135,8 @@ type AnimationState
 
 	declare function start_animation overload(name as string, loopcount as integer = 0) as Animation ptr
 	declare function start_animation overload(anim as Animation ptr, loopcount as integer = 0) as Animation ptr
+	declare function switch_animation overload(animvariant as string, loopcount as integer = -1) as Animation ptr
+	declare function switch_animation overload(to_anim as Animation ptr, loopcount as integer = -1) as Animation ptr
 	declare sub stop_animation()
 	declare sub reset()
 

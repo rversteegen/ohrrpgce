@@ -843,7 +843,7 @@ function AnimationState.start_animation(animvariant as string, loopcount as inte
 	return anim
 end function
 
-'OK for anim to be NULL
+' OK for anim to be NULL
 function AnimationState.start_animation(anim as Animation ptr, loopcount as integer = 0) as Animation ptr
 	anim_wait = 0
 	'anim_step = 0
@@ -855,6 +855,23 @@ function AnimationState.start_animation(anim as Animation ptr, loopcount as inte
 		curop = FirstChild(anim->opsnode)
 	else
 		curop = NULL
+	end if
+	return anim
+end function
+
+' Start an animation if it's not already playing. If it is, change the loopcount (if not -1).
+' Stop if the animation doesn't exist.
+function AnimationState.switch_animation(animvariant as string, loopcount as integer = -1) as Animation ptr
+	switch_animation(sl->Animations->find_animation(animvariant), loopcount)
+	return anim
+end function
+
+' OK for anim to be NULL
+function AnimationState.switch_animation(to_anim as Animation ptr, loopcount as integer = -1) as Animation ptr
+	if to_anim <> anim then
+		return start_animation(to_anim, loopcount)
+	elseif loopcount > -1 then
+		anim_loop = loopcount
 	end if
 	return anim
 end function
