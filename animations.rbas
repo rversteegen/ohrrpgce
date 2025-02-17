@@ -840,17 +840,25 @@ end sub
 
 constructor AnimationState(rhs as AnimationState)
 	memcpy(@this, @rhs, sizeof(this))
-	if anim then anim->reference()
+	if rhs.animstack then
+		animstack = NULL
+		v_copy animstack, rhs.animstack
+		for idx as integer = 0 to v_len(animstack) - 1
+			animstack[idx]->reference()
+		next
+	end if
 end constructor
 
 constructor AnimationState(sl as Slice ptr)
 	this.sl = sl
 	sl->GetAnimations()  'Ensure nonnull
 	' Maybe we need to keep our own reference to sl->Animations in case it's replaced?
+	v_new animstack
 end constructor
 
 destructor AnimationState()
-	set_anim(NULL)  'Dec refcount
+	set_anim(NULL)  'Dec all refcounts
+	v_free animstack
 end destructor
 
 ' Lookup an animation and start it. See AnimationSet.find_animation() for documentation
@@ -865,19 +873,22 @@ end function
 
 ' OK for anim to be NULL
 function AnimationState.start_animation(anim as Animation ptr, loopcount as integer = 0) as Animation ptr
+	if anim then
+		push_animation(anim)
+	end if
+	return anim
+end function
+
+' anim can't be NULL
+sub AnimationState.push_animation(anim as Animation ptr, loopcount as integer = 0)
 	anim_wait = 0
 	'anim_step = 0
 	anim_advanced = YES
 	anim_loop = loopcount
 	anim_looplimit = ANIMATION_LOOPLIMIT
-	set_anim(anim)
-	if anim then
-		curop = FirstChild(anim->opsnode)
-	else
-		curop = NULL
-	end if
-	return anim
-end function
+	v_append animstack, anim->reference()
+	curop = FirstChild(anim->opsnode)
+end sub
 
 ' Start an animation if it's not already playing. If it is, change the loopcount (if not -1).
 ' Stop if the animation doesn't exist.
@@ -904,14 +915,19 @@ sub AnimationState.stop_animation()
 	curop = NULL
 end sub
 
+sub AnimationState.resize_animstack(size as integer)
+	assert(size <= v_len(animstack))
+	for idx as integer = size to v_len(animstack) - 1
+		animstack[idx]->dereference()
+	next
+	v_resize animstack, size
+end sub
+
 sub AnimationState.set_anim(newanim as Animation ptr)
-	if anim then
-		anim->dereference()
-	end if
+	resize_animstack 0
 	if newanim then
-		newanim->reference()
+		v_append animstack, newanim->reference()
 	end if
-	anim = newanim
 end sub
 
 ' Resets everything that an animation might change, but doesn't stop it
@@ -930,7 +946,7 @@ end sub
 ' The return value ought to be independent of ms_per_frame
 ' Note: any time already spent on the current wait is ignored.
 function AnimationState.skip_wait() as integer
-	if anim = NULL orelse curop = NULL then return -2
+	if v_len(animstack) = 0 orelse curop = NULL then return -2
 	' Look at the current op instead of anim_wait, because it might be a wait
 	' which we haven't looked at yet.
 	declare as NodePtr curop
@@ -953,7 +969,8 @@ function AnimationState.animate_step() as bool
 	declare as NodePtr curop
 	'? "animate_step: curop", curop, curop..name, curop..int
 
-	if anim = NULL then return NO
+	if v_len(animstack) = 0 then return NO
+	dim anim as Animation ptr = v_end(animstack)
 
 	' This happens only if the animation doesn't end with Repeat
 	if curop = NULL then
@@ -1064,7 +1081,7 @@ end function
 
 ' Advance time by one tick. True on success or finished (anim is now NULL!), false on an error/infinite loop
 function AnimationState.animate() as bool
-	if anim = NULL then return NO
+	if v_len(animstack) = 0 return NO
 
 	for idx as integer = 0 to v_len(animstack) - 1
 		dim as Animation ptr anim = @animstack[idx], new_anim

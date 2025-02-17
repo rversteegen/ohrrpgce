@@ -118,7 +118,8 @@ type SliceFwd as Slice
 ' The animation state of a SpriteSet instance
 type AnimationState
 	sl as SliceFwd ptr
-	anim as Animation ptr      'The currently playing animation or NULL.
+	animstack as Animation ptr vector
+	'anim as Animation ptr      'The currently playing animation or NULL.
 	                           'anim must be set using set_anim()!
 	curop as Reload.NodePtr    'Current animation op. Child (future: descendent) of anim->ops
 	'anim_step as integer      'Child index of curop
