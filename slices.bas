@@ -4071,7 +4071,6 @@ Function Slice.GetAnimations(slice_specific as bool = NO) as AnimationSet ptr
   if this.SliceType = slSprite then
    'Animations are loaded from rgfx into a SpriteSet object, but the pointer isn't
    'copied to this.Animations until requested.
-   '(In future, animations can also be saved to .slice files)
    if this.SpriteData->loaded = NO then LoadSpriteSliceImage @this
    'Use original_img since if scaled=YES, animations won't be copied to img.sprite
    this.Animations = spriteset_for_frame(this.SpriteData->original_img)->get_animset()->reference()
@@ -4088,6 +4087,44 @@ Function Slice.GetAnimations(slice_specific as bool = NO) as AnimationSet ptr
  end if
  return this.Animations
 end function
+
+/'
+'The animations or their fallback set might change if a Sprite slice changes to a different sprite type or
+'spriteset, or if the 
+Sub Slice.ReloadAnimations()
+ if this.Animations <> NULL andalso this.SliceType = slSprite then
+  'if this.SpriteData->loaded = NO then LoadSpriteSliceImage @this
+  with *this.Animations
+   'Use original_img since if scaled=YES, animations won't be copied to img.sprite
+   'dim spriteset_animset as AnimationSet ptr
+   'spriteset_animset = spriteset_for_frame(this.SpriteData->original_img)->get_animset()->reference()
+
+   dim animset as AnimationSet ptr
+   if .slice_specific then
+    animset = this.Animations
+    this.Animations = NULL
+    this.GetAnimations
+    animset_unload @.fallback_set
+    .fallback_set = this.Animations
+    this.Animations = animset
+   else
+    animset_unload @this.Animations
+    this.GetAnimations
+   end if
+  end with
+ end if
+end sub
+'/
+   ' 'Animations is either a spriteset's animset, or is slice-specific with that as fallback
+   ' if .slice_specific then
+    
+   '  if .fallback_set <> NULL then .fallback_set->dereference
+   '  .fallback_set = spriteset_animset
+   ' else
+   '  this.Animations
+   '  spriteset_animset = spriteset_for_frame(this.SpriteData->original_img)->get_animset()->reference()
+    
+
 
 'Initialise as needed and return AnimState
 Function Slice.GetAnimState() as AnimationState ptr

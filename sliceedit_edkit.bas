@@ -115,6 +115,8 @@ SUB SlicePropertiesEditor.finish_defitem()
           SetContent .value_node, *cur_item.ubyte_ptr
         CASE writerInt  'Includes bools
           SetContent .value_node, *cur_item.int_ptr
+        CASE writerLongint
+          SetContent .value_node, *cur_item.longint_ptr
         CASE writerSingle
           SetContent .value_node, *cur_item.single_ptr
         CASE writerDouble
