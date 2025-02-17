@@ -67,6 +67,7 @@ extern anim_op_fullnames() as string  ' Descriptive captions used in editor
 type Animation
 	name as string
 	variant as string
+	auto_switch_variant as bool
 	opsnode as Reload.NodePtr   'The parent node to the animation ops nodes. Never NULL
 
 	'Animation is refcounted only so that animations can be safely replaced in Test Game while they are playing

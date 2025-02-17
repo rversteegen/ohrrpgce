@@ -795,6 +795,26 @@ function AnimationSet.get_animation(animvariant as string) as Animation ptr
 	return find_animation(animvariant, YES, NO)
 end function
 
+' This is like find_animation but only the animation name is given,
+' the variant is selected with the slice's variant data.
+function AnimationSet.select_animation_variant(sl as Slice ptr, animname as string, byref _best_score as integer = 0) as Animation ptr
+	dim as Animation ptr best_match, anim, best_fallback
+	for idx as integer = 0 to v_len(animations) - 1
+		anim = animations[idx]
+		if anim->name = name then
+			' Right name, check how good the match of variants is
+			dim score as integer
+			sl->
+		end if
+	next
+	if fallback_set then
+		' When called recursively, returns null unless a better match
+		' than _best_score was found, which is updated.
+		best_fallback = fallback_set->select_animation_variant(sl, animname, _best_score)
+	end if
+end function
+
+
 ' Append a new blank animation and return pointer
 function AnimationSet.new_animation(name as string = "", variant as string = "") as Animation ptr
 	dim ret as Animation ptr = new Animation(name, variant)
@@ -953,7 +973,8 @@ function AnimationState.animate_step() as bool
 
 	select case curop..int
 		case animOpWait, animOpWaitMS
-			' These two opcodes are identical, differing only in how ' they are treated by the editor
+			' These two opcodes are identical, differing only in how
+			' they are treated by the editor
 			anim_wait += 1
 			if anim_wait > ms_to_frames(curop."ms") then
 				anim_wait = 0
@@ -1044,6 +1065,21 @@ end function
 ' Advance time by one tick. True on success or finished (anim is now NULL!), false on an error/infinite loop
 function AnimationState.animate() as bool
 	if anim = NULL then return NO
+
+	for idx as integer = 0 to v_len(animstack) - 1
+		dim as Animation ptr anim = @animstack[idx], new_anim
+		if anim->auto_switch_variant then
+			new_anim = sl->Animations->select_animation_variant(sl, anim->name)
+			if new_anim <> anim then
+				' Remove anim and everything it called
+				resize_animstack idx
+				' FIXME: this wipes the current state, and shows that
+				' animstack needs to be a stack of AnimationStates instead.
+				push_animation new_anim
+				exit for
+			end if
+		end if
+	next
 
 	while anim_looplimit > 0
 		if animate_step() = NO then return NO  'stop on error
