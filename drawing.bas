@@ -5152,6 +5152,7 @@ SUB SpriteSetBrowser.copy_any()
   frame_unload @editing_spriteset
 END SUB
 
+'FIXME: you can only paste once, then it's cleared!
 SUB paste_frame(src as Frame ptr, dest as Frame ptr, transparent as bool)
   IF transparent = NO THEN frame_clear dest
   DIM opts as DrawOptions

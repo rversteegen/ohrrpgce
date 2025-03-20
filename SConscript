@@ -1994,7 +1994,7 @@ Options:
                       Also sets macosx-version-min (defaults to 10.4).
   frameworks=...      (Mac only) A comma-separated list of frameworks to link to
                       rather than to .dylibs. By default always uses frameworks.
-                      "frameworks=" links only to .dylibs. Use this if
+                      "frameworks=" (no value) links only to .dylibs. Use this if
                       SDL/SDL_mixer have been installed using a package manager
                       like MacPorts or Nix. Creates non-distributable binaries.
   libdir=PATH         A directory containing libraries passed with -L to linker

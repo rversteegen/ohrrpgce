@@ -2770,6 +2770,7 @@ SUB SliceDetailMenu.refresh(byref ses as SliceEditState, byref state as MenuStat
      IF dat->paletted THEN
       a_append menu(), " Palette: " & defaultint(dat->pal)
       sliceed_rule rules(), "sprite_pal", erIntgrabber, @(dat->pal), -1, gen(genMaxPal), slgrUPDATESPRITE
+      sliceed_rule_set_default rules(), -1
      END IF
      DIM nframes as integer = dat->get_num_frames(sl)
      IF nframes > 1 THEN
