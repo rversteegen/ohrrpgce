@@ -112,6 +112,10 @@ script,map autorun,begin
   set hero palette(0,highval)
   set hero palette(0,highval,inside battle)
   show value(highval)
+# set hero speed(0,0)
+# tracevalue(getherospeed(0))
+# set hero speed(0,1)
+# tracevalue(getherospeed(0))
 end
 
 #-----------------------------------------------------------------------
