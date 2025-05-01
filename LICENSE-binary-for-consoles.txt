@@ -4,7 +4,7 @@ file. Please see any included README files or in-game credits for information
 about the copyright and licensing of the included game data.
 
 The Official Hamster Republic RPG Construction Engine (OHRRPGCE) is free
-software with dual licensed under the GNU GPL v2+ and MIT Licenses.
+software dual licensed under the GNU GPL v2+ and MIT Licenses.
 This binary distribution is made under the MIT License.
 
 (C) Copyright 1997-2025 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
@@ -61,6 +61,7 @@ License: MIT
 
 utf-8 - Flexible and Economical UTF-8 Decoder
 Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 License: MIT
 
 cutef8
@@ -103,7 +104,6 @@ freebasic-base64-codec
  Copyright (c) 2021 Joe King
 utf-8
  Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
  Copyright (c) 2012,2016-2018 Ralph Versteegen
 MicroJPEG - KeyJ's Small Baseline JPEG Decoder
  Copyright (c) 2009-2016 Martin J. Fiedler <martin.fiedler@gmx.net>
