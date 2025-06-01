@@ -10,6 +10,7 @@
 
 #include <windows.h>
 #include <inttypes.h>  // for PRId64
+//#include <stdlib.h>
 
 #include "os.h"
 #include "errorlog.h"
@@ -197,4 +198,105 @@ boolint crashrpt_send_report(const char *errmsg) {
 		return NO;
 	}
 	return YES;
+}
+
+
+
+
+typedef struct {
+    int in_use;
+    int attrib;
+    WIN32_FIND_DATAW data;
+    HANDLE handle;
+} FB_DIRCTX;
+
+FB_DIRCTX _ctx;
+FB_DIRCTX *ctx = &_ctx;
+
+void os_close_dir() {
+    if (ctx->handle != INVALID_HANDLE_VALUE) {
+        FindClose(ctx->handle);
+    }
+    ctx->in_use = FALSE;
+}
+
+static char *find_next(int *attrib) {
+    char *name = NULL;
+    
+    do {
+        if (!FindNextFileW(ctx->handle, &ctx->data)) {
+            os_close_dir();
+            return NULL;
+        }
+    } while (ctx->data.dwFileAttributes & ~ctx->attrib);
+
+    *attrib = ctx->data.dwFileAttributes & ~0xFFFFFF00;
+    
+    // Convert wide char filename to UTF-8
+    int len = WideCharToMultiByte(CP_UTF8, 0, ctx->data.cFileName, -1, NULL, 0, NULL, NULL);
+    if (len > 0) {
+        name = malloc(len);
+        if (name) {
+            WideCharToMultiByte(CP_UTF8, 0, ctx->data.cFileName, -1, name, len, NULL, NULL);
+        }
+    }
+    
+    return name;
+}
+
+FBCALL char *os_dir(char *filespec, int attrib, int *out_attrib) {
+    int tmp_attrib;
+    char *res = NULL;
+    wchar_t *wfilespec = NULL;
+    int filespec_len;
+    
+    if (out_attrib == NULL)
+        out_attrib = &tmp_attrib;
+    
+    *out_attrib = 0;
+
+    if (strlen(filespec) > 0) {
+        /* findfirst */
+        if (ctx->in_use)
+            os_close_dir();
+
+        // Convert filespec to wide char
+        filespec_len = MultiByteToWideChar(CP_UTF8, 0, filespec, -1, NULL, 0);
+        if (filespec_len <= 0)
+            return NULL;
+            
+        wfilespec = malloc(filespec_len * sizeof(wchar_t));
+        if (!wfilespec)
+            return NULL;
+            
+        MultiByteToWideChar(CP_UTF8, 0, filespec, -1, wfilespec, filespec_len);
+
+        ctx->handle = FindFirstFileW(wfilespec, &ctx->data);
+        free(wfilespec);
+        
+        if (ctx->handle != INVALID_HANDLE_VALUE) {
+            ctx->attrib = attrib | 0xFFFFFF00;
+            
+            if ((attrib & 0x10) == 0)
+                ctx->attrib |= 0x20;
+            
+            if (ctx->data.dwFileAttributes & ~ctx->attrib) {
+                res = find_next(out_attrib);
+            } else {
+                res = find_next(out_attrib); // Always use conversion function
+                if (!res) {
+                    *out_attrib = ctx->data.dwFileAttributes & ~0xFFFFFF00;
+                }
+            }
+            
+            if (res)
+                ctx->in_use = TRUE;
+        }
+    } else {
+        /* findnext */
+        if (ctx->in_use)
+            res = find_next(out_attrib);
+    }
+
+    return res;
 }

@@ -482,7 +482,8 @@ set_game_config_globals sourcerpg
 
 flush_gfx_config_settings
 
-'-- change current directory, where g_debug will be put; mainly for drag-dropping onto Game in Windows which defaults to $HOME
+' Change current directory, where g_debug and screenshots (overridden with gfx.screenshot_dir)
+' will be put.  Mainly for drag-dropping onto Game in Windows which defaults to $HOME.
 DIM newcwd as string = trimfilename(sourcerpg)
 IF newcwd <> "" ANDALSO diriswriteable(newcwd) THEN
  'first choice is game directory

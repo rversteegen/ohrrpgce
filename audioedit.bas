@@ -485,6 +485,7 @@ SUB importsong_import_song_file (songname as string, songfile as string, bamfile
 
  'Copy in new lump (this implicitly sends a notification to Game if it's been spawned)
  writeablecopyfile sourcesong, songfile
+ debug "Importing " & sourcesong & " as " & songfile
 
  IF oggtemp <> "" THEN killfile oggtemp
 
