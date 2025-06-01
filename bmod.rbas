@@ -2966,6 +2966,44 @@ SUB checkitemusability(iuse() as integer, bslot() as BattleSprite, byval who as 
  NEXT i
 END SUB
 
+
+FUNCTION items_menu_is_usable(bat as BattleState, bslot() as BattleSprite, byval who as integer) as bool
+ 'Returns YES if at least one item in the items menu is usable
+'FIXME: remove
+ '(See also
+
+ checkitemusability bat.iuse(), bslot(), who   'bat.player_turn
+ FOR i = 0 TO inventoryMax
+  IF readbit(bat.iuse(), 0, i) THEN RETURN YES
+ NEXT
+ RETURN NO
+END FUNCTION
+
+/'
+ DIM itembuf(dimbinsize(binITM)) as integer
+ DIM attack as AttackData
+
+ FOR i as integer = 0 TO inventoryMax
+  IF inventory(i).used THEN
+   loaditemdata itembuf(), inventory(i).id
+   IF itembuf(47) > 0 THEN ' This item is usable in battle
+    loadattackdata attack, itembuf(47) - 1
+    IF attack.check_costs_as_item THEN
+     '--This attack has the bitset that requires cost checking when used from an item
+     IF atkallowed(attack, bspr.index, 0, 0, bspr) THEN
+      RETURN YES
+     END IF
+    ELSE
+     '--No cost checking for this item
+     RETURN YES
+    END IF
+   END IF
+  END IF
+ NEXT i
+ RETURN NO
+END FUNCTION
+'/
+
 FUNCTION checkNoRunBit (bslot() as BattleSprite) as bool
  FOR i as integer = 4 TO 11
   IF bslot(i).stat.cur.hp > 0 AND bslot(i).vis = YES AND bslot(i).unescapable = YES THEN RETURN YES
@@ -3840,32 +3878,6 @@ SUB init_spell_menu (bat as BattleState, bslot() as BattleSprite, st() as HeroDe
  END IF
 END SUB
 
-FUNCTION items_menu_is_usable(bspr as BattleSprite) as bool
- 'Returns YES if at least one item in the items menu is usable
- 'Iterate through the iuse() bitfield and mark any items that are usable
- DIM itembuf(dimbinsize(binITM)) as integer
- DIM attack as AttackData
-
- FOR i as integer = 0 TO inventoryMax
-  IF inventory(i).used THEN
-   loaditemdata itembuf(), inventory(i).id
-   IF itembuf(47) > 0 THEN ' This item is usable in battle
-    loadattackdata attack, itembuf(47) - 1
-    IF attack.check_costs_as_item THEN
-     '--This attack has the bitset that requires cost checking when used from an item
-     IF atkallowed(attack, bspr.index, 0, 0, bspr) THEN
-      RETURN YES
-     END IF
-    ELSE
-     '--No cost checking for this item
-     RETURN YES
-    END IF
-   END IF
-  END IF
- NEXT i
- RETURN NO
-END FUNCTION
-
 FUNCTION spell_menu_is_usable(bat as BattleState, bspr as BattleSprite, spell_list_id as integer, st() as HeroDef, respect_costs as bool=YES) as bool
  'Returns YES if at least one attack in the spell list is usable
  IF NOT is_hero(bspr.index) THEN RETURN NO 'only heroes have spell lists
@@ -3876,6 +3888,7 @@ FUNCTION spell_menu_is_usable(bat as BattleState, bspr as BattleSprite, spell_li
   IF atkid >= 0 THEN
    loadattackdata atk, atkid
    DIM list_type as integer = st(bspr.index).list_type(spell_list_id)
+'FIXME
    IF atk.useable_inside_battle ANDALSO (respect_costs=NO ORELSE atkallowed(atk, bspr.index, list_type, i \ 3, bspr)) THEN
     RETURN YES
    END IF
