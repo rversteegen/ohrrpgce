@@ -725,6 +725,8 @@ SUB battle_attack_do_inflict(byval targ as integer, byval tcount as integer, byr
 
   IF trytheft(bat, bat.acting, targ, attack, bslot()) THEN
    IF is_hero(bat.player_turn) THEN
+    '(This only actually needs to happen if the Items menu is actually open
+    '(ie bat.menu_mode = batMENUITEM), but is called here regardless)
     checkitemusability bat.iuse(), bslot(), bat.player_turn
    END IF
   END IF
@@ -2471,9 +2473,9 @@ SUB append_enemy_attacks_to_battle_menu(ai_attack_list() as integer, byref bspr 
 END SUB
 
 FUNCTION does_battle_menu_have_targets(byref bspr as BattleSprite, bslot() as BattleSprite, bat as BattleState, st() as HeroDef) as bool
- 'This is mainly useful for player controlled enemies,
- 'but also good for checking "Targetting Failed" tags
- 'Does not attempt to check spell menus or items menu
+ '(Slightly misnamed,) check whether bspr's battle menu has no possible actions.
+ 'This is used to add a 'Skip Turn' option in that case.
+ 'It's especially important for player controlled enemies.
  IF bspr.batmenu.numitems = 0 THEN
   'An empty menu is an unusable menu
   RETURN NO
@@ -2491,7 +2493,7 @@ FUNCTION does_battle_menu_have_targets(byref bspr as BattleSprite, bslot() as Ba
       END IF
      CASE batmenu_SKIPTURN:
       IF .sub_t = 1 THEN
-       'This menu item was auto_added. The whole point of the does_battle_menu_have_targets()
+       'This menu item was auto_added. The whole point of this
        'function is to decide if we want to add it, so don't count this auto-added skip turn menu item
       ELSE
        'Always usable
@@ -2515,7 +2517,7 @@ FUNCTION does_battle_menu_have_targets(byref bspr as BattleSprite, bslot() as Ba
  RETURN NO
 END FUNCTION
 
-' Updates which menu items are enabled
+' Updates which menu items are enabled, and also shows/hides auto "Skip Turn" option as appropriate.
 SUB update_battle_menu (bspr as BattleSprite, bslot() as BattleSprite, bat as BattleState, st() as HeroDef)
  WITH bspr
   DIM atk as AttackData
