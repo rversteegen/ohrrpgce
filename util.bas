@@ -1116,6 +1116,33 @@ FUNCTION popdw () as integer
 	popdw = pdw
 end FUNCTION
 
+UNION ptr_dword
+	dwords(1) as int32
+	apointer as any ptr
+END UNION
+
+SUB pushptr (byval someptr as any ptr)
+#IFDEF __FB_64BIT__
+	dim u as ptr_dword
+	u.apointer = someptr
+	pushdw u.dwords(0)
+	pushdw u.dwords(1)
+#ELSE
+	pushdw cast(integer, someptr)
+#ENDIF
+END SUB
+
+FUNCTION popptr () as any ptr
+#IFDEF __FB_64BIT__
+	dim u as ptr_dword
+	u.dwords(0) = popdw
+	u.dwords(1) = popdw
+	return u.apointer
+#ELSE
+	return cast(any ptr, popdw)
+#ENDIF
+END FUNCTION
+
 SUB releasestack ()
 	if stacksize > 0 then
 		deallocate stackbottom

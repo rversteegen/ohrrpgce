@@ -237,6 +237,8 @@ declare sub setstackposition (st as Stack, byval position as integer)
 declare sub setupstack ()
 declare sub pushdw (byval word as integer)
 declare function popdw () as integer
+declare sub pushptr (byval someptr as any ptr)
+declare function popptr () as any ptr
 declare sub releasestack ()
 declare function stackpos () as integer
 declare function readstackdw (byval off as integer) as integer
