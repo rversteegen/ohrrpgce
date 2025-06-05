@@ -103,6 +103,8 @@ July 4 2025 [Jocoserious+2]
       map editor [Ralph]
     * Importing a spriteset "from custom layout" cut out frames using the
       default frame size rather than the specified one [Ralph]
+    * "Flip Sprite" attacks caused flipped sprites during "Run and Hide"
+      animations [Ralph]
 
 
 March 29 2025 [Jocoserious+1]

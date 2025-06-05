@@ -2022,7 +2022,13 @@ SUB loadfoe (byval slot as integer, formdata as Formation, byref bat as BattleSt
    '--Position
    .basepos = formdata.slots(slot).pos
    (.pos) = .basepos
-   '--targetting state
+   .default_dir = dirRight  'TODO: load from the formation
+   .flee_dir = dirLeft  'TODO: load from the formation
+   .stand_dir = default_dir
+   .dir = .stand_dir
+   .flee_speed = 10
+
+   '--Targetting state
    .revenge = -1
    .thankvenge = -1
    .counter_target = -1
@@ -2087,7 +2093,7 @@ END SUB
 SUB reset_enemy_state(byref bspr as BattleSprite, byref bat as BattleState, transmogging as bool=NO)
  WITH bspr
   .vis = YES
-  .d = 0
+  '.flipped (and .dir) not reset, but that might not be intentional
   .dissolve = 0
   .dissolve_appear = -1  'One tick delay before starting to appear, to happen after battle fade-in
   .fleeing = NO

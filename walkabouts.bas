@@ -525,6 +525,7 @@ END FUNCTION
 
 SUB aheadxy (byref x as integer, byref y as integer, byval direction as DirNum, byval distance as integer)
  '--alters the input X and Y, moving them "ahead" by distance in direction
+ '(See also dirX and dirY functions)
 
  IF direction = dirUp    THEN y = y - distance
  IF direction = dirRight THEN x = x + distance

@@ -408,6 +408,7 @@ startTest(RectTypeOperators)
 endTest
 #ENDIF
 
+'See also aheadxy
 FUNCTION dirX(dirn as DirNum, dist as integer = 1) as integer
  IF dirn = dirLeft THEN RETURN -dist
  IF dirn = dirRight THEN RETURN -dist

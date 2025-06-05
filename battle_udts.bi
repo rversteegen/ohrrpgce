@@ -48,7 +48,7 @@ END TYPE
 
 TYPE BattleSprite
   name as string
-  index as integer 'Set in battle_init()
+  index as integer 'bslot() index, set in battle_init()
   ' We don't have any swapping of bslot() but if we ever did, it would be important to update this after swapping
 
   '--Sprites/slices
@@ -74,8 +74,10 @@ TYPE BattleSprite
   DECLARE SUB set_vel_y(yspeed as integer, yticks as integer)
   DECLARE SUB set_vel_z(zspeed as integer, zticks as integer)
 
-  basepos as XYPair
-  d as integer
+  basepos as XYPair  '
+  default_dir as DirNum 'The default facing direction, determined by the hero/battle formation
+  stand_dir as DirNum 'The facing direction when not walking or animating. = default_dir unless Flip Sprite used.
+  dir as DirNum 'Current facing direction
   vis as bool   'Roughly, but not exactly, liveness:
                 'For combatants: Is alive (or dying interruptted).
                 '  Gets set to YES while an enemy is performing an on-death attack.
@@ -86,7 +88,7 @@ TYPE BattleSprite
                  ' or any attack with "always hides attacker" bitset. Not targetable until unhidden
                  ' if true, excluded from all targetting except for attacks with attBaacker animation
                  ' "Land" or "Run In" or any attack with the "always unhide attacker" bit
-  flipped as bool 
+  flipped as bool 'Whether the sprite is flipped (depends on .dir and some bits)
 
   '--stats
   stat as BattleStats
@@ -109,6 +111,8 @@ TYPE BattleSprite
                            'Set to 1 for dead heroes, to make them visible and use death frame, and does not count down (yuck)
   dissolve_appear as integer 'Counts ticks *up* to appeartime while enemy appears
   fleeing as bool          'Sprite is animating running away (not to be confused with BattleState.flee)
+  flee_dir as DirNum       'Durection in which to run
+  flee_speed as integer    'px/tick
   flinch_anim as integer   'Flinch animation ticks left to play (initially 6, reverse direction at 3, 0 for none)
   attack_succeeded as bool
   walk as integer 'used by heroes when animating walking

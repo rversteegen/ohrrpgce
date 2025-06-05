@@ -232,7 +232,7 @@ FUNCTION battle (byval form as integer) as bool
    battle_attack_anim_playback attack, bat, bslot(), formdata
   END IF
   
-  '--Apply more generic animation effects. These are often triggered by
+  '--Apply more generic animation effects: AdvanceSlice, flee, appear and death. These are often triggered by
   '--battle_attack_anim_playback() but do not have to be
   battle_animate bat, bslot(), st()
   
@@ -528,11 +528,11 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     ticks = popdw
     bslot(ww).set_vel_x speed.x, ticks
     bslot(ww).set_vel_y speed.y, ticks
-   CASE 3 'setpos(who,x,y,d)
+   CASE 3 'setpos(who,x,y,dir)
     ww = popdw
     bslot(ww).x = popdw
     bslot(ww).y = popdw
-    bslot(ww).d = popdw
+    bslot(ww).dir = popdw
    CASE 4 '???()
     '--undefined
    CASE 5 'appear(who)
@@ -1404,8 +1404,9 @@ SUB battle_animate(byref bat as BattleState, bslot() as BattleSprite, st() as He
     'ENEMIES DEATH THROES
     IF is_enemy(i) THEN
      IF .fleeing THEN  'running away
-      .x = .x - 10
-      .d = 1
+      .x += dirX(.flee_dir, .flee_speed)
+      .y += dirY(.flee_dir, .flee_speed)
+      .dir = .flee_dir
      END IF
      .dissolve -= 1
      IF .dissolve = 0 THEN
@@ -1461,7 +1462,7 @@ SUB battle_crappy_run_handler(byref bat as BattleState, bslot() as BattleSprite)
  ELSEIF bat.flee > 0 THEN  'Cancel run
   bat.flee = 0
   FOR i = 0 TO 3
-   bslot(i).d = 0
+   bslot(i).dir = bslot(i).stand_dir
    bslot(i).walk = 0
   NEXT i
  END IF
@@ -1476,7 +1477,7 @@ SUB battle_crappy_run_handler(byref bat as BattleState, bslot() as BattleSprite)
   FOR i = 0 TO 3
    WITH bslot(i)
     '--if alive turn around
-    IF .stat.cur.hp > 0 THEN .d = 1
+    IF .stat.cur.hp > 0 THEN .dir = .flee_dir
     .walk = 1
     .attack = 0
     .ready = NO
@@ -1572,13 +1573,22 @@ SUB update_battlesprite_slices(bat as BattleState, bslot() as BattleSprite)
   WITH bslot(i)
    IF .sl = NULL THEN CONTINUE FOR  'Empty slot
 
-   IF .vis OR .dissolve > 0 THEN
+   IF .vis ORELSE .dissolve > 0 THEN
     .sl->Visible = YES
 
-    DIM fliph as bool = .d <> 0
-    IF (is_hero(i) ANDALSO bat.flee <= 4) ORELSE (is_enemy(i) ANDALSO .fleeing = NO) THEN
-     'Flipped only applies when not running
-     IF .flipped THEN fliph = NOT fliph
+    'Change sprite direction/flip
+    DIM drawn_dir as DirNum  'The expected direction the sprite has been drawn facing
+    IF i < 4 THEN  'Heroes
+     drawn_dir = dirLeft
+    ELSEIF i < 12 THEN  'Enemies
+     drawn_dir = dirRight
+    ELSE  'Attacks and weapons
+     drawn_dir = dirLeft
+    END IF
+    DIM fliph as bool '= (.dir XOR drawn_dir) = 1
+    IF (.dir = dirLeft ANDALSO drawn_dir = dirRight) ORELSE _
+       (.dir = dirRight ANDALSO drawn_dir = dirLeft) THEN
+     fliph = YES
     END IF
     ChangeSpriteSlice .sprite, , , , , fliph
 
@@ -2284,6 +2294,13 @@ SUB battle_loadall(byval form as integer, byref bat as BattleState, bslot() as B
     'hero_form specifies bottom center relative to the original hero zone
     .basepos = hero_form.slots(i).pos + HERO_FORM_OFFSET - XY(.w \ 2, .h)
     (.pos) = .basepos
+    .basedir = dirLeft
+    .default_dir = dirLeft  'TODO: load from the formation
+    .flee_dir = dirRight  'TODO: load from the formation
+    .stand_dir = default_dir
+    .dir = .stand_dir
+    .flee_speed = 6
+
     .vis = YES
 
     .under_player_control = NOT gam.hero(i).auto_battle
@@ -3171,8 +3188,13 @@ SUB anim_align2(byval who as integer, byval target as integer, byval edgex as in
  pushdw 19: pushdw who: pushdw target: pushdw edgex: pushdw edgey: pushdw offx: pushdw offy
 END SUB
 
+TODO: replace
 SUB anim_setdir(byval who as integer, byval d as integer)
  pushdw 21: pushdw who: pushdw d
+END SUB
+
+SUB anim_setdir(byval who as integer, byval d as integer)
+ pushdw 29: pushdw who: pushdw d
 END SUB
 
 SUB anim_skip_ahead_if_targetless()
@@ -3368,7 +3390,7 @@ SUB check_death(byval deadguy as integer, byval killing_attack as integer, byref
  bslot(deadguy).vis = NO
  bslot(deadguy).ready = NO
  bslot(deadguy).attack = 0
- bslot(deadguy).d = 0
+ 'bslot(deadguy).d
  '--reset poison/regen/stun/mute
  WITH bslot(deadguy).stat
   .cur.poison = .max.poison
@@ -4281,11 +4303,9 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
  NEXT i
  
  DIM tcount as integer = 0
- DIM pdir as integer = 0
  
  bat.atk.has_consumed_costs = NO
  bat.atk.has_spawned = NO
- IF is_enemy(bat.acting) THEN pdir = 1
  
  'CANNOT HIT INVISIBLE FOES
  FOR i = 0 TO 11
@@ -4380,9 +4400,13 @@ SUB generate_atkscript(byref attack as AttackData, byref bat as BattleState, bsl
  END IF
  IF numhits > 20 THEN numhits = 20
 
- DIM atkimgdirection as integer
- atkimgdirection = pdir
- IF attack.unreversable_picture = YES THEN atkimgdirection = 0
+ DIM atkimgdirection as DirNum
+ atkimgdirection = IIF(is_enemy(bat.acting), dirRight, dirLeft)
+ 'TODO: instead of changing the direction here, unreversable_picture should probably be
+ 'applied in update_battlesprite_slices instead.  If the attack does actually have left
+ 'and right frames, then unreversable_picture should be ignored, and the direction may
+ 'have other uses.
+ IF attack.unreversable_picture = YES THEN atkimgdirection = dirLeft
 
  ' Absolute position to place/target an attack at
  DIM as XYZTriple targetpos
@@ -5477,7 +5501,7 @@ FUNCTION battle_run_away(byref bat as BattleState, bslot() as BattleSprite) as b
  IF bat.away > 0 THEN
   battle_animate_running_away bslot()
   bat.away += 1
-  IF bat.away > 10 THEN
+  IF bat.away > 10 THEN  'FIXME: should depend on flee_speed, hero formation & battlefield size
    RETURN YES
   END IF
  END IF
@@ -5491,9 +5515,10 @@ SUB battle_animate_running_away (bslot() as BattleSprite)
   IF gam.hero(i).id >= 0 ANDALSO bslot(i).stat.cur.hp > 0 THEN
    WITH bslot(i)
     IF .vis THEN
-     .set_vel_x 6, 10
+     .set_vel_x dirX(.flee_dir, .flee_speed), 10
+     .set_vel_y dirY(.flee_dir, .flee_speed), 10
      .walk = 1
-     .d = 1
+     .dir = .flee_dir
     END IF
    END WITH
   END IF
