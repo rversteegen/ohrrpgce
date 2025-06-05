@@ -696,117 +696,122 @@ SUB battle_attack_do_inflict(byval targ as integer, byval tcount as integer, byr
  DIM targstat as integer = 0 '--set inside inflict
  DIM result as AttackResult
  result = inflict(h, targstat, bat.acting, targ, bslot(bat.acting), bslot(targ), attack, tcount)
- IF result = atkHit THEN
-  '--attack succeeded
-  IF attack.transmog.enemy >= 0 ANDALSO is_enemy(targ) THEN
-   changefoe bat, targ - 4, attack.transmog, formdata, bslot()
-  END IF
-  battle_attack_cancel_target_attack targ, bat, bslot(), attack
-  WITH bslot(targ).enemy.reward
-   IF attack.erase_rewards = YES THEN
-    .gold = 0
-    .exper = 0
-    .item_rate = 0
-    .rare_item_rate = 0
+
+ WITH bslot(targ)
+
+  IF result = atkHit THEN
+   '--attack succeeded
+   IF attack.transmog.enemy >= 0 ANDALSO is_enemy(targ) THEN
+    changefoe bat, targ - 4, attack.transmog, formdata, bslot()
    END IF
-  END WITH
-  IF attack.force_run = YES THEN
-  'force heroes to run away
-   IF checkNoRunBit(bslot()) THEN
-    bat.alert = bat.cannot_run_caption
-    bat.alert_ticks = 10
-   ELSE
-    bat.away = 1
+   battle_attack_cancel_target_attack targ, bat, bslot(), attack
+   WITH .enemy.reward
+    IF attack.erase_rewards = YES THEN
+     .gold = 0
+     .exper = 0
+     .item_rate = 0
+     .rare_item_rate = 0
+    END IF
+   END WITH
+   IF attack.force_run = YES THEN
+    'force heroes to run away
+    IF checkNoRunBit(bslot()) THEN
+     bat.alert = bat.cannot_run_caption
+     bat.alert_ticks = 10
+    ELSE
+     bat.away = 1
+    END IF
+   ELSEIF attack.force_victory = YES THEN
+    trigger_victory bat, bslot()
+   ELSEIF attack.force_battle_exit = YES THEN
+    bat.away = 11
    END IF
-  ELSEIF attack.force_victory = YES THEN
-   trigger_victory bat, bslot()
-  ELSEIF attack.force_battle_exit = YES THEN
-   bat.away = 11
-  END IF
-  checkAtkTagConds attack, atktagOnHit
-  IF bslot(targ).stat.cur.hp <= 0 THEN
-   checkAtkTagConds attack, atktagOnKill
-  END IF
-
-  IF trytheft(bat, bat.acting, targ, attack, bslot()) THEN
-   IF is_hero(bat.player_turn) THEN
-    checkitemusability bat.iuse(), bslot(), bat.player_turn
+   checkAtkTagConds attack, atktagOnHit
+   IF .stat.cur.hp <= 0 THEN
+    checkAtkTagConds attack, atktagOnKill
    END IF
+
+   IF trytheft(bat, bat.acting, targ, attack, bslot()) THEN
+    IF is_hero(bat.player_turn) THEN
+     checkitemusability bat.iuse(), bslot(), bat.player_turn
+    END IF
+   END IF
+
+   SELECT CASE attack.change_control
+    CASE 1: 'Player control
+     .under_player_control = YES
+    CASE 2: 'Auto control
+     .under_player_control = NO
+    CASE 3: 'Set to default
+     IF is_hero(targ) THEN
+      .under_player_control = NOT gam.hero(targ).auto_battle
+     ELSEIF is_enemy(targ) THEN
+      .under_player_control = .enemy.controlled_by_player
+     END IF
+   END SELECT
+
+   DIM oldval as bool = .turncoat_attacker
+   SELECT CASE attack.change_turncoat
+    CASE 1: 'Turncoat
+     .turncoat_attacker = YES
+    CASE 2: 'Normal
+     .turncoat_attacker = NO
+    CASE 3: 'Set to default
+     IF is_hero(targ) THEN
+      .turncoat_attacker = NO
+     ELSEIF is_enemy(targ) THEN
+      .turncoat_attacker = .enemy.turncoat_attacker
+     END IF
+   END SELECT
+   IF .turncoat_attacker <> oldval THEN
+    'Turncoat status has changed, force a retarget of any current commands
+    force_retargetting_for_attacker bat, bslot(), targ
+   END IF
+
+   SELECT CASE attack.change_defector
+    CASE 1: 'Defector
+     .defector_target = YES
+    CASE 2: 'Normal
+     .defector_target = NO
+    CASE 3: 'Set to default
+     IF is_hero(targ) THEN
+      .defector_target = NO
+     ELSEIF is_enemy(targ) THEN
+      .defector_target = .enemy.defector_target
+     END IF
+   END SELECT
+
+   SELECT CASE attack.change_flipped
+    CASE 1: 'Flipped
+     .flipped = YES
+    CASE 2: 'Not flipped
+     .flipped = NO
+    CASE 3: 'Set to default
+     IF is_hero(targ) THEN
+      .flipped = NO
+     ELSEIF is_enemy(targ) THEN
+      .flipped = NO
+     END IF
+   END SELECT
+
+  ELSE
+   'Miss or Fail
+   IF result = atkMiss ANDALSO attack.dont_display_miss = NO THEN
+    .harm.text = readglobalstring(120, "miss", 20)
+   ELSEIF result = atkFail ANDALSO attack.dont_display_fail = NO THEN
+    .harm.text = readglobalstring(122, "fail", 20)
+   END IF
+
+   checkAtkTagConds attack, atktagOnMiss
   END IF
-  
-  SELECT CASE attack.change_control
-   CASE 1: 'Player control
-    bslot(targ).under_player_control = YES
-   CASE 2: 'Auto control
-    bslot(targ).under_player_control = NO
-   CASE 3: 'Set to default
-    IF is_hero(targ) THEN
-     bslot(targ).under_player_control = NOT gam.hero(targ).auto_battle
-    ELSEIF is_enemy(targ) THEN
-     bslot(targ).under_player_control = bslot(targ).enemy.controlled_by_player
-    END IF
-  END SELECT
-
-  DIM oldval as bool = bslot(targ).turncoat_attacker
-  SELECT CASE attack.change_turncoat
-   CASE 1: 'Turncoat
-    bslot(targ).turncoat_attacker = YES
-   CASE 2: 'Normal
-    bslot(targ).turncoat_attacker = NO
-   CASE 3: 'Set to default
-    IF is_hero(targ) THEN
-     bslot(targ).turncoat_attacker = NO
-    ELSEIF is_enemy(targ) THEN
-     bslot(targ).turncoat_attacker = bslot(targ).enemy.turncoat_attacker
-    END IF
-  END SELECT
-  IF bslot(targ).turncoat_attacker <> oldval THEN
-   'Turncoat status has changed, force a retarget of any current commands
-   force_retargetting_for_attacker bat, bslot(), targ
+  triggerfade targ, bslot()
+  IF .stat.cur.hp > 0 THEN
+   '---REVIVE---
+   .vis = YES
+   .dissolve = 0
   END IF
+ END WITH
 
-  SELECT CASE attack.change_defector
-   CASE 1: 'Defector
-    bslot(targ).defector_target = YES
-   CASE 2: 'Normal
-    bslot(targ).defector_target = NO
-   CASE 3: 'Set to default
-    IF is_hero(targ) THEN
-     bslot(targ).defector_target = NO
-    ELSEIF is_enemy(targ) THEN
-     bslot(targ).defector_target = bslot(targ).enemy.defector_target
-    END IF
-  END SELECT
-
-  SELECT CASE attack.change_flipped
-   CASE 1: 'Flipped
-    bslot(targ).flipped = YES
-   CASE 2: 'Not flipped
-    bslot(targ).flipped = NO
-   CASE 3: 'Set to default
-    IF is_hero(targ) THEN
-     bslot(targ).flipped = NO
-    ELSEIF is_enemy(targ) THEN
-     bslot(targ).flipped = NO
-    END IF
-  END SELECT
-  
- ELSE
-  'Miss or Fail
-  IF result = atkMiss ANDALSO attack.dont_display_miss = NO THEN
-   bslot(targ).harm.text = readglobalstring(120, "miss", 20)
-  ELSEIF result = atkFail ANDALSO attack.dont_display_fail = NO THEN
-   bslot(targ).harm.text = readglobalstring(122, "fail", 20)
-  END IF
-
-  checkAtkTagConds attack, atktagOnMiss
- END IF
- triggerfade targ, bslot()
- IF bslot(targ).stat.cur.hp > 0 THEN
-  '---REVIVE---
-  bslot(targ).vis = YES
-  bslot(targ).dissolve = 0
- END IF
  IF is_enemy(targ) AND attack.no_spawn_on_attack = NO THEN battle_spawn_on_enemy_hit targ, bat, bslot(), formdata
  battle_spawn_on_first_hit attack, bat, bslot(), formdata
  battle_counterattacks bat, h, targstat, targ, attack, bslot(), result
