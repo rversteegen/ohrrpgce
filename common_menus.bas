@@ -322,6 +322,7 @@ SUB edit_backcompat_bitsets()
  bitname(58) = "Ignore key repeats for confirm, cancel, and menu"
  bitname(59) = "Always allow key repeat for confirm in battles"
  bitname(61) = "!Maintain backcompat for old walktall script"
+ bitname(62) = "!Limit to 300 NPC instance per map"
  edit_global_bitsets bitname(), "share_general_game_backcompat_bitsets"
 END SUB
 

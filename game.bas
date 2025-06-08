@@ -634,6 +634,7 @@ palette16_reload_cache
 setfont current_font()
 loadglobalstrings
 getstatnames statnames()
+old_npc_references = (prefbit(62) = NO)  '"Limit to 300 NPC instance per map"
 load_global_npcs
 
 'Setup script interpreter

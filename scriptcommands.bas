@@ -58,6 +58,8 @@ DIM num_reusable_slice_table_slots as integer
 
 REDIM timers(numInitialTimers - 1) as PlotTimer
 
+'Equal to prefbit(62) at game load, but runtime changes to that bit are ignored.
+DIM old_npc_references as bool
 
 '==========================================================================================
 '                                    Text embed codes
