@@ -53,7 +53,8 @@ ENUM SliceMenuItemID
  mnidEditingFile = 3     'Editing <collection file>
  mnidCollectionID = 4    '<-Slice collection #->
  mnidCollectionName = 5
- mnidSettingsMenu = 6    'Settings/tools (F8)...
+ mnidCollectionNote = 6
+ mnidSettingsMenu = 7    'Settings/tools (F8)...
 END ENUM
 
 TYPE SliceEditMenuItem
@@ -425,17 +426,19 @@ END TYPE
 
 SUB CollectionPickerMenu.update ()
  DeleteSlice @collectionsl
- DIM name as string
+ DIM as string name, note
  collectionsl = LoadSliceCollection(SL_COLLECT_USERDEFINED, id)
  IF collectionsl THEN
   SetSliceParent collectionsl, draw_root
   VAR context = collection_context(collectionsl, YES)
   IF context THEN name = context->name
+  note = collectionsl->Note
  END IF
 
  add_item 0, , "Cancel"
  add_item 1, , "ID: " & id & IIF(collectionsl = NULL, " (blank)", "")
  add_item 2, , " Name: " & name, NO  'Unselectable
+ add_item 3, , " Note: " & note, NO  'Unselectable
 END SUB
 
 FUNCTION CollectionPickerMenu.each_tick () as bool
@@ -932,6 +935,9 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
   IF state.need_update = NO ANDALSO ses.focus = focusMenu ANDALSO enter_space_click(state) THEN
    IF menuitemid = mnidExitMenu THEN
     IF slice_editor_save_when_leaving(ses, edslice) THEN EXIT DO
+   ELSEIF menuitemid = mnidCollectionNote THEN
+    stredit edslice->Note, 1
+    state.need_update = YES
    ELSEIF menuitemid = mnidSettingsMenu THEN
     slice_editor_settings_menu ses, edslice, NO
     state.need_update = YES
@@ -1688,6 +1694,9 @@ FUNCTION slice_editor_export_prompt(byref ses as SliceEditState, byref edslice a
  IF ses.use_index = NO THEN
   ses.collection_file = filename
   ses.matches_existing_file = YES
+  show_overlay_message "Exported."
+ ELSE
+  show_overlay_message "Saved."
  END IF
  RETURN YES
 END FUNCTION
@@ -2614,6 +2623,9 @@ SUB SliceDetailMenu.refresh(byref ses as SliceEditState, byref state as MenuStat
  a_append menu(), "Slice type: " & SliceTypeName(sl)
  sliceed_rule_none rules(), "slicetype", slgrPICKTYPE  'May not be editable; see slgrPICKTYPE
 
+ a_append menu(), "Note: " & sl->Note
+ sliceed_rule_str rules(), "note", erStrgrabber, @dat->Note, 128000  'Arbitrary limit
+
  DIM temp as string
  IF ses.editing_lookup_name THEN temp = fgtag(uilook(uiText), "_")  'Show text editing cursor
  a_append menu(), "Lookup code: " & slice_lookup_code_caption(.Lookup, ses.slicelookup()) & temp
@@ -3148,6 +3160,10 @@ FUNCTION slice_caption (byref ses as SliceEditState, edslice as Slice ptr, sl as
   IF sl->Template THEN
    s &= fgcol_text("TEMPLATE", findrgb(255, 200, 0))
   END IF
+  IF LEN(.Note) THEN
+   'Trim to 30 char, don't add '...'
+   s &= fgcol_text(text_left(.Note, 8 * 30, NO), uilook(uiSelectedDisabled))
+  END IF
  END WITH
  RETURN RTRIM(s)
 END FUNCTION
@@ -3175,9 +3191,10 @@ SUB slice_editor_refresh (byref ses as SliceEditState, edslice as Slice Ptr, byr
  END IF
 
  VAR context = collection_context(edslice)
- 'Don't show the collection name when editing a subtree
+ 'Don't show the collection name and note when editing a subtree
  IF context ANDALSO context = edslice->Context THEN
   slice_editor_refresh_append ses, mnidCollectionName, "Name: " & context->name
+  slice_editor_refresh_append ses, mnidCollectionNote, "Note: " & edslice->Context
  END IF
 
  slice_editor_refresh_append ses, mnidSettingsMenu, "Settings/tools (F8)..."
@@ -3185,6 +3202,7 @@ SUB slice_editor_refresh (byref ses as SliceEditState, edslice as Slice Ptr, byr
  'Show the root (if ses.show_root)
  DIM hidden_slice as Slice Ptr = edslice
  IF ses.show_root THEN hidden_slice = NULL
+ 'TODO: don't double show note
  slice_editor_refresh_recurse ses, 0, edslice, edslice, hidden_slice
  ses.slicemenust.last = UBOUND(ses.slicemenu)
 

@@ -4663,6 +4663,7 @@ Function CloneSliceTree(byval sl as Slice ptr, recurse as bool = YES, copy_speci
   .Paused = sl->Paused
   '.EditorColor not copied
   .EditorHideChildren = sl->EditorHideChildren
+  .Note = sl->Note
   .Clip = sl->Clip
   .Velocity.X = sl->Velocity.X
   .Velocity.Y = sl->Velocity.Y
@@ -4804,6 +4805,7 @@ Sub SliceSaveToNode(byval sl as Slice Ptr, node as Reload.Nodeptr, save_handles 
  SavePropAlways node, "h", sl->Height
  SavePropBoolAlways node, "vis", sl->Visible
  SavePropBool node, "editorhidechildren", sl->EditorHideChildren
+ SaveProp node, "note", sl->Note
  SavePropBool node, "paused", sl->Paused
  SavePropBool node, "clip", sl->Clip
  SaveProp node, "vx", sl->Velocity.X
@@ -4932,6 +4934,7 @@ Function SliceLoadFromNode(byval sl as Slice Ptr, node as Reload.Nodeptr, load_h
  sl->Height = LoadProp(node, "h")
  sl->Visible = LoadPropBool(node, "vis")
  sl->EditorHideChildren = LoadPropBool(node, "editorhidechildren")
+ sl->Note = LoadPropStr(node, "note")
  sl->Paused = LoadPropBool(node, "paused")
  sl->Clip = LoadPropBool(node, "clip")
  sl->Velocity.X = LoadProp(node, "vx")

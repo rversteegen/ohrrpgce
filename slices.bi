@@ -370,6 +370,8 @@ Type Slice
                        'The script handle is stored at plotslices(.TableSlot).handle.
   Lookup as integer
 
+  Note as string           'Saved, but only matters for the editor
+
   EditorColor as ubyte     'Not saved, used only by slice editor. 0 if not overridden
   EditorHideChildren as boolean 'Saved, but only matters for the editor
 
