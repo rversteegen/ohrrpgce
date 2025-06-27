@@ -303,3 +303,10 @@ sub MenuDefSlice.Draw(sl as Slice ptr, page as integer)
  draw_menu *mdef, *st, page
 
 end sub
+
+Sub MenuDefSlice.Clone(sl as Slice ptr, cl as Slice ptr)
+ cl->sl = cl
+ 'In future it would be good if there were a refcount somewhere...
+ cl->mdef = sl->mdef
+ cl->st = sl->st
+End Sub

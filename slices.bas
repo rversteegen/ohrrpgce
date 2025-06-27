@@ -5026,8 +5026,10 @@ Function CloneSliceTree(byval sl as Slice ptr, recurse as bool = YES, copy_speci
   '--Cloned context will generally contain context variables only, not other data
   clone->Context = sl->Context->clone()
  end if
- '--clone special properties for this slice type
- sl->Clone(sl, clone)
+ '--Clone type-specific data, unless the type changed to clContainer because copy_special=NO
+ if newtype = sl->SliceType then
+  sl->Clone(sl, clone)
+ end if
  if recurse = NO then return clone
  '--Now clone all the children
  dim ch_slice as Slice Ptr = sl->FirstChild

@@ -315,7 +315,7 @@ Type ClassSlice Extends Object
  Declare Virtual Sub Initialize(sl as SliceFwd ptr)
  Declare Virtual Destructor()
  Declare Virtual Sub Draw(sl as SliceFwd ptr, page as integer)
- Declare Virtual Sub Clone(sl as SliceFwd ptr, as SliceFwd ptr)
+ Declare Virtual Sub Clone(sl as SliceFwd ptr, cl as SliceFwd ptr)
  Declare Virtual Sub Save(sl as SliceFwd ptr, node as Reload.Nodeptr)
  Declare Virtual Sub Load(sl as SliceFwd ptr, node as Reload.Nodeptr)
  Declare Virtual Sub ChildRefresh(sl as SliceFwd ptr, ch as SliceFwd ptr, childindex as integer = -1, visibleonly as bool = YES)

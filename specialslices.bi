@@ -62,6 +62,8 @@ Type MenuDefSlice Extends ClassSlice
  'ClassSlice methods
  Declare Virtual Sub Initialize(sl as Slice ptr)
  Declare Virtual Sub Draw(sl as Slice ptr, page as integer)
+ Declare Virtual Sub Clone(sl as Slice ptr, cl as Slice ptr)
+
 End Type
 
 #endif
