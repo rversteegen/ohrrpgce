@@ -47,6 +47,7 @@ DECLARE SUB anim_setcenter(byval who as integer, byval target as integer, byval 
 DECLARE SUB anim_align2(byval who as integer, byval target as integer, byval edgex as integer, byval edgey as integer, byval offx as integer, byval offy as integer)
 DECLARE SUB anim_relmove(byval who as integer, byval tox as integer, byval toy as integer, byval ticks as integer)
 DECLARE SUB anim_setdir(byval who as integer, byval d as integer)
+DECLARE SUB anim_play(who as integer, animvariant as zstring ptr, loops as integer = 1)
 
 DECLARE SUB setup_enemy_slice(byref bspr as BattleSprite, bat as BattleState, keep_existing as bool = NO)
 

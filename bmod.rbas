@@ -674,6 +674,15 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     'This command queues the end of the flinch 3 ticks later
     ww = popdw
     bslot(ww).flinch_anim = 6
+  CASE 29 'play(who, animname, variant, loops)
+   'TODO: Taking variant as an argument is a temporary kludge, variant names will be removed
+   ww = popdw
+   DIM animname as zstring ptr = popptr
+   DIM variant as zstring ptr = popptr
+   DIM loops as integer = popdw
+   DIM fullname as string = *animname
+   IF LEN(*variant) THEN fullname &= " " & *variant
+   StartSliceAnimation bslot(ww).sprite, fullname, loops
 
   END SELECT
  LOOP UNTIL bat.wait_frames <> 0 OR bat.atk.id = -1
@@ -3213,6 +3222,15 @@ END SUB
 
 SUB anim_checkpoint()
  pushdw 25
+END SUB
+
+' Start an animation. animvariant
+' loops = -1 to loop forever.
+SUB anim_play(who as integer, animvariant as zstring ptr, loops as integer = 1)
+ pushdw 29
+ pushdw who
+ pushptr intern_string(animvariant)
+ pushdw loops
 END SUB
 
 SUB anim_flinchstart(byval who as integer, bslot() as BattleSprite, byref attack as AttackData)
