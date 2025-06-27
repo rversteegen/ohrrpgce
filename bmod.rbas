@@ -1547,6 +1547,7 @@ SUB setup_battle_slices(byref bat as BattleState)
  END WITH
 END SUB
 
+'Setup the slices for a hero, enemy, weapon or attack.
 'keep_existing: if true, don't recreate slices
 SUB setup_battlesprite_slice(byref bspr as BattleSprite, bat as BattleState, sprtype as SpriteType, sprset as integer, pal as integer, keep_existing as bool = NO)
  WITH bspr
@@ -1554,9 +1555,11 @@ SUB setup_battlesprite_slice(byref bspr as BattleSprite, bat as BattleState, spr
    DeleteSlice @.sl
    .sl = NewSliceOfType(slContainer, bat.battlefield_sl)
    .sprite = NewSliceOfType(slSprite, .sl)
+   .sprite->Lookup = SL_SPRITE
   END IF
   ChangeSpriteSlice .sprite, sprtype, sprset, pal
   .sl->Size = .sprite->Size
+  StartSliceAnimation .sprite, "idle", -1  'loop
  END WITH
 END SUB
 
@@ -1564,6 +1567,7 @@ END SUB
 SUB setup_enemy_slice(byref bspr as BattleSprite, bat as BattleState, keep_existing as bool = NO)
  WITH bspr
   setup_battlesprite_slice bspr, bat, sprTypeSmallEnemy + .enemy.size, .enemy.pic, .enemy.pal, keep_existing
+
  END WITH
 END SUB
 

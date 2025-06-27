@@ -725,6 +725,8 @@ DECLARE Sub UpdateSliceDynamicProps(sl as Slice ptr, recurse as bool = YES)
 DECLARE Sub AddSliceDynamicProp(sl as Slice ptr, propname as string, ctxname as string)
 DECLARE Function FindSliceDynamicProp(sl as Slice ptr, propname as string) as integer
 
+DECLARE Sub StartSliceAnimation(byval sl as Slice ptr, name as string, loopcount as integer = 0)
+
 DECLARE Sub InsertSliceBefore(byval sl as slice ptr, byval newsl as slice ptr)
 DECLARE Sub InsertSliceAfter(byval sl as Slice ptr, byval newsl as Slice ptr)
 DECLARE Sub SwapSiblingSlices(byval sl1 as slice ptr, byval sl2 as slice ptr)

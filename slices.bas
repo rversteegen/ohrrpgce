@@ -4052,11 +4052,9 @@ Function Slice.GetAnimState() as AnimationState ptr
  return this.AnimState
 end function
 
-/'
 Sub StartSliceAnimation(byval sl as Slice ptr, name as string, loopcount as integer = 0)
  sl->GetAnimState()->start_animation name, loopcount
 end sub
-'/
 
 ' Apply slice .Targ movement
 Local Sub SeekSliceTarg(byval s as Slice ptr)
