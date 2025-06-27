@@ -2736,31 +2736,31 @@ SUB show_victory (byref bat as BattleState, bslot() as BattleSprite, page as int
     END IF
    CASE vicLEVELUP
     '--print levelups
-    DIM printed_lines as integer = 0
-    DIM numlevelled as integer = 0
-    FOR i as integer = 0 TO UBOUND(gam.hero)
-     IF gam.hero(i).lev_gain <> 0 THEN numlevelled += 1
-    NEXT
-    IF numlevelled THEN
-     draw_victory_box large(numlevelled, 4), page
-    END IF
+    DIM lines() as string
+    DIM numlevelled as integer = 0  ' Always UBOUND(lines) + 1
     FOR i as integer = 0 TO UBOUND(gam.hero)
      IF is_active_party_slot(i) = NO ANDALSO gam.hero(i).locked THEN
       'Locked reserve heroes are hidden from the player
       CONTINUE FOR
      END IF
      SELECT CASE gam.hero(i).lev_gain
+      CASE IS <= 0
+       CONTINUE FOR
       CASE 1
        tempstr = .level_up_caption & " " & gam.hero(i).name
       CASE IS > 1
        tempstr = gam.hero(i).lev_gain & " " & .levels_up_caption & " " & gam.hero(i).name
      END SELECT
-     IF gam.hero(i).lev_gain > 0 THEN
-      edgeprint tempstr, pCenteredLeft, 12 + printed_lines * 10, uilook(uiText), page
-      printed_lines += 1
-     END IF
+     a_append lines(), tempstr
+     numlevelled += 1
     NEXT i
-    IF printed_lines = 0 ORELSE should_victory_advance(bat) THEN
+    IF numlevelled >= 0 THEN
+     draw_victory_box large(numlevelled, 4), page
+     FOR lineno as integer = 0 TO UBOUND(lines)
+      edgeprint lines(lineno), pCenteredLeft, 12 + lineno * 10, uilook(uiText), page
+     NEXT
+    END IF
+    IF numlevelled = 0 ORELSE should_victory_advance(bat) THEN
      .state = vicSPELLS
      .showlearn = NO
      .learnwho = 0
@@ -2788,7 +2788,7 @@ SUB show_victory (byref bat as BattleState, bslot() as BattleSprite, page as int
        'found a learned spell
        DIM learn_attack as AttackData
        loadattackdata learn_attack, hero.spells(.learnlist, .learnslot) - 1
-       .item_name = hero.name + .learned_caption + learn_attack.name
+       .spell_name = hero.name + .learned_caption + learn_attack.name
        .showlearn = YES
        IF learn_attack.learn_sound_effect > 0 THEN playsfx learn_attack.learn_sound_effect - 1
        EXIT DO
@@ -2799,7 +2799,7 @@ SUB show_victory (byref bat as BattleState, bslot() as BattleSprite, page as int
       .showlearn = NO ' hide the display (which causes us to search for the next learned spell)
      END IF
      draw_victory_box 4, page
-     edgeprint .item_name, pCenteredLeft, 22, uilook(uiText), page
+     edgeprint .spell_name, pCenteredLeft, 22, uilook(uiText), page
     END IF
    CASE vicITEMS
     '--print found items, one at a time

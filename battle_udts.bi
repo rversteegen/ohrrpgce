@@ -239,6 +239,7 @@ TYPE VictoryState
  learnlist as integer 'spell list of hero currently displaying learned spells
  learnslot as integer 'spell list slot of hero currently displaying learned spells
  item_name as string 'name of currently displaying found item or "" for none
+ spell_name as string 'if showlearn, then name of currently displaying learnt spell
  found_index as integer 'index into the found() array that lists items found in this battle
  gold_caption as string
  exp_caption as string
