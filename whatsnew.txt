@@ -29,6 +29,8 @@ July ?? 2025 [Kaleidophone]
       map editor [Ralph]
     * Importing a spriteset "from custom layout" cut out frames using the
       default frame size rather than the specified one [Ralph]
+    * Levels gained and spells learnt by locked reserve party members were
+      shown to the player on victory. They are meant to be hidden [Ralph]
 
   *** Stuff Only Developers Will Notice
 
