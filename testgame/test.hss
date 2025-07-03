@@ -481,7 +481,13 @@ end
 #Map 0 on-keypress
 script, map changer key listener, begin
   if (key is pressed(key:s)) then (
-    trace value (write map block (hero x, hero y, read map block (hero x, hero y) xor, 3))
+    variable(hero, newslot)
+    swap out hero by slot(-1)
+    hero := find hero(0)
+    if (hero > -1) then(
+      newslot := swap out hero by slot(hero)
+    )
+    show value of(hero, newslot)
   )
   if (key is pressed(key:a)) then (
     trace value (save map state)
@@ -522,7 +528,7 @@ script, map changer key listener, begin
   append number (31, mylayer)
   $31 + " tileset: "  
   append number (31, tileset)
-  show string (31)
+  #show string (31)
 
   if (key is pressed(key:c)) then (
     change tileset (tileset, mylayer)
