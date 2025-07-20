@@ -1466,6 +1466,8 @@ SUB resolution_menu ()
  'FIXME: selecting a resolution other than 320x200 causes the distrib menu
  'to not package gfx_directx.dll; remove that when gfx_directx is updated
 
+ 'TODO: add battle resolution option/warning
+
  DO
   setwait 55
   setkeys

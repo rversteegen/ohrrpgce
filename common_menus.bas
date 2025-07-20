@@ -318,6 +318,9 @@ SUB edit_backcompat_bitsets()
   bitname(50) = "!Non-turn attack delays can also cause turn delays"
  END IF
  bitname(54) = "!Disable cost checking for autotarget spells in random spell lists"
+ IF gen(genResolutionX) > 320 ORELSE gen(genResolutionY) > 200 THEN
+  bitname(56) = "!Battles display at 320x200"
+ END IF
  bitname(57) = "Use old direction key tiebreaking"
  bitname(58) = "Ignore key repeats for confirm, cancel, and menu"
  bitname(59) = "Always allow key repeat for confirm in battles"
