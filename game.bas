@@ -42,7 +42,7 @@ DECLARE FUNCTION hero_should_ignore_walls(byval who as integer) as bool
 DECLARE SUB end_text_box_chain ()
 DECLARE SUB update_npcs ()
 DECLARE SUB pick_npc_action(npci as NPCInst, npcdata as NPCType)
-DECLARE FUNCTION perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCType) as bool
+DECLARE SUB perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCType)
 DECLARE SUB npchitwall (npci as NPCInst, npcdata as NPCType, collision_type as WalkaboutCollisionType)
 DECLARE FUNCTION find_useable_npc () as NPCIndex
 DECLARE SUB interpret_scripts(fibregroup as ScriptFibre ptr vector)
@@ -1828,14 +1828,17 @@ SUB update_npcs ()
    END IF
 
    DIM oldpos as XYPair = npc(o).pos
-
    DIM finished_step as bool = NO
-   IF npc(o).xgo <> 0 OR npc(o).ygo <> 0 THEN finished_step = perform_npc_move(o, npc(o), npool(npc(o).pool).npcs(id))
+
+   IF npc(o).xygo <> 0 THEN perform_npc_move o, npc(o), npool(npc(o).pool).npcs(id)
 
    IF oldpos = npc(o).pos THEN
     npc(o).stillticks += 1
    ELSE
     npc(o).stillticks = 0
+
+    IF oldpos MOD 20 = XY(0,0) THEN finished_step = YES
+    IF oldpos \ 20 <> npc(o).pos \ 20 THEN finished_step = YES
    END IF
 
    'Recalculate current zones every tick (see update_heroes for rationale)
@@ -2205,11 +2208,9 @@ SUB pick_npc_action(npci as NPCInst, npcdata as NPCType)
 
 END SUB
 
-FUNCTION perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCType) as bool
+SUB perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCType)
  '--npcnum is the npc() index of npci.
  '--Here we attempt to actually update the coordinates for this NPC, checking obstructions
- '--Return true if we finished a step
- DIM finished_step as bool = NO
  'Inconsistency: NPCs advance walk frame when they try to walk into a wall (which must be
  'preserved) but heroes don't (probably doesn't matter)
  loopvar npci.wtog, 0, max_wtog(npci.sl, npci.dir)
@@ -2243,7 +2244,6 @@ FUNCTION perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as 
     IF npci.xgo < 0 THEN npci.xgo += speedx: npci.x += speedx
     IF npci.ygo > 0 THEN npci.ygo -= speedy: npci.y -= speedy
     IF npci.ygo < 0 THEN npci.ygo += speedy: npci.y += speedy
-    IF npci.xygo MOD 20 = 0 THEN finished_step = YES
    END IF
   ELSE
    '--no speed, kill wantgo
@@ -2263,9 +2263,7 @@ FUNCTION perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as 
    usenpc 1, npcnum
   END IF
  END IF
-
- RETURN finished_step
-END FUNCTION
+END SUB
 
 'WARNING: this function returns false if the NPC is blocked by both a wall/zone and an npc/hero
 FUNCTION npc_collision_check_npcs_and_heroes(npci as NPCInst, byval direction as DirNum) as bool
@@ -2364,6 +2362,8 @@ FUNCTION npc_collision_check(npci as NPCInst, npcdata as NPCType, byval xgo as i
   '(In future, want to give NPC instances their own zones)
   IF zone = 0 THEN zone = gmap(32)  'fallback to default
   IF zone > 0 ANDALSO wrapzonecheck(zone, pixelpos, XY(xgo, ygo)) = 0 THEN
+   'Note: wrapzonecheck always wraps over map edges regardless of wrap mode, so
+   'the wrappass check needs to come first to avoid phantom collideMoveZone returns.
    collision_type = collideMoveZone
    RETURN YES
   END IF

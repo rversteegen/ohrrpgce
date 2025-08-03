@@ -642,7 +642,7 @@ FUNCTION check_wall_edges(tilex as integer, tiley as integer, direction as DirNu
  END IF
 END FUNCTION
 
-' Check for an NPC/hero colliding with a wall.
+' Check for an NPC/hero colliding with a wall (or edge of a non-wrapping map).
 ' This is the old (and still used) crappy wall checking which breaks if not tile-aligned.
 ' Returns 1 (not YES) if blocked by terrain, otherwise 0
 FUNCTION wrappass (x as integer, y as integer, byref xgo as integer, byref ygo as integer, isveh as bool, ignore_passmap as bool = NO) as integer
