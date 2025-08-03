@@ -281,7 +281,8 @@ TYPE NPCType
   picture as integer     '+0
   palette as integer = -1 '+1
   movetype as integer    '+2
-  speed as integer = 4   '+3  real speed, not value in .d
+  'speed as integer = 4   '+3  real speed, not value in .d
+  speedpps as integer
   textbox as integer     '+4
   facetype as integer    '+5
   item as integer        '+6
@@ -346,6 +347,11 @@ TYPE NPCInst
     END TYPE
     xygo as XYPair
   END UNION
+
+  'Contains fractions of 
+  'Values with ABS(go.x) < npcdata.speedps
+'  xy_go_ps as XYPair
+
   dir as DirNum     'npcl+900
   wtog as integer   'npcl+1200   tick in walk animation: the frame number is computed from this
   extravec as integer vector  'Equal to NULL by default which means a length 3 array [0, 0, 0]

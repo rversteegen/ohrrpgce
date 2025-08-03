@@ -523,6 +523,27 @@ FUNCTION movdivis (byval xygo as integer) as bool
  END IF
 END FUNCTION
 
+
+'pos_surplus is in pixels divided by timebase, e.g. thousandths of a pixel.
+'Before and after this call, ABS(pos_frac) < timebase
+SUB add_speedpps(byref pos as integer, byref pos_surplus as integer, byref go as integer, speedpps as integer)
+ DIM tickms as integer = gen(genMillisecPerFrame)
+ 'Number of milliseconds in a nominal second
+ DIM timebase as integer = 990  'gen(genWalkTimebase)
+
+ pos_surplus += speedpps * tickms
+
+ 'Pixels to move
+ DIM move as integer = small(pos_surplus \ timebase, ABS(go))
+
+ IF prefbit(-1) THEN
+  pos_surplus -= move * timebase
+ ELSE
+  pos_surplus = pos_surplus MOD timebase
+ END IF
+ pos += move * SGN(go)
+END SUB
+
 SUB aheadxy (byref x as integer, byref y as integer, byval direction as DirNum, byval distance as integer)
  '--alters the input X and Y, moving them "ahead" by distance in direction
 

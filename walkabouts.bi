@@ -38,6 +38,7 @@ DECLARE FUNCTION hero_at_pixel(pixelpos as XYPair) as integer
 
 'Movement/collision/wrapping
 DECLARE FUNCTION movdivis (byval xygo as integer) as bool
+DECLARE FUNCTION add_speedpps (byref pos as integer, byref pos_frac as integer, byref go as integer, speedpps as integer)
 DECLARE FUNCTION cropmovement (byref pos as XYPair, byref xygo as XYPair) as bool
 DECLARE FUNCTION framewalkabout (byval mappos as XYPair, byref screenpos as XYPair, byval mapsize as XYPair, wrapmode as MapEdgeModeEnum, margin as integer = -1) as bool
 DECLARE SUB cropposition (byref x as integer, byref y as integer, byval unitsize as integer)

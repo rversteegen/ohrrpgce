@@ -1815,6 +1815,7 @@ SUB update_npcs ()
                          'this is here in case of setheroz or setnpcz or loaded map state or other funkiness happens
      npc(o).dir = herodir(0)
      'FIXME: this is definitely not going to work properly for more frames
+'FIXME
      npc(o).wtog = herow(0).wtog
     END IF
    ELSE
@@ -2080,7 +2081,7 @@ END SUB
 '- NPC movement during scripted NPC pathfinding (when npci.pathover.override is set)
 SUB npcmove_pathfinding_chase(npci as NPCInst, npcdata as NPCType)
  if npci.pathover.stop_after_stillticks > 0 andalso npci.stillticks >= npci.pathover.stop_after_stillticks then
-  if npcdata.speed = 0 then
+  if npcdata.speedpps = 0 then
    debuginfo "warning: gave up NPC pathfinding because NPC has zero speed and stop_after_stillticks specified"
   end if
   cancel_npc_movement_override (npci)
@@ -2170,7 +2171,7 @@ SUB pick_npc_action(npci as NPCInst, npcdata as NPCType)
   EXIT SUB
  END IF
 
- IF npcdata.movetype <> 8 ANDALSO npcdata.speed = 0 THEN
+ IF npcdata.movetype <> 8 ANDALSO npcdata.speedpps = 0 THEN
   ' Do nothing when walking speed is 0, unless movetype is 'walk in place'
   '(If speed=0 and we're pathfinding, the NPC will still face the destination but not move,
   'and we need to allow stop_after_stillticks to work.)
@@ -2221,6 +2222,7 @@ SUB perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCTy
   IF npc_collision_check(npci, npcdata, npci.xgo, npci.ygo, collision_type) THEN
    npci.xgo = 0
    npci.ygo = 0
+   npci.surplus_walk = 0
    IF collision_type = collideHero THEN
     'There used to be a random 0-3 tick delay here before pacing NPCs bounce off the hero,
     'maybe a mistake or an attempt to make NPCs easier to activate. It was too much trouble.
@@ -2235,20 +2237,25 @@ SUB perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCTy
 
  IF NOT hit_something THEN
   'If we didn't hit any obstacle, actually move
-  IF npcdata.speed THEN
+  IF npcdata.speedpps THEN
    '--change x,y and decrement wantgo by speed
    IF npci.xgo OR npci.ygo THEN
+    add_speedpps npci.x, npci.surplus_walk_x, npci.xgo, npcdata.speedpps
+    add_speedpps npci.y, npci.surplus_walk_y, npci.ygo, npcdata.speedpps
+    /'
     DIM speedx as integer = small(npcdata.speed, ABS(npci.xgo))
     DIM speedy as integer = small(npcdata.speed, ABS(npci.ygo))
     IF npci.xgo > 0 THEN npci.xgo -= speedx: npci.x -= speedx
     IF npci.xgo < 0 THEN npci.xgo += speedx: npci.x += speedx
     IF npci.ygo > 0 THEN npci.ygo -= speedy: npci.y -= speedy
     IF npci.ygo < 0 THEN npci.ygo += speedy: npci.y += speedy
+    '/
    END IF
   ELSE
    '--no speed, kill wantgo
    npci.xgo = 0
    npci.ygo = 0
+   npci.surplus_walk = 0
    '--also kill pathfinding override
    cancel_npc_movement_override (npci)
   END IF
