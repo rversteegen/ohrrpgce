@@ -418,6 +418,7 @@ END SUB
 
 'Must be called after nowscript changes
 SUB HSVMState.set_cur_script()
+ BUG_IF(nowscript < -1, "nowscript " & nowscript)
  IF nowscript < 0 THEN
   cur_scrat = NULL
   cur_scriptinst = NULL

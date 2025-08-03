@@ -589,6 +589,10 @@ FUNCTION ancestor_script_id(depth as integer) as integer
  RETURN si->id
 END FUNCTION
 
+destructor ScriptFibre
+ ? "DESTROY"
+end destructor
+
 FUNCTION functiondone () as integer
 'returns 0 when returning a value to a caller
 'returns 1 when the last script in the fibre is finished

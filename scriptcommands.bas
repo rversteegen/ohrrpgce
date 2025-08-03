@@ -417,6 +417,9 @@ END FUNCTION
 
 ' Trigger the on-keypress script if appropriate
 SUB trigger_onkeypress_script ()
+ DIM trigger as integer = trigger_or_default(gmap(15), gen(genDefOnKeypressScript))
+ IF trigger = 0 THEN EXIT SUB  'No script
+
  DIM doit as bool = NO
 
  'Checks whether keyboard and joystick keys are down, and optionally the mouse
@@ -438,8 +441,11 @@ SUB trigger_onkeypress_script ()
   END IF
  END IF
 
+ ' IF hsvm.cur_plotscript ANDALSO THEN
+ '  WITH hsvm.cur_plotscript->top_scriptinst
+ ' FOR idx as integer = 
+
  IF doit THEN
-  DIM trigger as integer = trigger_or_default(gmap(15), gen(genDefOnKeypressScript))
   IF trigger THEN
    trigger_script trigger, 1, YES, "on-key", "", mainFibreGroup
   END IF

@@ -510,6 +510,7 @@ TYPE ScriptFibreFwd as ScriptFibre
 'There is one ScriptInst for each OldScriptState.
 TYPE ScriptInst
   scr as ScriptData ptr 'script in script() hashtable
+  suspended as bool     'Is suspended, probably by another fibre, such as a plotscript
   waiting as WaitTypeEnum  'Whether the script is waiting
   waitarg as integer    'wait state argument 1
   waitarg2 as integer   'wait state argument 2
@@ -539,6 +540,15 @@ TYPE ScriptFibre
   log_line as string    'Debugging aid: Composed from trigger_name, arg names and values and trigger_loc
   argc as integer       'The number of args passed
   args(maxScriptArgs - 1) as integer
+
+  'These are never empty
+  scriptinsts(any) as ScriptInst ptr
+  scrat(any) as OldScriptState ptr
+
+  declare destructor()
+
+  DECLARE FUNCTION top_scriptinst() byref as ScriptInst
+  DECLARE FUNCTION top_scrat() byref as OldScriptState
 END TYPE
 
 DECLARE_VECTOR_OF_TYPE(ScriptFibre ptr, ScriptFibre_ptr)
@@ -554,6 +564,8 @@ TYPE HSVMState
   cur_scriptinst as ScriptInst ptr
   cur_slot as integer               'This is just nowscript
 END TYPE
+'  'cur_plotscript as ScriptFibre ptr    'The currently active plotscript if any
+
 
 'Node of an .hsz script abstract syntax tree
 TYPE ScriptCommand

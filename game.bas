@@ -2534,6 +2534,15 @@ END FUNCTION
 SUB execute_script_fibres(fibregroup as ScriptFibre ptr vector)
  DIM wantimmediate_bug_emu as bool
 
+ ' WHILE nowscript >= 0
+ '  WITH scriptinsts(nowscript)
+/'
+ FOR idx as integer = v_len(fibregroup) - 1 TO 0 STEP -1
+  hsvm.cur_fibre = fibregroup[idx]
+  WITH hsvm.cur_fibre->top_scrinst
+   'IF .suspended THEN CONTINUE FOR
+'/
+
  WHILE hsvm.cur_scriptinst
   WITH *hsvm.cur_scriptinst
    IF .waiting THEN

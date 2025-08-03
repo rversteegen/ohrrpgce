@@ -1543,6 +1543,13 @@ DESTRUCTOR HeroWalkabout ()
  v_free curzones
 END DESTRUCTOR
 
+SUB reset_map_state (map as MapModeState)
+ map.id = gen(genStartMap)
+ map.lastmap = -1
+ map.same = NO
+ map.name = ""
+END SUB
+
 'Unlike resetgame(), this is called before a game first is played,
 'in addition to being called after playing (resetgame/gameover/loadgame/quit).
 SUB reset_game_state ()
@@ -1628,13 +1635,6 @@ FUNCTION should_hide_virtual_gamepad_when_suspendplayer() as bool
  RETURN root."mobile_options"."hide_virtual_gamepad_when_suspendplayer".integer.default(NO) <> 0
 END FUNCTION
 
-SUB reset_map_state (map as MapModeState)
- map.id = gen(genStartMap)
- map.lastmap = -1
- map.same = NO
- map.name = ""
-END SUB
-
 'Calculate the maximum (full) amount of level MP points
 'UBOUND(ret) should be maxMPLevel
 SUB get_max_levelmp (ret() as integer, byval hero_level as integer)
@@ -1665,6 +1665,7 @@ FUNCTION max_levelmp_for_hero(byref hero as HeroState, lmp_slot as integer) as i
 END FUNCTION 
 
 SUB shop (byval id as integer)
+'stop_timing
 
 DIM storebuf(40) as integer
 DIM menu(10) as string
@@ -1842,6 +1843,7 @@ freepage holdscreen
 
 evalitemtags
 party_change_updates
+'resume_timing
 
 END SUB
 
@@ -1867,6 +1869,8 @@ END FUNCTION
 'Returns true if the player decided to sleep at the inn
 'holdscreen is a copy of vpage (not a compatpage)
 FUNCTION useinn (byval price as integer, byval holdscreen as integer) as bool
+'stop_timing
+
 DIM menu(1) as string
 DIM page as integer
 page = compatpage
@@ -1969,9 +1973,10 @@ DO
 LOOP
 freepage page
 party_change_updates
+'resume_timing
 END FUNCTION
 
-'Tag debug menu
+'Tag debug overlay menu
 SUB tagdisplay (page as integer)
 STATIC st as MenuState
 DIM lineh as integer = lineheight()
