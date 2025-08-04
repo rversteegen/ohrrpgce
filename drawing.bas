@@ -83,6 +83,7 @@ DECLARE SUB spriteedit_replace_col(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_flood_fill(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_sprctrl(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_clip (ss as SpriteEditState)
+DECLARE SUB spriteedit_set_col(ss as SpriteEditState, col as integer)
 DECLARE SUB changepal (ss as SpriteEditState, palchange as integer)
 DECLARE SUB writeundospr (ss as SpriteEditState)
 DECLARE SUB readundospr (ss as SpriteEditState)
@@ -3900,8 +3901,9 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   IF keyval(ccRight) > 1 AND ss.curcolor < 255 THEN ss.curcolor += 1  : ss.showcolnum = COLORNUM_SHOW_TICKS
  END IF
  IF ss.mouse.buttons > 0 ANDALSO ss.zonenum = 3 THEN
-  ss.curcolor = ((ss.zone.y \ 6) * 16) + (ss.zone.x \ 4)
-  ss.showcolnum = COLORNUM_SHOW_TICKS
+  spriteedit_set_col ss, ((ss.zone.y \ 6) * 16) + (ss.zone.x \ 4)
+  'ss.curcolor = ((ss.zone.y \ 6) * 16) + (ss.zone.x \ 4)
+  'ss.showcolnum = COLORNUM_SHOW_TICKS
  END IF
  ss.palette->col(ss.palindex) = ss.curcolor
 
@@ -3984,6 +3986,8 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
     ELSE
      ss.palindex = digit
     END IF
+    'spriteedit_set_palindex ss, small(ss.palindex * 10 + digit, 15)
+
     ' Show the colour index for exactly how long the user has to type in a 2-digit palette index
     ss.showcolnum = 30  ' equal to COLORNUM_SHOW_TICKS anyway
     ss.number_typing_deadline = TIMER + ss.showcolnum / 60
@@ -4301,6 +4305,11 @@ SUB spriteedit_strait_line(byref ss as SpriteEditState)
  writeundospr ss
  spriteedit_clip ss
  drawline ss.sprite, ss.x, ss.y, ss.holdpos.x, ss.holdpos.y, ss.palindex
+END SUB
+
+SUB spriteedit_set_col(ss as SpriteEditState, col as integer)
+ ss.curcolor = col
+ ss.showcolnum = COLORNUM_SHOW_TICKS
 END SUB
 
 SUB spriteedit_reset_tool(byref ss as SpriteEditState)
