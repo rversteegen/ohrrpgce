@@ -944,7 +944,7 @@ DO
   'DEBUG debug "hero movement"
   update_heroes()
 
-  'DEBUG debug "NPC movement"
+  'DEBUG debug "NPC AI, movement, and touch activation"
   update_npcs()
  END IF
 
@@ -1797,9 +1797,11 @@ END SUB
 '==========================================================================================
 
 
-'NPC movement
+'NPC AI, movement, and touch activation
 'Note that NPC xgo and ygo can also be set from elsewhere, eg. being pushed
 SUB update_npcs ()
+ DIM ai_active as bool = NO
+
  FOR o as NPCIndex = 0 TO UBOUND(npc)
   IF npc(o).id > 0 THEN
    DIM as NPCTypeID id = (npc(o).id - 1)
@@ -1821,17 +1823,26 @@ SUB update_npcs ()
    ELSE
     '--For all NPCs except the active vehicle
     IF (txt.sayer <> o ANDALSO readbit(gen(), genSuspendBits, suspendnpcs) = 0 ANDALSO npc(o).suspend_ai = NO) ORELSE npc(o).pathover.override THEN
-     IF npc(o).xgo = 0 AND npc(o).ygo = 0 THEN
-      pick_npc_action npc(o), npool(npc(o).pool).npcs(id)
-     END IF
+     ai_active = YES
     END IF
-
    END IF
 
    DIM oldpos as XYPair = npc(o).pos
    DIM finished_step as bool = NO
+   DIM check_touch as bool = NO
 
-   IF npc(o).xygo <> 0 THEN perform_npc_move o, npc(o), npool(npc(o).pool).npcs(id)
+   DO
+    IF ai_active AND npc(o).xygo = 0 THEN
+     pick_npc_action npc(o), npool(npc(o).pool).npcs(id)
+    END IF
+
+    IF npc(o).xygo <> 0 THEN
+     perform_npc_move o, npc(o), npool(npc(o).pool).npcs(id)
+     check_touch = YES
+    END IF
+
+    EXIT DO
+   LOOP
 
    IF oldpos = npc(o).pos THEN
     npc(o).stillticks += 1
@@ -1847,6 +1858,16 @@ SUB update_npcs ()
 
    IF finished_step THEN
     process_zone_eachstep_triggers "npc" & o, npc(o).curzones
+   END IF
+
+   IF check_touch THEN
+    '--Check touch activation (always happens). I have little idea why this
+    '--is conditional on xygo!
+    IF npcdata.activation = 1 AND txt.showing = NO THEN
+     IF wraptouch(npci.pos, heropos(0), 20) THEN
+      usenpc 1, npcnum
+     END IF
+    END IF
    END IF
 
   END IF
@@ -2262,13 +2283,6 @@ SUB perform_npc_move(byval npcnum as NPCIndex, npci as NPCInst, npcdata as NPCTy
   'Always crop to map bounds (or wrap around map) even if walls are disabled
   '(if they aren't, then movement was already cropped)
   IF cropmovement(npci.pos, npci.xygo) THEN npchitwall(npci, npcdata, collideWall)
- END IF
-
- '--Check touch activation (always happens). I have no idea why this is here!
- IF npcdata.activation = 1 AND txt.showing = NO THEN
-  IF wraptouch(npci.pos, heropos(0), 20) THEN
-   usenpc 1, npcnum
-  END IF
  END IF
 END SUB
 
