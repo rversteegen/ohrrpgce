@@ -523,6 +523,22 @@ FUNCTION movdivis (byval xygo as integer) as bool
  END IF
 END FUNCTION
 
+FUNCTION move_step_finished (oldpos as integer, xygo as integer, speed as integer) as bool
+ DIM newpos as integer = oldpos - bound(xygo, -speed, speed)
+ IF oldpos MOD 20 = XY(0,0) THEN RETURN YES
+ IF oldpos \ 20 <> npc(o).pos \ 20 THEN RETURN YES
+ RETURN NO
+END FUNCTION
+
+SUB assign_speed(byref pos as integer, byref pos_surplus as integer, byref go as integer, speedpps as integer)
+
+ DIM tickms as integer = gen(genMillisecPerFrame)
+ 'Number of milliseconds in a nominal second
+ DIM timebase as integer = 990  'gen(genWalkTimebase)
+
+ pos_surplus += speedpps * tickms
+
+END SUB
 
 'pos_surplus is in pixels divided by timebase, e.g. thousandths of a pixel.
 'Before and after this call, ABS(pos_frac) < timebase
@@ -531,7 +547,7 @@ SUB add_speedpps(byref pos as integer, byref pos_surplus as integer, byref go as
  'Number of milliseconds in a nominal second
  DIM timebase as integer = 990  'gen(genWalkTimebase)
 
- pos_surplus += speedpps * tickms
+ 'pos_surplus += speedpps * tickms
 
  'Pixels to move
  DIM move as integer = small(pos_surplus \ timebase, ABS(go))

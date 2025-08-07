@@ -1845,7 +1845,9 @@ SUB update_npcs ()
    LOOP
 
    IF oldpos = npc(o).pos THEN
-    npc(o).stillticks += 1
+    IF YES /' speed > 0 '/ THEN  ' If moved a fraction of a pixel
+     npc(o).stillticks += 1
+    END IF
    ELSE
     npc(o).stillticks = 0
 
