@@ -3639,6 +3639,7 @@ END FUNCTION
 
 SUB mapedit_layers (st as MapEditState)
  DIM byref map as MapData = st.map
+map.gmap(31) = 2
 
  DIM state as MenuState
  DIM menuopts as MenuOptions
