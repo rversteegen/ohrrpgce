@@ -58,7 +58,7 @@ TYPE NodePtr as Node ptr
 	TYPE HashPtr as ReloadHash ptr
 	
 	Type StringTableEntry
-		str as zstring ptr  'Interned with intern_string()
+		str as InternedString
 		'TODO: uses is ignored and never decremented, so old node names
 		'are never freed from the string table or hash table, so any
 		'node name ever used gets written out in .reload files
@@ -94,7 +94,7 @@ TYPE NodePtr as Node ptr
 	
 	TYPE Node
 		'name as string
-		name as zstring ptr  'Interned with intern_string()
+		name as InternedString
 		namenum as short     'Index in the string table
 		nodeType as ubyte
 		Union 'this saves sizeof(Double) bytes per node!
@@ -135,11 +135,11 @@ Declare sub RemoveProvisionalNodes(byval nod as NodePtr)
 Declare sub MarkProvisional(byval nod as NodePtr)
 Declare sub SetContent Overload (byval nod as NodePtr, dat as string)
 Declare sub SetContent(byval nod as NodePtr, byval zstr as zstring ptr, byval size as integer)
+Declare sub SetContent(byval nod as NodePtr, byval istr as InternedString)
 Declare sub SetContent(byval nod as NodePtr, byval dat as longint)
 Declare sub SetContent(byval nod as NodePtr, byval dat as double)
 Declare sub SetContent(byval nod as NodePtr)
 Declare sub SetContentBool(byval nod as NodePtr, byval dat as bool)
-Declare sub SetInternedString(byval nod as NodePtr, byval zstr as zstring ptr)
 Declare sub AddSiblingBefore(byval sib as NodePtr, byval nod as NodePtr)
 Declare sub AddSiblingAfter(byval sib as NodePtr, byval nod as NodePtr)
 Declare sub AddChild(byval par as NodePtr, byval nod as NodePtr)
@@ -160,18 +160,18 @@ Declare Function GetFloat(byval node as nodeptr) as double
 Declare Function GetZString(byval node as nodeptr) as zstring ptr
 Declare Function ResizeZString(byval node as nodeptr, byval newsize as integer) as zstring ptr
 Declare Function GetZStringSize(byval node as nodeptr) as integer
-Declare Function GetInternedString(byval node as NodePtr) as zstring ptr
+Declare Function GetInternedString(byval node as NodePtr) as InternedString
 
 
-Declare Function GetChildByName(byval nod as NodePtr, byval nam as zstring ptr) as NodePtr 'NOT recursive
-Declare Function FindDescendentByName(byval nod as NodePtr, nam as zstring ptr) as NodePtr 'recursive depth first search
+Declare Function GetChildByName(byval nod as NodePtr, byval nam as const zstring ptr) as NodePtr 'NOT recursive
+Declare Function FindDescendentByName(byval nod as NodePtr, byval nam as InternedString) as NodePtr 'recursive depth first search
 'Other overloads unimplemented
 Declare Function GetChildByContent(byval nod as NodePtr, content as longint, name as zstring ptr = null, reverse as bool = NO) as NodePtr
 
 Declare Function DocumentRoot(byval doc as DocPtr) as NodePtr
 Declare Function GetDocument(byval nod as NodePtr) as DocPtr
 Declare Function NumChildren(byval nod as NodePtr) as integer
-Declare Function CountChildren(byval nod as NodePtr, byval withname as zstring ptr) as integer
+Declare Function CountChildren(byval nod as NodePtr, byval withname as InternedString) as integer
 Declare Function NodeIndex(byval nod as NodePtr) as integer
 Declare Function NodeParent(byval nod as NodePtr) as NodePtr
 Declare Function FirstChild(byval nod as NodePtr, byval name as zstring ptr = null) as NodePtr
