@@ -1048,9 +1048,55 @@ PRIVATE FUNCTION bound (point as XYPair, lefttop as XYPair, rightbottom as XYPai
 END FUNCTION
 
 '----------------------------------------------------------------------
+'                           InternString
 
 declare sub init_intern_string()
 declare function intern_string(s as const zstring ptr) as const zstring ptr
+
+' InternedString is a zero-overhead wrapper around a const zstring ptr which calls
+' intern_string() when assigned to from a string/zstring ptr.
+' But you don't have to deference it (operator *) like a zstring ptr.
+' NOTE: pass InternedString byval, it's byref by default
+type InternedString 'extends ZString
+  public:
+    declare constructor (pz as const zstring ptr = 0)
+    declare operator cast () byref as const zstring
+    declare operator cast () as const zstring ptr    'Ambiguous before FB 1.09
+    declare operator let (pz as const zstring ptr)
+    declare operator [] (index as integer) byref as const ubyte
+  'private:
+    ' Leaving this public because the cast to zstring ptr is commented
+    dim p as const zstring ptr
+end type
+
+private constructor InternedString (pz as const zstring ptr = NULL)
+    if pz then this.p = intern_string(pz)
+end constructor
+
+' This makes InternedString usable as a string, but is far more efficient than
+' casting to string: it does not alloc a temporary string. It will be passed as a
+' zstring ptr to FB builtin string functions.
+private operator InternedString.cast() byref as const zstring
+    return *this.p
+end operator
+
+' In FB 1.08 and older don't allow this as duplicate/ambiguous (bug sf.net#666)
+' So access .p directly for now.
+private operator InternedString.cast() as const zstring ptr
+    return this.p
+end operator
+
+private operator InternedString.let (pz as const zstring ptr)
+    this.p = intern_string(pz)
+end operator
+
+private operator InternedString.[] (index as integer) byref as const ubyte
+  return This.p[index]
+end operator
+
+private operator len (byref v as InternedString) as integer
+    return len(*v.p)
+end operator
 
 
 '----------------------------------------------------------------------
