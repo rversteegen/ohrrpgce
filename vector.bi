@@ -476,7 +476,7 @@ DECLARE SUB array_to_vector OVERLOAD (byref vec as string vector, array() as str
 DECLARE SUB vector_to_array OVERLOAD (array() as integer, byval vec as integer vector)
 DECLARE SUB vector_to_array OVERLOAD (array() as string, byval vec as string vector)
 
-DECLARE FUNCTION zstring_copy cdecl (byval p as zstring ptr) as zstring ptr
+DECLARE FUNCTION zstring_copy cdecl (byval p as const zstring ptr) as zstring ptr
 
 
 #ENDIF

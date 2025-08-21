@@ -81,7 +81,7 @@ FUNCTION double_str CDECL (byval this as double ptr) as string
   RETURN STR(*this)
 END FUNCTION
 
-FUNCTION zstring_copy cdecl (byval p as zstring ptr) as zstring ptr
+FUNCTION zstring_copy cdecl (byval p as const zstring ptr) as zstring ptr
   IF p = NULL THEN RETURN NULL
   DIM length as integer = strlen(p)
   DIM ret as zstring ptr = allocate(length + 1)

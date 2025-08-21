@@ -4315,7 +4315,7 @@ end sub
 ' Interned strings live forever in the global hash tables.
 ' Calling intern_string on an already interned string is very fast (it does no
 ' string comparisons or hashing).
-function intern_string(s as zstring ptr) as zstring ptr
+function intern_string(s as const zstring ptr) as const zstring ptr
   if s = NULL then return intern_string("")
 
   dim gotfast as zstring ptr = interned_fast_lookup.get(s, NULL)

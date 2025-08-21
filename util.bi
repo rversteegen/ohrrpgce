@@ -1047,6 +1047,11 @@ PRIVATE FUNCTION bound (point as XYPair, lefttop as XYPair, rightbottom as XYPai
  RETURN ret
 END FUNCTION
 
+'----------------------------------------------------------------------
+
+declare sub init_intern_string()
+declare function intern_string(s as const zstring ptr) as const zstring ptr
+
 
 '----------------------------------------------------------------------
 '                         String functions
@@ -1059,8 +1064,6 @@ End Enum
 
 type FnReplacement as function(original as string, arg as any ptr) as string
 
-declare sub init_intern_string()
-declare function intern_string(s as zstring ptr) as zstring ptr
 declare function cstring (s as string) as zstring ptr
 declare function copy_zstring (str_ptr as zstring ptr) as zstring ptr
 declare function blob_to_string (byval str_ptr as zstring ptr, byval str_len as integer) as string

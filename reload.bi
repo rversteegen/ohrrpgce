@@ -207,7 +207,7 @@ Declare Function AppendChildNode(byval parent as NodePtr, n as zstring ptr, byva
 Declare Function AppendChildNodeBool(byval parent as NodePtr, n as zstring ptr, byval val as bool) as NodePtr
 Declare Function AppendChildNode(byval parent as NodePtr, n as zstring ptr, byval val as double) as NodePtr
 Declare Function AppendChildNode(byval parent as NodePtr, n as zstring ptr, val as string) as NodePtr
-Declare Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as zstring ptr = NULL) as NodePtr
+Declare Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as const zstring ptr = NULL) as NodePtr
 
 Declare function ReadVLI overload(byval f as integer) as longint
 Declare Sub WriteVLI overload(byval f as integer, byval v as longint)
@@ -221,7 +221,7 @@ Declare Function DocumentMemoryUsage(byval doc as DocPtr) as longint
 
 	Type RBNodeName
 		nameindex as integer
-		name as zstring ptr
+		name as const zstring ptr
 	End Type
 
 	Declare Sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval func_num as integer, byval func_bits_size as integer, byval signature as integer, byval total_num_names as integer)

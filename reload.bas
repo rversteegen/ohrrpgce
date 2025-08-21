@@ -101,9 +101,9 @@ Function RReallocate(byval p as any ptr, byval doc as DocPtr, byval newsize as i
 	return ret
 end function
 
-Sub RDeallocate(byval p as any ptr, byval doc as DocPtr)
+Sub RDeallocate(byval p as const any ptr, byval doc as DocPtr)
 #if defined(__FB_WIN32__) and not defined(RELOAD_NOPRIVATEHEAP)
-	HeapFree(doc->heap, 0, p)
+	HeapFree(doc->heap, 0, cast(any ptr, p))
 #else
 	Deallocate(p)
 #endif
@@ -1600,7 +1600,7 @@ Function AppendChildNode(byval parent as NodePtr, n as zstring ptr, val as strin
 	return ret
 end Function
 
-Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as zstring ptr = NULL) as NodePtr
+Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval withname as const zstring ptr = NULL) as NodePtr
 	'Return the index'th child node, or 0 if no such child exists
 	'This could be slow for long child lists, so don't use it unless you really need it
 	if parent = 0 then return 0
