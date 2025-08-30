@@ -253,7 +253,7 @@ End Enum
 
 'Context variables are almost RELOAD nodes without children
 Type SliceContextVar
- name as string
+ name as zstring ptr
  dtype as SliceContextVarTypes
  'Union  'TODO: Can't put string in a union
   int_value as integer  'cttyBool, cttyInt
@@ -267,8 +267,8 @@ DECLARE_VECTOR_OF_TYPE(SliceContextVar, SliceContextVar)
 
 'Describes a slice property that should be set to the value of a context variable
 Type SliceDynamicProp
- propname as string   'The set_slice_property key
- ctxname as string
+ propname as zstring ptr   'The set_slice_property key
+ ctxname as zstring ptr
 End Type
 
 DECLARE_VECTOR_OF_TYPE(SliceDynamicProp, SliceDynamicProp)
@@ -726,7 +726,7 @@ Extern "C"
 
 DECLARE Sub UpdateSliceDynamicProps(sl as Slice ptr, recurse as bool = YES)
 DECLARE Sub AddSliceDynamicProp(sl as Slice ptr, propname as string, ctxname as string)
-DECLARE Function FindSliceDynamicProp(sl as Slice ptr, propname as string) as integer
+DECLARE Function FindSliceDynamicProp(sl as Slice ptr, interned_propname as zstring ptr) as integer
 
 DECLARE Sub InsertSliceBefore(byval sl as slice ptr, byval newsl as slice ptr)
 DECLARE Sub InsertSliceAfter(byval sl as Slice ptr, byval newsl as Slice ptr)

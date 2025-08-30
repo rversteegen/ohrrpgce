@@ -48,6 +48,7 @@ END FUNCTION
 ' animkey is used in animations, if it differs from prop
 SUB SlicePropertiesEditor.propkey(prop as zstring ptr, helpkey as zstring ptr = NULL, animkey as zstring ptr = NULL)
   set_helpkey "sliceedit_" & *IIF(helpkey, helpkey, prop)
+  prop = intern_string(prop)
   IF animkey = NULL THEN animkey = prop
   cur_animkey = *animkey
 
@@ -65,9 +66,9 @@ SUB SlicePropertiesEditor.propkey(prop as zstring ptr, helpkey as zstring ptr = 
   IF refresh ANDALSO sl->DynamicProps THEN
     FOR idx as integer = 0 TO v_len(sl->DynamicProps) - 1
       WITH sl->DynamicProps[idx]
-        IF .propname = *prop THEN
+        IF .propname = prop THEN
           'Maybe should have an add_note method instead
-          set_caption "{" & .ctxname & "} = " & form_default_caption()
+          set_caption "{" & *.ctxname & "} = " & form_default_caption()
         END IF
       END WITH
     NEXT
@@ -77,7 +78,7 @@ SUB SlicePropertiesEditor.propkey(prop as zstring ptr, helpkey as zstring ptr = 
   'Or we could edit value of the context variable, or the name of the context variable to use,
   'or ask the user what to do.
   IF edited ANDALSO sl->DynamicProps THEN
-    DIM idx as integer = FindSliceDynamicProp(sl, *prop)
+    DIM idx as integer = FindSliceDynamicProp(sl, prop)
     IF idx > -1 THEN
       v_delete_slice sl->DynamicProps, idx, idx + 1
       'FIXME: this doesn't actually force the necessary update
@@ -572,7 +573,7 @@ SUB SlicePropertiesEditor.define_items()
           END SELECT
           set_helpkey "sliceedit_context_var"
           IF delete_action THEN
-            RemoveContext sl, .name
+            RemoveContext sl, *.name
             'FIXME: this doesn't actually force the necessary update
             state.need_update = YES
           END IF

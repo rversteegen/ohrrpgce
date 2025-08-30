@@ -3106,7 +3106,7 @@ SUB SliceDetailMenu.refresh(byref ses as SliceEditState, byref state as MenuStat
      ELSEIF .dtype = cttyStr THEN
       sliceed_rule_str rules(), "context_var", erStrgrabber, @.str_value, 128000, slgrCONTEXTVAR  'Arbitrary limit
      END IF
-     sliceed_rule_set_datakey rules(), .name
+     sliceed_rule_set_datakey rules(), *.name
     END WITH
    NEXT
   END IF

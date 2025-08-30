@@ -197,7 +197,7 @@ END WITH
 DEFINE_VECTOR_OF_POD_TYPE(Slice ptr, Slice_ptr)
 DEFINE_VECTOR_OF_POD_TYPE(SliceContext ptr, SliceContext_ptr)
 DEFINE_VECTOR_OF_CLASS(SliceContextVar, SliceContextVar)
-DEFINE_VECTOR_OF_CLASS(SliceDynamicProp, SliceDynamicProp)
+DEFINE_VECTOR_OF_POD_TYPE(SliceDynamicProp, SliceDynamicProp)
 
 'Built up while inside DrawSlice, otherwise NULL.
 'A stack of all the non-NULL .Context ptrs for all the ancestors of the current slice.
@@ -4141,7 +4141,7 @@ Sub SliceContext.save(sl as Slice ptr, node as Reload.Nodeptr)
   dim varsnode as Reload.Nodeptr = Reload.AppendChildNode(node, "context_vars")
   for idx as integer = 0 to v_len(context_vars) - 1
    with context_vars[idx]
-    dim varnode as Reload.Nodeptr = Reload.AppendChildNode(varsnode, "var", .name)
+    dim varnode as Reload.Nodeptr = Reload.AppendChildNode(varsnode, "var", *.name)
     select case .dtype
      case cttyBool
       Reload.AppendChildNode(varnode, "bool", iif(.int_value, 1, 0))
@@ -4238,9 +4238,10 @@ end function
 Function FindContext overload (context as SliceContext, ctxname as string) as SliceContextVar ptr
  dim vec as SliceContextVar vector = context.context_vars
  if vec = NULL then return NULL
+ dim interned_ctxname as zstring ptr = intern_string(ctxname)
  'Can't use v_find
  for idx as integer = 0 to v_len(vec) - 1
-  if vec[idx].name = ctxname then return @vec[idx]
+  if vec[idx].name = interned_ctxname then return @vec[idx]
  next
  return NULL
 end function
@@ -4306,7 +4307,7 @@ Function GetOrAddContext (sl as Slice ptr, /'byref context_stack as SliceContext
   ret = FindContext(*sl->Context, ctxname)
   if ret = NULL then
    ret = v_expand(.context_vars)
-   ret->name = ctxname
+   ret->name = intern_string(ctxname)
   end if
   return ret
  end with
@@ -4339,9 +4340,10 @@ Sub RemoveContext (sl as Slice ptr, ctxname as string)
 
  with *sl->Context
   if .context_vars = NULL then exit sub
+  dim interned_ctxname as zstring ptr = intern_string(ctxname)
 
   for idx as integer = 0 to v_len(.context_vars) - 1
-   if .context_vars[idx].name = ctxname then
+   if .context_vars[idx].name = interned_ctxname then
     v_delete_slice .context_vars, idx, idx + 1
     exit sub
    end if
@@ -4359,7 +4361,7 @@ dim shared temp_value_node as Reload.NodePtr
 
 'Lookup a context variable, return its value as a Node as used by set_slice_property,
 'returns a null Node if there is no such variable.
-Local Function GetContextAsNode(sl as Slice ptr, ctxname as string, propname as string) as Reload.NodePtr
+Local Function GetContextAsNode(sl as Slice ptr, ctxname as zstring ptr, propname as zstring ptr) as Reload.NodePtr
  if temp_value_node = NULL then
   temp_value_node = CreateNode(get_anim_doc, "value")
  end if
@@ -4371,7 +4373,7 @@ Local Function GetContextAsNode(sl as Slice ptr, ctxname as string, propname as 
   select case ctx->dtype
    case cttyBool
     'Set to 0 or 1
-    if propname = "s" then
+    if *propname = "s" then
      'Setting text slice text. Convert to a string "No"/"Yes"
      'TODO: make customisable global text strings
      '(RELOAD Nodes don't actually have a bool type, so the conversion has to be here rather
@@ -4419,10 +4421,11 @@ Sub UpdateSliceDynamicProps(sl as Slice ptr, recurse as bool = YES)
 end sub
 
 'Returns index or -1
-Function FindSliceDynamicProp(sl as Slice ptr, propname as string) as integer
+Function FindSliceDynamicProp(sl as Slice ptr, interned_propname as zstring ptr) as integer
  if sl->DynamicProps = NULL then return -1
+ 'propname = intern_string(propname)
  for idx as integer = 0 to v_len(sl->DynamicProps) - 1
-  if sl->DynamicProps[idx].propname = propname then
+  if sl->DynamicProps[idx].propname = interned_propname then
    return idx
   end if
  next
@@ -4433,10 +4436,10 @@ end function
 'Overwrites existing.
 Sub AddSliceDynamicProp(sl as Slice ptr, propname as string, ctxname as string)
  if sl->DynamicProps then
-  dim idx as integer = FindSliceDynamicProp(sl, propname)
+  dim idx as integer = FindSliceDynamicProp(sl, intern_string(propname))
   if idx > -1 then
    'Replace
-   sl->DynamicProps[idx].ctxname = ctxname
+   sl->DynamicProps[idx].ctxname = intern_string(ctxname)
    exit sub
   end if
  else
@@ -4444,8 +4447,8 @@ Sub AddSliceDynamicProp(sl as Slice ptr, propname as string, ctxname as string)
  end if
 
  with *v_expand(sl->DynamicProps)
-  .propname = propname
-  .ctxname = ctxname
+  .propname = intern_string(propname)
+  .ctxname = intern_string(ctxname)
  end with
 end sub
 
