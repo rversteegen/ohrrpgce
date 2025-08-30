@@ -112,6 +112,8 @@ DECLARE FUNCTION script_trigger_exists (id_or_trigger as integer) as bool
 
 DECLARE FUNCTION prompt_for_scancode () as KBScancode
 
+DECLARE FUNCTION check_for_updates (always_show as bool = NO) as string
+
 'Note: Custom-specific global variables are in cglobals.bi
 
 #endif
