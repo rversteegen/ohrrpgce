@@ -2086,7 +2086,9 @@ SUB scripterr (errmsg as string, byval errorlevel as scriptErrEnum = serrBadOp, 
    logged_repeat = YES
    EXIT SUB
   END IF
-  debug "Scripterr(errlvl=" & errorlevel & " " & *scripterr_names(errorlevel) & "): " + logmsg
+  logmsg = "Scripterr(errlvl=" & errorlevel & " " & *scripterr_names(errorlevel) & "): " + logmsg
+  debug logmsg
+  IF nogfx_mode THEN PRINT logmsg
   logged_ignore = NO  'Indicate when there are hidden script errors between the logged ones
  ELSEIF error_count = error_count_limit THEN
   debug "Ignoring further script errors"
