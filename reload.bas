@@ -1106,7 +1106,7 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 	if len(nod->name) = 0 then
 		xmlname = "r:_"
 	else
-		xmlname = *nod->name
+		xmlname = nod->name
 	end if
 	
 	print #fh, string(ind, INDENTTAB);
@@ -1128,7 +1128,7 @@ sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as 
 		dim n as NodePtr = nod->children
 		do while n <> null
 			if n->name[0] = asc("@") then
-				print #fh, " " & *(n->name + 1) & "=""";
+				print #fh, " " & *(n->name.p + 1) & "=""";  'skip the @
 				print #fh, GetString(n);
 				print #fh, """";
 			end if
@@ -1225,12 +1225,12 @@ Function GetChildByName(byval nod as NodePtr, byval nam as const zstring ptr) as
 		nam = intern_string(nam)
 
 		while child <> null
-			if child->name = nam then return child
+			if child->name.p = nam then return child
 			child = child->nextSib
 		wend
 	else
 		while child <> null
-			if *child->name = *nam then return child
+			if child->name = *nam then return child
 			child = child->nextSib
 		wend
 	end if
@@ -1262,7 +1262,7 @@ Function GetChildByContent(byval nod as NodePtr, content as longint, name as zst
 	child = iif(reverse, nod->lastChild, nod->children)
 	while child
 		if child->nodeType = rltInt andalso child->num = content then
-			if name = null orelse *child->name = *name then
+			if name = null orelse child->name = *name then
 				return child
 			end if
 		end if
@@ -1604,7 +1604,7 @@ Function ChildByIndex(byval parent as NodePtr, byval index as integer, byval wit
 	dim ch as Node Ptr
 	ch = parent->children
 	do while ch
-		if withname = NULL orelse ch->name = withname then
+		if withname = NULL orelse ch->name.p = withname then
 			if i = index then return ch
 			i += 1
 		end if
@@ -1998,7 +1998,7 @@ Sub RemoveKey(byval h as HashPtr, byval key as InternedString, byval num as inte
 
 	prev = 0
 	do while b
-		if b->key = interned_key then
+		if b->key = key then
 			if num <> -1 then
 				num -= 1
 				if num = 0 then
