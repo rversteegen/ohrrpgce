@@ -108,12 +108,12 @@ end sub
 
 sub sound_setvolume(slot as integer, volume as single)
   if slot = -1 then exit sub
-  AudSetVolume(slot, bound(volume, 0., 1.))
+  AudSetVolume(SoundPool(slot).audiereID, bound(volume, 0., 1.))
 end sub
 
 function sound_getvolume(slot as integer) as single
   if slot = -1 then return 0.
-  return AudGetVolume(slot)
+  return AudGetVolume(SoundPool(slot).audiereID)
 end function
 
 sub sound_free(num as integer)
@@ -141,22 +141,22 @@ end function
 
 function sound_getlength(slot as integer) as double
   if slot = -1 then return -1.0
-  return AudGetLength(slot)
+  return AudGetLength(SoundPool(slot).audiereID)
 end function
 
 function sound_seekable(slot as integer) as bool
   if slot = -1 then return NO
-  return AudIsSeekable(slot) <> 0
+  return AudIsSeekable(SoundPool(slot).audiereID) <> 0
 end function
 
 function sound_gettime(slot as integer) as double
   if slot = -1 then return -1.0
-  return AudGetPosition(slot)
+  return AudGetPosition(SoundPool(slot).audiereID)
 end function
 
 function sound_settime(slot as integer, position as double) as bool
   if slot = -1 then return NO
-  AudSetPosition(slot, position)
+  AudSetPosition(SoundPool(slot).audiereID, position)
   return YES
 end function
 
