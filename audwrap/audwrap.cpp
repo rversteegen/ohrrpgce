@@ -72,6 +72,7 @@ AUDWRAP_API int AudLoadSound(const char *filename, bool streaming) {
     sounds[slot].stream = OpenSound(device, sounds[slot].source, streaming);
     if (!sounds[slot].stream) {
         debug(errError, "audiere: Failed to open stream from %s", filename);
+        sounds[slot].source = 0;
         return -1;
     }
 
@@ -196,7 +197,7 @@ AUDWRAP_API bool AudIsSeekable(int slot) {
 //Length in seconds, -1 on failure
 AUDWRAP_API double AudGetLength(int slot) {
     if (!isvalid(slot)) return -1.0;
-    int sample_rate = AudSampleRate(slot);
+    double sample_rate = AudSampleRate(slot);
     if (!sample_rate) return -1.0;
     return sounds[slot].source->getLength() / sample_rate;
 }
@@ -204,7 +205,7 @@ AUDWRAP_API double AudGetLength(int slot) {
 //Sets time in seconds
 AUDWRAP_API void AudSetPosition(int slot, double position) {
     if (!isvalid(slot)) return;
-    int sample_rate = AudSampleRate(slot);
+    double sample_rate = AudSampleRate(slot);
     if (!sample_rate) return;
     sounds[slot].stream->setPosition(position * sample_rate);
 }
@@ -212,9 +213,9 @@ AUDWRAP_API void AudSetPosition(int slot, double position) {
 //Time in seconds, -1 on failure
 AUDWRAP_API double AudGetPosition(int slot) {
     if (!isvalid(slot)) return -1.0;
-    int sample_rate = AudSampleRate(slot);
+    double sample_rate = AudSampleRate(slot);
     if (!sample_rate) return -1.0;
-    return sounds[slot].stream->getPosition() * sample_rate;
+    return sounds[slot].stream->getPosition() / sample_rate;
 }
 
 //interates the slots until it finds a sound. If there isn't any room, it grows the array

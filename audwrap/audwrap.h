@@ -56,5 +56,6 @@ AUDWRAP_API bool AudIsSeekable(int s);
 AUDWRAP_API double AudGetLength(int s);
 AUDWRAP_API void AudSetPosition(int s, double position);
 AUDWRAP_API double AudGetPosition(int s);
+AUDWRAP_API int AudSampleRate(int s);
 }
 #endif
