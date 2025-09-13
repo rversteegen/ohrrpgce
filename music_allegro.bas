@@ -28,9 +28,7 @@
 #define MIDI_AUTODETECT -1
 #endif
 
-TYPE SoundEffect EXTENDS SFXCommonData
-  used as bool 'whether this slot is free
-
+TYPE SoundEffectSlot EXTENDS SoundEffectSlotBase
   paused as bool
   playing as bool
 
@@ -421,25 +419,6 @@ function sound_playing(slot as integer) as bool
   end with
 end function
 
-function sound_slotdata(slot as integer) as SFXCommonData ptr
-  if slot < 0 or slot > ubound(sfx_slots) then return NULL
-  if sfx_slots(slot).used = NO then return NULL
-  return @sfx_slots(slot)
-end function
-
-function sound_lastslot as integer
-  return ubound(sfx_slots)
-end function
-
 ' UNIMPLEMENTED
 sub sound_free(num as integer)
 end sub
-
-function sound_slot_with_id(num as integer) as integer
-  for slot as integer = 0 to ubound(sfx_slots)
-    if sfx_slots(slot).used andalso sfx_slots(slot).effectID = num then
-      return slot
-    end if
-  next
-  return -1
-end function

@@ -658,6 +658,11 @@ DECLARE SUB set_global_sfx_volume (volume as single)
 DECLARE FUNCTION get_global_sfx_volume () as single
 
 
+' Returns the first sound slot with the given sound effect ID (num);
+' if the sound is not loaded, returns -1.
+declare function sound_slot_with_id(num as integer) as integer
+
+
 '==========================================================================================
 '                                          Frame
 

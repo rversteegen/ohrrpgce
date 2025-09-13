@@ -41,8 +41,7 @@ End extern
 
 ' Types
 
-TYPE SoundEffectSlot EXTENDS SFXCommonData
-	used as bool        'whether this slot is free
+TYPE SoundEffectSlot EXTENDS SoundEffectSlotBase
 	playing as bool     'Set to false by a callback when the channel finishes
 	buf as any ptr
 	vol as single
@@ -260,30 +259,10 @@ Function sound_getvolume(slot As Integer) As Single
 	return sfx_slots(slot).vol
 End Function
 
-Function sound_slot_with_id(num as integer) as Integer
-	For slot As Integer = 0 To ubound(sfx_slots)
-		With sfx_slots(slot)
-			If .used AndAlso .effectID = num Then Return slot
-		End With
-	Next
-
-	Return -1
-End Function
-
 Function sound_playing(slot As Integer) As bool
 	If slot = -1 Then Return NO
 	If sfx_slots(slot).used = NO Then Return NO
 	Return blackbox_sound_playing(sfx_slots(slot).buf)
-End Function
-
-Function sound_slotdata(slot As Integer) As SFXCommonData ptr
-	If slot < 0 Or slot > ubound(sfx_slots) Then Return NULL
-	If sfx_slots(slot).used = NO Then Return NULL
-	Return @sfx_slots(slot)
-End Function
-
-Function sound_lastslot() as Integer
-	Return ubound(sfx_slots)
 End Function
 
 Function sound_load overload(lump As Lump ptr, num As Integer = -1) As Integer

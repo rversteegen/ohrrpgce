@@ -54,11 +54,6 @@ end extern
 'Report an error that's probably due to a serious bug
 #define BUG_IF(condition, message, retwhat...) EXIT_MSG_IF(condition, errShowBug, message, retwhat)
 
-'Used to dereference a ptr only if not NULL... a bit yuck
-'E.g. "IF_PTR(ptr_to_foo)->widgets += 1"
-#define IF_PTR(arg)  if arg then arg
-
-
 #DEFINE _CONCAT(a,b) a##b
 #DEFINE TEMPLNAME(a,b) a##__##b
 #DEFINE MACROSTART #MACRO

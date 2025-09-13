@@ -84,7 +84,6 @@ end extern
 
 ' Local functions
 
-declare function next_free_slot() as integer
 declare function sfx_slot_info (byval slot as integer) as string
 declare sub enable_modplug_looping()
 
@@ -622,16 +621,13 @@ end function
 DECLARE sub SDL_done_playing cdecl(byval channel as int32)
 
 ' The SDL_Mixer channel number is equal to the SoundEffectSlot index
-TYPE SoundEffectSlot EXTENDS SFXCommonData
-	used as bool        'whether this slot is free
-
+TYPE SoundEffectSlot EXTENDS SoundEffectSlotBase
 	playing as bool     'Set to false by a callback when the channel finishes
 
 	buf as Mix_Chunk ptr
 END TYPE
 
-'music_sdl has an arbitrary limit of 16 sound effects playing at once:
-dim shared sfx_slots(15) as SoundEffectSlot
+extern sfx_slots() as SoundEffectSlot ptr
 
 dim shared sound_inited as bool
 
@@ -642,7 +638,11 @@ sub sound_init
 	'anything that might be initialized here is done in music_init
 	'but, I must do it here too
 	music_init
+
+	'music_sdl has an arbitrary limit of 16 sound effects playing at once:
+	redim sfx_slots(15)
 	Mix_AllocateChannels(ubound(sfx_slots) + 1)
+
 	if callback_set_up = NO then
 		Mix_channelFinished(@SDL_done_playing)
 		callback_set_up = YES
@@ -665,13 +665,13 @@ end sub
 
 
 ' Returns -1 if too many sounds already playing/loaded
-function next_free_slot() as integer
+function sound_next_free_slot() as integer
 	static retake_slot as integer = 0
 	dim i as integer
 
 	'Look for empty slots
 	for i = 0 to ubound(sfx_slots)
-		if sfx_slots(i).used = NO then
+		if sfx_slots(i) = NULL then
 			return i
 		end if
 	next
@@ -679,13 +679,12 @@ function next_free_slot() as integer
 	'Look for silent slots
 	for i = 0 to ubound(sfx_slots)
 		retake_slot = (retake_slot + 1) mod (ubound(sfx_slots)+1)
-		with sfx_slots(retake_slot)
-			if .playing = NO then
-				Mix_FreeChunk(.buf)
-				.used = NO
+		if sfx_slots(retake_slot)
+			if sfx_slots(retake_slot)->playing = NO then
+				sound_unload retake_slot
 				return retake_slot
 			end if
-		end with
+		end if
 	next
 
 	return -1 ' no slot found
@@ -765,38 +764,11 @@ sub sound_free(num as integer)
 	next
 end sub
 
-function sound_playing(slot as integer) as bool
-	if slot = -1 then return NO
-	if sfx_slots(slot).used = NO then return NO
-
-	return sfx_slots(slot).playing
-end function
-
-function sound_slotdata(slot as integer) as SFXCommonData ptr
-	if slot < 0 or slot > ubound(sfx_slots) then return NULL
-	if sfx_slots(slot).used = NO then return NULL
-	return @sfx_slots(slot)
-end function
-
-function sound_lastslot() as integer
-	return ubound(sfx_slots)
-end function
-
-' Returns the first sound slot with the given sound effect ID (num);
-' if the sound is not loaded, returns -1.
-function sound_slot_with_id(num as integer) as integer
-	for slot as integer = 0 to ubound(sfx_slots)
-		with sfx_slots(slot)
-			if .used andalso .effectID = num then return slot
-		end with
-	next
-
-	return -1
-end function
-
 'Loads a sound into a slot, and marks its ID num (equal to OHR sfx number).
+'If that sound
 'Returns the slot number, or -1 if an error occurs.
 function sound_load overload(lump as Lump ptr, num as integer = -1) as integer
+	'Unimplemented
 	return -1
 end function
 
@@ -822,7 +794,7 @@ function sound_load overload(filename as string, num as integer = -1) as integer
 		return -1
 	end if
 
-	slot = next_free_slot()
+	slot = sound_next_free_slot()
 	'debuginfo "sound_load(" & filename & "," & num & ") in slot " & slot
 
 	if slot = -1 then
@@ -839,27 +811,29 @@ function sound_load overload(filename as string, num as integer = -1) as integer
 	return slot
 end function
 
-'Unloads a sound loaded in a slot. TAKES A CACHE SLOT, NOT AN SFX ID NUMBER!
+'Unloads a sound loaded in a slot.
 sub sound_unload(slot as integer)
-	with sfx_slots(slot)
-		if .used = NO then exit sub
-		Mix_FreeChunk(.buf)
-		.playing = NO
-		.used = NO
-		.effectID = 0
-		.buf = 0
-	end with
+	dim byref sfxslot as SoundEffectSlot ptr = sfx_slots(slot)
+	if sfxslot then
+		Mix_FreeChunk(sfxslot->buf)
+		delete sfxslot
+		sfxslot = NULL
+	end if
 end sub
 
 sub SDL_done_playing cdecl(byval channel as int32)
-	sfx_slots(channel).playing = NO
+	if sfx_slots(channel) then
+		sfx_slots(channel)->playing = NO
+	end if
 end sub
+
 
 '-- for debugging
 function sfx_slot_info (byval slot as integer) as string
-	with sfx_slots(slot)
-		return strprintf("slot %d used=%d sfx=%d playing=%d paused=%d buf=%x", _
-				 slot, .used, .effectID, .playing, Mix_Paused(slot), .buf)
+	if sfx_slots(slot) = NULL then return ""
+	with *sfx_slots(slot)
+		return strprintf("slot %d sfx=%d playing=%d paused=%d buf=%x", _
+				 slot, .effectID, .playing, Mix_Paused(slot), .buf)
 	end with
 end function
 

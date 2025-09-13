@@ -63,20 +63,8 @@ function sound_getvolume(slot as integer) as single
 	return 0.
 end function
 
-function sound_slot_with_id(num as integer) as integer
-	return -1
-end function
-
 function sound_playing(slot as integer) as bool
 	return NO
-end function
-
-function sound_slotdata(slot as integer) as SFXCommonData ptr
-	return NULL
-end function
-
-function sound_lastslot() as integer
-	return 0
 end function
 
 function sound_load overload(lump as Lump ptr, num as integer = -1) as integer

@@ -5,6 +5,7 @@
 'This is not an actual music backend; it is included as part of music_native and music_native2
 'It plays sound effects using Audiere.
 'music_native/native2 play non-MIDI music by treating them as sound effects.
+'music_audiere has no limit on number sound effects playing at once.
 
 #include "config.bi"
 #include "common.bi"
@@ -14,14 +15,13 @@
 #include "audwrap/audwrap.bi"
 
 
-TYPE SoundEffect EXTENDS SFXCommonData
-  used as bool        'Whether this entry contains valid data
+TYPE SoundEffectSlot EXTENDS SoundEffectSlotBase
   audiereID as integer 'audwrap slot number
   paused as bool
 END TYPE
 
-'music_audiere has no limit on number sound effects playing at once
-redim Shared SoundPool(10) as SoundEffect
+extern sfx_slots() as SoundEffectSlot ptr
+
 
 'Number of times sound_init called. Must be non-zero for anything but _init to work
 dim shared sound_init_count as integer
@@ -30,6 +30,7 @@ dim shared sound_init_count as integer
 sub sound_init
   sound_init_count += 1
   'debug "sound init = " & sound_init_count
+  ?"sound init " , sound_init_count
 
   if sound_init_count <> 1 then exit sub
 
@@ -37,12 +38,16 @@ sub sound_init
     exit sub ':(
   end if
 
+  redim sfx_slots(10)
+?"slots = " & ubound(sfx_slots)
+
+
   'music_init 'for safety (don't worry, they won't recurse (much))
 end sub
 
 sub sound_close
   sound_init_count -= 1
-  'debug "sound close = " & sound_init_count
+  debug "sound close = " & sound_init_count
 
   'trying to free something that's already freed... bad!
   if sound_init_count <> 0 then exit sub
@@ -56,16 +61,16 @@ sub sound_close
 end sub
 
 sub sound_reset
-  for slot as integer = 0 to ubound(SoundPool)
+  for slot as integer = 0 to ubound(sfx_slots)
     sound_unload(slot)
   next
 end sub
 
 sub sound_play(slot as integer, loopcount as integer, volume as single)
   'debug ">>sound_play(" & slot & ", " & loopcount & "," & volume & ")"
-  if slot < 0 or slot > ubound(SoundPool) then debug "sound_play: bad slot " & slot : exit sub
+  if sfx_slots(slot) = NULL then debug "sound_play: bad slot " & slot : exit sub
 
-  with SoundPool(slot)
+  with *sfx_slots(slot)
   'debug str(AudIsPlaying(.audiereID))
     if AudIsPlaying(.audiereID) <> 0 and .paused = NO then
       'debug "<<already playing"
@@ -84,9 +89,9 @@ end sub
 
 sub sound_pause(slot as integer)
   'debug ">>sound_pause(" & slot & ")"
-  if slot = -1 then exit sub
+  if sfx_slots(slot) = NULL then exit sub
 
-  with SoundPool(slot)
+  with *sfx_slots(slot)
     if sound_playing(slot) = 0 OR .paused then
       exit sub
     end if
@@ -98,65 +103,55 @@ end sub
 
 sub sound_stop(slot as integer)
   'debug ">>sound_stop(" + slot + ")"
-  if slot = -1 then exit sub
+  if sfx_slots(slot) = NULL then exit sub
 
-  with SoundPool(slot)
+  with *sfx_slots(slot)
     AudStop(.audiereID)
     .paused = NO
   end with
 end sub
 
 sub sound_setvolume(slot as integer, volume as single)
-  if slot = -1 then exit sub
-  AudSetVolume(SoundPool(slot).audiereID, bound(volume, 0., 1.))
+  if sfx_slots(slot) = NULL then exit sub
+  AudSetVolume(sfx_slots(slot)->audiereID, bound(volume, 0., 1.))
 end sub
 
 function sound_getvolume(slot as integer) as single
-  if slot = -1 then return 0.
-  return AudGetVolume(SoundPool(slot).audiereID)
+  if sfx_slots(slot) = NULL then return 0.
+  return AudGetVolume(sfx_slots(slot)->audiereID)
 end function
 
 sub sound_free(num as integer)
-  for slot as integer = 0 to ubound(SoundPool)
-    if SoundPool(slot).used and SoundPool(slot).effectID = num then
+  for slot as integer = 0 to ubound(sfx_slots)
+    if sfx_slots(slot) andalso sfx_slots(slot)->effectID = num then
       sound_unload(slot)
     end if
   next
 end sub
 
 function sound_playing(slot as integer) as bool
-  if slot = -1 then return NO
-  return AudIsPlaying(SoundPool(slot).audiereID) <> 0
-end function
-
-function sound_slotdata(slot as integer) as SFXCommonData ptr
-  if slot < 0 or slot > ubound(SoundPool) then return NULL
-  if not SoundPool(slot).used then return NULL
-  return @SoundPool(slot)
-end function
-
-function sound_lastslot() as integer
-  return ubound(SoundPool)
+  if sfx_slots(slot) = NULL then return NO
+  return AudIsPlaying(sfx_slots(slot)->audiereID) <> 0
 end function
 
 function sound_getlength(slot as integer) as double
-  if slot = -1 then return -1.0
-  return AudGetLength(SoundPool(slot).audiereID)
+  if sfx_slots(slot) = NULL then return -1.0
+  return AudGetLength(sfx_slots(slot)->audiereID)
 end function
 
 function sound_seekable(slot as integer) as bool
-  if slot = -1 then return NO
-  return AudIsSeekable(SoundPool(slot).audiereID) <> 0
+  if sfx_slots(slot) = NULL then return NO
+  return AudIsSeekable(sfx_slots(slot)->audiereID) <> 0
 end function
 
 function sound_gettime(slot as integer) as double
-  if slot = -1 then return -1.0
-  return AudGetPosition(SoundPool(slot).audiereID)
+  if sfx_slots(slot) = NULL then return -1.0
+  return AudGetPosition(sfx_slots(slot)->audiereID)
 end function
 
 function sound_settime(slot as integer, position as double) as bool
-  if slot = -1 then return NO
-  AudSetPosition(SoundPool(slot).audiereID, position)
+  if sfx_slots(slot) = NULL then return NO
+  AudSetPosition(sfx_slots(slot)->audiereID, position)
   return YES
 end function
 
@@ -164,65 +159,66 @@ end function
 '-------------------------------------------------------------------------------
 
 
-
+/'
 ' Returns the first sound slot with the given sound effect ID (num);
 ' if the sound is not loaded, returns -1.
 function sound_slot_with_id(num as integer) as integer
   dim slot as integer
-  for slot = 0 to ubound(SoundPool)
-    with SoundPool(slot)
+  for slot = 0 to ubound(sfx_slots)
+    if sfx_slots(slot) = NULL then continue for
+    with *sfx_slots(slot)
       'debug "slot = " & slot & ", used = " & .used & ", effID = " _
       '      & .effectID & ", sndID = " & .audiereID & ", AudIsValid = " & AudIsValidSound(.audiereID)
-      if .used andalso (.effectID = num or num = -1) andalso AudIsValidSound(.audiereID) then return slot
+      if (.effectID = num or num = -1) andalso AudIsValidSound(.audiereID) then return slot
     end with
   next
   return -1
 end function
+'/
 
 'Loads a sound into a slot, and marks its ID num (equal to OHR sfx number).
 'Returns the slot number, or -1 if an error occurs.
-function sound_load overload(lump as Lump ptr, num as integer = -1) as integer
+function sound_load overload(lump as Lump ptr, mode as SoundPlayMode, num as integer = -1) as integer
   return -1
 end function
 
-function sound_load(fname as string, num as integer = -1) as integer
+function sound_load(fname as string /', mode as SoundPlayMode'/, num as integer = -1) as integer
   ' 1. allocate space in the sound pool
   ' 2. load the sound
 
   dim slot as integer
 
   'iterate through the pool
-  for slot = 0 to ubound(SoundPool)
-    if SoundPool(slot).used = NO then exit for
+  for slot = 0 to ubound(sfx_slots)
+    if sfx_slots(slot) = NULL then exit for
   next
 
-  'otherwise, slot will be left =ing SoundPool size + 1
-  if slot = ubound(SoundPool) + 1 then
+  'otherwise, slot will be left =ing sfx_slots size + 1
+  if slot = ubound(sfx_slots) + 1 then
     'Grow the sound pool
-    redim preserve SoundPool(ubound(SoundPool) * 1.5)
+?"growing " & ubound(sfx_slots)
+    redim preserve sfx_slots(ubound(sfx_slots) * 1.5)
   end if
 
   'ok, now slot points at a valid slot. goody.
 
   ' 2. load the sound
 
-  'loadWaveFileToBuffer find_sfx_lump(num), @derbuffer
-
   dim extn as string = justextension(fname)
   dim audslot as integer  'Audiere sound number
   log_openfile fname
-  if extn = "mp3" or extn = "ogg" then 'intended for streaming
-    audslot = AudLoadSound(fname, YES)  'streaming
-  else
+'  if extn = "mp3" or extn = "ogg" then
+    audslot = AudLoadSound(fname, YES)  'Streaming
+/'  else
     audslot = AudLoadSound(fname, NO)  'Don't stream
   end if
-  'debug "slot is " & audslot
+'/
 
   if audslot = -1 then return -1 'crap
 
   'if we got this far, yes!
-  with SoundPool(slot)
-    .used = YES
+  sfx_slots(slot) = new SoundEffectSlot
+  with *sfx_slots(slot)
     .audiereID = audslot
     .effectID = num
   end with
@@ -232,12 +228,10 @@ end function
 
 'Unloads a sound loaded in a slot. TAKES A SLOT, NOT AN SFX NUMBER!
 sub sound_unload(slot as integer)
-  with SoundPool(slot)
-    if not .used then exit sub
-    if AudIsValidSound(.audiereID) then AudUnloadSound(.audiereID)
-    .used = NO
-    .paused = NO
-    .audiereID = 0
-    .effectID = 0
-  end with
+  dim byref sfxslot as SoundEffectSlot ptr = sfx_slots(slot)
+  if sfxslot then
+    if AudIsValidSound(sfxslot->audiereID) then AudUnloadSound(sfxslot->audiereID)
+    delete sfxslot
+    sfxslot = NULL
+  end if
 end sub

@@ -50,32 +50,42 @@ declare function music_getlength() as double
 '==========================================================================================
 '                                            SFX
 
-' Data tracked per playing sfx slot by all music backends
-TYPE SFXCommonData
-	effectID as integer        'OHR sound effect number
+' Data tracked per playing sfx slot by all music backends.
+' The backend will define a SoundEffectSlot type that extends this.
+type SoundEffectSlotBase
+	effectID as integer        'OHR sound effect number (if any; not used for external files)
 	original_volume as single  'The volume without the global volume multiplied in
-END TYPE
+end type
 
+' Unused slots contain a NULL pointer.
+'extern sfx_slots() as SoundEffectSlotBase ptr
+
+'Allocates (dims) sfx_slots to an initial default
 declare sub sound_init()
+
 declare sub sound_close()
 declare sub sound_reset()
+
+'declare function sound_next_free_slot() as integer
 
 'Returns combination of MusicFormatEnum bits. SFX file formats which we can attempt to play.
 '(Also used to exclude a format if we could play it, but shouldn't because it's broken)
 declare function sound_supported_formats() as integer
 
+' What sound_play should do if a sound effect is already playing:
+enum SoundPlayMode explicit
+	Overlay   'Start another instance
+	Restart   'Replace the existing copy
+	OnceOnly  'Do nothing
+end enum
+
 ' loopcount is N to play N+1 times, -1 to loop forever.
 declare sub sound_play(slot as integer, loopcount as integer, volume as single = 1.0)
 declare sub sound_pause(slot as integer)
 declare sub sound_stop(slot as integer)
+declare function sound_playing(slot as integer) as bool
 declare sub sound_setvolume(slot as integer, volume as single)
 declare function sound_getvolume(slot as integer) as single
-
-' Returns the first sound slot with the given sound effect ID (num);
-' if the sound is not loaded, returns -1.
-declare function sound_slot_with_id(num as integer) as integer
-
-declare function sound_playing(slot as integer) as bool
 
 ' Loads a sound into a slot, and marks its ID num (equal to OHR sfx number).
 ' Returns the slot number, or -1 if an error occurs.
@@ -85,9 +95,6 @@ declare function sound_load overload(filename as string, num as integer = -1) as
 declare sub sound_unload(slot as integer)
 ' Unload all sound effects slots with a certain ID
 declare sub sound_free(num as integer)
-
-declare function sound_slotdata(slot as integer) as SFXCommonData ptr
-declare function sound_lastslot() as integer
 
 ' The following are only implemented by music_audiere and used internally by music_native/native2, for now.
 declare function sound_getlength(slot as integer) as double

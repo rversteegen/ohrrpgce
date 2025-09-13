@@ -815,7 +815,9 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			PrepareNextBeat 0
 		else
 			sound_song = sound_load(songname)
-			sound_play(sound_song, -1, music_vol)
+			if sound_song >= 0 then
+				sound_play(sound_song, -1, music_vol)
+			end if
 		end if
 	end if
 end sub

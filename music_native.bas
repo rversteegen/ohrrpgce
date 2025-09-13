@@ -291,7 +291,7 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			midi_paused = NO
 		end if
 		'debug "sound_song = " & sound_song
-		if sound_song <> -1 then
+		if sound_song >= 0 then
 			sound_stop(sound_song)
 			sound_unload(sound_song)
 		end if
@@ -311,7 +311,9 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			playback_thread = threadcreate(@PlayBackThread,0)
 		else
 			sound_song = sound_load(songname)
-			sound_play(sound_song, -1, music_vol)
+			if sound_song >= 0 then
+				sound_play(sound_song, -1, music_vol)
+			end if
 		end if
 	end if
 end sub

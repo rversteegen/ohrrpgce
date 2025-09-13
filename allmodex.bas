@@ -187,6 +187,9 @@ dim key2text(3,53) as zstring*2 => { _
 ' *, -, + are missing, since their scancodes aren't contiguous with the others.
 dim shared numpad2text(...) as zstring*2 => {"7","8","9","","4","5","6","","1","2","3","0","."}
 
+extern sfx_slots() as SoundEffectSlotBase ptr
+dim sfx_slots() as SoundEffectSlotBase ptr
+
 ' Frame type table
 DEFINE_VECTOR_OF_TYPE_COMMON(Frame ptr, Frame_ptr, @_frame_copyctor, @frame_unload)
 DEFINE_VECTOR_OF_POD_TYPE(Animation ptr, Animation_ptr)
@@ -1829,6 +1832,7 @@ end sub
 
 sub closemusic ()
 	debuginfo "Closing music backend..."
+? "Closing music backend..."
 	music_close
 	sound_close
 	debuginfo "...done"
@@ -1886,7 +1890,7 @@ sub playsfx (num as integer, loopcount as integer = 0, volume_mult as single = 1
 	end if
 	'debug "playsfx volume_mult=" & volume_mult & " global_sfx_volume " & global_sfx_volume
 	sound_play(slot, loopcount, volume_mult * global_sfx_volume)
-	IF_PTR(sound_slotdata(slot))->original_volume = volume_mult
+	sfx_slots(slot)->original_volume = volume_mult
 	main_timer.switch(prev_subtimer)
 end sub
 
@@ -1929,13 +1933,12 @@ end function
 '/
 
 ' Set the volume of a sfx to some multiple of its default volume,
-' which is the global sfx volume * the volume adjustment defined in Custom
-sub set_sfx_volume (num as integer, volume_mult as single)
-	dim slot as integer
-	slot = sound_slot_with_id(num)
-	if slot = -1 then exit sub
+' which is the global sfx volume * the volume adjustment defined in Custom.
+' Meant to be legal on a sound that isn't playing.
+sub set_sfx_volume (slot as integer, volume_mult as single)
+	if slot < 0 orelse slot > ubound(sfx_slots) then exit sub
 	sound_setvolume(slot, volume_mult * global_sfx_volume)
-	IF_PTR(sound_slotdata(slot))->original_volume = volume_mult
+	sfx_slots(slot)->original_volume = volume_mult
 end sub
 
 ' Set the global volume multiplier for sound effects.
@@ -1945,13 +1948,14 @@ end sub
 sub set_global_sfx_volume (volume as single)
 	global_sfx_volume = volume
 	' Update all SFX
-	for slot as integer = 0 to sound_lastslot()
-		dim slotdata as SFXCommonData ptr
-		slotdata = sound_slotdata(slot)
-		if slotdata = 0 then continue for
-		'debug "set_global_sfx_volume: refresh volume for " _
-		'      & slotdata->effectID & " to " & (slotdata->original_volume * global_sfx_volume)
-		sound_setvolume slot, slotdata->original_volume * global_sfx_volume
+	for slot as integer = 0 to ubound(sfx_slots)
+		if sfx_slots(slot) = NULL then continue for
+		with *sfx_slots(slot)
+			'if .playing = NO then continue for
+			'debug "set_global_sfx_volume: refresh volume for " _
+			'      & .effectID & " to " & (.original_volume * global_sfx_volume)
+			sound_setvolume slot, .original_volume * global_sfx_volume
+		end with
 	next
 end sub
 
@@ -1966,9 +1970,23 @@ end sub
 
 function sfxisplaying(num as integer) as bool
 	dim slot as integer
-	slot = sound_slot_with_id(num)
-	if slot = -1 then return NO
-	return sound_playing(slot)
+	for slot as integer = 0 to ubound(sfx_slots)
+		if sfx_slots(slot) andalso sfx_slots(slot)->effectID = num then
+			return YES
+		end if
+	next
+	return NO
+end function
+
+' Returns the first sound slot with the given sound effect ID (num);
+' if the sound is not loaded, returns -1.
+function sound_slot_with_id(num as integer) as integer
+	for slot as integer = 0 to ubound(sfx_slots)
+		if sfx_slots(slot) andalso sfx_slots(slot)->effectID = num then
+			return slot
+		end if
+	next
+	return -1
 end function
 
 

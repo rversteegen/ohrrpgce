@@ -438,7 +438,7 @@ SUB SfxPreviewer.load_preview(filepath as string, br as BrowseMenuState)
  unload_preview
  'not disabled because of size
  IF legal_audio_file(filepath, sound_supported_formats()) THEN
-  snd = sound_load(filepath)
+  snd = sound_load(filepath)', SoundPlayMode.Restart)
   IF snd > -1 THEN sound_play(snd, 0, get_global_sfx_volume)
  ELSE
   br.alert = "Cannot preview this file type"
