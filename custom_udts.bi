@@ -181,7 +181,6 @@ TYPE TileEditState
   holdpos as XYPair
   cutfrom as integer
   cuttileset as integer
-  canpaste as integer
   delay as integer
   readjust as integer
   adjustpos as XYPair

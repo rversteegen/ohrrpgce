@@ -44,9 +44,9 @@ DECLARE SUB readundoblock (state as TileEditState)
 DECLARE SUB fliptile (ts as TileEditState)
 DECLARE SUB scrolltile (ts as TileEditState, byval shiftx as integer, byval shifty as integer)
 DECLARE SUB clicktile (ts as TileEditState, newkeypress as integer, toolinfo() as ToolInfoType, byref clone as TileCloneBuffer)
-DECLARE SUB tilecopy (cutnpaste() as integer, ts as TileEditState)
-DECLARE SUB tilepaste (cutnpaste() as integer, ts as TileEditState)
-DECLARE SUB tiletranspaste (cutnpaste() as integer, ts as TileEditState)
+DECLARE SUB tilecopy (byref copybuffer as Frame ptr, ts as TileEditState)
+DECLARE SUB tilepaste (byref copybuffer as Frame ptr, ts as TileEditState)
+DECLARE SUB tiletranspaste (byref copybuffer as Frame ptr, ts as TileEditState)
 DECLARE SUB copymapblock (sx as integer, sy as integer, sp as integer, dx as integer, dy as integer, dp as integer)
 DECLARE SUB tileedit_set_tool (ts as TileEditState, toolinfo() as ToolInfoType, byval toolnum as integer)
 DECLARE SUB tileedit_show_neighbouring_tiles(byref ts as TileEditState, byval bgcolor as bgType, byval chequer_scroll as integer)
@@ -1331,8 +1331,7 @@ END SUB
 'tmode = 2: cut tile from backdrop
 'tmode = 3: default tile passability
 SUB picktiletoedit (byref tmode as integer, byval tilesetnum as integer, mapfile as string, bgcolor as bgType)
-STATIC cutnpaste(19, 19) as integer
-STATIC oldpaste as integer
+STATIC copybuffer as Frame ptr
 DIM ts as TileEditState
 DIM area(25) as MouseArea
 DIM mouse as MouseInfo
@@ -1342,7 +1341,6 @@ DIM chequer_scroll as integer
 DIM tog as integer
 ts.gotmouse = havemouse()
 hidemousecursor
-ts.canpaste = oldpaste
 ts.drawcursor = 1
 ts.airsize = 5
 ts.mist = 4
@@ -1488,9 +1486,9 @@ DO
    END IF
   END IF
  END IF
- IF copy_keychord() THEN tilecopy cutnpaste(), ts
- IF paste_keychord() THEN tilepaste cutnpaste(), ts
- IF (keyval(scCtrl) > 0 AND keyval(scT) > 1) THEN tiletranspaste cutnpaste(), ts
+ IF copy_keychord() THEN tilecopy copybuffer, ts
+ IF paste_keychord() THEN tilepaste copybuffer, ts
+ IF (keyval(scCtrl) > 0 AND keyval(scT) > 1) THEN tiletranspaste copybuffer, ts
  ts.tilex = bnum AND 15
  ts.tiley = bnum \ 16
  IF enter_or_space() OR mouse_click THEN
@@ -1564,7 +1562,6 @@ IF tmode = 3 THEN
  savepasdefaults ts.defaultwalls, tilesetnum
 END IF
 v_free ts.defaultwalls
-oldpaste = ts.canpaste
 frame_unload @ts.drawframe
 showmousecursor
 END SUB
@@ -2521,33 +2518,24 @@ IF mouse.active THEN
 END IF
 END SUB
 
-SUB tilecopy (cutnpaste() as integer, ts as TileEditState)
- FOR i as integer = 0 TO 19
-  FOR j as integer = 0 TO 19
-   cutnpaste(i, j) = readpixel(ts.tilex * 20 + i, ts.tiley * 20 + j, 3)
-  NEXT j
- NEXT i
- ts.canpaste = 1
+SUB tilecopy (byref copybuffer as Frame ptr, ts as TileEditState)
+ frame_unload @copybuffer
+ ' DIM view as Frame ptr = frame_new_view(vpages(3), ts.tilex * 20, ts.tiley * 20, 20, 20)
+ ' copybuffer = frame_duplicate(view)
+ ' frame_unload @view
+ copybuffer = frame_resized(vpages(3), 20, 20, -ts.tilex * 20, -ts.tiley * 20)
 END SUB
 
-SUB tilepaste (cutnpaste() as integer, ts as TileEditState)
- IF ts.canpaste THEN
-  FOR i as integer = 0 TO 19
-   FOR j as integer = 0 TO 19
-    putpixel ts.tilex * 20 + i, ts.tiley * 20 + j, cutnpaste(i, j), 3
-   NEXT j
-  NEXT i
+SUB tilepaste (byref copybuffer as Frame ptr, ts as TileEditState)
+ IF copybuffer THEN
+  frame_draw copybuffer, , ts.tilex * 20, ts.tiley * 20, NO, vpages(3)
   IF channel_to_Game THEN storemxs game + ".til", ts.tilesetnum, vpages(3)
  END IF 
 END SUB
 
-SUB tiletranspaste (cutnpaste() as integer, ts as TileEditState)
- IF ts.canpaste THEN
-  FOR i as integer = 0 TO 19
-   FOR j as integer = 0 TO 19
-    IF cutnpaste(i, j) THEN putpixel ts.tilex * 20 + i, ts.tiley * 20 + j, cutnpaste(i, j), 3
-   NEXT j
-  NEXT i
+SUB tiletranspaste (byref copybuffer as Frame ptr, ts as TileEditState)
+ IF copybuffer THEN
+  frame_draw copybuffer, , ts.tilex * 20, ts.tiley * 20, YES, vpages(3)
   IF channel_to_Game THEN storemxs game + ".til", ts.tilesetnum, vpages(3)
  END IF
 END SUB
