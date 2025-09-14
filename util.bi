@@ -836,7 +836,7 @@ END UNION
 #DEFINE XYWH(x, y, w, h)  TYPE<RectType>(x, y, w, h)   'Just TYPE will nearly always do too.
 'If you get an error like "Expected ')', found '.'" when using the XY_WH macro
 'in a SUB's argument list, enclose the arg list in brackets as a workaround.
-'This is an FB bug: https://sourceforge.net/p/fbc/bugs/922/
+'This is an FB bug (fixed in FB 1.10): https://sourceforge.net/p/fbc/bugs/922/
 #DEFINE XY_WH(xy, wh)  TYPE<RectType>((xy).x, (xy).y, (wh).w, (wh).h)
 
 DECLARE OPERATOR = (lhs as RectType, rhs as RectType) as bool

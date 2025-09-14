@@ -102,8 +102,13 @@ TYPE SpriteEditState
   sprite as Frame ptr   'The current edit state. Is a member of .spriteset. Doesn't count as a reference
   framename as string
   zoom as integer
-  x as integer
-  y as integer
+  UNION
+    pos as XYPair       'Cursor position in pixels
+    TYPE
+      x as integer
+      y as integer
+    END TYPE
+  END UNION
   lastcpos as XYPair '.x/.y (cursor position) last tick
   lastpos as XYPair  'something totally different
   fastmovestep as integer 'How fast to move when holding Shift
@@ -148,21 +153,29 @@ TYPE SpriteEditState
 END TYPE
 
 TYPE TileCloneBuffer
-  exists as integer
-  buf(19,19) as UBYTE
-  size as XYPair
+  buf as Frame ptr
   offset as XYPair
 END TYPE
 
 TYPE TileEditState
   tilesetnum as integer
   drawframe as Frame Ptr  '--Don't write to this! It's for display only
-  x as integer
-  y as integer
+  UNION
+    pos as XYPair
+    TYPE
+      x as integer
+      y as integer
+    END TYPE
+  END UNION
   lastcpos as XYPair  '.x/.y (cursor position) last tick
   fastmovestep as integer   'How fast to move when holding Shift
-  tilex as integer  'on the tileset (measured in tiles)
-  tiley as integer
+  UNION
+    tilepos as XYPair
+    TYPE
+      tilex as integer  'on the tileset (measured in tiles)
+      tiley as integer
+    END TYPE
+  END UNION
   gotmouse as bool
   drawcursor as integer
   preview_content as integer   'tile preview mode (0=neighbours/1=tiled)

@@ -72,7 +72,7 @@ DECLARE SUB spriteedit_draw_icon(ss as SpriteEditState, icon as string, byval ar
 DECLARE SUB spriteedit_draw_palette(pal16 as Palette16 ptr, x as integer, y as integer, page as integer)
 DECLARE SUB spriteedit_draw_sprite_area(ss as SpriteEditState, sprite as Frame ptr, pal as Palette16 ptr, page as integer)
 DECLARE SUB spriteedit_display(ss as SpriteEditState)
-DECLARE SUB spriteedit_scroll (ss as SpriteEditState, byval shiftx as integer, byval shifty as integer)
+DECLARE SUB spriteedit_scroll (ss as SpriteEditState, byval shift as XYPair)
 DECLARE SUB spriteedit_reset_tool(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_strait_line(byref ss as SpriteEditState)
 DECLARE SUB spriteedit_draw_square(byref ss as SpriteEditState)
@@ -1674,7 +1674,7 @@ overlaypal = palette16_new()
 DIM chequer_scroll as integer = 0
 DIM tog as integer = 0
 DIM tick as integer = 0
-ts.lastcpos = XY(ts.x, ts.y)
+ts.lastcpos = ts.pos
 ts.justpainted = 0
 ts.didscroll = NO
 ts.undo = 0
@@ -1913,7 +1913,7 @@ DO
  IF keyval(scBackspace) > 1 OR keyval(scLeftBracket) > 1 OR keyval(scRightBracket) > 1 THEN fliptile ts
  DIM cy as integer = (ts.curcolor \ 16) MOD 8
  DIM cx as integer = (ts.curcolor AND 15) + (ts.curcolor \ 128) * 16
- ts.lastcpos = XY(ts.x, ts.y)
+ ts.lastcpos = ts.pos
 
  '--Draw screen (Some of the editor is predrawn to page 2)
  clearpage dpage
@@ -1949,24 +1949,33 @@ DO
   END IF
  END IF
  IF ts.tool = clone_tool AND tog = 0 THEN
-  IF clone.exists = YES THEN
+  IF clone.buf THEN
    overlay_use_palette = NO  'Don't use the palette, so colour 0 is drawn transparently
-   FOR i as integer = 0 TO clone.size.y - 1
-    FOR j as integer = 0 TO clone.size.x - 1
-     spot.x = ts.x - clone.offset.x + j
-     spot.y = ts.y - clone.offset.y + i
-     IF ts.readjust = YES THEN
-      spot.x -= (ts.x - ts.adjustpos.x)
-      spot.y -= (ts.y - ts.adjustpos.y)
-     END IF
-     putpixel overlay, spot.x, spot.y, clone.buf(j, i)
-    NEXT j
-   NEXT i
+
+   IF ts.readjust THEN
+    spot = ts.adjustpos
+   ELSE
+    spot = ts.pos - clone.offset
+   END IF
+
+   frame_draw clone.buf, NULL, spot.x, spot.y, NO, overlay
+
+   ' FOR i as integer = 0 TO clone.buf.size.y - 1
+   '  FOR j as integer = 0 TO clone.size.x - 1
+   '   spot.x = ts.x - clone.offset.x + j
+   '   spot.y = ts.y - clone.offset.y + i
+   '   IF ts.readjust = YES THEN
+   '    spot.x -= (ts.x - ts.adjustpos.x)
+   '    spot.y -= (ts.y - ts.adjustpos.y)
+   '   END IF
+   '   putpixel overlay, spot.x, spot.y, clone.buf(j, i)
+   '  NEXT j
+   ' NEXT i
   END IF
  END IF
  IF ts.hold = YES THEN
   DIM select_rect as RectType
-  corners_to_rect_inclusive Type(ts.x, ts.y), ts.holdpos, select_rect
+  corners_to_rect_inclusive ts.pos, ts.holdpos, select_rect
   SELECT CASE ts.tool
    CASE box_tool
     rectangle overlay, select_rect.x, select_rect.y, select_rect.wide, select_rect.high, 1
@@ -2091,8 +2100,7 @@ SUB tileedit_show_neighbouring_tiles(byref ts as TileEditState, byval bgcolor as
     CONTINUE FOR
    END IF
    
-   temp_tilepos.x = (ts.tilex + column) * tilesize
-   temp_tilepos.y = (ts.tiley + row) * tilesize
+   temp_tilepos = (ts.tilepos + XY(column, row)) * tilesize
    
    IF temp_tilepos.x < 0 THEN temp_tilepos.x = tssize.x*tilesize - tilesize
    IF temp_tilepos.y < 0 THEN temp_tilepos.y = tssize.y*tilesize - tilesize
@@ -2134,27 +2142,26 @@ SELECT CASE ts.tool
    IF ts.hold = YES THEN
     writeundoblock ts
     DIM select_rect as RectType
-    corners_to_rect_inclusive Type(ts.x, ts.y), ts.holdpos, select_rect
+    corners_to_rect_inclusive ts.pos, ts.holdpos, select_rect
     rectangle ts.tilex * 20 + select_rect.x, ts.tiley * 20 + select_rect.y, select_rect.wide, select_rect.high, ts.curcolor, 3
     refreshtileedit ts
     ts.hold = NO
    ELSE
     ts.hold = YES
-    ts.holdpos.x = ts.x
-    ts.holdpos.y = ts.y
+    ts.holdpos = ts.pos
    END IF
   END IF
  CASE line_tool
   IF newkeypress THEN
    IF ts.hold = YES THEN
     writeundoblock ts
-    drawline ts.tilex * 20 + ts.x, ts.tiley * 20 + ts.y, ts.tilex * 20 + ts.holdpos.x, ts.tiley * 20 + ts.holdpos.y, ts.curcolor, 3
+    DIM as XYPair start = ts.tilepos * 20 + ts.pos, finish = start + ts.holdpos
+    drawline start.x, start.y, finish.x, finish.y, ts.curcolor, 3
     refreshtileedit ts
     ts.hold = NO
    ELSE
     ts.hold = YES
-    ts.holdpos.x = ts.x
-    ts.holdpos.y = ts.y
+    ts.holdpos = ts.pos
    END IF
   END IF
  CASE fill_tool
@@ -2204,8 +2211,7 @@ SELECT CASE ts.tool
     ts.hold = NO
    ELSE
     ts.hold = YES
-    ts.holdpos.x = ts.x
-    ts.holdpos.y = ts.y
+    ts.holdpos = ts.pos
    END IF
   END IF
  CASE airbrush_tool
@@ -2231,7 +2237,13 @@ SELECT CASE ts.tool
     IF (keyval(scShift) OR keyval(scCtrl)) > 0 THEN ts.alternate_mode = YES
     IF ts.alternate_mode THEN writeundoblock ts
     DIM select_rect as RectType
-    corners_to_rect_inclusive Type(ts.x, ts.y), ts.holdpos, select_rect
+    corners_to_rect_inclusive ts.pos, ts.holdpos, select_rect
+
+    DIM pos as XYPair = (ts.tilepos * 20 + select_rect.xy)
+
+    frame_assign @clone.buf, frame_resized(vpages(3), select_rect.wide, select_rect.high, -pos.x, -pos.y)
+
+    /'
     clone.size.x = select_rect.wide
     clone.size.y = select_rect.high
     FOR i as integer = 0 TO clone.size.y - 1
@@ -2241,42 +2253,50 @@ SELECT CASE ts.tool
       IF ts.alternate_mode THEN putpixel(pos.x, pos.y, 0, 3)
      NEXT j
     NEXT i
-    clone.offset.x = clone.size.x \ 2
-    clone.offset.y = clone.size.y \ 2
+    '/
+
+    'Cut mode: delete source
+    IF ts.alternate_mode THEN rectangle(vpages(3), XY_WH(ts.pos, select_rect.size), 0)
+
+    clone.offset = clone.buf->size \ 2
+    'clone.offset.y = clone.size.y \ 2
     ts.readjust = NO
     ts.adjustpos.x = 0
     ts.adjustpos.y = 0
-    clone.exists = YES
+    'clone.exists = YES
     refreshtileedit ts
     ' auto-select the clone tool after marking
     tileedit_set_tool ts, toolinfo(), clone_tool
    ELSE
     ts.hold = YES
-    ts.holdpos.x = ts.x
-    ts.holdpos.y = ts.y
+    ts.holdpos = ts.pos
    END IF
   END IF
  CASE clone_tool
   IF newkeypress THEN
    IF ts.justpainted = 0 THEN writeundoblock ts
    ts.justpainted = 3
-   IF clone.exists = YES THEN
-    FOR i as integer = 0 TO clone.size.y - 1
-     FOR j as integer = 0 TO clone.size.x - 1
-      spot.x = ts.x - clone.offset.x + j + ts.adjustpos.x
-      spot.y = ts.y - clone.offset.y + i + ts.adjustpos.y
-      IF spot.x >= 0 AND spot.x <= 19 AND spot.y >= 0 AND spot.y <= 19 AND clone.buf(j, i) > 0 THEN
-       putpixel ts.tilex * 20 + spot.x, ts.tiley * 20 + spot.y, clone.buf(j, i), 3
-      END IF
-     NEXT j
-    NEXT i
+   IF clone.buf THEN
+    setclip ts.tilex * 20, ts.tiley * 20, ts.tilex * 20 + 19, ts.tiley * 20 + 19, vpages(3)
+    spot = ts.tilepos * 20 + ts.pos - clone.offset + ts.adjustpos
+    frame_draw clone.buf, , spot.x, spot.y, YES, vpages(3)
+    setclip
+
+    ' FOR i as integer = 0 TO clone.size.y - 1
+    '  FOR j as integer = 0 TO clone.size.x - 1
+    '   spot.x = ts.x - clone.offset.x + j + ts.adjustpos.x
+    '   spot.y = ts.y - clone.offset.y + i + ts.adjustpos.y
+    '   IF spot.x >= 0 AND spot.x <= 19 AND spot.y >= 0 AND spot.y <= 19 AND clone.buf(j, i) > 0 THEN
+    '    putpixel ts.tilex * 20 + spot.x, ts.tiley * 20 + spot.y, clone.buf(j, i), 3
+    '   END IF
+    '  NEXT j
+    ' NEXT i
     refreshtileedit ts
    ELSE
     'if no clone buffer, switch to mark tool
     tileedit_set_tool ts, toolinfo(), mark_tool
     ts.hold = YES
-    ts.holdpos.x = ts.x
-    ts.holdpos.y = ts.y
+    ts.holdpos = ts.pos
     IF readmouse.buttons AND mouseRight THEN ts.alternate_mode = YES
    END IF
   END IF
@@ -2710,7 +2730,7 @@ SUB spriteedit_display(ss as SpriteEditState)
  spriteedit_draw_palette ss.palette, 246, 109, dpage
 
  DIM select_rect as RectType
- corners_to_rect_inclusive Type(ss.x, ss.y), ss.holdpos, select_rect
+ corners_to_rect_inclusive ss.pos, ss.holdpos, select_rect
 
  IF ss.hold = YES AND ss.tool = box_tool THEN
   rectangle 4 + select_rect.x * ss.zoom, 1 + select_rect.y * ss.zoom, select_rect.wide * ss.zoom, select_rect.high * ss.zoom, ss.curcolor, dpage
@@ -3631,8 +3651,7 @@ SUB sprite_editor_initialise(byref ss as SpriteEditState)
   'Set .sprite and .framename
   spriteedit_change_frame ss, .framenum
   .delay = 10
-  .x = ss_save.cursor.x
-  .y = ss_save.cursor.y
+  .pos = ss_save.cursor
   .lastpos.x = -1
   .lastpos.y = -1
   .zone.x = 0
@@ -3796,7 +3815,7 @@ SUB sprite_editor_cleanup(byref ss as SpriteEditState)
  NEXT
 
  WITH ss_save
-  .cursor = XY(ss.x, ss.y)
+  .cursor = ss.pos
   .tool = ss.tool
   .airsize = ss.airsize
   .mist = ss.mist
@@ -3941,15 +3960,13 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   END WITH
   IF fixmouse THEN
    IF ss.zonenum = 1 THEN
-    ss.zone.x = ss.x * ss.zoom + (ss.zoom \ 2)
-    ss.zone.y = ss.y * ss.zoom + (ss.zoom \ 2)
+    ss.zone = ss.pos * ss.zoom + (ss.zoom \ 2)
     ss.mouse.x = ss.area(0).x + ss.zone.x 
     ss.mouse.y = ss.area(0).y + ss.zone.y
     movemouse ss.mouse.x, ss.mouse.y
    END IF 
    IF ss.zonenum = 14 THEN
-    ss.zone.x = ss.x
-    ss.zone.y = ss.y
+    ss.zone = ss.pos
     ss.mouse.x = ss.area(13).x + ss.zone.x 
     ss.mouse.y = ss.area(13).y + ss.zone.y
     movemouse ss.mouse.x, ss.mouse.y
@@ -3958,8 +3975,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
  END IF
  ' Mouse over main sprite view
  IF ss.zonenum = 1 THEN
-  ss.x = ss.zone.x \ ss.zoom
-  ss.y = ss.zone.y \ ss.zoom
+  ss.pos = ss.zone \ ss.zoom
  END IF
 
  IF keyval(scAlt) = 0 AND keyval(scShift) = 0 THEN
@@ -4032,8 +4048,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
 
  ' Mouse over thumbnail view
  IF ss.zonenum = 14 THEN
-  ss.x = ss.zone.x
-  ss.y = ss.zone.y
+  ss.pos = ss.zone
  END IF
 
  DIM usetool as bool
@@ -4059,8 +4074,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
       ss.hold = NO: spriteedit_draw_square(ss)
      ELSE
       ss.hold = YES
-      ss.holdpos.x = ss.x
-      ss.holdpos.y = ss.y
+      ss.holdpos = ss.pos
      END IF
     END IF
    CASE line_tool
@@ -4070,8 +4084,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
       spriteedit_strait_line(ss)
      ELSE
       ss.hold = YES
-      ss.holdpos.x = ss.x
-      ss.holdpos.y = ss.y
+      ss.holdpos = ss.pos
      END IF
     END IF
    CASE fill_tool
@@ -4086,8 +4099,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
     IF ss.mouse.clicks > 0 OR keyval(scSpace) > 1 THEN
      IF ss.hold = NO THEN
       '--start oval
-      ss.holdpos.x = ss.x
-      ss.holdpos.y = ss.y
+      ss.holdpos = ss.pos
       ss.ellip_angle = 0.0
       ss.ellip_minoraxis = 0.0
       ss.radius = 0.0
@@ -4105,20 +4117,18 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
      IF ss.hold THEN
       ss.hold = NO
       DIM rect as RectType
-      rect.xy = XY(small(ss.x, ss.holdpos.x), small(ss.y, ss.holdpos.y))
-      rect.wh = XY(ABS(ss.x - ss.holdpos.x) + 1, ABS(ss.y - ss.holdpos.y) + 1)
+      rect.xy = small(ss.pos, ss.holdpos)
+      rect.wh = ABS(ss.pos - ss.holdpos) + 1
       frame_assign @ss_save.clone_brush, frame_resized(ss.sprite, rect.w, rect.h, -rect.x, -rect.y)
       IF alternate THEN
        writeundospr ss
        rectangle ss.sprite, rect, 0
       END IF
-      ss_save.clonepos.x = ss_save.clone_brush->w \ 2
-      ss_save.clonepos.y = ss_save.clone_brush->h \ 2
+      ss_save.clonepos = ss_save.clone_brush->size \ 2
       ss.tool = clone_tool ' auto-select the clone tool after marking
      ELSE
       ss.hold = YES
-      ss.holdpos.x = ss.x
-      ss.holdpos.y = ss.y
+      ss.holdpos = ss.pos
      END IF
     END IF
    CASE clone_tool
@@ -4128,14 +4138,13 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
        writeundospr ss
       END IF
       spriteedit_clip ss
-      frame_draw ss_save.clone_brush, , ss.x - ss_save.clonepos.x, ss.y - ss_save.clonepos.y, , ss.sprite
-      ss.lastpos.x = ss.x
-      ss.lastpos.y = ss.y
+      DIM spot as XYPair = ss.pos - ss_save.clonepos
+      frame_draw ss_save.clone_brush, , spot.x, spot.y, , ss.sprite
+      ss.lastpos = ss.pos
      ELSE
       ss.tool = mark_tool ' select selection tool if clone is not available
       ss.hold = YES
-      ss.holdpos.x = ss.x
-      ss.holdpos.y = ss.y
+      ss.holdpos = ss.pos
      END IF
     END IF
   END SELECT
@@ -4177,16 +4186,14 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   IF ss.readjust THEN
    IF keyval(scEnter) = 0 AND ss.mouse.buttons = 0 THEN ' click or key release
     ss.readjust = NO
-    ss_save.clonepos.x += (ss.x - ss.adjustpos.x)
-    ss_save.clonepos.y += (ss.y - ss.adjustpos.y)
+    ss_save.clonepos += (ss.pos - ss.adjustpos)
     ss.adjustpos.x = 0
     ss.adjustpos.y = 0
    END IF
   ELSE
    IF (keyval(scEnter) AND 5) OR ss.mouse.buttons = mouseRight THEN
     ss.readjust = YES
-    ss.adjustpos.x = ss.x
-    ss.adjustpos.y = ss.y
+    ss.adjustpos = ss.pos
    END IF
   END IF
   ' clone buffer rotation
@@ -4218,7 +4225,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   'Handle scrolling by dragging the mouse
   'Did this drag start inside the sprite box? If not, ignore
   IF ss.mouse.dragging ANDALSO mouseover(ss.mouse.clickstart.x, ss.mouse.clickstart.y, 0, 0, 0, ss.area()) = ss.zonenum THEN
-   spriteedit_scroll ss, ss.x - ss.lastcpos.x, ss.y - ss.lastcpos.y
+   spriteedit_scroll ss, ss.pos - ss.lastcpos
   END IF
  END IF
  IF ss.tool = scroll_tool AND keyval(scAlt) = 0 AND keyval(scCtrl) = 0 THEN
@@ -4228,7 +4235,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   IF slowkey(ccDown, 100)  THEN scrolloff.y += stepsize
   IF slowkey(ccLeft, 100)  THEN scrolloff.x -= stepsize
   IF slowkey(ccRight, 100) THEN scrolloff.x += stepsize
-  spriteedit_scroll ss, scrolloff.x, scrolloff.y
+  spriteedit_scroll ss, scrolloff
  END IF
  IF keyval(scI) > 1 OR (ss.zonenum = 13 AND (ss.mouse.release AND mouseLeft)) THEN
   DIM imported as Frame ptr = spriteedit_import16(ss)
@@ -4238,7 +4245,7 @@ SUB spriteedit_sprctrl(byref ss as SpriteEditState)
   palette16_save ss.palette, ss.pal_num  'Save palette in case it has changed
   spriteedit_export ss.default_export_filename, ss.sprite, ss.palette
  END IF
- ss.lastcpos = XY(ss.x, ss.y)
+ ss.lastcpos = ss.pos
 END SUB
 
 SUB spriteedit_flood_fill(byref ss as SpriteEditState)
@@ -4257,8 +4264,7 @@ SUB spriteedit_spray_spot(byref ss as SpriteEditState)
  IF ss.lastpos.x = -1 AND ss.lastpos.y = -1 THEN writeundospr ss
  spriteedit_clip ss
  airbrush ss.sprite, ss.x, ss.y, ss.airsize, ss.mist, ss.palindex
- ss.lastpos.x = ss.x
- ss.lastpos.y = ss.y
+ ss.lastpos = ss.pos
 END SUB
 
 SUB spriteedit_put_dot(byref ss as SpriteEditState)
@@ -4269,8 +4275,7 @@ SUB spriteedit_put_dot(byref ss as SpriteEditState)
  ELSE
   drawline ss.sprite, ss.x, ss.y, ss.lastpos.x, ss.lastpos.y, ss.palindex
  END IF
- ss.lastpos.x = ss.x
- ss.lastpos.y = ss.y
+ ss.lastpos = ss.pos
 END SUB
 
 SUB spriteedit_draw_oval(byref ss as SpriteEditState)
@@ -4298,13 +4303,13 @@ SUB spriteedit_reset_tool(byref ss as SpriteEditState)
  ss.adjustpos.y = 0
 END SUB
 
-SUB spriteedit_scroll (ss as SpriteEditState, byval shiftx as integer, byval shifty as integer)
+SUB spriteedit_scroll (ss as SpriteEditState, byval shift as XYPair)
  'Save an undo before the first of a consecutive scrolls
- IF shiftx = 0 AND shifty = 0 THEN EXIT SUB
+ IF shift.x = 0 AND shift.y = 0 THEN EXIT SUB
  IF ss.didscroll = NO THEN writeundospr ss
  ss.didscroll = YES
 
- spriteedit_replace_frame ss, frame_resized(ss.sprite, ss.wide, ss.high, shiftx, shifty)
+ spriteedit_replace_frame ss, frame_resized(ss.sprite, ss.wide, ss.high, shift.x, shift.y)
 END SUB
 
 
