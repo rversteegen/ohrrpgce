@@ -1079,6 +1079,7 @@ declare function starts_with(s as string, prefix as string) as bool
 declare function ends_with(s as string, suffix as string) as bool
 
 declare function parse_int (stri as zstring ptr, ret as integer ptr=NULL, strict as bool=NO) as bool
+declare function parse_float (stri as zstring ptr, ret as double ptr=NULL) as bool
 declare function str2int (stri as zstring ptr, default as integer=0, strict as bool=NO) as integer
 declare function split_str_int(z as zstring ptr, byref action as string, byref arg as integer) as bool
 declare function str2bool(q as string, default as integer = NO) as integer

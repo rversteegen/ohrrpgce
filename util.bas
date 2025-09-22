@@ -829,7 +829,7 @@ FUNCTION parse_int (stri as zstring ptr, ret as integer ptr=NULL, strict as bool
  'Reject leading zeroes (check length is >= 2)
  IF strict ANDALSO s[0] = ASC("0") ANDALSO s[1] THEN RETURN NO
 
- DIM n as integer = 0
+ DIM n as longint = 0
  WHILE s[0]
   DIM c as integer = s[0] - 48
   s += 1
@@ -838,6 +838,7 @@ FUNCTION parse_int (stri as zstring ptr, ret as integer ptr=NULL, strict as bool
   ELSE
    RETURN NO
   END IF
+  IF n <> CAST(int32, n) THEN RETURN NO
  WEND
 
  IF ret THEN *ret = n
@@ -881,12 +882,15 @@ startTest(parse_int)
  IF parse_int("1 2", @n) THEN fail
  IF parse_int("1") = NO THEN fail
  IF parse_int("00", @n) = NO ORELSE n <> 0 THEN fail
- IF parse_int("-001234", @n) = NO ORELSE n <> -1234 THEN fail
- IF parse_int("2147483647", @n) = NO ORELSE n <> 2147483647 THEN fail
- IF parse_int("-2147483648", @n) = NO ORELSE n <> -2147483648 THEN fail
  IF parse_int("0", @n) = NO ORELSE n <> 0 THEN fail
  IF parse_int("-0", @n) = NO ORELSE n <> 0 THEN fail
  IF parse_int(" -2", @n) = NO ORELSE n <> -2 THEN fail
+ IF parse_int("-001234", @n) = NO ORELSE n <> -1234 THEN fail
+ IF parse_int("2147483647", @n) = NO ORELSE n <> 2147483647 THEN fail
+ IF parse_int("-2147483648", @n) = NO ORELSE n <> -2147483648 THEN fail
+ 'If it doesn't fit in an int32 it should fail
+ IF parse_int("2147483648", @n) THEN fail
+ IF parse_int("-2147483649", @n) THEN fail
 
  'Test strictness
  IF parse_int("00", , YES) THEN fail
@@ -896,6 +900,43 @@ startTest(parse_int)
  IF parse_int(" -2", , YES) THEN fail
  IF parse_int("0", @n, YES) = NO ORELSE n <> 0 THEN fail
  IF parse_int("-0", @n, YES) = NO ORELSE n <> 0 THEN fail
+endTest
+#ENDIF
+
+'Try to parse a string as a double, returning true on success and optionally
+'putting the results in *ret (*ret is unmodified on failure).
+'Unlike VAL this detects invalid input. Accepts leading but not trailing whitespace.
+FUNCTION parse_float (stri as zstring ptr, ret as double ptr = NULL) as bool
+  IF stri = NULL THEN RETURN NO  'Empty string
+  DIM chars_consumed as integer
+  DIM fl as double
+  DIM result as integer = sscanf(stri, "%lf%n", @fl, @chars_consumed)
+  IF result = 1 ANDALSO chars_consumed = LEN(*stri) THEN
+   IF ret THEN *ret = fl
+   RETURN YES
+  END IF
+END FUNCTION
+
+#IFDEF __FB_MAIN__
+startTest(parse_float)
+ DIM n as double
+ IF parse_float(NULL) THEN fail
+ IF parse_float("") THEN fail
+ IF parse_float(" ") THEN fail
+ IF parse_float("-") THEN fail
+ IF parse_float("2 ", @n) THEN fail
+ IF parse_float(" - 2", @n) THEN fail
+ IF parse_float("1 2", @n) THEN fail
+ IF parse_float("1", @n) = NO ORELSE n <> 1.0 THEN fail
+ IF parse_float("0.1", @n) = NO ORELSE n <> 0.1 THEN fail
+ IF parse_float("1.", @n) = NO ORELSE n <> 1.0 THEN fail
+ IF parse_float("-1.2345678", @n) = NO ORELSE n <> -1.2345678 THEN fail
+ IF parse_float("-0", @n) = NO ORELSE n <> 0 THEN fail
+ IF parse_float(" -2", @n) = NO ORELSE n <> -2 THEN fail
+ IF parse_float("2147483648", @n) = NO ORELSE n <> 2147483648.0 THEN fail
+ IF parse_float("-2147483649", @n) = NO ORELSE n <> -2147483649.0 THEN fail
+ IF parse_float("1..", @n) THEN fail
+ IF parse_float("1..1", @n) THEN fail
 endTest
 #ENDIF
 
