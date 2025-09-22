@@ -1737,6 +1737,7 @@ UTILTEST = env_exe ('utiltest', source = env.BASMAINO('utiltest.o', 'util.bas') 
 FILETEST = env_exe ('filetest', source = ['filetest.bas'] + base_objects)
 Depends(FILETEST, env_exe ('filetest_helper', source = ['filetest_helper.bas'] + base_objects))
 COMMONTEST = env_exe ('commontest', env = allmodexenv, source = allmodexenv.BASMAINO('commontest.o', 'common.rbas') + allmodex_objects_without_common)
+EXPRTEST = env_exe ('expressionstest', env = allmodexenv, source = env.BASMAINO('expressionstest.o', 'expressions.bas') + allmodex_objects)
 GFXTEST = env_exe ('gfxtest', env = allmodexenv, source = ['gfxtest.bas'] + allmodex_objects)
 
 Alias ('reload', [RELOADUTIL, RELOAD2XML, XML2RELOAD, RELOADTEST, RBTEST])
@@ -1908,7 +1909,7 @@ HSPEAKTEST = Phony ('hspeaktest', source = HSPEAK, action =
                     [[python, rootdir + 'hspeaktest.py', 'testgame/parser_tests.hss']])
 
 # Note: does not include hspeaktest, because it fails, and Euphoria may not be installed
-tests = [exe.abspath for exe in Flatten([RELOADTEST, RBTEST, VECTORTEST, UTILTEST, FILETEST, COMMONTEST])]
+tests = [exe.abspath for exe in Flatten([RELOADTEST, RBTEST, VECTORTEST, UTILTEST, FILETEST, COMMONTEST, EXPRTEST])]
 test_srcs = tests[:] if buildtests else []
 test_srcs += [AUTOTEST, INTERTEST]  # These are Nodes so can't be used as actions
 TESTS = Phony ('test', source = test_srcs, action = tests)

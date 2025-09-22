@@ -57,7 +57,7 @@ SUB draw_gfx(it as integer)
 
 	wrapprint long_version & build_info & !"\n" & _
 		  "gfx_" & gfxbackend & ": " & gfxbackendinfo & !"\n" & _
-		  "music_" & musicbackend & ": " & musicbackendinfo & _
+		  "music_" & musicbackend & ": " & musicbackendinfo, _
 		  0, 20, , vpage
 
 	FOR radius as integer = 16 TO 80 STEP 8
