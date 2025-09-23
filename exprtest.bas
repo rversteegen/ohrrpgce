@@ -20,13 +20,15 @@ type MockParser extends ExpressionParser
 	declare function check_global(ident as string) as bool
 	declare function eval_node(node as ExprNode ptr) as TypedValue
 	declare sub show_error(msg as string)
+
+	hide_errors as bool
 end type
 
 sub MockParser.show_error(msg as string)
+	if hide_errors = NO then ? "Parse error: " & msg
 end sub
 
 function MockParser.get_function_args(ident as string) as FuncArgsInfo ptr
-
 	static mock_xy_args as FuncArgsInfo = (2, 2)
 	static mock_quarter_args as FuncArgsInfo = (1, 1)
 	static mock_sum_args as FuncArgsInfo = (0, 999)
@@ -114,12 +116,23 @@ end function
 #macro testParseOK(expr)
 	ast = parser.parse_string(expr)
 	if ast = NULL then fail
+	if len(parser.parse_error) then fail
+#endmacro
+
+' Parse, dump back to string, and compare
+#macro testParseAs(expr, expected_string)
+	ast = parser.parse_string(expr)
+	if ast = NULL then fail
+	if len(parser.parse_error) then fail
+	testEqual(parser.ast_to_string(ast), expected_string)
 #endmacro
 
 #macro testParseError(expr, expected_msg)
+	parser.hide_errors = YES
 	ast = parser.parse_string(expr)
 	if ast <> NULL then print "Expected parse error '" & expected_msg & "' but instead succeeded" : fail
 	testEqual(parser.parse_error, expected_msg)
+	parser.hide_errors = NO
 #endmacro
 
 #macro testEval(expr, expected)

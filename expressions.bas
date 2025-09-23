@@ -43,7 +43,7 @@ end sub
 
 function ExprNode.dump(indent as integer = 0) as string
 	static typenames(...) as string * 10 = {"INVALID", "Int", "Float", "XY"}
-	static nodetypenames(...) as string * 10 = {"const", "var", "binop", "func"}
+	static nodetypenames(...) as string * 10 = {"Const", "Var", "BinOp", "Func"}
 	dim ret as string
 	ret = space(indent * 2) & "ExprNode(" & nodetypenames(nodetype)
 	if nodetype = exprConst then
@@ -137,7 +137,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 	if c = "(" then
 		advance_char()
-		dim expr as ExprNode ptr = parse_expression(0)
+		dim expr as ExprNode ptr = parse_expression()
 		if expr = NULL then return NULL
 		if peek_char() <> ")" then
 			parse_error = "Expected ')'"
@@ -184,7 +184,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 			' Parse arguments if any
 			if peek_char() <> ")" then
 				do
-					dim arg as ExprNode ptr = parse_expression(0)
+					dim arg as ExprNode ptr = parse_expression()
 					if arg = NULL then return NULL
 
 					redim preserve node->args(ubound(node->args) + 1)
@@ -245,8 +245,8 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 	end if
 end function
 
-'
-function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
+' Combination of operator lexer and Pratt expression parser. Can extend to support right-associativity
+function ExpressionParser.parse_expression(min_prec as integer = 0) as ExprNode ptr
 	dim left_expr as ExprNode ptr = parse_primary()
 	if left_expr = NULL then return NULL
 
@@ -259,18 +259,20 @@ function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
 		dim prec as integer = (@"112223344")[index] - asc("1")
 		if prec < min_prec then exit do
 
-		advance_char()
+		' Lex two-character operator tokens
+		var nextchar = advance_char()
 		if instr("<>", operatortok) then
 			'Look for <= or >=
-			if peek_char() = "=" then operatortok &= advance_char()
-		end if
-		if instr("&|", operatortok) then
+			if nextchar = "=" then operatortok &= nextchar
+			advance_char()
+		elseif instr("&|", operatortok) then
 			'Must be && or ||
-			var char = advance_char()
-			if char <> operatortok then
-				parse_error = strprintf("Expected '%s%s', found '%s%s'", operatortok, operatortok,  operatortok, char)
+			if nextchar <> operatortok then
+				parse_error = strprintf("Expected '%s%s', found '%s%s'", operatortok, operatortok,  operatortok, nextchar)
 			end if
-			operatortok &= char
+			operatortok &= nextchar
+			advance_char
+			?"Got operator: " & operatortok
 		end if
 
 		dim right_expr as ExprNode ptr = parse_expression(prec + 1)
@@ -305,7 +307,7 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	end if
 
 	skip_whitespace
-	dim result as ExprNode ptr = parse_expression(0)
+	dim result as ExprNode ptr = parse_expression()
 
 	if result <> NULL and len(peek_char()) then
 		parse_error = "Unexpected text: """ & mid(parse_input, parser_pos) & """"

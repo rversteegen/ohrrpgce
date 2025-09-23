@@ -95,7 +95,7 @@ type ExpressionParser extends object
 	declare function parse_number() as ExprNode ptr
 	declare function parse_identifier() as string
 	declare function parse_primary() as ExprNode ptr
-	declare function parse_expression(min_prec as integer) as ExprNode ptr
+	declare function parse_expression(min_prec as integer = 0) as ExprNode ptr
 
 end type
 
