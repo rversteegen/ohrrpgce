@@ -63,16 +63,12 @@ sub ExpressionParser.skip_whitespace()
 	wend
 end sub
 
-function ExpressionParser.peek_char() as byte
+function ExpressionParser.peek_char() as string
 	skip_whitespace
-	if parser_pos <= len(parse_input) then
-		return parse_input[parser_pos - 1]
-	else
-		return 0
-	end if
+	return mid(parse_input, parser_pos, 1)
 end function
 
-function ExpressionParser.advance_char() as byte
+function ExpressionParser.advance_char() as string
 	parser_pos += 1
 	skip_whitespace
 	return peek_char
@@ -80,14 +76,14 @@ end function
 
 ' If there is something that looks like a number here parse it, otherwise return NULL
 function ExpressionParser.parse_number() as ExprNode ptr
-	dim c as byte = peek_char  'Skips leading whitespace
+	dim c as string = peek_char  'Skips leading whitespace
 	dim start_pos as integer = parser_pos
 	dim token as string
 
 	' Glob -?[0-9. ]*, discard whitespace
 	'if c = asc("-") then token &= "-" c = advance_char
-	while isdigit(c) orelse c = asc(".") orelse c = asc("-")
-		token &= chr(c)
+	while isdigit(asc(c)) orelse c = "." orelse c = "-"
+		token &= c
 		c = advance_char
 	wend
 
@@ -125,10 +121,10 @@ end function
 
 function ExpressionParser.parse_identifier() as string
 	dim token as string = ""
-	dim c as byte = peek_char
+	dim c as string = peek_char
 	' Stop at operators, parentheses, comma
-	while c andalso instr("+-*/(),", chr(c)) = 0
-		token &= chr(c)
+	while len(c) andalso instr("+-*/(),", c) = 0
+		token &= c
 		c = advance_char
 	wend
 	if sanitize_script_identifier(token) = token then return token  'Valid
@@ -137,13 +133,13 @@ end function
 
 ' Parse a number, variable, function call, or parenthesised expression
 function ExpressionParser.parse_primary() as ExprNode ptr
-	dim c as byte = peek_char()
+	dim c as string = peek_char()
 
-	if c = asc("(") then
+	if c = "(" then
 		advance_char()
 		dim expr as ExprNode ptr = parse_expression(0)
 		if expr = NULL then return NULL
-		if peek_char() <> asc(")") then
+		if peek_char() <> ")" then
 			parse_error = "Expected ')'"
 			return NULL
 		end if
@@ -166,7 +162,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 	' Determine if this is a function call
 	dim is_function as bool = NO
 	c = peek_char()
-	if c = asc("(") then
+	if c = "(" then
 		if args_info = NULL then
 			parse_error = "Unknown function: " & ident
 			return NULL
@@ -182,11 +178,11 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 		node->nodetype = exprFunction
 		node->name = ident
 
-		if c = asc("(") then
+		if c = "(" then
 			advance_char() ' consume '('
 
 			' Parse arguments if any
-			if peek_char() <> asc(")") then
+			if peek_char() <> ")" then
 				do
 					dim arg as ExprNode ptr = parse_expression(0)
 					if arg = NULL then return NULL
@@ -194,9 +190,9 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 					redim preserve node->args(ubound(node->args) + 1)
 					node->args(ubound(node->args)) = arg
 
-					if peek_char() = asc(",") then
+					if peek_char() = "," then
 						advance_char()
-					elseif peek_char() = asc(")") then
+					elseif peek_char() = ")" then
 						exit do
 					else
 						parse_error = "Expected ',' or ')'"
@@ -205,7 +201,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 				loop
 			end if
 
-			if peek_char() <> asc(")") then
+			if peek_char() <> ")" then
 				parse_error = "Expected ')'"
 				return NULL
 			end if
@@ -255,7 +251,7 @@ function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
 	if left_expr = NULL then return NULL
 
 	do
-		dim operatortok as string = chr(peek_char())
+		dim operatortok as string = peek_char()
 		dim index as integer = instr("&|<>=+-*/", operatortok)
 		if index = 0 then exit do
 
@@ -266,11 +262,11 @@ function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
 		advance_char()
 		if instr("<>", operatortok) then
 			'Look for <= or >=
-			if peek_char() = asc("=") then operatortok &= chr(advance_char())
+			if peek_char() = "=" then operatortok &= advance_char()
 		end if
 		if instr("&|", operatortok) then
 			'Must be && or ||
-			var char = chr(advance_char())
+			var char = advance_char()
 			if char <> operatortok then
 				parse_error = strprintf("Expected '%s%s', found '%s%s'", operatortok, operatortok,  operatortok, char)
 			end if
@@ -311,7 +307,7 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	skip_whitespace
 	dim result as ExprNode ptr = parse_expression(0)
 
-	if result <> NULL and peek_char() <> 0 then
+	if result <> NULL and len(peek_char()) then
 		parse_error = "Unexpected text: """ & mid(parse_input, parser_pos) & """"
 		result = NULL
 	end if

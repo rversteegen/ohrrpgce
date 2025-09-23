@@ -25,8 +25,8 @@ type TypedValue
 		'xy_value as XYPair
 	end union
 
-        'declare function repr() as string
-        declare operator cast() as string
+	'declare function repr() as string
+	declare operator cast() as string
 	declare operator cast() as double
 end type
 declare operator =(lhs as TypedValue, rhs as TypedValue) as bool
@@ -86,12 +86,12 @@ type ExpressionParser extends object
 	declare function parse_string(input as string) as ExprNode ptr
 	declare function ast_to_string(node as ExprNode ptr) as string
 
-        declare virtual sub show_error(msg as string)
+	declare virtual sub show_error(msg as string)
 
   private:
 	declare sub skip_whitespace()
-	declare function peek_char() as byte
-	declare function advance_char() as byte
+	declare function peek_char() as string
+	declare function advance_char() as string
 	declare function parse_number() as ExprNode ptr
 	declare function parse_identifier() as string
 	declare function parse_primary() as ExprNode ptr
