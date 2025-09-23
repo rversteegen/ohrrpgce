@@ -60,6 +60,7 @@ type ExprNode
 		value as TypedValue   'For exprConst
 	end union
 	args(any) as ExprNode ptr     'For exprBinaryOp, exprFunction
+	precedence as integer         'For exprBinaryOp
 
 	declare function dump(indent as integer = 0) as string
 end type
@@ -99,7 +100,5 @@ type ExpressionParser extends object
 	declare function parse_primary() as ExprNode ptr
 	declare function parse_expression(min_prec as integer = 0) as ExprNode ptr
 end type
-
-declare function get_operator_precedence(op as string) as integer
 
 #endif

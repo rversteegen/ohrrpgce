@@ -125,7 +125,7 @@ function ExpressionParser.parse_identifier() as string
 	dim token as string = ""
 	dim c as string = peek_char
 	' Stop at operators, parentheses, comma
-	while len(c) andalso instr("+-*/(),", c) = 0
+	while len(c) andalso instr("&|<>=+-*/(),", c) = 0
 		token &= c
 		c = advance_char
 	wend
@@ -160,7 +160,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 	' Determine whether this is a function call
 	dim func_info as FuncArgsInfo ptr = get_function_args(ident)
-	? "looking up func " & ident & " got " & iif(func_info, "minargs=" & func_info->minargs & " maxargs=" & func_info->maxargs, "NULL")
+	PARSEDBG("looking up func " & ident & " got " & iif(func_info, "minargs=" & func_info->minargs & " maxargs=" & func_info->maxargs, "NULL"))
 
 	c = peek_char()
 	if c = "(" andalso func_info = NULL then
@@ -240,7 +240,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 end function
 
 ' Combination of operator lexer and Pratt expression parser. Can extend to support right-associativity
-function ExpressionParser.parse_expression(min_prec as integer = 0) as ExprNode ptr
+function ExpressionParser.parse_expression(min_precedence as integer = 0) as ExprNode ptr
 	dim left_expr as ExprNode ptr = parse_primary()
 	if left_expr = NULL then return NULL
 
@@ -250,8 +250,8 @@ function ExpressionParser.parse_expression(min_prec as integer = 0) as ExprNode 
 		if index = 0 then exit do
 
 		' The precedence can be determined from the first character of the token
-		dim prec as integer = (@"112223344")[index] - asc("1")
-		if prec < min_prec then exit do
+		dim precedence as integer = (@"112223344")[index] - asc("1")
+		if precedence < min_precedence then exit do
 
 		' Lex two-character operator tokens
 		var nextchar = advance_char()
@@ -266,15 +266,15 @@ function ExpressionParser.parse_expression(min_prec as integer = 0) as ExprNode 
 			end if
 			operatortok &= nextchar
 			advance_char
-			?"Got operator: " & operatortok
 		end if
 
-		dim right_expr as ExprNode ptr = parse_expression(prec + 1)
+		dim right_expr as ExprNode ptr = parse_expression(precedence + 1)
 		if right_expr = NULL then return NULL
 
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprBinaryOp
 		node->name = operatortok
+		node->precedence = precedence
 		redim node->args(1)
 		node->args(0) = left_expr
 		node->args(1) = right_expr
@@ -314,12 +314,6 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	return result
 end function
 
-function get_operator_precedence(op as string) as integer
-	dim index as integer = instr("&|<>=+-*/", left(op, 1))
-	if index = 0 then return 99
-	return (@"112223344")[index] - asc("1")
-end function
-
 function ExpressionParser.ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
 	if node = NULL then return ""
 
@@ -329,24 +323,23 @@ function ExpressionParser.ast_to_string(node as ExprNode ptr, parent_precedence 
 		case exprVariable:
 			return node->name
 		case exprBinaryOp:
-			dim current_precedence as integer = get_operator_precedence(node->name)
-			dim left as string = ast_to_string(node->args(0), current_precedence)
-			dim right as string = ast_to_string(node->args(1), current_precedence)
-			dim result as string = left + " " + node->name + " " + right
-			if current_precedence < parent_precedence then
-				return "(" + result + ")"
+			dim left as string = ast_to_string(node->args(0), node->precedence)
+			dim right as string = ast_to_string(node->args(1), node->precedence)
+			dim result as string = left & " " & node->name & " " & right
+			if node->precedence < parent_precedence then
+				return "(" & result & ")"
 			else
 				return result
 			end if
 		case exprFunction:
 			dim result as string = node->name
 			if ubound(node->args) >= 0 then
-				result += "("
+				result &= "("
 				for i as integer = 0 to ubound(node->args)
-					if i > 0 then result += ", "
-					result += ast_to_string(node->args(i))
+					if i > 0 then result &= ", "
+					result &= ast_to_string(node->args(i))
 				next
-				result += ")"
+				result &= ")"
 			end if
 			return result
 	end select

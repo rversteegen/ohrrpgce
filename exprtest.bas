@@ -52,7 +52,7 @@ function MockParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as 
 				case "quarter": return vtyFloat
 				case "sum": return vtyInt
 				case "childcount": return vtyInt
-				'case "xy": return vtyXY
+				case "xy": return vtyInt
 			end select
 		case exprBinaryOp:
 			dim left_type as ValueType = node->args(0)->value.valtype
