@@ -160,6 +160,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 	' Look up function info
 	dim args_info as FuncArgsInfo ptr = get_function_args(ident)
+	? "looking up func " & ident & " got " & iif(args_info, "minargs=" & args_info->minargs & "...", "NULL")
 
 	' Determine if this is a function call
 	dim is_function as bool = NO
@@ -374,6 +375,7 @@ end function
 '     return false
 ' end function
 
-' function ExpressionParser.eval_node(node as ExprNode ptr) as double
-'     return 0
-' end function
+' TODO: implement constants and operators
+function ExpressionParser.eval_node(node as ExprNode ptr) as TypedValue
+     return IntVal(0)
+end function

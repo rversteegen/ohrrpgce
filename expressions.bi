@@ -81,10 +81,12 @@ type ExpressionParser extends object
 	declare abstract function get_function_args(ident as string) as FuncArgsInfo ptr
 	declare abstract function get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
 	declare abstract function check_global(ident as string) as bool
-	declare abstract function eval_node(node as ExprNode ptr) as TypedValue
 
 	declare function parse_string(input as string) as ExprNode ptr
 	declare function ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
+
+	' Implements operators and constants only, subclasses handle exprVariable and exprFunction
+	declare virtual function eval_node(node as ExprNode ptr) as TypedValue
 
 	declare virtual sub show_error(msg as string)
 

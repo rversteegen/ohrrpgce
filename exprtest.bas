@@ -31,7 +31,7 @@ end sub
 function MockParser.get_function_args(ident as string) as FuncArgsInfo ptr
 	static mock_xy_args as FuncArgsInfo = (2, 2)
 	static mock_quarter_args as FuncArgsInfo = (1, 1)
-	static mock_sum_args as FuncArgsInfo = (0, 999)
+	static mock_sum_args as FuncArgsInfo = (1, 99)
 	static mock_childcount_args as FuncArgsInfo = (0, 0)
 
 	PARSEDBG("get_function_args(""" & ident & """)")
@@ -67,9 +67,13 @@ end function
 
 function MockParser.check_global(ident as string) as bool
 	PARSEDBG("check_global(""" & ident & """)")
-	return ident = "x" or ident = "xvelocity" or ident = "pi" or ident = "y"
+	select case lcase(ident)
+		case "x", "xvelocity", "pi", "y"
+			return YES
+	end select
 end function
 
+'TODO: Const/BinOp should be moved to ExpressionParser
 function MockParser.eval_node(node as ExprNode ptr) as TypedValue
 	if node = NULL then return IntVal(0)
 
@@ -115,15 +119,16 @@ end function
 ' Helper macros for testing
 #macro testParseOK(expr)
 	ast = parser.parse_string(expr)
-	if ast = NULL then fail
 	if len(parser.parse_error) then fail
+	if ast = NULL then
+		? "ERROR: parse_string failed, but no parse_error"
+		fail
+	end if
 #endmacro
 
 ' Parse, dump back to string, and compare
 #macro testParseAs(expr, expected_string)
-	ast = parser.parse_string(expr)
-	if ast = NULL then fail
-	if len(parser.parse_error) then fail
+	testParseOK(expr)
 	testEqual(parser.ast_to_string(ast), expected_string)
 #endmacro
 
@@ -146,7 +151,8 @@ startTest(test_basic_parsing)
 	dim parser as MockParser
 	dim ast as ExprNode ptr
 
-	' Test integer
+	' Test number parsing
+
 	testParseOK("42")
 	testEqual(ast->nodetype, exprConst)
 	testEqual(ast->value.valtype, vtyInt)
@@ -167,34 +173,62 @@ startTest(test_basic_parsing)
 	testEqual(ast->value.valtype, vtyFloat)
 	testEqual(ast->value, FloatVal(1.0))   'Note IntVal(1) = FloatVal(1.0)
 
+	' Test malformed numbers (parse_int/float tests in utiltest test these far
+	' more extensively)
+	testParseError("42..42", "Invalid number: 42..42")
+	testParseError("111111111111", "Invalid number: 111111111111")  'Because it overflows
+
+
+	' Test identifiers
+
 	testParseOK("x")
 	testEqual(ast->nodetype, exprVariable)
 	testEqual(ast->name, "x")
+
+	testParseAs("x", "x")
+	testParseAs("X velocity", "Xvelocity")
+	testParseError("UNKNOWN", "Unknown name/variable: UNKNOWN")
+
+	' Test functions
 
 	testParseOK("sum(12)")
 	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "sum")
 	testEqual(ubound(ast->args), 0)
 
-	testParseOK("sum(-1,-2)")
+	testParseOK("sum (-1,-2)")
 	testEqual(ubound(ast->args), 1)
 
-	testParseOK("4+-1")
+	testParseError("UNKNOWN(1)", "Unknown function: UNKNOWN")
+	testParseError("UNKNOWN ()", "Unknown function: UNKNOWN")
+	testParseError("quarter", "Function quarter expects 1 arguments")
+	testParseError("sum()", "Function sum expects 1 to 99 arguments")
+	testParseError("XY(1)", "Function XY expects 2 arguments")
+	testParseAs("XY(-1,-2)", "XY(-1, -2)")
+	testParseError("XY(1,2,3)", "Function XY expects 2 arguments")
 
-	testParseOK("4&&1 >= 23 || -1")
+	' Function parens are optional
 
-	' Function parens optional
-	testParseOK("childcount()")
+	testParseAs("childcount()", "childcount")
 	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "childcount")
 	testEqual(ubound(ast->args), -1)
 
-	testParseOK("child count")
+	testParseAs("child count", "childcount")
 	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "childcount")
 	testEqual(ubound(ast->args), -1)
+
+	' Test operator parsing
+
+	testParseAs("1-1", "1 - 1")
+	testParseAs("4+-1", "4 + -1")
+	' TODO: Add all the other operators here
+
+	testParseAs("4&&1 >= 23 || -1", "4 && 1 >= 23 || -1")
 
 	' Test whitespace in various places
+
 	testParseOK(" - 42 ")
 	testEqual(ast->value, IntVal(-42))
 
@@ -211,31 +245,34 @@ startTest(test_basic_parsing)
 
 	testParseOK("sum( 1 , 2 , 3 )")
 	testEqual(ubound(ast->args), 2)
+
+	' Test complex nesting
+
+	testParseOK("sum(quarter(pi), x + 1, y * 2)")
+	testEqual(ast->nodetype, exprFunction)
+	testEqual(ubound(ast->args), 2) ' 3 arguments
+
 endTest
 
-startTest(test_parse_errors)
+startTest(test_malformed_errors)
 	dim parser as MockParser
 	dim ast as ExprNode ptr
 
-	' Test malformed numbers (parse_int/float tests in utiltest test these far
-	' more extensively)
-	testParseError("42..42", "Invalid number: 42..42")
-	testParseError("111111111111", "Invalid number: 111111111111")  'Because it overflows
-
-	' Test various error conditions
+	' Test various other error conditions
 	testParseError("", "Empty expression")
 	testParseError("42 junk", "Unexpected text: ""junk""")
-	testParseError("UNKNOWN(1)", "Unknown function: UNKNOWN")
-	testParseError("UNKNOWN ()", "Unknown function: UNKNOWN")
-	testParseError("UNKNOWN", "Unknown name/variable: UNKNOWN")
 	testParseError("(3+4", "Expected ')'")
-	testParseError("XY(1)", "Function XY expects 2 arguments")
-	testParseError("XY(1,2,3)", "Function XY expects 2 arguments")
-	testParseError("quarter()", "Function quarter expects 1 arguments")
 	testParseError("3 +", "Expected number or identifier")
 	testParseError("quarter(1,)", "Expected number or identifier")
-
 	testParseError("3|4", "Expected '||', found '|4'")
+endTest
+
+startTest(test_eval_operators)
+	dim parser as MockParser
+	dim ast as ExprNode ptr
+
+	' TODO: Add tests for evaluating all the various operators
+	testEval("((1 + 2) * 3)", IntVal(9))
 endTest
 
 startTest(test_nested_expressions)
@@ -243,32 +280,25 @@ startTest(test_nested_expressions)
 	dim ast as ExprNode ptr
 
 	' Test deeply nested expressions
-	testEval("((1 + 2) * 3)", IntVal(9))
 	testEval("quarter(30.0)", 7.5)
 	testEval("quarter(40)", 10)
 	testEval("quarter(x + 2*xvelocity)", 12.5)
 	testEval("sum(1, 2 * 3, x)", 17) ' 1 + 6 + 10
 	testEval("x + x velocity * 2", 50) ' 10 + 20 * 2
 	testEval("(x + x velocity) * 2", 60) ' (10 + 20) * 2
-
-	' Test complex nesting
-	testParseOK("sum(quarter(pi), x + 1, y * 2)")
-	testEqual(ast->nodetype, exprFunction)
-	testEqual(ubound(ast->args), 2) ' 3 arguments
 endTest
 
-startTest(test_parentheses)
+startTest(test_parenthesis_omission)
 	dim parser as MockParser
 	dim ast as ExprNode ptr
 
+	' Check ast_to_string parens
 	testParseAs("1 + 2 * 3", "1 + 2 * 3")
 	testParseAs("(1 + 2) * 3", "(1 + 2) * 3")
 	testParseAs("1 * (2 + 3)", "1 * (2 + 3)")
 	testParseAs("1 * 2 + 3", "1 * 2 + 3")
 	testParseAs("x + y * 2", "x + y * 2")
 	testParseAs("(x + y) * 2", "(x + y) * 2")
-
-	testParseAs("1-1", "1 - 1")
 
 	' Extra parentheses
 	testParseAs("((1 + 2) * 3)", "(1 + 2) * 3")
