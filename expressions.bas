@@ -158,29 +158,22 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 		return NULL
 	end if
 
-	' Look up function info
-	dim args_info as FuncArgsInfo ptr = get_function_args(ident)
-	? "looking up func " & ident & " got " & iif(args_info, "minargs=" & args_info->minargs & "...", "NULL")
+	' Determine whether this is a function call
+	dim func_info as FuncArgsInfo ptr = get_function_args(ident)
+	? "looking up func " & ident & " got " & iif(func_info, "minargs=" & func_info->minargs & " maxargs=" & func_info->maxargs, "NULL")
 
-	' Determine if this is a function call
-	dim is_function as bool = NO
 	c = peek_char()
-	if c = "(" then
-		if args_info = NULL then
-			parse_error = "Unknown function: " & ident
-			return NULL
-		end if
-		is_function = YES
-	elseif args_info andalso args_info->minargs = 0 then
-		' Zero-arg function can be called without parens
-		is_function = YES
+	if c = "(" andalso func_info = NULL then
+		parse_error = "Unknown function: " & ident
+		return NULL
 	end if
 
-	if is_function then
+	if func_info then
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprFunction
 		node->name = ident
 
+		' Zero-arg function can be called without parens
 		if c = "(" then
 			advance_char() ' consume '('
 
@@ -213,14 +206,12 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 		' Validate argument count
 		dim num_args as integer = ubound(node->args) + 1
-		if num_args < args_info->minargs or num_args > args_info->maxargs then
-			parse_error = "Function " + ident + " expects "
-			if args_info->minargs = args_info->maxargs then
-				parse_error += str(args_info->minargs)
-			else
-				parse_error += str(args_info->minargs) + " to " + str(args_info->maxargs)
+		if not in_bound(num_args, func_info->minargs, func_info->maxargs) then
+			parse_error = "Function " & ident & " expects " & func_info->minargs
+			if func_info->minargs < func_info->maxargs then
+				parse_error &= " to " & func_info->maxargs
 			end if
-			parse_error += " arguments"
+			parse_error &= " arguments"
 			return NULL
 		end if
 
