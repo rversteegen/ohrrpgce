@@ -45,14 +45,14 @@ end function
 function MockParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
 	PARSEDBG("get_function_ret_type(""" & node->name & """)")
 	select case node->nodetype
-		case EXPR_FUNCTION:
+		case exprFunction:
 			select case lcase(node->name)
 				case "quarter": return vtyFloat
 				case "sum": return vtyInt
 				case "childcount": return vtyInt
 				'case "xy": return vtyXY
 			end select
-		case EXPR_BINARY_OP:
+		case exprBinaryOp:
 			dim left_type as ValueType = node->args(0)->value.valtype
 			dim right_type as ValueType = node->args(1)->value.valtype
 			if left_type = vtyFloat or right_type = vtyFloat then
@@ -72,16 +72,16 @@ function MockParser.eval_node(node as ExprNode ptr) as TypedValue
 	if node = NULL then return IntVal(0)
 
 	select case node->nodetype
-		case EXPR_CONST:
+		case exprConst:
 			return node->value
-		case EXPR_VARIABLE:
+		case exprVariable:
 			select case node->name
 				case "x": return IntVal(10)
 				case "xvelocity": return IntVal(20)
 				case "pi": return FloatVal(M_PI)
 				case "y": return IntVal(0)
 			end select
-		case EXPR_BINARY_OP:
+		case exprBinaryOp:
 			dim left_tv as TypedValue = eval_node(node->args(0))
 			dim right_tv as TypedValue = eval_node(node->args(1))
 			PARSEDBG("eval binop, left = "& left_tv & " right = " &  right_tv)
@@ -94,7 +94,7 @@ function MockParser.eval_node(node as ExprNode ptr) as TypedValue
 				case "*": return FloatVal(left_val * right_val)
 				case "/": return FloatVal(left_val / right_val)
 			end select
-		case EXPR_FUNCTION:
+		case exprFunction:
 			select case node->name
 				case "quarter": return FloatVal(cast(double, eval_node(node->args(0))) / 4)
 					'case "sin": return FloatVal(sin(cast(double, eval_node(node->args(0)))))
@@ -157,13 +157,13 @@ startTest(test_basic_parsing)
 
 	' Test integer
 	testParseOK("42")
-	testEqual(ast->nodetype, EXPR_CONST)
+	testEqual(ast->nodetype, exprConst)
 	testEqual(ast->value.valtype, vtyInt)
 	testEqual(ast->value.int_value, 42)
 	if ast->value <> IntVal(42) then fail
 
 	testParseOK("3.14")
-	testEqual(ast->nodetype, EXPR_CONST)
+	testEqual(ast->nodetype, exprConst)
 	testEqual(ast->value.valtype, vtyFloat)
 	testEqual(ast->value.float_value, 3.14)
 
@@ -175,11 +175,11 @@ startTest(test_basic_parsing)
 	testEqual(ast->value, FloatVal(1.0))   'Note IntVal(1) = FloatVal(1.0)
 
 	testParseOK("x")
-	testEqual(ast->nodetype, EXPR_VARIABLE)
+	testEqual(ast->nodetype, exprVariable)
 	testEqual(ast->name, "x")
 
 	testParseOK("sum(12)")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
+	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "sum")
 	testEqual(ubound(ast->args), 0)
 
@@ -192,12 +192,12 @@ startTest(test_basic_parsing)
 
 	' Function parens optional
 	testParseOK("childcount()")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
+	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "childcount")
 	testEqual(ubound(ast->args), -1)
 
 	testParseOK("child count")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
+	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "childcount")
 	testEqual(ubound(ast->args), -1)
 
@@ -209,10 +209,10 @@ startTest(test_basic_parsing)
 	testEqual(ast->value, IntVal(1000))
 
 	testParseOK("x + x velocity")
-	testEqual(ast->nodetype, EXPR_BINARY_OP)
+	testEqual(ast->nodetype, exprBinaryOp)
 
 	testParseOK(" c hildcoun t (   ) ")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
+	testEqual(ast->nodetype, exprFunction)
 	testEqual(ast->name, "childcount")
 	testEqual(ubound(ast->args), -1)
 
@@ -235,6 +235,6 @@ startTest(test_nested_expressions)
 
 	' Test complex nesting
 	testParseOK("sum(quarter(pi), x + 1, y * 2)")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
+	testEqual(ast->nodetype, exprFunction)
 	testEqual(ubound(ast->args), 2) ' 3 arguments
 endTest

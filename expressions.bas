@@ -43,10 +43,10 @@ end sub
 
 function ExprNode.dump(indent as integer = 0) as string
 	static typenames(...) as string * 10 = {"INVALID", "Int", "Float", "XY"}
-	static nodetypenames(...) as string * 10 = {"CONST", "VAR", "BINOP", "FUNC"}
+	static nodetypenames(...) as string * 10 = {"const", "var", "binop", "func"}
 	dim ret as string
 	ret = space(indent * 2) & "ExprNode(" & nodetypenames(nodetype)
-	if nodetype = EXPR_CONST then
+	if nodetype = exprConst then
 		ret &= ") = " & value'.repr()
 	else
 		ret &= " " & name & " is " & typenames(value.valtype - vtyINVALID) & ")"
@@ -106,7 +106,7 @@ function ExpressionParser.parse_number() as ExprNode ptr
 	end if
 
 	dim node as ExprNode ptr = new ExprNode
-	node->nodetype = EXPR_CONST
+	node->nodetype = exprConst
 
 	dim int_val as integer
 	dim float_val as double
@@ -179,7 +179,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 	if is_function then
 		dim node as ExprNode ptr = new ExprNode
-		node->nodetype = EXPR_FUNCTION
+		node->nodetype = exprFunction
 		node->name = ident
 
 		if c = asc("(") then
@@ -242,7 +242,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 		end if
 
 		dim node as ExprNode ptr = new ExprNode
-		node->nodetype = EXPR_VARIABLE
+		node->nodetype = exprVariable
 		node->name = ident
 		node->value.valtype = vtyInt  'Assume all variables are ints
 		return node
@@ -281,7 +281,7 @@ function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
 		if right_expr = NULL then return NULL
 
 		dim node as ExprNode ptr = new ExprNode
-		node->nodetype = EXPR_BINARY_OP
+		node->nodetype = exprBinaryOp
 		node->name = operatortok
 		redim node->args(1)
 		node->args(0) = left_expr
@@ -327,13 +327,13 @@ function ExpressionParser.ast_to_string(node as ExprNode ptr) as string
 	if node = NULL then return ""
 
 	select case node->nodetype
-		case EXPR_CONST:
+		case exprConst:
 			return node->value'.repr()
-		case EXPR_VARIABLE:
+		case exprVariable:
 			return node->name
-		case EXPR_BINARY_OP:
+		case exprBinaryOp:
 			return "(" + ast_to_string(node->args(0)) + " " + node->name + " " + ast_to_string(node->args(1)) + ")"
-		case EXPR_FUNCTION:
+		case exprFunction:
 			dim result as string = node->name
 			if ubound(node->args) >= 0 then
 				result += "("
