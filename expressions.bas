@@ -12,12 +12,13 @@
 
 
 operator TypedValue.cast() as double
-	return iif(valtype = vtyInt, int_value, float_value)
+	if valtype <> vtyFloat then return int_value
+	return float_value
 end operator
 
 ' Always formats floats with decimals or scientific notation (which we can't parse back)
 operator TypedValue.cast() as string
-	if valtype = vtyInt then return str(int_value)
+	if valtype <> vtyFloat then return str(int_value)
 	dim ret as string = str(float_value)
 	if instr(ret, any ".+") = 0 then ret &= ".0"
 	return ret
@@ -28,7 +29,7 @@ function TypedValue.repr() as string
 	select case valtype
 		case vtyInt:   return "IntVal(" & int_value & ")"
 		case vtyFloat: return "FloatVal("  & float_value & ")"
-		case else:    return "TypedValue(vtype=" & valtype & ")"
+		case else:    return "TypedValue(type=" & valtype & ")"
 	end select
 end function
 '/
@@ -42,14 +43,14 @@ sub ExpressionParser.show_error(msg as string)
 end sub
 
 function ExprNode.dump(indent as integer = 0) as string
-	static typenames(...) as string * 10 = {"INVALID", "Int", "Float", "XY"}
+	static typenames(...) as string * 10 = {"Bool", "Int", "Float", "String", "Unknown", "Number"}
 	static nodetypenames(...) as string * 10 = {"Const", "Var", "BinOp", "Func"}
 	dim ret as string
 	ret = space(indent * 2) & "ExprNode(" & nodetypenames(nodetype)
 	if nodetype = exprConst then
 		ret &= ") = " & value'.repr()
 	else
-		ret &= " " & name & " is " & typenames(value.valtype - vtyINVALID) & ")"
+		ret &= " " & name & " is " & typenames(value.valtype) & ")"
 	end if
 	for idx as integer = 0 to ubound(args)
 		ret &= !"\n" & args(idx)->dump(indent + 1)
@@ -159,7 +160,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 	end if
 
 	' Determine whether this is a function call
-	dim func_info as FuncArgsInfo ptr = get_function_args(ident)
+	dim func_info as ExprFuncInfo ptr = get_function_info(ident)
 	PARSEDBG("looking up func " & ident & " got " & iif(func_info, "minargs=" & func_info->minargs & " maxargs=" & func_info->maxargs, "NULL"))
 
 	c = peek_char()
@@ -172,6 +173,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprFunction
 		node->name = ident
+		node->valtype = func_info->rettype
 
 		' Zero-arg function can be called without parens
 		if c = "(" then
@@ -215,14 +217,6 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 			return NULL
 		end if
 
-		' Get return type
-		dim errmsg as string
-		node->value.valtype = get_function_ret_type(node, errmsg)
-		if node->value.valtype = vtyINVALID then
-			parse_error = errmsg
-			return NULL
-		end if
-
 		return node
 	else
 		' It's a variable
@@ -234,7 +228,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprVariable
 		node->name = ident
-		node->value.valtype = vtyInt  'Assume all variables are ints
+		node->valtype = vtyUnknown
 		return node
 	end if
 end function
@@ -271,17 +265,17 @@ function ExpressionParser.parse_expression(min_precedence as integer = 0) as Exp
 		dim right_expr as ExprNode ptr = parse_expression(precedence + 1)
 		if right_expr = NULL then return NULL
 
+		' Ideally would check the types of the args are compatible with the operator here.
+
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprBinaryOp
+		node->valuetype = vtyNumber
 		node->name = operatortok
 		node->precedence = precedence
 		redim node->args(1)
 		node->args(0) = left_expr
 		node->args(1) = right_expr
 		left_expr = node
-
-		node->value.valtype = get_function_ret_type(node, parse_error)
-		if node->value.valtype = vtyINVALID then return NULL
 	loop
 
 	return left_expr
@@ -347,12 +341,8 @@ function ExpressionParser.ast_to_string(node as ExprNode ptr, parent_precedence 
 end function
 
 ' Virtual methods
-' function ExpressionParser.get_function_args(ident as string) as FuncArgsInfo ptr
-'     return 0
-' end function
-
-' function ExpressionParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-'     return vtyINVALID
+' function ExpressionParser.get_function_info(ident as string) as ExprFuncInfo ptr
+'     return NULL
 ' end function
 
 ' function ExpressionParser.check_global(ident as string) as bool

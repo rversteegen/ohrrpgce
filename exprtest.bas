@@ -15,8 +15,7 @@
 
 ' Mock implementation for testing
 type MockParser extends ExpressionParser
-	declare function get_function_args(ident as string) as FuncArgsInfo ptr
-	declare function get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
+	declare function get_function_info(ident as string) as ExprFuncInfo ptr
 	declare function check_global(ident as string) as bool
 	declare function eval_node(node as ExprNode ptr) as TypedValue
 	declare sub show_error(msg as string)
@@ -28,41 +27,20 @@ sub MockParser.show_error(msg as string)
 	if hide_errors = NO then ? "Parse error: " & msg
 end sub
 
-function MockParser.get_function_args(ident as string) as FuncArgsInfo ptr
-	static mock_xy_args as FuncArgsInfo = (2, 2)
-	static mock_quarter_args as FuncArgsInfo = (1, 1)
-	static mock_sum_args as FuncArgsInfo = (1, 99)
-	static mock_childcount_args as FuncArgsInfo = (0, 0)
+function MockParser.get_function_info(ident as string) as ExprFuncInfo ptr
+	static mock_xy_info as ExprFuncInfo = (2, 2, vtyUnknown)
+	static mock_quarter_info as ExprFuncInfo = (1, 1, vtyFloat)
+	static mock_sum_info as ExprFuncInfo = (1, 99, vtyNumber)
+	static mock_childcount_info as ExprFuncInfo = (0, 0, vtyInt)
 
-	PARSEDBG("get_function_args(""" & ident & """)")
+	PARSEDBG("get_function_info(""" & ident & """)")
 	select case lcase(ident)
-		case "xy": return @mock_xy_args
-		case "quarter": return @mock_quarter_args
-		case "sum": return @mock_sum_args
-		case "childcount": return @mock_childcount_args
+		case "xy": return @mock_xy_info
+		case "quarter": return @mock_quarter_info
+		case "sum": return @mock_sum_info
+		case "childcount": return @mock_childcount_info
 		case else: return NULL
 	end select
-end function
-
-function MockParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-	PARSEDBG("get_function_ret_type(""" & node->name & """)")
-	select case node->nodetype
-		case exprFunction:
-			select case lcase(node->name)
-				case "quarter": return vtyFloat
-				case "sum": return vtyInt
-				case "childcount": return vtyInt
-				case "xy": return vtyInt
-			end select
-		case exprBinaryOp:
-			dim left_type as ValueType = node->args(0)->value.valtype
-			dim right_type as ValueType = node->args(1)->value.valtype
-			if left_type = vtyFloat or right_type = vtyFloat then
-				return vtyFloat
-			end if
-			return vtyInt
-	end select
-	return vtyINVALID
 end function
 
 function MockParser.check_global(ident as string) as bool

@@ -11,17 +11,22 @@
 '''' TypedValue
 
 enum ValueType
-	vtyINVALID  'For get_function_ret_type only
+	' The following are valid values in a TypedValue
+	vtyBool
 	vtyInt
 	vtyFloat
-	'vtyXY   'Future
+	'vtyString  'Future
+	'vtyXY      'Future
+	' The following are NOT valid in a TypedValue
+	vtyUnknown
+	vtyNumber   'Either vtyInt or vtyFloat or vtyBool
 end enum
 
 type TypedValue
 	valtype as ValueType
 	union
-		int_value as integer
-		float_value as double
+		int_value as integer   'vtyBool or vtyInt
+		float_value as double  'vtyFloat
 		'xy_value as XYPair
 	end union
 
@@ -68,9 +73,10 @@ end type
 
 '''' ExpressionParser
 
-type FuncArgsInfo
+type ExprFuncInfo
 	minargs as integer
 	maxargs as integer
+	rettype as ValueType  'Can be vtyUnknown or vtyNumber
 end type
 
 ' Expression parser. Extended to implement recognition of identifiers and evaluation of nodes.
@@ -79,8 +85,7 @@ type ExpressionParser extends object
 	parser_pos as integer  '(1-based) position in parse_input
 	parse_error as string  'Nonempty if an error occurred
 
-	declare abstract function get_function_args(ident as string) as FuncArgsInfo ptr
-	declare abstract function get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
+	declare abstract function get_function_info(ident as string) as ExprFuncInfo ptr
 	declare abstract function check_global(ident as string) as bool
 
 	declare function parse_string(input as string) as ExprNode ptr
