@@ -1466,6 +1466,7 @@ shared_modules += ['achievements.rbas',
                    'common.rbas',
                    'common_menus',
                    'cmdline',
+                   'expressions',
                    'loading.rbas',
                    'menus',
                    'reload',
@@ -1476,6 +1477,7 @@ shared_modules += ['achievements.rbas',
                    'steam',
                    'thingbrowser',
                    'plankmenu']
+
 # (.bas files only)
 edit_modules = ['custom',
                 'customsubs.rbas',
@@ -1737,7 +1739,7 @@ UTILTEST = env_exe ('utiltest', source = env.BASMAINO('utiltest.o', 'util.bas') 
 FILETEST = env_exe ('filetest', source = ['filetest.bas'] + base_objects)
 Depends(FILETEST, env_exe ('filetest_helper', source = ['filetest_helper.bas'] + base_objects))
 COMMONTEST = env_exe ('commontest', env = allmodexenv, source = allmodexenv.BASMAINO('commontest.o', 'common.rbas') + allmodex_objects_without_common)
-EXPRTEST = env_exe ('expressionstest', env = allmodexenv, source = env.BASMAINO('expressionstest.o', 'expressions.bas') + allmodex_objects)
+EXPRTEST = env_exe ('exprtest', env = allmodexenv, source = ['exprtest.bas'] + allmodex_objects)
 GFXTEST = env_exe ('gfxtest', env = allmodexenv, source = ['gfxtest.bas'] + allmodex_objects)
 
 Alias ('reload', [RELOADUTIL, RELOAD2XML, XML2RELOAD, RELOADTEST, RBTEST])

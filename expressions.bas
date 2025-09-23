@@ -1,101 +1,43 @@
-' Expression AST types and parser for FreeBASIC
+'OHRRPGCE - Simple expression parser and evaluator
+'(C) Copyright 1997-2025 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+'Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
 
 #include "config.bi"
+#include "expressions.bi"
 #include "util.bi"
 #include "common.bi"
-#include "testing.bi"
 
-enum ValueType
-	tyInt
-	tyFloat
-	'vtyXY   'Future
-	tyINVALID = -1  'For get_function_ret_type only
-end enum
+#define PARSEDBG(message)
+'#define PARSEDBG(message) ? message
 
-type TypedValue
-	valtype as ValueType
-	union
-		int_value as integer
-		float_value as double
-		'xy_value as XYPair
-	end union
-
-	declare operator cast() as string
-	declare operator cast() as double
-end type
 
 operator TypedValue.cast() as double
-	return iif(valtype = tyInt, int_value, float_value)
+	return iif(valtype = vtyInt, int_value, float_value)
 end operator
 
-enum ExprNodeType
-	EXPR_CONST
-	EXPR_VARIABLE
-	EXPR_BINARY_OP
-	EXPR_FUNCTION
-end enum
-
-' A node of an expression's AST
-type ExprNode
-	nodetype as ExprNodeType
-	name as string  'For EXPR_VARIABLE, EXPR_BINARY_OP, EXPR_FUNCTION_CALL
-	union
-		valtype as ValueType  'For all nodetypes
-		value as TypedValue   'For EXPR_CONST
-	end union
-	args(any) as ExprNode ptr     'For EXPR_BINARY_OP, EXPR_FUNCTION_CALL
-
-	declare function dump(indent as integer = 0) as string
-end type
-
-type FuncArgsInfo
-	minargs as integer
-	maxargs as integer
-end type
-
-#define IntVal(x) type<TypedValue>(tyInt, x)
-
-'Constructor... can't use a macro like IntVal
-private function FloatVal(x as double) as TypedValue
-	dim ret as TypedValue = type<TypedValue>(tyFloat)
-	ret.float_value = x
-	return ret
-end function
-
+' Always formats floats with decimals or scientific notation (which we can't parse back)
 operator TypedValue.cast() as string
-	if valtype = tyInt then
-		return str(int_value)
-	elseif valtype = tyFloat then
-		return str(float_value)
-	else
-		return "TypedValue(type=" & valtype & ")"
-	end if
+	if valtype = vtyInt then return str(int_value)
+	dim ret as string = str(float_value)
+	if instr(ret, any ".+") = 0 then ret &= ".0"
+	return ret
 end operator
 
-type ParserState extends object
-	parse_input as string
-	parser_pos as integer  '1-based positiong
-	parse_error as string
+/'
+function TypedValue.repr() as string
+	select case valtype
+		case vtyInt:   return "IntVal(" & int_value & ")"
+		case vtyFloat: return "FloatVal("  & float_value & ")"
+		case else:    return "TypedValue(vtype=" & valtype & ")"
+	end select
+end function
+'/
 
-	declare abstract function get_function_args(ident as string) as FuncArgsInfo ptr
-	declare abstract function get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-	declare abstract function check_global(ident as string) as bool
-	declare abstract function eval_node(node as ExprNode ptr) as TypedValue
+operator =(lhs as TypedValue, rhs as TypedValue) as bool
+	return cast(double, lhs) = cast(double, rhs)
+end operator
 
-	declare sub skip_whitespace()
-	declare function peek_char() as byte
-	declare function advance_char() as byte
-	declare function parse_number() as ExprNode ptr
-	declare function parse_identifier() as string
-	declare function parse_primary() as ExprNode ptr
-	declare function parse_expression(min_prec as integer) as ExprNode ptr
-	declare function parse_string_to_ast(input as string) as ExprNode ptr
-	declare function ast_to_string(node as ExprNode ptr) as string
-
-	declare sub show_error(msg as string)
-end type
-
-sub ParserState.show_error(msg as string)
+sub ExpressionParser.show_error(msg as string)
 	? "Parse error: " & msg
 end sub
 
@@ -103,10 +45,11 @@ function ExprNode.dump(indent as integer = 0) as string
 	static typenames(...) as string * 10 = {"INVALID", "Int", "Float", "XY"}
 	static nodetypenames(...) as string * 10 = {"CONST", "VAR", "BINOP", "FUNC"}
 	dim ret as string
-	ret = space(indent * 2) & "ExprNode(" & nodetypenames(nodetype) & " " & name & " is " & typenames(value.valtype - tyINVALID) & ")"
+	ret = space(indent * 2) & "ExprNode(" & nodetypenames(nodetype)
 	if nodetype = EXPR_CONST then
-		if value.valtype = tyInt then ret &= value.int_value
-		if value.valtype = tyFloat then ret &= value.float_value
+		ret &= ") = " & value'.repr()
+	else
+		ret &= " " & name & " is " & typenames(value.valtype - vtyINVALID) & ")"
 	end if
 	for idx as integer = 0 to ubound(args)
 		ret &= !"\n" & args(idx)->dump(indent + 1)
@@ -114,13 +57,13 @@ function ExprNode.dump(indent as integer = 0) as string
 	return ret
 end function
 
-sub ParserState.skip_whitespace()
+sub ExpressionParser.skip_whitespace()
 	while parser_pos <= len(parse_input) and parse_input[parser_pos - 1] = asc(" ")
 		parser_pos += 1
 	wend
 end sub
 
-function ParserState.peek_char() as byte
+function ExpressionParser.peek_char() as byte
 	skip_whitespace
 	if parser_pos <= len(parse_input) then
 		return parse_input[parser_pos - 1]
@@ -129,13 +72,14 @@ function ParserState.peek_char() as byte
 	end if
 end function
 
-function ParserState.advance_char() as byte
+function ExpressionParser.advance_char() as byte
 	parser_pos += 1
 	skip_whitespace
 	return peek_char
 end function
 
-function ParserState.parse_number() as ExprNode ptr
+' If there is something that looks like a number here parse it, otherwise return NULL
+function ExpressionParser.parse_number() as ExprNode ptr
 	dim c as byte = peek_char  'Skips leading whitespace
 	dim start_pos as integer = parser_pos
 	dim token as string
@@ -152,7 +96,7 @@ function ParserState.parse_number() as ExprNode ptr
 	'     c = advance_char
 	' wend
 
-	if parser_pos = start_pos then return 0  'Nothing here
+	if parser_pos = start_pos then return NULL  'Nothing here
 
 	'dim token as string = mid(parse_input, start_pos, parser_pos - start_pos)
 	if token = "-" then
@@ -179,7 +123,7 @@ function ParserState.parse_number() as ExprNode ptr
 	return node
 end function
 
-function ParserState.parse_identifier() as string
+function ExpressionParser.parse_identifier() as string
 	dim token as string = ""
 	dim c as byte = peek_char
 	' Stop at operators, parentheses, comma
@@ -191,7 +135,8 @@ function ParserState.parse_identifier() as string
 	return ""
 end function
 
-function ParserState.parse_primary() as ExprNode ptr
+' Parse a number, variable, function call, or parenthesised expression
+function ExpressionParser.parse_primary() as ExprNode ptr
 	dim c as byte = peek_char()
 
 	if c = asc("(") then
@@ -217,14 +162,6 @@ function ParserState.parse_primary() as ExprNode ptr
 
 	' Look up function info
 	dim args_info as FuncArgsInfo ptr = get_function_args(ident)
-
-	' c = peek_char()
-	' if c = asc("(") then
-	'     if args_info = NULL then
-	'         parse_error = "Unknown function: " & ident
-	'         return NULL
-	'     end if
-	' end if
 
 	' Determine if this is a function call
 	dim is_function as bool = NO
@@ -291,7 +228,7 @@ function ParserState.parse_primary() as ExprNode ptr
 		' Get return type
 		dim errmsg as string
 		node->value.valtype = get_function_ret_type(node, errmsg)
-		if node->value.valtype = tyINVALID then
+		if node->value.valtype = vtyINVALID then
 			parse_error = errmsg
 			return NULL
 		end if
@@ -300,57 +237,66 @@ function ParserState.parse_primary() as ExprNode ptr
 	else
 		' It's a variable
 		if not check_global(ident) then
-			parse_error = "Unknown variable: " + ident
+			parse_error = "Unknown name/variable: " + ident
 			return NULL
 		end if
 
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = EXPR_VARIABLE
 		node->name = ident
-		node->value.valtype = tyInt
-		'erase node->args(-1)
+		node->value.valtype = vtyInt  'Assume all variables are ints
 		return node
 	end if
 end function
 
-function ParserState.parse_expression(min_prec as integer) as ExprNode ptr
+'
+function ExpressionParser.parse_expression(min_prec as integer) as ExprNode ptr
 	dim left_expr as ExprNode ptr = parse_primary()
 	if left_expr = NULL then return NULL
 
 	do
-		dim op_char as byte = peek_char()
-		if INSTR("+-*/", chr(op_char)) = NULL then exit do
+		dim operatortok as string = chr(peek_char())
+		dim index as integer = instr("&|<>=+-*/", operatortok)
+		if index = 0 then exit do
 
-		dim prec as integer = iif(INSTR("+-", chr(op_char)), 1, 2)
+		' The precedence can be determined from the first character of the token
+		dim prec as integer = (@"112223344")[index] - asc("1")
 		if prec < min_prec then exit do
 
 		advance_char()
+		if instr("<>", operatortok) then
+			'Look for <= or >=
+			if peek_char() = asc("=") then operatortok &= chr(advance_char())
+		end if
+		if instr("&|", operatortok) then
+			'Must be && or ||
+			var char = chr(advance_char())
+			if char <> operatortok then
+				parse_error = strprintf("Expected '%s%s', found '%s%s'", operatortok, operatortok,  operatortok, char)
+			end if
+			operatortok &= char
+		end if
+
 		dim right_expr as ExprNode ptr = parse_expression(prec + 1)
 		if right_expr = NULL then return NULL
 
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = EXPR_BINARY_OP
-		node->name = chr(op_char)
+		node->name = operatortok
 		redim node->args(1)
 		node->args(0) = left_expr
 		node->args(1) = right_expr
-
-		dim errmsg as string
-		node->value.valtype = get_function_ret_type(node, errmsg)
-		if node->value.valtype = tyINVALID then
-			parse_error = errmsg
-			return NULL
-		end if
-
 		left_expr = node
+
+		node->value.valtype = get_function_ret_type(node, parse_error)
+		if node->value.valtype = vtyINVALID then return NULL
 	loop
 
 	return left_expr
 end function
 
-function ParserState.parse_string_to_ast(toparse as string) as ExprNode ptr
-	print
-	print "parse_string_to_ast(""" & toparse & """)"
+function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
+	PARSEDBG(!"\nparse_string(""" & toparse & """)")
 
 	parse_input = toparse
 	parser_pos = 1
@@ -366,7 +312,7 @@ function ParserState.parse_string_to_ast(toparse as string) as ExprNode ptr
 	dim result as ExprNode ptr = parse_expression(0)
 
 	if result <> NULL and peek_char() <> 0 then
-		parse_error = "Unexpected characters at end"
+		parse_error = "Unexpected text: """ & mid(parse_input, parser_pos) & """"
 		result = NULL
 	end if
 
@@ -377,12 +323,12 @@ function ParserState.parse_string_to_ast(toparse as string) as ExprNode ptr
 	return result
 end function
 
-function ParserState.ast_to_string(node as ExprNode ptr) as string
+function ExpressionParser.ast_to_string(node as ExprNode ptr) as string
 	if node = NULL then return ""
 
 	select case node->nodetype
 		case EXPR_CONST:
-			return cast(string, node->value)
+			return node->value'.repr()
 		case EXPR_VARIABLE:
 			return node->name
 		case EXPR_BINARY_OP:
@@ -403,234 +349,18 @@ function ParserState.ast_to_string(node as ExprNode ptr) as string
 end function
 
 ' Virtual methods
-' function ParserState.get_function_args(ident as string) as FuncArgsInfo ptr
+' function ExpressionParser.get_function_args(ident as string) as FuncArgsInfo ptr
 '     return 0
 ' end function
 
-' function ParserState.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-'     return tyINVALID
+' function ExpressionParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
+'     return vtyINVALID
 ' end function
 
-' function ParserState.check_global(ident as string) as bool
+' function ExpressionParser.check_global(ident as string) as bool
 '     return false
 ' end function
 
-' function ParserState.eval_node(node as ExprNode ptr) as double
+' function ExpressionParser.eval_node(node as ExprNode ptr) as double
 '     return 0
 ' end function
-
-' Mock implementation for testing
-type MockParser extends ParserState
-	declare function get_function_args(ident as string) as FuncArgsInfo ptr
-	declare function get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-	declare function check_global(ident as string) as bool
-	declare function eval_node(node as ExprNode ptr) as TypedValue
-end type
-
-function MockParser.get_function_args(ident as string) as FuncArgsInfo ptr
-
-	static mock_xy_args as FuncArgsInfo = (2, 2)
-	static mock_quarter_args as FuncArgsInfo = (1, 1)
-	static mock_sum_args as FuncArgsInfo = (0, 999)
-	static mock_childcount_args as FuncArgsInfo = (0, 0)
-
-	?"get_function_args(""" & ident & """)"
-	select case lcase(ident)
-		case "xy": return @mock_xy_args
-		case "quarter": return @mock_quarter_args
-		case "sum": return @mock_sum_args
-		case "childcount": return @mock_childcount_args
-		case else: return NULL
-	end select
-end function
-
-function MockParser.get_function_ret_type(node as ExprNode ptr, byref errmsg as string) as ValueType
-	?"get_function_ret_type(""" & node->name & """)"
-	select case node->nodetype
-		case EXPR_FUNCTION:
-			select case lcase(node->name)
-				case "quarter": return tyFloat
-				case "sum": return tyInt
-				case "childcount": return tyInt
-				'case "xy": return tyXY
-			end select
-		case EXPR_BINARY_OP:
-			dim left_type as ValueType = node->args(0)->value.valtype
-			dim right_type as ValueType = node->args(1)->value.valtype
-			if left_type = tyFloat or right_type = tyFloat then
-				return tyFloat
-			end if
-			return tyInt
-	end select
-	return tyINVALID
-end function
-
-function MockParser.check_global(ident as string) as bool
-	?"check_global(""" & ident & """)"
-	return ident = "x" or ident = "xvelocity" or ident = "pi" or ident = "y"
-end function
-
-function MockParser.eval_node(node as ExprNode ptr) as TypedValue
-	if node = NULL then return IntVal(0)
-
-	select case node->nodetype
-		case EXPR_CONST:
-			return node->value
-		case EXPR_VARIABLE:
-			select case node->name
-				case "x": return IntVal(10)
-				case "xvelocity": return IntVal(20)
-				case "pi": return FloatVal(M_PI)
-				case "y": return IntVal(0)
-			end select
-		case EXPR_BINARY_OP:
-			dim left_tv as TypedValue = eval_node(node->args(0))
-			dim right_tv as TypedValue = eval_node(node->args(1))
-			?"eval binop, left = "& left_tv & " right = " &  right_tv
-			dim left_val as double = left_tv
-			dim right_val as double = right_tv
-			?"eval binop " & node->name & " " & left_Val & " " & right_val
-			select case node->name
-				case "+": return FloatVal(left_val + right_val)
-				case "-": return FloatVal(left_val - right_val)
-				case "*": return FloatVal(left_val * right_val)
-				case "/": return FloatVal(left_val / right_val)
-			end select
-		case EXPR_FUNCTION:
-			select case node->name
-				case "quarter": return FloatVal(cast(double, eval_node(node->args(0))) / 4)
-					'case "sin": return FloatVal(sin(cast(double, eval_node(node->args(0)))))
-				case "sum":
-					dim total as double = 0
-					for i as integer = 0 to ubound(node->args)
-						total += eval_node(node->args(i))
-					next
-					return FloatVal(total)
-				case "childcount": return IntVal(1)
-			end select
-	end select
-	return IntVal(0)
-end function
-
-' Helper macros for testing
-#macro testParseOK(expr)
-	ast = parser.parse_string_to_ast(expr)
-	if ast = NULL then fail
-#endmacro
-
-#macro testParseError(expr, expected_msg)
-	ast = parser.parse_string_to_ast(expr)
-	if ast <> NULL then print "Expected parse error '" & expected_msg & "' but instead succeeded" : fail
-	testEqual(parser.parse_error, expected_msg)
-#endmacro
-
-#macro testEval(expr, expected)
-	ast = parser.parse_string_to_ast(expr)
-	if ast = NULL then fail
-	? ast->dump(0)
-	testEqual(cast(double, parser.eval_node(ast)), expected)
-#endmacro
-
-startTest(test_parse_errors)
-	dim parser as MockParser
-	dim ast as ExprNode ptr
-
-	' Test malformed numbers
-	testParseError("42..42", "Invalid number: 42..42")
-	testParseError("111111111111", "Invalid number: 111111111111")
-
-	' Test various error conditions
-	testParseError("", "Empty expression")
-	testParseError("42 junk", "Unexpected characters at end")
-	testParseError("UNKNOWN(1)", "Unknown function: UNKNOWN")
-	testParseError("UNKNOWN ()", "Unknown function: UNKNOWN")
-	testParseError("unknown_var", "Unknown variable: unknown_var")
-	testParseError("(3+4", "Expected ')'")
-	testParseError("XY(1)", "Function XY expects 2 arguments")
-	testParseError("XY(1,2,3)", "Function XY expects 2 arguments")
-	testParseError("quarter()", "Function quarter expects 1 arguments")
-	testParseError("3 +", "Expected number or identifier")
-	testParseError("quarter(1,)", "Expected number or identifier")
-endTest
-
-startTest(test_basic_parsing)
-	dim parser as MockParser
-	dim ast as ExprNode ptr
-
-	' Test integer
-	testParseOK("42")
-	testEqual(ast->nodetype, EXPR_CONST)
-	testEqual(ast->value.valtype, tyInt)
-	testEqual(ast->value.int_value, 42)
-
-	testParseOK("3.14")
-	testEqual(ast->nodetype, EXPR_CONST)
-	testEqual(ast->value.valtype, tyFloat)
-	testEqual(ast->value.float_value, 3.14)
-
-	testParseOK(".14")
-	testEqual(ast->value, FloatVal(0.14))
-
-	testParseOK("1.")
-	testEqual(ast->value, FloatVal(1.0))
-
-	testParseOK("x")
-	testEqual(ast->nodetype, EXPR_VARIABLE)
-	testEqual(ast->name, "x")
-
-	testParseOK("sum(12)")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
-	testEqual(ast->name, "sum")
-	testEqual(ubound(ast->args), 0)
-
-	testParseOK("sum(-1,-2)")
-	testEqual(ubound(ast->args), 1)
-
-	' Function parens optional
-	testParseOK("childcount()")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
-	testEqual(ast->name, "childcount")
-	testEqual(ubound(ast->args), -1)
-
-	testParseOK("child count")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
-	testEqual(ast->name, "childcount")
-	testEqual(ubound(ast->args), -1)
-
-	' Test whitespace in various places
-	testParseOK(" - 42 ")
-	testEqual(ast->value, IntVal(-42))
-
-	testParseOK(" 1 000 ")
-	testEqual(ast->value, IntVal(1000))
-
-	testParseOK("x + x velocity")
-	testEqual(ast->nodetype, EXPR_BINARY_OP)
-
-	testParseOK(" c hildcoun t (   ) ")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
-	testEqual(ast->name, "childcount")
-	testEqual(ubound(ast->args), -1)
-
-	testParseOK("sum( 1 , 2 , 3 )")
-	testEqual(ubound(ast->args), 2)
-endTest
-
-startTest(test_nested_expressions)
-	dim parser as MockParser
-	dim ast as ExprNode ptr
-
-	' Test deeply nested expressions
-	testEval("((1 + 2) * 3)", IntVal(9))
-	testEval("quarter(30.0)", 7.5)
-	testEval("quarter(40)", 10)
-	testEval("quarter(x + 2*xvelocity)", 12.5)
-	testEval("sum(1, 2 * 3, x)", 17) ' 1 + 6 + 10
-	testEval("x + x velocity * 2", 50) ' 10 + 20 * 2
-	testEval("(x + x velocity) * 2", 60) ' (10 + 20) * 2
-
-	' Test complex nesting
-	testParseOK("sum(quarter(pi), x + 1, y * 2)")
-	testEqual(ast->nodetype, EXPR_FUNCTION)
-	testEqual(ubound(ast->args), 2) ' 3 arguments
-endTest
