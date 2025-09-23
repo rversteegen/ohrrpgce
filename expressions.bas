@@ -58,13 +58,14 @@ function ExprNode.dump(indent as integer = 0) as string
 end function
 
 sub ExpressionParser.skip_whitespace()
-	while parser_pos <= len(parse_input) and parse_input[parser_pos - 1] = asc(" ")
+	'while parser_pos <= len(parse_input) and parse_input[parser_pos - 1] = asc(" ")
+	while peek_char = " "
 		parser_pos += 1
 	wend
 end sub
 
 function ExpressionParser.peek_char() as string
-	skip_whitespace
+	'skip_whitespace
 	return mid(parse_input, parser_pos, 1)
 end function
 
@@ -74,15 +75,17 @@ function ExpressionParser.advance_char() as string
 	return peek_char
 end function
 
-' If there is something that looks like a number here parse it, otherwise return NULL
+' If there is something that looks like a number here parse it, otherwise return NULL.
+' Note that this is not called where a '-' binary operator is valid, so '-' is assumed
+' to start a number literal. We don't support unary '-' operator for simplicity.
 function ExpressionParser.parse_number() as ExprNode ptr
 	dim c as string = peek_char  'Skips leading whitespace
 	dim start_pos as integer = parser_pos
 	dim token as string
 
 	' Glob -?[0-9. ]*, discard whitespace
-	'if c = asc("-") then token &= "-" c = advance_char
-	while isdigit(asc(c)) orelse c = "." orelse c = "-"
+	if c = "-" then token &= "-" : c = advance_char
+	while isdigit(asc(c)) orelse c = "."
 		token &= c
 		c = advance_char
 	wend
@@ -91,12 +94,11 @@ function ExpressionParser.parse_number() as ExprNode ptr
 	' while isdigit(c) or c = asc(".")
 	'     c = advance_char
 	' wend
+	' dim token as string = exclude(mid(parse_input, start_pos, parser_pos - start_pos), " ")
 
 	if parser_pos = start_pos then return NULL  'Nothing here
 
-	'dim token as string = mid(parse_input, start_pos, parser_pos - start_pos)
 	if token = "-" then
-		'No unary minus for simplicity
 		parse_error = "Use -1*... to negate a value"
 		return NULL
 	end if
@@ -296,7 +298,7 @@ end function
 function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	PARSEDBG(!"\nparse_string(""" & toparse & """)")
 
-	parse_input = toparse
+	parse_input = trim(toparse)
 	parser_pos = 1
 	parse_error = ""
 
@@ -306,7 +308,6 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 		return NULL
 	end if
 
-	skip_whitespace
 	dim result as ExprNode ptr = parse_expression()
 
 	if result <> NULL and len(peek_char()) then
@@ -321,7 +322,13 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	return result
 end function
 
-function ExpressionParser.ast_to_string(node as ExprNode ptr) as string
+function get_operator_precedence(op as string) as integer
+	dim index as integer = instr("&|<>=+-*/", left(op, 1))
+	if index = 0 then return 99
+	return (@"112223344")[index] - asc("1")
+end function
+
+function ExpressionParser.ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
 	if node = NULL then return ""
 
 	select case node->nodetype
@@ -330,7 +337,15 @@ function ExpressionParser.ast_to_string(node as ExprNode ptr) as string
 		case exprVariable:
 			return node->name
 		case exprBinaryOp:
-			return "(" + ast_to_string(node->args(0)) + " " + node->name + " " + ast_to_string(node->args(1)) + ")"
+			dim current_precedence as integer = get_operator_precedence(node->name)
+			dim left as string = ast_to_string(node->args(0), current_precedence)
+			dim right as string = ast_to_string(node->args(1), current_precedence)
+			dim result as string = left + " " + node->name + " " + right
+			if current_precedence < parent_precedence then
+				return "(" + result + ")"
+			else
+				return result
+			end if
 		case exprFunction:
 			dim result as string = node->name
 			if ubound(node->args) >= 0 then

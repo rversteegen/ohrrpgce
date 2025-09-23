@@ -84,7 +84,7 @@ type ExpressionParser extends object
 	declare abstract function eval_node(node as ExprNode ptr) as TypedValue
 
 	declare function parse_string(input as string) as ExprNode ptr
-	declare function ast_to_string(node as ExprNode ptr) as string
+	declare function ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
 
 	declare virtual sub show_error(msg as string)
 
@@ -96,8 +96,8 @@ type ExpressionParser extends object
 	declare function parse_identifier() as string
 	declare function parse_primary() as ExprNode ptr
 	declare function parse_expression(min_prec as integer = 0) as ExprNode ptr
-
 end type
 
+declare function get_operator_precedence(op as string) as integer
 
 #endif

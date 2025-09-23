@@ -142,28 +142,6 @@ end function
 	testEqual(cast(double, parser.eval_node(ast)), expected)
 #endmacro
 
-startTest(test_parse_errors)
-	dim parser as MockParser
-	dim ast as ExprNode ptr
-
-	' Test malformed numbers
-	testParseError("42..42", "Invalid number: 42..42")
-	testParseError("111111111111", "Invalid number: 111111111111")
-
-	' Test various error conditions
-	testParseError("", "Empty expression")
-	testParseError("42 junk", "Unexpected text: ""junk""")
-	testParseError("UNKNOWN(1)", "Unknown function: UNKNOWN")
-	testParseError("UNKNOWN ()", "Unknown function: UNKNOWN")
-	testParseError("UNKNOWN", "Unknown name/variable: UNKNOWN")
-	testParseError("(3+4", "Expected ')'")
-	testParseError("XY(1)", "Function XY expects 2 arguments")
-	testParseError("XY(1,2,3)", "Function XY expects 2 arguments")
-	testParseError("quarter()", "Function quarter expects 1 arguments")
-	testParseError("3 +", "Expected number or identifier")
-	testParseError("quarter(1,)", "Expected number or identifier")
-endTest
-
 startTest(test_basic_parsing)
 	dim parser as MockParser
 	dim ast as ExprNode ptr
@@ -182,6 +160,8 @@ startTest(test_basic_parsing)
 
 	testParseOK(".14")
 	testEqual(ast->value, FloatVal(0.14))
+
+	testParseAs(".14", "0.14")
 
 	testParseOK("1.")
 	testEqual(ast->value.valtype, vtyFloat)
@@ -233,6 +213,31 @@ startTest(test_basic_parsing)
 	testEqual(ubound(ast->args), 2)
 endTest
 
+startTest(test_parse_errors)
+	dim parser as MockParser
+	dim ast as ExprNode ptr
+
+	' Test malformed numbers (parse_int/float tests in utiltest test these far
+	' more extensively)
+	testParseError("42..42", "Invalid number: 42..42")
+	testParseError("111111111111", "Invalid number: 111111111111")  'Because it overflows
+
+	' Test various error conditions
+	testParseError("", "Empty expression")
+	testParseError("42 junk", "Unexpected text: ""junk""")
+	testParseError("UNKNOWN(1)", "Unknown function: UNKNOWN")
+	testParseError("UNKNOWN ()", "Unknown function: UNKNOWN")
+	testParseError("UNKNOWN", "Unknown name/variable: UNKNOWN")
+	testParseError("(3+4", "Expected ')'")
+	testParseError("XY(1)", "Function XY expects 2 arguments")
+	testParseError("XY(1,2,3)", "Function XY expects 2 arguments")
+	testParseError("quarter()", "Function quarter expects 1 arguments")
+	testParseError("3 +", "Expected number or identifier")
+	testParseError("quarter(1,)", "Expected number or identifier")
+
+	testParseError("3|4", "Expected '||', found '|4'")
+endTest
+
 startTest(test_nested_expressions)
 	dim parser as MockParser
 	dim ast as ExprNode ptr
@@ -251,3 +256,24 @@ startTest(test_nested_expressions)
 	testEqual(ast->nodetype, exprFunction)
 	testEqual(ubound(ast->args), 2) ' 3 arguments
 endTest
+
+startTest(test_parentheses)
+	dim parser as MockParser
+	dim ast as ExprNode ptr
+
+	testParseAs("1 + 2 * 3", "1 + 2 * 3")
+	testParseAs("(1 + 2) * 3", "(1 + 2) * 3")
+	testParseAs("1 * (2 + 3)", "1 * (2 + 3)")
+	testParseAs("1 * 2 + 3", "1 * 2 + 3")
+	testParseAs("x + y * 2", "x + y * 2")
+	testParseAs("(x + y) * 2", "(x + y) * 2")
+
+	testParseAs("1-1", "1 - 1")
+
+	' Extra parentheses
+	testParseAs("((1 + 2) * 3)", "(1 + 2) * 3")
+	testParseAs("(1 * (2 + 3))", "1 * (2 + 3)")
+	testParseAs("(1 * 2) + 3", "1 * 2 + 3")
+endTest
+
+
