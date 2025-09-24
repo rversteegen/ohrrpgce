@@ -5,6 +5,9 @@
 #ifndef EXPRESSIONS_BI
 #define EXPRESSIONS_BI
 
+'Uncomment for ExpressionParser debugging
+'#define PARSEDBG(message) ? message
+#define PARSEDBG(message)
 
 #include "config.bi"
 
@@ -15,6 +18,7 @@ enum ValueType
 	vtyBool
 	vtyInt
 	vtyFloat
+	vtyError    'Propagate errors through eval_node
 	'vtyString  'Future
 	'vtyXY      'Future
 	' The following are NOT valid in a TypedValue
@@ -27,6 +31,7 @@ type TypedValue
 	union
 		int_value as integer   'vtyBool or vtyInt
 		float_value as double  'vtyFloat
+		error_value as string * 256 'vtyError
 		'xy_value as XYPair
 	end union
 
@@ -45,6 +50,20 @@ private function FloatVal(x as double) as TypedValue
 	ret.float_value = x
 	return ret
 end function
+
+private function BoolVal(x as bool) as TypedValue
+	dim ret as TypedValue = type<TypedValue>(vtyBool)
+	ret.int_value = iif(x, 1, 0)
+	return ret
+end function
+
+private function ErrorVal(msg as string) as TypedValue
+	dim ret as TypedValue = type<TypedValue>(vtyError)
+	ret.error_value = msg
+	return ret
+end function
+
+
 
 
 '''' ExprNode
@@ -89,7 +108,7 @@ type ExpressionParser extends object
 	declare abstract function check_global(ident as string) as bool
 
 	declare function parse_string(input as string) as ExprNode ptr
-	declare function ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
+	declare function ast_to_string(node as ExprNode ptr, omit_parens as bool = YES, parent_precedence as integer = -1) as string
 
 	' Implements operators and constants only, subclasses handle exprVariable and exprFunction
 	declare virtual function eval_node(node as ExprNode ptr) as TypedValue

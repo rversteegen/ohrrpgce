@@ -7,21 +7,27 @@
 #include "util.bi"
 #include "common.bi"
 
-#define PARSEDBG(message)
-'#define PARSEDBG(message) ? message
+
 
 
 operator TypedValue.cast() as double
-	if valtype <> vtyFloat then return int_value
-	return float_value
+	select case valtype
+		case vtyFloat: return float_value
+		case vtyError: return 1/0  'NaN
+		case else: return int_value
+	end select
 end operator
 
 ' Always formats floats with decimals or scientific notation (which we can't parse back)
 operator TypedValue.cast() as string
-	if valtype <> vtyFloat then return str(int_value)
-	dim ret as string = str(float_value)
-	if instr(ret, any ".+") = 0 then ret &= ".0"
-	return ret
+	select case valtype
+		case vtyFloat:
+			dim ret as string = str(float_value)
+			if instr(ret, any ".+") = 0 then ret &= ".0"
+			return ret
+		case vtyError: return error_value
+		case else: return str(int_value)
+	end select
 end operator
 
 /'
@@ -35,6 +41,8 @@ end function
 '/
 
 operator =(lhs as TypedValue, rhs as TypedValue) as bool
+	if lhs.valtype = vtyError andalso rhs.valtype = vtyError then return lhs.error_value = rhs.error_value
+	if lhs.valtype = vtyError or rhs.valtype = vtyError then return false
 	return cast(double, lhs) = cast(double, rhs)
 end operator
 
@@ -50,7 +58,7 @@ function ExprNode.dump(indent as integer = 0) as string
 	if nodetype = exprConst then
 		ret &= ") = " & value'.repr()
 	else
-		ret &= " " & name & " is " & typenames(value.valtype) & ")"
+		ret &= " " & name & " type=" & typenames(value.valtype) & ")"
 	end if
 	for idx as integer = 0 to ubound(args)
 		ret &= !"\n" & args(idx)->dump(indent + 1)
@@ -81,6 +89,7 @@ end function
 ' to start a number literal. We don't support unary '-' operator for simplicity.
 function ExpressionParser.parse_number() as ExprNode ptr
 	dim c as string = peek_char  'Skips leading whitespace
+	PARSEDBG("parse_number, peek_char = " & c)
 	dim start_pos as integer = parser_pos
 	dim token as string
 
@@ -126,7 +135,7 @@ function ExpressionParser.parse_identifier() as string
 	dim token as string = ""
 	dim c as string = peek_char
 	' Stop at operators, parentheses, comma
-	while len(c) andalso instr("&|<>=+-*/(),", c) = 0
+	while len(c) andalso instr("&|<>=+-*/^(),", c) = 0
 		token &= c
 		c = advance_char
 	wend
@@ -137,6 +146,7 @@ end function
 ' Parse a number, variable, function call, or parenthesised expression
 function ExpressionParser.parse_primary() as ExprNode ptr
 	dim c as string = peek_char()
+	PARSEDBG("parse_primary, peek_char = " & c)
 
 	if c = "(" then
 		advance_char()
@@ -155,7 +165,7 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 
 	dim ident as string = parse_identifier()
 	if ident = "" then
-		parse_error = "Expected number or identifier"
+		parse_error = "Expected number or identifier"  ' after """ & left(parse_input, parser_pos - 1) & """"
 		return NULL
 	end if
 
@@ -233,26 +243,32 @@ function ExpressionParser.parse_primary() as ExprNode ptr
 	end if
 end function
 
-' Combination of operator lexer and Pratt expression parser. Can extend to support right-associativity
+' Combination of operator lexer and Pratt expression parser (which easily supports right-associativity, but omit
+' that for simplicity)
 function ExpressionParser.parse_expression(min_precedence as integer = 0) as ExprNode ptr
 	dim left_expr as ExprNode ptr = parse_primary()
 	if left_expr = NULL then return NULL
 
 	do
 		dim operatortok as string = peek_char()
-		dim index as integer = instr("&|<>=+-*/", operatortok)
+		dim index as integer = instr("|&<>=+-*/^", operatortok)
 		if index = 0 then exit do
 
 		' The precedence can be determined from the first character of the token
-		dim precedence as integer = (@"112223344")[index] - asc("1")
+		dim precedence as integer = (@"0122233445")[index - 1] - asc("0")
+		PARSEDBG("parse_expression, operatortok = " & operatortok & " min_prec = " & min_precedence & " prec = " & precedence)
 		if precedence < min_precedence then exit do
 
 		' Lex two-character operator tokens
 		var nextchar = advance_char()
-		if instr("<>", operatortok) then
-			'Look for <= or >=
-			if nextchar = "=" then operatortok &= nextchar
-			advance_char()
+		if instr("<>=", operatortok) then
+			'Look for <= or >= or ==
+			if nextchar = "=" then
+				operatortok &= nextchar
+				advance_char()
+			elseif operatortok = "=" then
+				parse_error = strprintf("Expected '==', found '=%s'", nextchar)
+			end if
 		elseif instr("&|", operatortok) then
 			'Must be && or ||
 			if nextchar <> operatortok then
@@ -261,6 +277,7 @@ function ExpressionParser.parse_expression(min_precedence as integer = 0) as Exp
 			operatortok &= nextchar
 			advance_char
 		end if
+		PARSEDBG(" ...complete operatortok = " & operatortok)
 
 		dim right_expr as ExprNode ptr = parse_expression(precedence + 1)
 		if right_expr = NULL then return NULL
@@ -269,7 +286,7 @@ function ExpressionParser.parse_expression(min_precedence as integer = 0) as Exp
 
 		dim node as ExprNode ptr = new ExprNode
 		node->nodetype = exprBinaryOp
-		node->valuetype = vtyNumber
+		node->valtype = vtyNumber
 		node->name = operatortok
 		node->precedence = precedence
 		redim node->args(1)
@@ -308,30 +325,33 @@ function ExpressionParser.parse_string(toparse as string) as ExprNode ptr
 	return result
 end function
 
-function ExpressionParser.ast_to_string(node as ExprNode ptr, parent_precedence as integer = -1) as string
+' If omit_parens, omit unnecessary parentheses
+function ExpressionParser.ast_to_string(node as ExprNode ptr, omit_parens as bool = YES, parent_precedence as integer = -1) as string
 	if node = NULL then return ""
 
 	select case node->nodetype
 		case exprConst:
-			return node->value'.repr()
+			return str(node->value)
 		case exprVariable:
 			return node->name
 		case exprBinaryOp:
-			dim left as string = ast_to_string(node->args(0), node->precedence)
-			dim right as string = ast_to_string(node->args(1), node->precedence)
+			dim left as string = ast_to_string(node->args(0), omit_parens, node->precedence)
+			dim right as string = ast_to_string(node->args(1), omit_parens, node->precedence + 1)
 			dim result as string = left & " " & node->name & " " & right
-			if node->precedence < parent_precedence then
+			if parent_precedence = -1 then omit_parens = YES  'Skip outermost parens
+			if node->name = "^" then omit_parens = NO  '^ is not right-associative, nested ^ is confusing
+			if omit_parens andalso node->precedence < parent_precedence then
 				return "(" & result & ")"
 			else
 				return result
 			end if
 		case exprFunction:
 			dim result as string = node->name
-			if ubound(node->args) >= 0 then
+			if omit_parens = NO orelse ubound(node->args) >= 0 then
 				result &= "("
 				for i as integer = 0 to ubound(node->args)
 					if i > 0 then result &= ", "
-					result &= ast_to_string(node->args(i))
+					result &= ast_to_string(node->args(i), omit_parens)
 				next
 				result &= ")"
 			end if
@@ -349,7 +369,51 @@ end function
 '     return false
 ' end function
 
-' TODO: implement constants and operators
 function ExpressionParser.eval_node(node as ExprNode ptr) as TypedValue
-     return IntVal(0)
+	if node = NULL then return IntVal(0)
+
+	select case node->nodetype
+		case exprConst:
+			return node->value
+		case exprBinaryOp:
+			dim left_tv as TypedValue = eval_node(node->args(0))
+			dim right_tv as TypedValue = eval_node(node->args(1))
+			dim left_int as bool = (left_tv.valtype = vtyInt or left_tv.valtype = vtyBool)
+			dim right_int as bool = (right_tv.valtype = vtyInt or right_tv.valtype = vtyBool)
+			dim result_int as bool = left_int and right_int
+			dim left_val as double = left_tv
+			dim right_val as double = right_tv
+			select case node->name
+				case "+":
+					if result_int then return IntVal(left_tv.int_value + right_tv.int_value) else return FloatVal(left_val + right_val)
+				case "-":
+					if result_int then return IntVal(left_tv.int_value - right_tv.int_value) else return FloatVal(left_val - right_val)
+				case "*":
+					if result_int then return IntVal(left_tv.int_value * right_tv.int_value) else return FloatVal(left_val * right_val)
+				case "/":
+					if right_val = 0 then return ErrorVal("Division by zero")
+					if result_int then return IntVal(left_tv.int_value \ right_tv.int_value) else return FloatVal(left_val / right_val)
+				case "^":
+					if result_int then return IntVal(left_tv.int_value ^ right_tv.int_value) else return FloatVal(left_val ^ right_val)
+				case "<":
+					return BoolVal(left_val < right_val)
+				case "<=":
+					return BoolVal(left_val <= right_val)
+				case ">":
+					return BoolVal(left_val > right_val)
+				case ">=":
+					return BoolVal(left_val >= right_val)
+				case "==":
+					return BoolVal(left_val = right_val)
+				case "&&":
+					dim left_bool as bool = iif(result_int, left_tv.int_value <> 0, left_val <> 0)
+					dim right_bool as bool = iif(result_int, right_tv.int_value <> 0, right_val <> 0)
+					return BoolVal(left_bool and right_bool)
+				case "||":
+					dim left_bool as bool = iif(result_int, left_tv.int_value <> 0, left_val <> 0)
+					dim right_bool as bool = iif(result_int, right_tv.int_value <> 0, right_val <> 0)
+					return BoolVal(left_bool or right_bool)
+			end select
+	end select
+	return IntVal(0)
 end function
