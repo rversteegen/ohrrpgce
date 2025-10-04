@@ -8447,7 +8447,59 @@ end
 				<ref>setfillparent</ref>
 			</seealso>
 		</command>
-		
+
+		<command id="refreshslice">
+			<canon>refresh slice (handle, sort slices.)</canon>
+			<shortname>refresh slice</shortname>
+			<description>
+				Immediately recompute properties of a slice that are dependent on its other
+				properties and on its parent and childen, which includes size defined by "Fill Parent" or "Cover Children", visibility of children of Select slices, the height of wrapping Text slices (which depends on their width).
+				In fact, this command refreshes the parent and all the ancestors of the slice as well, as that is in general needed to determine the screen position.
+ wouldn't otherwise be updated
+				until they are drawn.
+				Mostly this means the size of slices set to Fill or Cover Children,
+				and the visibility of children of Select slices.
+				The most common reason to call this is to make Fill Parent take effect immediately.
+				<lb/>
+				 
+				<lb/>
+				A number of commands automatically refresh slices they are called on, so you're
+				unlikely to need this command. Those include:
+				<ul>
+					<li><ref>slicescreenx</ref> / <ref>slicescreeny</ref></li>
+					<li><ref>slicecontains</ref></li>
+					<li><ref>slicecollide</ref></li>
+					<li><ref>slicecollidepoint</ref></li>
+					<li><ref>sliceatpixel</ref></li>
+					<li><ref>findcollidingslice</ref></li>
+					<li><ref>moveslicewithwallchecking</ref></li>
+				</ul>
+				...and others that make use of screen positions, such as <ref>putslicescreen</ref>.
+				<lb/>
+				You should not call <tt>refresh slice</tt> immediately before these commands,
+				because that does the refresh twice.
+				In some cases, refreshing can be expensive. If any of the
+
+				<note>
+					This command doesn't yet, but will in future:
+					-apply Cover Children
+					-dynamic props
+					-optionally sort children
+					-update sprite sizes
+					-update text slices that dynamically re-embed text
+					-update the height of wrapping text slices based on their width
+				</note>
+			</description>
+		</command>
+		<command id="refreshslicetree">
+			<canon>refresh slice tree (handle, autosort)</canon>
+			<shortname>refresh slice</shortname>
+			<description>
+				Equivalent to calling <ref>refreshslice</ref> on a slice and every one of its descendents (including invisible slices but *not* template slices), but much faster.
+				One reason you might want to use this is to update slices that aren't normally refreshed because they were set to nonvisible (with <ref>setslicevisible</ref>).
+			</description>
+		</command>
+
 		</section>		<!-- Slice Sizing-->
 
 		<section title="Positioning Slices">
@@ -12125,8 +12177,10 @@ write pass block(15,3,none)
 				The value is 0 if there was no collision.
 				You can use the constants <ref>northwall</ref>, <ref>southwall</ref>, <ref>eastwall</ref>, <ref>westwall</ref>
 				and the bitwise-<ref>and</ref> operator to 'test' the bitmask.
-				For example <tt>bitmask, and, southwall</tt> 'tests' whether <p>sl</p>
-				hit and is now resting against a wall on its south side (useful for a platformer).
+				For example <tt>if (bitmask, and, southwall)</tt> 'tests' whether <p>sl</p>
+				hit against a wall on its south side.
+				(Normally that means it's now resting against a wall to the south (useful for a platformer),
+				but if friction < 100 it's possible it slid past the wall.)
 				<lb/>
 				Diagonally hitting the corner or end  of a wall exactly (including thin wall segments) is a special case.
 				In that case the slice stops at the corner/end of the wall but is only touching it diagonally,

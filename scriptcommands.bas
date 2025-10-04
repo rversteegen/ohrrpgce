@@ -5570,7 +5570,16 @@ SUB script_commands(byval cmdid as integer)
     END IF
    END IF
   END IF
-
+ CASE 813'--refresh slice
+  sl = get_arg_slice(0)
+  IF sl THEN
+   RefreshSliceScreenPos sl
+  END IF
+ CASE 814'--refresh slice treee
+  sl = get_arg_slice(0)
+  IF sl THEN
+   RefreshSliceTreeScreenPos sl
+  END IF
 
  CASE ELSE
   'We also check the HSP header at load time to check there aren't unsupported commands
