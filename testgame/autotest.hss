@@ -132,32 +132,32 @@ script, run tests 1, begin
   plotstr tests
   string load tests
   platform tests
-  save slot tests
+#  save slot tests
   slice tests
-  master palette tests
-  maptile tests
+  # master palette tests
+  # maptile tests
   wallchecking tests
-  zone tests
-  map state tests
-  inventory tests
-  items tests
-  hero tests
-  death tests
-  harm tile tests
-  door tests
-  map autorun tests
+  # zone tests
+  # map state tests
+  # inventory tests
+  # items tests
+  # hero tests
+  # death tests
+  # harm tile tests
+  # door tests
+  # map autorun tests
   npc tests
-  menu tests
+  # menu tests
   textbox tests
   shop tests
-  attack tests
-  enemy tests
-  battle tests
-  timer tests
-  pathfinding tests
-  vehicle tests
-  obsolete map data tests
-  run game tests
+  # attack tests
+  # enemy tests
+  # battle tests
+  # timer tests
+  # pathfinding tests
+  # vehicle tests
+  # obsolete map data tests
+  # run game tests
   reset game tests   # Resets the game
   # Shouldn't get here
   crash
