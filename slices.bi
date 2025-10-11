@@ -453,7 +453,7 @@ Type Slice
   Clone as SliceCloneFn
   Save as SliceSaveFn
   Load as SliceLoadFn
-  'Refreshes any computed properties of self, for example text height depending on width
+  'Refreshes any computed properties of self, for example text height depending on width.
   Refresh as SliceRefreshFn  'NULL for most slice types
   'Updates the screen position and size of one child, according to parent position,
   'alignment, anchoring, fill and slice-specific placement of children (Grid and Panel).
@@ -545,7 +545,18 @@ Type TextSliceData
  insert_tog as integer 'flash state of insertion pointer (0 or 1)
  first_line as integer 'Top-most line to show. Used for scrolling
  line_limit as integer = -1 'Number of lines to display. -1 is no limit
- line_count as integer 'automatically populated when the slice changes
+
+ 'The following are unsaved cached state (computed in RefreshTextSlice and used by DrawTextSlice)
+ computed_size as XYPair
+ lines(any) as string
+ line_starts(any) as integer
+ line_count as integer   'Number of lines, not supported for use_render_text=YES
+ 'Used to track whether cached state needs updating
+ last_text as string
+ last_wrapwidth as integer
+ last_fontnum as integer
+
+ declare function effective_fontnum() as integer
 End Type
 
 'FIXME: Support for modifying sprites and flipping is pretty tacked on; generalise!
@@ -851,7 +862,7 @@ DECLARE Sub ChangeRectangleSlice(byval sl as slice ptr,_
 DECLARE Function NewLineSlice(byval parent as Slice ptr, byref dat as LineSliceData) as Slice ptr
 
 DECLARE Function NewTextSlice(byval parent as Slice ptr, byref dat as TextSliceData) as slice ptr
-DECLARE Sub UpdateTextSlice(byval sl as slice ptr)
+DECLARE Sub RefreshTextSlice(byval sl as slice ptr)
 DECLARE Sub ChangeTextSlice(byval sl as slice ptr,_
                       s as string=CHR(1) & CHR(255),_
                       byval col as integer=colInvalid,_

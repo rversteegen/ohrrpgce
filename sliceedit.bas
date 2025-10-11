@@ -2396,8 +2396,9 @@ SUB slice_edit_detail_keys (byref ses as SliceEditState, edslice as Slice ptr, b
 
  ' Special actions to take after some piece of data has been edited
  IF state.need_update THEN
-  ' Because we bypass ChangeTextSlice (really ought to change that)
-  IF sl->SliceType = slText THEN UpdateTextSlice sl
+  ' Technically should call this because we bypass ChangeTextSlice (really ought to change that),
+  ' but we don't need immediate size updates
+  'IF sl->SliceType = slText THEN RefreshTextSlice sl
 
   slice_edit_updates sl, rule.dataptr
  END IF
