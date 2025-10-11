@@ -613,6 +613,7 @@ Function NewSlice(byval parent as Slice ptr = 0) as Slice ptr
  ret->Clone = @CloneNullSlice
  ret->Save = @SaveNullSlice
  ret->Load = @LoadNullSlice
+ ret->Refresh = NULL
  ret->ChildRefresh = @DefaultChildRefresh
  ret->ChildrenRefresh = NULL
  ret->ChildDraw = @DefaultChildDraw
@@ -989,6 +990,7 @@ Sub ReplaceSliceType(byval sl as Slice ptr, byref newsl as Slice ptr)
   sl->Clone     = .Clone
   sl->Save      = .Save
   sl->Load      = .Load
+  sl->Refresh   = .Refresh
   sl->ChildRefresh = .ChildRefresh
   sl->ChildrenRefresh = .ChildrenRefresh
   sl->ChildDraw = .ChildDraw
@@ -1284,6 +1286,11 @@ Sub LoadClassSlice(sl as Slice ptr, node as Reload.Nodeptr)
  sl->ClassInst->Load(sl, node)
 End Sub
 
+Sub RefreshClassSlice(sl as Slice ptr)
+ if sl = 0 orelse sl->ClassInst = 0 then debug "RefreshClassSlice null ptr": exit sub
+ sl->ClassInst->Refresh sl
+End Sub
+
 Sub ClassChildRefresh(sl as Slice ptr, ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
  if sl = 0 orelse sl->ClassInst = 0 then debug "ClassSliceChildRefresh null ptr": exit sub
  sl->ClassInst->ChildRefresh sl, ch, childindex, visibleonly
@@ -1305,6 +1312,7 @@ Local Sub InitClassSlicePtrs(sl as Slice ptr)
  sl->Clone = @CloneClassSlice
  sl->Save = @SaveClassSlice
  sl->Load = @LoadClassSlice
+ sl->Refresh = @RefreshClassSlice
  sl->ChildRefresh = @ClassChildRefresh
  sl->ChildrenRefresh = @ClassChildrenRefresh
  sl->ChildDraw = @ClassChildDraw
@@ -1336,6 +1344,9 @@ End Sub
 'Should never be called
 Sub ClassSlice.Load(sl as Slice ptr, node as Reload.Nodeptr)
  showerror "This ClassSlice can't be loaded"
+End Sub
+
+Sub ClassSlice.Refresh(sl as Slice ptr)
 End Sub
 
 Sub ClassSlice.ChildRefresh(sl as Slice ptr, ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
@@ -2380,7 +2391,13 @@ Function NewSpriteSlice(byval parent as Slice ptr, byref dat as SpriteSliceData)
  ret->Clone = @CloneSpriteSlice
  ret->Save = @SaveSpriteSlice
  ret->Load = @LoadSpriteSlice
- 
+
+ 'For now, don't set a ret->Refresh, because it's seems impossible to end up
+ 'with dat->loaded = NO except the first draw after creating a Sprite in the slice editor.
+ 'I would remove dat->loaded as unnecessary, but I have an enormous branch which rewrites
+ 'all the Sprite draw and load code, which probably needs it -- tmc
+ 'LoadSpriteSliceImage sl
+
  return ret
 end function
 
@@ -4518,17 +4535,24 @@ Sub RefreshSliceScreenPos(sl as Slice ptr)
  RefreshSlice sl
 end sub
 
-'Refresh a single child of sl, ignoring CoverChildren
+'Refresh a single child of sl, ignoring CoverChildren.
+'This is meant to mirror RefreshSliceTreeRecurse (so comments there aren't duplicated here)
 Local Sub RefreshOneChild(sl as Slice ptr, ch as Slice ptr, autosort as bool)
  if autosort andalso sl->AutoSort then AutoSortChildren sl
 
  if sl->ChildrenRefresh then sl->ChildrenRefresh(sl)
 
- 'ChildRefresh calculates the size (if filling), screen X,Y and possibly visibility (Select slices)
- 'or other properties. Refreshing is skipped if the slice isn't visible
- '(but we have to let ChildRefresh check visibleonly because of Select slices).
- '(If ChildrenRefresh is set, ChildRefresh will be NullChildRefresh)
  sl->ChildRefresh(sl, ch, -1, NO)  'visibleonly = NO
+
+ if ch->Refresh then
+  dim oldsize as XYPair = ch->Size
+  ch->Refresh(ch)
+  if ch->Size <> oldsize then
+   sl->ChildRefresh(sl, ch, -1, NO)  'visibleonly = NO
+  end if
+ end if
+
+ 'CoverChildren handled in RefreshSliceAscend
 end sub
 
 'Go up the tree refreshing each parent
@@ -4592,6 +4616,16 @@ Local Sub RefreshSliceTreeRecurse(sl as Slice ptr, autosort as bool, visibleonly
    if ch->Visible orelse visibleonly = NO then
     'if ch->Context then v_append context_stack, ch->Context
 
+    'Refresh() is after ChildRefresh so that Text can wrap based on a width set by Fill,
+    'and override Fill height. But afterwards, the screen position may need refreshing.
+    if ch->Refresh then
+     dim oldsize as XYPair = ch->Size
+     ch->Refresh(ch)
+     if ch->Size <> oldsize then
+      sl->ChildRefresh(sl, ch, childindex, visibleonly)
+     end if
+    end if
+
     RefreshSliceTreeRecurse ch, autosort, visibleonly
 
     'if ch->Context then v_shrink context_stack
@@ -4604,7 +4638,7 @@ Local Sub RefreshSliceTreeRecurse(sl as Slice ptr, autosort as bool, visibleonly
  loop
 
  if sl->CoverChildren then
-  dim as XYPair oldsize = sl->Size
+  dim oldsize as XYPair = sl->Size
   UpdateCoverSize(sl)
 
   if sl->Size <> oldsize then

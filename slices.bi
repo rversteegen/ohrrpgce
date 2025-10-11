@@ -298,14 +298,15 @@ Type SliceCollectionContext Extends SliceContext
 End Type
 
 Extern "C"
-Type SliceDraw as Sub(Byval as SliceFwd ptr, byval page as integer)
-Type SliceDispose as Sub(Byval as SliceFwd ptr)
-Type SliceClone as Sub(Byval as SliceFwd ptr, byval as SliceFwd ptr)
-Type SliceSave as Sub(Byval as SliceFwd ptr, byval node as Reload.Nodeptr)
-Type SliceLoad as Sub(Byval sl as SliceFwd ptr, byval node as Reload.Nodeptr)
-Type SliceChildRefresh as Sub(Byval par as SliceFwd ptr, Byval ch as SliceFwd ptr, childindex as integer = -1, visibleonly as bool = YES)
-Type SliceChildrenRefresh as Sub(Byval par as SliceFwd ptr)
-Type SliceChildDraw as Sub(Byval s as SliceFwd ptr, Byval page as integer)
+Type SliceDrawFn as Sub(sl as SliceFwd ptr, page as integer)
+Type SliceDisposeFn as Sub(sl as SliceFwd ptr)
+Type SliceCloneFn as Sub(sl as SliceFwd ptr, cl as SliceFwd ptr)
+Type SliceSaveFn as Sub(sl as SliceFwd ptr, node as Reload.Nodeptr)
+Type SliceLoadFn as Sub(sl as SliceFwd ptr, node as Reload.Nodeptr)
+Type SliceRefreshFn as Sub(sl as SliceFwd ptr)
+Type SliceChildRefreshFn as Sub(par as SliceFwd ptr, ch as SliceFwd ptr, childindex as integer = -1, visibleonly as bool = YES)
+Type SliceChildrenRefreshFn as Sub(par as SliceFwd ptr)
+Type SliceChildDrawFn as Sub(s as SliceFwd ptr, page as integer)
 End Extern
 
 'Eventually, Slice will be replaced with this OO-based ClassSlice,
@@ -317,6 +318,7 @@ Type ClassSlice Extends Object
  Declare Virtual Sub Clone(sl as SliceFwd ptr, as SliceFwd ptr)
  Declare Virtual Sub Save(sl as SliceFwd ptr, node as Reload.Nodeptr)
  Declare Virtual Sub Load(sl as SliceFwd ptr, node as Reload.Nodeptr)
+ Declare Virtual Sub Refresh(sl as SliceFwd ptr)
  Declare Virtual Sub ChildRefresh(sl as SliceFwd ptr, ch as SliceFwd ptr, childindex as integer = -1, visibleonly as bool = YES)
  Declare Virtual Sub ChildrenRefresh(sl as SliceFwd ptr)
  Declare Virtual Sub ChildDraw(sl as SliceFwd ptr, page as integer)
@@ -444,18 +446,20 @@ Type Slice
   Declare Function EffectiveCoverChildren() as CoverModes
 
   'Draws the slice itself, not including its children, if visible.
-  Draw as SliceDraw      'NULL for some slice types
+  Draw as SliceDrawFn      'NULL for some slice types
   'The following delete, clone or load/save SliceData to a RELOAD node.
   'They aren't responsible for any data in this Slice UDT.
-  Dispose as SliceDispose
-  Clone as SliceClone
-  Save as SliceSave
-  Load as SliceLoad
+  Dispose as SliceDisposeFn
+  Clone as SliceCloneFn
+  Save as SliceSaveFn
+  Load as SliceLoadFn
+  'Refreshes any computed properties of self, for example text height depending on width
+  Refresh as SliceRefreshFn  'NULL for most slice types
   'Updates the screen position and size of one child, according to parent position,
   'alignment, anchoring, fill and slice-specific placement of children (Grid and Panel).
   'Might also change .Visible (Select slices).
   'For all other types this is DefaultChildRefresh.
-  ChildRefresh as SliceChildRefresh
+  ChildRefresh as SliceChildRefreshFn
   'Alternative to ChildRefresh, updates the screen positions of all children at once.
   'This should be used if all children need to be updated together.
   'Note this isn't exactly equivalent to doing the work in ChildRefresh instead:
@@ -463,13 +467,13 @@ Type Slice
   'Also, ChildrenRefresh is always called on the parent of a slice,
   'not the slice it's attached to. Attach isn't supported for that.
   'NOTE: If ChildrenRefresh is implemented, you must set ChildRefresh to NullChildRefresh.
-  ChildrenRefresh as SliceChildrenRefresh  'NULL for most slice types
+  ChildrenRefresh as SliceChildrenRefreshFn  'NULL for most slice types
   'Called after Draw. Draws each child (by calling DrawSlice) while handling clipping.
   'For most slice types this is DefaultChildDraw.
   'This function can be overriden to either apply special clipping rules (Grid, Panel)
   'or to draw something on top of the children (Scroll), or to change recursion
   '(Panel only draws the first two children, Grid only draws rows*cols many)
-  ChildDraw as SliceChildDraw
+  ChildDraw as SliceChildDrawFn
 
   SliceType as SliceTypes
 
