@@ -5634,6 +5634,7 @@ script, slice refresh tests, begin
   assert(slice height(text) == 10)
   assert(slice screen x(text) == 17)
   #assert error(set slice width(text, 30))  # Doesn't wrap, can't set width
+
   # Test fill parent + wrapping text
   set wrap(text, true)
   # Turning on wrap by itself has no effect, because we haven't changed the width
@@ -5651,9 +5652,19 @@ script, slice refresh tests, begin
   assert(slice height(text) == 10)
   # Refresh but no draw: fill takes effect
   assert(slice screen x(text) == 0)  # Cause refresh
+tracevalue(slicescreenx(text), slicescreeny(text), slicewidth(text), sliceheight(text))
   assert(slice width(text) == 50)
-  #assert(slice height(text) == 51)  # Current behaviour: fill sets the height
+#  assert(slice height(text) == 51)  # Current behaviour: fill sets the height
   #assert(slice height(text) == 20)  # FIXME: desired behaviour
+
+  # Test whether children of a Text set to Fill
+  set parent(dot, text)
+  put slice(dot, 0, 0)
+  realign slice(dot, edge:right, edge:bottom, edge:right, edge:bottom)
+w
+tracevalue(slicescreenx(text), slicescreeny(text), slicewidth(text), sliceheight(text))
+tracevalue(slicescreenx(dot), slicescreeny(dot), slicewidth(dot), sliceheight(dot))
+
 
   # Text slices set their height when drawn (FIXME: should be on refresh instead).
   # Therefore they don't get resized vertically by Fill (tested below) unless refreshed when not visible
@@ -5702,7 +5713,7 @@ script, slice refresh tests, begin
   wait  # FIXME: assert fails without this extra wait
   assert(slice screen y(dot) == 61 -- 20)  # Cause refresh
 
-  # Changing *any* text property such calls UpdateTextSlice which immediately recomputes
+  # Changing *any* text property such calls RefreshTextSlice which immediately recomputes
   # the size, which is silly
   set slice height(text, 99)
   assert(slice height(text) == 99)
@@ -5712,7 +5723,7 @@ script, slice refresh tests, begin
   # Test fill parent without wrapping text
   set fill parent(text, fill:all)
   wait  # Cause refresh
-  # In particular, changing wrap calls UpdateTextSlice, immediately recomputing
+  # In particular, changing wrap calls RefreshTextSlice, immediately recomputing
   # size but doesn't refresh, so it overrides fill
   set wrap(text, false)
   #assert(slice width(text) == 88)  # Current behaviour, but don't want to enforce
@@ -6084,11 +6095,11 @@ script, text slice tests, begin
   assert(get wrap(sl) == true)
   assert(slice width(sl) == 48) # shouldn't have changed
   set slice width(sl, 35)
-  set wrap(sl, true)   # Modifying text slice data calls UpdateTextSlice (wait also would)
+  set wrap(sl, true)   # Modifying text slice data calls RefreshTextSlice (wait also would)
   assert(slice width(sl) == 35)
   assert(slice height(sl) == 40)
   set slice height(sl, 10)  # Doesn't show an error but will be overridden when updated
-  set wrap(sl, true)   # Modifying text slice data calls UpdateTextSlice (wait also would)
+  set wrap(sl, true)   # Modifying text slice data calls RefreshTextSlice (wait also would)
   assert(slice height(sl) == 40)
   set wrap(sl, false)
   assert(slice width(sl) == 48)  # Recomputes immediately
