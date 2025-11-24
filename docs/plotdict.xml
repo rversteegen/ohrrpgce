@@ -2696,6 +2696,13 @@ end</example>
 							<li>pathfinding:npcs ignored</li>
 						</ul>
 					</li>
+					<li>
+						alter NPC (who,NPCstat:sortorder,order)
+						<lb/>
+						Controls the order in which NPCs appear on the map. NPCs with lower sortorder values
+						are drawn first (behind NPCs with higher values). Defaults to -10 for step-on NPCs
+						and 0 for all other NPCs.
+					</li>
 				</ul>
 				Normally you would only give an NPC ID number to alter NPC,
 				but if you want to use an <ref>npcref</ref> it will still work.

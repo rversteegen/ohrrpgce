@@ -221,6 +221,13 @@ SUB LoadNPCD(file as string, dat() as NPCType, expect_exists as bool = YES)
       SetNPCD(dat(i), j, buf(j))
     NEXT
     IF dat(i).speed = 3 THEN dat(i).speed = 10
+    IF getfixbit(fixInitNPCSortorder) = 0 THEN
+      IF dat(i).activation = 2 THEN  'step-on NPC
+        dat(i).sortorder = -10
+      ELSE
+        dat(i).sortorder = 0
+      END IF
+    END IF
   NEXT
 
   CLOSE #f
@@ -274,6 +281,7 @@ SUB SetNPCD (npcdata as NPCType, intoffset as integer, value as integer)
    CASE 16: .defaultwallzone = value
    CASE 17: .ignore_passmap = value
    CASE 18: .pathfinding_obstruction_mode = value
+   CASE 19: .sortorder = value
    CASE ELSE
     showbug "SetNPCD: " & intoffset & " is an invalid integer offset"
   END SELECT
@@ -303,6 +311,7 @@ FUNCTION GetNPCD (npcdata as NPCType, intoffset as integer) as integer
    CASE 16: RETURN .defaultwallzone
    CASE 17: RETURN .ignore_passmap
    CASE 18: RETURN .pathfinding_obstruction_mode
+   CASE 19: RETURN .sortorder
    CASE ELSE
     showbug "GetNPCD: " & intoffset & " is an invalid integer offset"
   END SELECT

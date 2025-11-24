@@ -737,6 +737,14 @@ SUB script_commands(byval cmdid as integer)
     END IF
     'Shouldn't we check validity of retvals(2) for other data?
     IF write_value THEN SetNPCD(npool(pool).npcs(npcid), retvals(1), retvals(2))
+    IF retvals(1) = 8 THEN  'NPCstat:activation
+     'Reset to the default sort order
+     IF retvals(2) = 2 THEN  'step-on
+      npool(pool).npcs(npcid).sortorder = -10
+     ELSE
+      npool(pool).npcs(npcid).sortorder = 0
+     END IF
+    END IF
     lump_reloading.npcd.dirty = YES
    END IF
   END IF

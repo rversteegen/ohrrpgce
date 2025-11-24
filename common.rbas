@@ -1212,7 +1212,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binMENUITEM   THEN RETURN 68  'menuitem.bin
  IF id = binUICOLORS   THEN RETURN 126 'uicolors.bin
  IF id = binSAY        THEN RETURN 422 '.say
- IF id = binN          THEN RETURN 38  '.n##
+ IF id = binN          THEN RETURN 40  '.n##
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
  IF id = binITM        THEN RETURN 480 '.itm
@@ -4951,6 +4951,8 @@ updaterecordlength game & ".itm", binITM
 FOR i as integer = 0 TO gen(genMaxMap)
  updaterecordlength maplumpname(i, "n"), binN, 7, YES
 NEXT
+'Also update global NPCs if it exists
+updaterecordlength global_npcdef_filename(1), binN, 7, YES
 setbinsize binN, curbinsize(binN)
 'updaterecordlength workingdir + SLASH + "lookup1.bin", binLOOKUP1  'Unnecessary, and might not exist.
 
@@ -5448,6 +5450,21 @@ IF full_upgrade ANDALSO getfixbit(fixInitItemsReld) = 0 THEN
   '--load again to run debug_compare_items sanity check
   loaditemdata item, id
  NEXT
+END IF
+
+IF full_upgrade ANDALSO getfixbit(fixInitNPCSortorder) = 0 THEN
+ upgrade_message "Initialize NPC sortorder..."
+ setfixbit(fixInitNPCSortorder, 1)
+ REDIM npctemp(0) as NPCType
+ FOR i as integer = 0 TO gen(genMaxMap)
+  LoadNPCD maplumpname(i, "n"), npctemp()
+  SaveNPCD maplumpname(i, "n"), npctemp()
+ NEXT i
+ 'Also update global NPCs
+ LoadNPCD global_npcdef_filename(1), npctemp(), NO
+ IF UBOUND(npctemp) >= 0 THEN
+  SaveNPCD global_npcdef_filename(1), npctemp()
+ END IF
 END IF
 
 IF gen(genStartHero) < 0 OR gen(genStartHero) > gen(genMaxHero) THEN

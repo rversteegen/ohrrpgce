@@ -254,7 +254,7 @@ TYPE SelectTypeState
  remember_pt as integer       'Remember last state.pt value
 END TYPE
 
-CONST maxNPCDataField = 18  'Highest valid argument to Get/SetNPCD and read/alterNPC commands
+CONST maxNPCDataField = 19  'Highest valid argument to Get/SetNPCD and read/alterNPC commands
 'Because Get/SetNPCD are used to load/save .N lumps, this will change when binN changes
 
 ENUM PathfindingObstructionMode
@@ -297,6 +297,7 @@ TYPE NPCType
   defaultwallzone as integer '+16
   ignore_passmap as integer '+17  (0 or 1) Can walk through walls (but not zones or map edges)
   pathfinding_obstruction_mode as PathfindingObstructionMode '+18 (only matters if .movetype=15)
+  sortorder as integer   '+19 Defaults to -10 for stepon NPCs, 0 for others.
 END TYPE
 
 TYPE NPCPool

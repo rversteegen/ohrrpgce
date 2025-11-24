@@ -2232,6 +2232,7 @@ define constant, begin
 16,NPCstat:defaultavoidancezone
 17,NPCstat:ignorepassmap
 18,NPCstat:pathfindingrule
+19,NPCstat:sortorder
 # Values for NPCstat:pathfindingrule
 0,pathfinding:default
 1,pathfinding:npcs obstruct

@@ -317,10 +317,14 @@ LOCAL SUB update_walkabout_npc_slices()
     END IF
    END IF
    update_walkabout_pos npc(i).sl, npc(i).x, npc(i).y, npc(i).z
-   IF npc(i).sl <> 0 THEN
-    '--default NPC sort is by instance id
-    npc(i).sl->Sorter = i
-   END IF
+    IF npc(i).sl <> 0 THEN
+     IF gmap(16) = 2 THEN ' heroes and NPCs together
+      npc(i).sl->Sorter = npool(npc(i).pool).npcs(npc(i).id - 1).sortorder
+     ELSE
+      '--backcompat: NPCs are sorted by instance id
+      npc(i).sl->Sorter = i
+     END IF
+    END IF
   ELSEIF npc(i).id <= 0 THEN
    '--remove unused and hidden NPC slices
    IF npc(i).sl <> 0 THEN
@@ -479,7 +483,7 @@ SUB refresh_walkabout_layer_sort()
  IF gmap(16) = 2 THEN ' Heroes and NPCs Together
   DeleteSlice @SliceTable.HeroLayer
   DeleteSlice @SliceTable.NPCLayer
-  SliceTable.Walkabout->AutoSort = slAutoSortY
+  SliceTable.Walkabout->AutoSort = slAutoSortCustomThenY
  ELSE
   'Hero and NPC in separate layers
   SliceTable.Walkabout->AutoSort = slAutoSortNone

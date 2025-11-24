@@ -6946,7 +6946,7 @@ script, slice sort tests, begin
   write gmap(16, 2)  # Layering: NPCs and heroes together
   assert(read gmap(16) == 2)
   # This might actually change in future when more sophisticated layering is implemented
-  assert(get child autosort(lookup slice(sl:walkabout layer)) == autosort:Y)
+  assert(get child autosort(lookup slice(sl:walkabout layer)) == autosort:CustomThenY)
 
   write gmap(16, 0)  # Reset to heroes over NPCs
 
