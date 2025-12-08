@@ -166,6 +166,7 @@ DECLARE SUB set_map_edge_draw_mode(gmap() as integer, wrap_layers_over_edge_of_c
 
 DECLARE FUNCTION finddatafile(filename as string, error_if_missing as bool = YES) as string
 DECLARE FUNCTION finddatadir(dirname as string, error_if_missing as bool = YES) as string
+DECLARE FUNCTION load_icon_spritesheet(datapath as string, framesize as XYPair, numframes as integer) as Frame ptr
 DECLARE FUNCTION get_data_dir() as string
 DECLARE FUNCTION filename_relative_to_datadir(filename as string) as string
 

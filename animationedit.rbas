@@ -112,6 +112,7 @@ type AnimationEditor
   animops_menus as AnimOpsMenuStack
   using_strgrabber as bool
   debug_props as bool       'Show raw slice property keys and values
+  easing_icons as Frame ptr 'Loaded from data/icons/
 
   declare sub reset_slice()
   declare sub toplevel()
@@ -154,12 +155,14 @@ constructor AnimationEditor(sl as Slice ptr, top_animset as AnimationSet ptr, an
   reset_slice
   this.top_animset = top_animset->reference()
   this.anim_context = anim_context
+  this.easing_icons = load_icon_spritesheet("icons/easing_functions_8x8.bmp", XY(9, 8), easingLAST + 1)
 end constructor
 
 destructor AnimationEditor()
   v_free prop_info_list
   animset_unload @top_animset
   DeleteSlice @sl
+  frame_unload @easing_icons
 end destructor
 
 ' We can throw away and recreate the slice because a clone shares its AnimationSet
@@ -776,7 +779,13 @@ sub AnimationEditor.edit_animop_arg(byref anim as Animation, curop as NodePtr, c
   select case curop..int
     case animOpTween
       if keyval(scTab) > 1 then whicharg xor= 1
-      if whicharg = 0 andalso keyval(scCtrl) = 0 then
+      ' E key cycles through easing functions (not for the first keyframe)
+      if keyval(scE) > 1 andalso PrevSibling(curoparg, "keyframe") <> NULL then
+        dim easing as integer = curoparg."easing".default(easingLinear).int
+        easing = (easing + 1) mod (easingLAST + 1)
+        SetChildNode curoparg, "easing", easing
+        state.need_update = YES
+      elseif whicharg = 0 andalso keyval(scCtrl) = 0 then
         if edit_property(curop."key".str, curoparg."value".ptr, state) then
           state.need_update = YES
         end if
@@ -1064,6 +1073,22 @@ sub AnimationEditor.edit_animation(byref anim as Animation, anim_name as string)
     edgeprint anim_name, pCentered, mpos.y, uilook(uiText), vpage
     standardmenu cast(BasicMenuItem vector, menu), state, mpos.x, mpos.y + 12, vpage, menuopts
 
+    ' Draw easing icons after keyframe menu items (not for the first keyframe)
+    if easing_icons then
+      for i as integer = state.top to small(state.top + state.size - 1, v_len(menu) - 1)
+        if menu[i].dat = itemdatOpArg then
+          dim keyframe as NodePtr = menu[i].datptr
+          ' Skip first keyframe - easing only applies to transitions into a keyframe
+          if PrevSibling(keyframe, "keyframe") = NULL then continue for
+          dim easing as integer = keyframe."easing".default(easingLinear).int
+          if easing >= 0 andalso easing <= easingLAST then
+            dim itemrect as RectType = standardmenu_item_rect(state, menu[i].text, i)
+            frame_draw @easing_icons[easing], , itemrect.x + itemrect.wide + 2, itemrect.y, , vpage
+          end if
+        end if
+      next
+    end if
+
     ' Draw tooltip
     dim message as string
     if animating then
@@ -1074,7 +1099,11 @@ sub AnimationEditor.edit_animation(byref anim as Animation, anim_name as string)
         ' If the op has multiple editable fields
         if curop..int = animOpWait orelse curop..int = animOpWaitMS then message += "  Tab to select arg"
       elseif itemdat = itemdatOpArg then
-        if curop..int = animOpTween then message += "  Tab to select arg"
+        if curop..int = animOpTween then
+          message += "  Tab to select arg"
+          ' E: Easing only shown if not the first keyframe
+          if PrevSibling(curoparg, "keyframe") <> NULL then message += "  E: Easing"
+        end if
       end if
     end if
     edgeprint message, pInfoX, pInfoY, uilook(uiText), vpage

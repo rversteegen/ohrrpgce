@@ -56,6 +56,23 @@ enum AnimOpType
 	animOpLAST      = 9
 end enum
 
+' Easing functions for tween keyframes.
+' The easing applies to the transition from one keyframe to the next.
+enum EasingType
+	easingLinear        = 0  ' x (no easing)
+	easingInSoft        = 1  ' Quadratic ease in: x^2
+	easingInHard        = 2  ' Cubic ease in: x^3
+	easingOutSoft       = 3  ' Quadratic ease out: 1 - (1-x)^2
+	easingOutHard       = 4  ' Cubic ease out: 1 - (1-x)^3
+	easingInOutSoft     = 5  ' Quadratic ease in-out
+	easingInOutHard     = 6  ' Cubic ease in-out
+	easingElasticDamped = 7  ' Gentle elastic (~1 oscillation)
+	easingElasticBounce = 8  ' Strong elastic (~2-3 oscillations)
+	easingLAST          = 8
+end enum
+
+extern easing_names() as zstring ptr  ' Display names for EasingType
+
 extern anim_op_names() as string      ' Short names used for display and debug
 extern anim_op_node_names() as string ' Short names used for RELOAD serialisation
 extern anim_op_fullnames() as string  ' Descriptive captions used in editor

@@ -549,13 +549,6 @@ SUB append_specialcode (byref ses as SliceEditState, byval code as integer, byva
  END WITH
 END SUB
 
-FUNCTION load_icon_spritesheet(datapath as string, framesize as XYPair, numframes as integer) as Frame ptr
- 'No error if missing since Game doesn't always have data/
- DIM path as string = finddatafile(datapath, NO)
- IF LEN(path) = 0 THEN RETURN NULL
- RETURN load_spriteset_from_file(path, framesize, numframes)
-END FUNCTION
-
 'Reload these when entering the editor, to remap to current master()
 SUB slice_editor_load_icons(byref ses as SliceEditState)
  ses.slice_type_icons = load_icon_spritesheet("icons/slice_types_8x8.bmp", XY(9,8), slLAST+1)

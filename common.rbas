@@ -9106,6 +9106,16 @@ END SUB
 
 '----------------------------------------------------------------------
 
+' Load an icon spritesheet from data/
+' Returns NULL if file not found (no error)
+FUNCTION load_icon_spritesheet(datapath as string, framesize as XYPair, numframes as integer) as Frame ptr
+ DIM path as string = finddatafile(datapath, NO)
+ IF LEN(path) = 0 THEN RETURN NULL
+ RETURN load_spriteset_from_file(path, framesize, numframes)
+END FUNCTION
+
+'----------------------------------------------------------------------
+
 #IFDEF __FB_MAIN__
  print "All passed."
 #ENDIF
