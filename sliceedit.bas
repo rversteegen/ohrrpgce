@@ -702,7 +702,6 @@ SUB slice_editor_main (byref ses as SliceEditState, byref edslice as Slice ptr, 
  IF ses.privileged THEN a_append editable_slice_types(), slLayout
 
  '--user-defined slice lookup codes
- REDIM ses.slicelookup(10) as string
  load_string_list ses.slicelookup(), workingdir & SLASH & "slicelookup.txt"
  IF UBOUND(ses.slicelookup) < 1 THEN
   REDIM ses.slicelookup(1) as string

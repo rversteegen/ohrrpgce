@@ -94,7 +94,6 @@ END SUB
 CONSTRUCTOR SlicePropertiesEditor(sl as Slice ptr, ses_draw_root as Slice ptr = NULL)
   this.sl = sl
   this.ses_draw_root = IIF(ses_draw_root, ses_draw_root, sl)
-  REDIM slicelookup(10) as string
   load_string_list slicelookup(), workingdir & SLASH & "slicelookup.txt"
   IF UBOUND(slicelookup) < 1 THEN
     REDIM slicelookup(1) as string
