@@ -1226,7 +1226,6 @@ function decode_srcpos_file(srcpos pos)
     offset=file_list[i][FILE_OFFSET]
     if point<=offset+len then
       return {i,point-offset}
-      exit
     end if
   end for
   simple_error(sprintf_utf("compiler bug: can't decode invalid srcpos %d",{pos}))
@@ -1544,7 +1543,6 @@ end function
 
 --Search for an include file
 function find_include_file(string include_name)
-  sequence ret
   if equal(include_name,"plotscr.hsd") or equal(include_name,"scancode.hsi") then
     --Prefer to use fundamental include files found in global locations, because
     --plotscr.hsd and scancode.hsi will be exported too, when exporting scripts
@@ -2888,8 +2886,6 @@ function parse_script(Token role, string parent_name, integer parent_idx, sequen
   Token this
   string err_string
   string previous_script
-  sequence src_position
-  string msg
   integer depth
   integer nest_depth
   Symbol sym
@@ -4077,7 +4073,6 @@ function convert_variable_to_id(Token var, VarList locals, string parent)
   sequence kind_and_id
   atom id
   integer argkind
-  integer var_at
   kind_and_id=what_kind_and_id(var,locals,false)
   argkind=kind_and_id[1]
   id=kind_and_id[2]
@@ -4109,7 +4104,6 @@ function normalize_flow_control(NodeList tree, VarList vars, string parent)
   Symbol sym
   Kind kind
   sequence temp
-  integer var_at
   ptr=1
 
   while ptr<=length(tree) do
@@ -5343,7 +5337,7 @@ procedure check_script_declarations()
   integer at
   sequence args_and_defaults, args, defaults
   sequence scripts_found
-  sequence src_position, attributes
+  sequence attributes
   string fullname
   srcpos script_pos
   integer id, parent_id
