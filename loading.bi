@@ -233,6 +233,7 @@ DECLARE SUB load_hsp_header(filename as string, header as HSHeader)
 DECLARE SUB load_lookup1_bin(triggers() as TriggerData)
 DECLARE SUB load_plotscr_lst(ids_names() as IntStrPair, filename as string)
 DECLARE SUB load_script_triggers_and_names()
+DECLARE SUB load_globalvar_names(filename as string = "")
 
 DECLARE SUB save_string_list(array() as string, filename as string)
 DECLARE SUB load_string_list(array() as string, filename as string)

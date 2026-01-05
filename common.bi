@@ -87,6 +87,7 @@ DECLARE FUNCTION decodetrigger (trigger as integer, showerr as bool = YES) as in
 DECLARE FUNCTION trigger_or_default(trigger as integer, default as integer) as integer
 DECLARE FUNCTION scriptname (byval num as integer) as string
 DECLARE FUNCTION scriptname_default(id_or_trigger as integer, default_trigger as integer) as string
+DECLARE FUNCTION globalvarname (byval id as integer) as string
 
 DECLARE SUB loaddefaultpals (byval fileset as SpriteType, poffset() as integer)
 DECLARE SUB savedefaultpals (byval fileset as SpriteType, poffset() as integer, maxset as integer)
@@ -466,6 +467,7 @@ EXTERN herotags() as HeroTagsCache
 EXTERN itemtags() as ItemDefTags
 EXTERN lookup1_bin_cache() as TriggerData
 EXTERN script_names() as IntStrPair
+EXTERN globalvar_names() as IntStrPair
 EXTERN debug_to_console as bool
 EXTERN remember_debug_messages as bool
 EXTERN num_logged_errors as integer

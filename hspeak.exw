@@ -1,6 +1,6 @@
 -- HamsterSpeak Compiler
 
--- (C) Copyright 2001-2025 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+-- (C) Copyright 2001-2026 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
 -- Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
 
 -- This is a compiler for HamsterSpeak scripts used for plotscripting in
@@ -13,6 +13,7 @@
 ---------------------------------------------------------------------------
 
 --Changelog
+--3X  2026-01-05 Add globals.txt lump
 --3Wa 2025-07-31 definerole alternative spelling of definetrigger
 --3W  2024-02-06 Add srcpos debug info, local var names, and srcfiles.txt
 --3Vb 2024-02-06 Disallow local/subscript or script/global with the same name
@@ -190,8 +191,8 @@ constant COMPILER_VERSION="3"
 -- For small changes increment the second letter of COMPILER_SUB_VERSION
 -- For large changes increment the first letter and reset the second letter
 --*Please make sure this is 2 chararacters long! Append a space if required.*
-constant COMPILER_SUB_VERSION="Wa"
-constant COPYRIGHT_DATE="2025"
+constant COMPILER_SUB_VERSION="X "
+constant COPYRIGHT_DATE="2026"
 
 --Known single-character commandline options
 constant VALID_OPTIONS="abcdfjknstwuyz"
@@ -269,7 +270,10 @@ constant FUNC_POS=6     --srcpos of start of function/script. Not used by math_l
 constant ATTR_NAME=1
 constant ATTR_FLAGS=2   --An integer which gets OR'd into FUNC_FLAGS
 constant FLAG_OBSOLETE=#01  --Has @obsolete attribute
+--GLB_* are for global_list
 constant GLB_POS=3      --srcpos of globalvariable definition
+constant GLB_DISPLAY_NAME=4 --unnormalised name (original case, spaces, utf-32)
+--CONST_* are for const_data
 constant CONST_VALUE=1
 constant CONST_POS=2
 constant VAR_FRAME=3    --VarToken index, integer giving frame number of a variable (0 is current script, 1 is enclosing...)
@@ -372,7 +376,7 @@ map constant_list         constant_list=map:new()
 sequence script_role_list script_role_list={}     --type {PAIR_NUM, PAIR_NAME}
 sequence operator_list    operator_list={}        --type {PAIR_NUM, PAIR_NAME, OPER_TRUENAME, OPER_POS}
 sequence function_list    function_list={}        --type {PAIR_NUM, PAIR_NAME, FUNC_ARGS, FUNC_POS, FUNC_ATTRS, FUNC_FLAGS}
-sequence global_list      global_list={{},{},{}}  --NOTE: three lists {PAIR_NUM, PAIR_NAME, GLB_POS}, not a list of globals
+sequence global_list      global_list={{},{},{},{}}  --NOTE: four lists {PAIR_NUM, PAIR_NAME, GLB_POS, GLB_DISPLAY_NAME}, not a list of globals
 sequence string_list      string_list={}          --list of strings
 sequence script_list      script_list={}          --type {PAIR_NUM, PAIR_NAME, FUNC_ARGS, FUNC_POS, FUNC_ATTRS, FUNC_FLAGS}
 --See also math_list, below
@@ -2590,19 +2594,23 @@ end procedure
 
 ---------------------------------------------------------------------------
 
-procedure create_global(atom id, string name, srcpos pos)
+procedure create_global(atom id, srcpos idpos, string name, srcpos namepos)
   integer at
+  string display_name
   at=find(id,global_list[PAIR_NUM])
+
   if at then
-    src_error(sprintf_utf("global variable ID "&COLYEL&"%d"&COLRED&" is already defined as "&COLYEL&"%s"&COLRED,{id,global_list[PAIR_NAME][at]}),pos)
+    src_error(sprintf_utf("global variable ID "&COLYEL&"%d"&COLRED&" is already defined as "&COLYEL&"%s"&COLRED,{id,global_list[PAIR_NAME][at]}),idpos)
   else
     if id>=0 and id<=MAXGLOBAL then
       global_list[PAIR_NUM]=append(global_list[PAIR_NUM],id)
       global_list[PAIR_NAME]=append(global_list[PAIR_NAME],name)
-      global_list[GLB_POS]=append(global_list[GLB_POS],pos)
-      map:put(global_scope,name,{KIND_GLOBAL,id,pos})
+      global_list[GLB_POS]=append(global_list[GLB_POS],namepos)
+      display_name=get_srcpos_text(namepos)
+      global_list[GLB_DISPLAY_NAME]=append(global_list[GLB_DISPLAY_NAME],display_name)
+      map:put(global_scope,name,{KIND_GLOBAL,id,namepos})
     else
-      src_error(sprintf_utf("global variable ID "&COLYEL&"%d"&COLRED&" is not permitted. Valid IDs are 0 to %d",{id,MAXGLOBAL}),pos)
+      src_error(sprintf_utf("global variable ID "&COLYEL&"%d"&COLRED&" is not permitted. Valid IDs are 0 to %d",{id,MAXGLOBAL}),idpos)
     end if
   end if
 end procedure
@@ -2610,14 +2618,19 @@ end procedure
 ---------------------------------------------------------------------------
 
 procedure parse_global_block(TokenList block)
-  atom num
+  atom id
+  srcpos idpos
+  Token nametok
   for i=1 to length(block) by 2 do
+    idpos=block[i][CMD_POS]
     if i+1>length(block) then
-      src_error("expected name but globalvariable block ended",block[i][CMD_POS])
+      src_error("expected name but globalvariable block ended",idpos)
     end if
-    num=try_string_to_number({enforce_constants(block[i][CMD_TEXT]),block[i][CMD_POS]})
-    check_undefined_string(block[i+1],"global variable name")
-    create_global(num,block[i+1][CMD_TEXT],block[i][CMD_POS])
+
+    id=try_string_to_number({enforce_constants(block[i][CMD_TEXT]),idpos})
+    nametok=block[i+1]
+    check_undefined_string(nametok,"global variable name")
+    create_global(id,idpos,nametok[CMD_TEXT],nametok[CMD_POS])
   end for
 end procedure
 
@@ -5471,6 +5484,18 @@ end function
 
 ---------------------------------------------------------------------------
 
+--globals.txt is in utf-8
+function generate_globals_dot_txt()
+  sequence result
+  result=""
+  for i=1 to length(global_list[PAIR_NUM]) do
+    --GLB_DISPLAY_NAME is utf-32
+    result&=sprintf_utf("%d\n%s\n",{global_list[PAIR_NUM][i],global_list[GLB_DISPLAY_NAME][i]})
+  end for
+  return(toUTF(result,utf_32,utf_8))
+end function
+
+---------------------------------------------------------------------------
 
 function generate_scripts_dot_bin()
   sequence result
@@ -5679,6 +5704,10 @@ procedure write_output_file()
       --write script commands list
       if write_lump(fh,"commands.bin",generate_commands_dot_bin())=false then
         simple_error("unable to write commands listing")
+      end if
+      --write global variable names
+      if write_lump(fh,"globals.txt",generate_globals_dot_txt())=false then
+        simple_error("unable to write global names")
       end if
       --write each script
       for i=1 to length(all_scripts) do

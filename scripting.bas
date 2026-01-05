@@ -1121,9 +1121,13 @@ SUB load_hsp ()
  ELSE
   scripts_use_cc_scancodes = NO
  END IF
+
+ 'Load globals.txt lump that was inside .hsp
+ load_globalvar_names tmpdir & "globals.txt"
 END SUB
 
 'Unload all scripts not in use, so they will get loaded again when used.
+'Also reloads global names (but not script names).
 'force_full_message: even if the player previously asked to hide notifications
 '    about reloading failing, show the error rather than just an overlay message.
 'TODO: it would be preferable to keep the bookkeeping data by only deleting the script commands and strings

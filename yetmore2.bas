@@ -2006,7 +2006,15 @@ SUB try_reload_lumps_anywhere ()
 
   ELSEIF extn = "hsp" THEN                                                '.HSP
    lump_reloading.hsp.changed = YES
-   IF lump_reloading.hsp.mode = loadmodeAlways THEN reload_scripts NO
+   'Note, if lump_reloading.hsp.mode = loadmodeNever we won't be able to run
+   'any entirely new scripts, as we won't unlump them.
+   IF lump_reloading.hsp.mode = loadmodeAlways THEN
+    reload_scripts NO
+   ELSE
+    'reload_scripts also reloads globals.txt, but we also need global names
+    'for purposes other than scripts.
+    load_globalvar_names
+   END IF
    handled = YES
 
   ELSEIF modified_lumps[i] = "plotscr.lst" THEN                           'PLOTSCR.LST

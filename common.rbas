@@ -1,5 +1,5 @@
 'OHRRPGCE - Some Custom/Game common code
-'(C) Copyright 1997-2020 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
+'(C) Copyright 1997-2026 James Paige, Ralph Versteegen, and the OHRRPGCE Developers
 'Dual licensed under the GNU GPL v2+ and MIT Licenses. Read LICENSE.txt for terms and disclaimer of liability.
 
 ' This file is for code that is shared between GAME and CUSTOM.
@@ -1042,6 +1042,14 @@ FUNCTION scriptname_default(id_or_trigger as integer, default_trigger as integer
   RETURN "[default] " & scriptname(default_trigger)
  END IF
  RETURN scriptname(id_or_trigger)
+END FUNCTION
+
+' The name of a global variable given its ID or "global ###" if unnamed or old
+' .hsp file.
+FUNCTION globalvarname (byval id as integer) as string
+ DIM idx as integer = a_find(globalvar_names(), id)
+ IF idx > -1 THEN RETURN globalvar_names(idx).s
+ RETURN "global " & id
 END FUNCTION
 
 '==========================================================================================

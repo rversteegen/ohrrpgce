@@ -642,7 +642,7 @@ load_global_npcs
 
 'Setup script interpreter
 load_script_triggers_and_names  'Also called in upgrade() unless running_under_Custom
-load_hsp
+load_hsp  'Loads globals.txt
 read_srcfiles_txt
 'Might be changed by --errlvl commandline option
 'Default to showing all errors. genErrorLevel is no longer used (but might be again in future)

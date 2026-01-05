@@ -429,6 +429,8 @@ FUNCTION importscripts (hsfile as string, srcfile as string = "", quickimport as
 
   '--reload lookup1.bin and plotscr.lst
   load_script_triggers_and_names
+  '--reload globals.txt
+  load_globalvar_names
 
   '--fix the references to any old-style plotscripts that have been converted to new-style scripts.
   console_show_message ""
@@ -451,7 +453,8 @@ FUNCTION importscripts (hsfile as string, srcfile as string = "", quickimport as
  ELSE
   pop_warning hsfile + " is not really a compiled .hs file. Did you create it by compiling a" _
               " script file with hspeak.exe, or did you just give your script a name that" _
-              " ends in .hs and hoped it would work? Use hspeak.exe to create real .hs files"
+              " ends in .hs and hoped it would work? Give your file an .hss extension" _
+              " instead, and it'll be compiled on import automatically."
   RETURN NO
  END IF
 
