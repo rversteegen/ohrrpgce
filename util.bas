@@ -4316,14 +4316,8 @@ sub init_intern_string()
   interned_fast_lookup.key_is_opaque_ptr = YES
 end sub
 
-' Intern a string, that is, convert it to a unique zstring ptr with the
-' same content: returns the same zstring ptr if called twice.
-' Interned strings live forever in the global hash tables.
-' Calling intern_string on an already interned string is very fast (it does no
-' string comparisons or hashing).
-function intern_string(s as zstring ptr) as zstring ptr
-  if s = NULL then return intern_string("")
-
+' Same as intern_string but returns NULL if not already interned.
+function check_interned_string(s as zstring ptr) as zstring ptr
   dim gotfast as zstring ptr = interned_fast_lookup.get(s, NULL)
   if gotfast then
     assert(gotfast = s)
@@ -4331,8 +4325,21 @@ function intern_string(s as zstring ptr) as zstring ptr
   end if
 
   ' Then see whether there is an interned string with the same content.
-  dim ret as zstring ptr = interned_strings.get(s)
+  return interned_strings.get(s)
+end function
+
+' Intern a string, that is, convert it to a unique zstring ptr with the
+' same content (always returns the same ptr if called with equal input);
+' or if addnew = NO then returns NULL instead of interning an unknown string.
+' Interned strings live forever in the global hash tables.
+' Calling intern_string on an already interned string is very fast (it does no
+' string comparisons or hashing).
+' intern_string(NULL) returns intern_string("")
+function intern_string(s as zstring ptr, addnew as bool = YES) as zstring ptr
+  dim ret as zstring ptr = check_interned_string(s)
   if ret then return ret
+
+  if s = NULL then return intern_string("")
 
   ret = zstring_copy(s)
   interned_strings.set(ret, ret)
