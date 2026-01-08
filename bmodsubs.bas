@@ -521,13 +521,19 @@ FUNCTION inflict (byref h as integer = 0, byref targstat as integer = 0, attacke
     ap = target.stat.max.mp - target.stat.cur.mp
    CASE 62
     ap = target.stat.max.hp - target.stat.cur.hp
+   CASE 63
+    ap = GetContextInteger(attacker.sl, attack.base_atk_ctxvar)
    CASE IS >= 63
     debug "Unknown base stat " & attack.base_atk_stat & " for attack " & attack.id
   END SELECT
  
   '--defense base
-  IF attack.base_def_stat > 0 AND attack.base_def_stat <= UBOUND(target.stat.cur.sta) + 1 THEN dp = target.stat.cur.sta(attack.base_def_stat - 1)
- 
+  IF attack.base_def_ctxvar > 0 THEN
+   dp = GetContextInteger(target.sl, attack.base_def_ctxvar)
+  ELSEIF attack.base_def_stat > 0 AND attack.base_def_stat <= UBOUND(target.stat.cur.sta) + 1 THEN
+   dp = target.stat.cur.sta(attack.base_def_stat - 1)
+  END IF
+
   'Attack and Defense multipliers
   DIM as double atkmult, defmult
   IF attack.damage_math = 0 THEN atkmult = 1.0 : defmult = 0.5  'atk*.8-def*.1
