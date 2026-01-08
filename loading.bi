@@ -238,6 +238,8 @@ DECLARE SUB load_globalvar_names(filename as string = "")
 DECLARE SUB save_string_list(array() as string, filename as string)
 DECLARE SUB load_string_list(array() as string, filename as string)
 
+DECLARE FUNCTION variant_name_to_int(user_variants() as IntStrPair, name as string) as NameID
+
 DECLARE FUNCTION load_map_pos_save_offset(byval mapnum as integer) as XYPair
 
 DECLARE SUB save_npc_instances OVERLOAD (filename as string, npc() as NPCInst)
