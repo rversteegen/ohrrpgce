@@ -164,8 +164,20 @@ CONST AtkMiscAct = 165
 CONST AtkExtra0 = 166
 CONST AtkExtra1 = 167
 CONST AtkExtra2 = 168
+CONST AtkAtkrDissolveType = 169
+CONST AtkAtkrDissolveLength = 170
+CONST AtkAtkrDissolveTicks = 171
+CONST AtkAtkrDissolvedAdvance = 172
+CONST AtkAtkrDissolvedRetreat = 173
+CONST AtkAtkrDissolvedAttack = 174
+CONST AtkAtkrDissolvedAfter = 175
+CONST AtkAppearDissolveHeader = 176
+CONST AtkAppearTimingHeader = 177
+CONST AtkAppearCaptionHeader = 178
+CONST AtkAppearWeaponHeader = 179
 
-'Next menu item is 165 (remember to update MnuItems)
+'Remember to update LastMenuIdx
+CONST LastMenuIdx = 179
 
 
 '--Offsets in the attack data record (combined DT6 + ATTACK.BIN)
@@ -255,6 +267,9 @@ CONST AtkDatSpawnEnemy = 352
 CONST AtkDatExtra0 = 353
 CONST AtkDatExtra1 = 354
 CONST AtkDatExtra2 = 355
+CONST AtkDatAtkrDissolveType = 356
+CONST AtkDatAtkrDissolveLength = 357
+CONST AtkDatAtkrDissolveTicks = 358
 
 'anything past this requires expanding the data
 
@@ -417,18 +432,17 @@ DIM recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer '--stores the combined
 STATIC copy_recbuf(40 + curbinsize(binATTACK) \ 2 - 1) as integer
 STATIC have_copy as bool
 
-CONST MnuItems = 168
-DIM menu(MnuItems) as string
-DIM menutype(MnuItems) as integer
-DIM menuoff(MnuItems) as integer
-DIM menulimits(MnuItems) as integer
-DIM menucapoff(MnuItems) as integer
+DIM menu(LastMenuIdx) as string
+DIM menutype(LastMenuIdx) as integer
+DIM menuoff(LastMenuIdx) as integer
+DIM menulimits(LastMenuIdx) as integer
+DIM menucapoff(LastMenuIdx) as integer
 '----------------------------------------------------------
 
 DIM capindex as integer = 0
 REDIM caption(-1 TO -1) as string
-DIM max(51) as integer
-DIM min(51) as integer
+DIM max(54) as integer
+DIM min(54) as integer
 
 'Limit(0) is not used
 
@@ -822,7 +836,23 @@ CONST AtkLimSpawnEnemy = 51
 max(AtkLimSpawnEnemy) = gen(genMaxEnemy) + 1 'Must be updated!
 min(AtkLimSpawnEnemy) = 0
 
-'next limit is 51 (remember to update the max() and min() dims)
+CONST AtkLimAtkrDissolveType = 52
+max(AtkLimAtkrDissolveType) = dissolveTypeMax
+min(AtkLimAtkrDissolveType) = 0
+DIM AtkCapAtkrDissolveType as integer = capindex
+FOR i as integer = 0 TO dissolveTypeMax
+ addcaption caption(), capindex, dissolve_type_caption(i)
+NEXT
+
+CONST AtkLimAtkrDissolveLength = 53
+max(AtkLimAtkrDissolveLength) = 99
+min(AtkLimAtkrDissolveLength) = 0
+
+CONST AtkLimAtkrDissolveTicks = 54
+max(AtkLimAtkrDissolveTicks) = 99   'Updated dynamically to match length+1
+min(AtkLimAtkrDissolveTicks) = 0   '0 means full length
+
+'next limit is 55 (remember to update the max() and min() dims)
 
 '----------------------------------------------------------------------
 '--menu content
@@ -1302,6 +1332,45 @@ menu(AtkExtra2) = "Extra Data 2:"
 menutype(AtkExtra2) = 0
 menuoff(AtkExtra2) = AtkDatExtra2
 menulimits(AtkExtra2) = AtkLimInt
+
+menu(AtkAppearDissolveHeader) = headingtag(" Attacker Dissolve")
+menutype(AtkAppearDissolveHeader) = 18'skipper
+
+menu(AtkAppearWeaponHeader) = headingtag(" Weapon")
+menutype(AtkAppearWeaponHeader) = 18'skipper
+
+menu(AtkAppearCaptionHeader) = headingtag(" Caption")
+menutype(AtkAppearCaptionHeader) = 18'skipper
+
+menu(AtkAppearTimingHeader) = headingtag(" Timing & Visual")
+menutype(AtkAppearTimingHeader) = 18'skipper
+
+menu(AtkAtkrDissolveType) = "Attacker Dissolve Type:"
+menutype(AtkAtkrDissolveType) = 2000 + AtkCapAtkrDissolveType
+menuoff(AtkAtkrDissolveType) = AtkDatAtkrDissolveType
+menulimits(AtkAtkrDissolveType) = AtkLimAtkrDissolveType
+
+menu(AtkAtkrDissolveLength) = "Dissolve Anim Length:"
+menutype(AtkAtkrDissolveLength) = 0
+menuoff(AtkAtkrDissolveLength) = AtkDatAtkrDissolveLength
+menulimits(AtkAtkrDissolveLength) = AtkLimAtkrDissolveLength
+
+menu(AtkAtkrDissolveTicks) = "Dissolve Ticks:"
+menutype(AtkAtkrDissolveTicks) = 28 'dissolve ticks (0=Completely)
+menuoff(AtkAtkrDissolveTicks) = AtkDatAtkrDissolveTicks
+menulimits(AtkAtkrDissolveTicks) = AtkLimAtkrDissolveTicks
+
+menu(AtkAtkrDissolvedAdvance) = "Dissolved During Advance:"
+menutype(AtkAtkrDissolvedAdvance) = 7000 + 101  'Attack bit 101
+
+menu(AtkAtkrDissolvedRetreat) = "Dissolved During Retreat:"
+menutype(AtkAtkrDissolvedRetreat) = 7000 + 102  'Attack bit 102
+
+menu(AtkAtkrDissolvedAttack) = "Dissolved During Attack:"
+menutype(AtkAtkrDissolvedAttack) = 7000 + 103  'Attack bit 103
+
+menu(AtkAtkrDissolvedAttack) = "Remain Dissolved Afterwards:"
+menutype(AtkAtkrDissolvedAfter) = 7000 + 104  'Attack bit 104
 
 '----------------------------------------------------------
 '--menu structure
@@ -1831,6 +1900,8 @@ DO
   max(AtkLimItem) = gen(genMaxItem) + 1
   max(AtkLimSfx) = gen(genMaxSFX) + 1
   max(AtkLimSfxOrDefault) = gen(genMaxSFX) + 1
+  '--update dissolve ticks max to match length
+  max(AtkLimAtkrDissolveTicks) = 1 + recbuf(AtkDatAtkrDissolveLength)
   '--in case chain mode has changed
   update_attack_editor_for_chain recbuf(AtkDatChainMode),        menu(AtkChainVal1),        max(AtkLimChainVal1),        min(AtkLimChainVal1),        menutype(AtkChainVal1),        menu(AtkChainVal2),        max(AtkLimChainVal2),        min(AtkLimChainVal2),        menutype(AtkChainVal2),        recbuf(AtkDatChainRate),        recbuf(AtkDatChainVal1)
   update_attack_editor_for_chain recbuf(AtkDatElseChainMode),    menu(AtkElseChainVal1),    max(AtkLimElseChainVal1),    min(AtkLimElseChainVal1),    menutype(AtkElseChainVal1),    menu(AtkElseChainVal2),    max(AtkLimElseChainVal2),    min(AtkLimElseChainVal2),    menutype(AtkElseChainVal2),    recbuf(AtkDatElseChainRate),    recbuf(AtkDatElseChainVal1)
@@ -2017,44 +2088,90 @@ SUB update_attack_editor_for_fail_conds(recbuf() as integer, caption() as string
 END SUB
 
 SUB attack_editor_build_appearance_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
-  FOR i as integer = 2 TO UBOUND(workmenu)
-   workmenu(i) = AtkBlankMenuItem
-  NEXT
-  workmenu(0) = AtkBackAct
-  workmenu(1) = AtkPic
-  workmenu(2) = AtkPal
-  workmenu(3) = AtkAnimAttack
-  workmenu(4) = AtkAnimPattern
-  workmenu(5) = AtkAnimAttacker
-  workmenu(6) = AtkAlignToTarget
-  workmenu(7) = AtkDelay
-  workmenu(8) = AtkTurnDelay
-  workmenu(9) = AtkDramaticPause
-  workmenu(10) = AtkCaption
-  workmenu(11) = AtkCapTime
-  workmenu(12) = AtkCaptDelay
-  workmenu(13) = AtkDamageColor
-  'Be careful when adding new menu items here. See that more are sometimes apended below
-  state.last = 13
+ DIM menu() as integer
 
-  DIM anim as integer = recbuf(AtkDatAnimAttacker)
-  IF     anim = atkrAnimStrike _
-  ORELSE anim = atkrAnimDashIn _
-  ORELSE anim = atkrAnimTeleport _
-  ORELSE anim = atkrAnimStandingStrike _
-  THEN
-   workmenu(15) = AtkWepPic
-   state.last = 15
-   IF recbuf(AtkDatWepPic) > 0 THEN
-    workmenu(16) = AtkWepPal
-    workmenu(17) = AtkWepHand0
-    workmenu(18) = AtkWepHand1
-    state.last = 18
+ a_append menu(), AtkBackAct
+ a_append menu(), AtkPic
+ a_append menu(), AtkPal
+ a_append menu(), AtkAnimAttack
+ a_append menu(), AtkAnimPattern
+ a_append menu(), AtkAlignToTarget
+ a_append menu(), AtkDamageColor
+ a_append menu(), AtkAnimAttacker
+
+ DIM anim as integer = recbuf(AtkDatAnimAttacker)
+
+ 'Attacker dissolve options - only shown for animations that support them
+ DIM show_dissolve as bool = NO
+ DIM show_dissolved_advance as bool = NO
+ DIM show_dissolved_retreat as bool = NO
+ DIM show_dissolved_attack as bool = NO
+
+ SELECT CASE anim
+  CASE atkrAnimDashIn, atkrAnimTeleport
+   show_dissolve = YES
+   show_dissolved_advance = YES
+   show_dissolved_retreat = YES
+   show_dissolved_attack = YES
+  CASE atkrAnimLand
+   show_dissolve = YES
+   show_dissolved_retreat = YES
+   show_dissolved_attack = YES
+  CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike, _
+       atkrAnimStandingCast, atkrAnimStandingStrike, atkrAnimStandingSpinStrike
+   show_dissolve = YES
+   show_dissolved_attack = YES
+ END SELECT
+
+ IF show_dissolve THEN
+  a_append menu(), AtkAppearDissolveHeader
+  a_append menu(), AtkAtkrDissolveLength
+  IF recbuf(AtkDatAtkrDissolveLength) <> 0 THEN
+   a_append menu(), AtkAtkrDissolveTicks
+   a_append menu(), AtkAtkrDissolveType
+  IF show_dissolved_advance THEN
+    a_append menu(), AtkAtkrDissolvedAdvance
+   END IF
+   IF show_dissolved_retreat THEN
+    a_append menu(), AtkAtkrDissolvedRetreat
+   END IF
+   IF show_dissolved_attack THEN
+    a_append menu(), AtkAtkrDissolvedAttack
    END IF
   END IF
-   
-  state.top = 0
-  state.need_update = YES
+ END IF
+
+ a_append menu(), AtkAppearTimingHeader
+ a_append menu(), AtkDelay
+ a_append menu(), AtkTurnDelay
+ a_append menu(), AtkDramaticPause
+ 
+ a_append menu(), AtkAppearCaptionHeader
+ a_append menu(), AtkCaption
+ a_append menu(), AtkCapTime
+ a_append menu(), AtkCaptDelay
+
+ IF anim = atkrAnimStrike _
+    ORELSE anim = atkrAnimDashIn _
+    ORELSE anim = atkrAnimTeleport _
+    ORELSE anim = atkrAnimStandingStrike _
+    THEN
+  a_append menu(), AtkAppearWeaponHeader
+  a_append menu(), AtkWepPic
+  IF recbuf(AtkDatWepPic) > 0 THEN
+   a_append menu(), AtkWepPal
+   a_append menu(), AtkWepHand0
+   a_append menu(), AtkWepHand1
+  END IF
+ END IF
+
+ FOR i as integer = 0 TO UBOUND(menu)
+  workmenu(i) = menu(i)
+ NEXT
+
+ state.last = UBOUND(menu)
+ state.top = 0
+ state.need_update = YES
 END SUB
 
 SUB attack_editor_build_sounds_menu(recbuf() as integer, workmenu() as integer, state as MenuState)
@@ -2530,6 +2647,7 @@ FUNCTION editflexmenu (state as MenuState, nowindex as integer, menutype() as in
 '           25=counterattack provoke setting (captioned, with default for 0)
 '           26=Defaultable non-negative int: >0 is int offset by 1, 0 is "default"
 '           27=sound effect or default or none (offset)
+'           28=dissolve ticks or -1 for full length
 '           1000-1999=postcaptioned int (caption-start-offset=n-1000)
 '                     (be careful about negatives!)
 '           2000-2999=caption-only int (caption-start-offset=n-1000)
@@ -2573,7 +2691,7 @@ SELECT CASE menutype(nowindex)
    datablock(menuoff(nowindex)) = flexb.browse(datablock(menuoff(nowindex)))
    changed = (old_dat <> datablock(menuoff(nowindex)))
   END IF
- CASE 7, 9 TO 11, 26, 27 'offset integers
+ CASE 7, 9 TO 11, 26, 27, 28 'offset integers (stored value is 1 more than displayed)
   changed = zintgrabber(datablock(menuoff(nowindex)), mintable(menulimits(nowindex)) - 1, maxtable(menulimits(nowindex)) - 1)
  CASE 22 '(int+100)%
   DIM temp as integer = datablock(menuoff(nowindex)) + 100
@@ -2714,6 +2832,7 @@ SUB updateflexmenu (mpointer as integer, nowmenu() as string, nowdat() as intege
 '           25=counterattack provoke setting (captioned, with default for 0)
 '           26=Defaultable non-negative int: >0 is int offset by 1, 0 is "default"
 '           27=sound effect or default or none (offset)
+'           28=dissolve ticks or -1 for full length
 '           1000-1999=postcaptioned int (caption-start-offset=n-1000)
 '                     (be careful about negatives!)
 '           2000-2999=caption-only int (caption-start-offset=n-2000)
@@ -2836,13 +2955,25 @@ FOR i = 0 TO size
   CASE 26 '--0=default, >0 is int offset by 1
    IF dat = 0 THEN datatext = "Default" ELSE datatext = STR(dat - 1)
   CASE 27 '--sound effect number, offset
-    IF dat <= -1 THEN
-      datatext = "None"
-    ELSEIF dat = 0 THEN
-      datatext = "(Same as Hit sound)"
+   IF dat <= -1 THEN
+    datatext = "None"
+   ELSEIF dat = 0 THEN
+    datatext = "(Same as Hit sound)"
+   ELSE
+    datatext = (dat - 1) & " (" + getsfxname(dat - 1) + ")"
+   END IF
+  CASE 28 '--dissolve ticks, offset by 1 (0=Completely/-1, else dat-1 ticks)
+   DIM ticks as integer = dat - 1
+   IF ticks = -1 THEN
+    datatext = "Completely"
+   ELSE
+    DIM dissolve_length as integer = datablock(AtkDatAtkrDissolveLength)
+    IF dissolve_length > 0 THEN
+     datatext = ticks & " (" & INT(100 * ticks / dissolve_length) & "% dissolved)"
     ELSE
-      datatext = (dat - 1) & " (" + getsfxname(dat - 1) + ")"
+     datatext = STR(ticks)
     END IF
+   END IF
   CASE 1000 TO 1999 '--captioned int
    capnum = menutype(nowdat(i)) - 1000
    datatext = dat & " " & caption(capnum + dat)

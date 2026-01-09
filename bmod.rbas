@@ -229,7 +229,7 @@ FUNCTION battle (byval form as integer) as bool
    EXIT DO
   END IF
   
-  '--An attack should happen, prepare its animation
+  '--An attack should happen, load it into 'attack' and prepare its animation
   IF bat.atk.id >= 0 AND bat.anim_ready = NO AND bat.vic.state = vicNONE THEN
    start_attack attack, bat, bslot(), bat.anim_t()
   END IF
@@ -486,6 +486,27 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
   IF bslot(i).flinch_anim THEN
    flinch_anim_eachtick i, bslot()
   END IF
+/'
+  'Advance attacker animation dissolves (not using auto_animate)
+  IF bslot(i).anim_dissolve_ticks > 0 THEN
+   bslot(i).anim_dissolve_ticks -= 1
+   IF bslot(i).sprite THEN
+    IF bslot(i).sprite->SpriteData->dissolving THEN
+     WITH *bslot(i).sprite->SpriteData
+      IF .d_back THEN
+       .d_tick -= 1  'Undissolving
+      ELSE
+       .d_tick += 1  'Dissolving
+      END IF
+     END WITH
+    END IF
+   END IF
+   IF bslot(i).anim_dissolve_ticks = 0 THEN
+    'Dissolve animation finished, cancel the dissolve
+    IF bslot(i).sprite THEN CancelSpriteSliceDissolve bslot(i).sprite
+   END IF
+  END IF
+'/
  NEXT
 
  '--decrement the animation wait ticks, and don't proceed until they are zero
@@ -494,11 +515,13 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
   IF bat.wait_frames > 0 THEN EXIT SUB
  END IF
 
- '--anim_waitforall called? We are waiting for all motion to stop
+ '--anim_waitforall called? We are waiting for all motion and dissolves to stop
  IF bat.wait_frames = -1 THEN
   FOR i = 0 TO UBOUND(bslot)
    'NULL slices are OK
    IF SliceIsMoving(bslot(i).sl) ORELSE SliceIsMoving(bslot(i).sprite) THEN EXIT SUB
+   'IF bslot(i).anim_dissolve_ticks > 0 THEN EXIT SUB
+   IF SpriteSliceIsDissolving(bslot(i).sprite) THEN EXIT SUB
   NEXT i
  END IF
  bat.wait_frames = 0
@@ -514,11 +537,11 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
 
  DO: 'INTERPRET THE ANIMATION SCRIPT
 
-  '--anim_waitformove called? Waiting for a specific slot
+  '--anim_waitforone called? Waiting for a specific slot
   '--Unlike anim_waitforall, check this inside the DO so that minimum wait is 0 ticks not 1.
   IF bat.wait_for_slot <> -1 THEN
    WITH bslot(bat.wait_for_slot)
-    IF SliceIsMoving(.sl) ORELSE SliceIsMoving(.sprite) THEN EXIT DO
+    IF SliceIsMoving(.sl) ORELSE SliceIsMoving(.sprite) ORELSE SpriteSliceIsDissolving(.sprite) THEN EXIT DO
    END WITH
    bat.wait_for_slot = -1
   END IF
@@ -706,8 +729,53 @@ SUB battle_attack_anim_playback (byref attack as AttackData, byref bat as Battle
     'This command queues the end of the flinch 3 ticks later
     ww = popdw
     bslot(ww).flinch_anim = 6
-  CASE 29 'waitformove(who)
+  CASE 29 'waitforone(who)
     bat.wait_for_slot = popdw
+  CASE 30 'dissolve(who, dissolve_type, over_ticks)
+    ww = popdw
+/'
+    bslot(ww).anim_dissolve_type = popdw
+    bslot(ww).anim_dissolve_over_ticks = popdw
+    bslot(ww).anim_dissolve_ticks = popdw
+    'In future, use DissolveSpriteSlice. Currently update_battlesprite_slices overrides it,
+    'so we set these 
+'/
+    DIM dissolve_type as integer = popdw
+    DIM over_ticks as integer = popdw
+    'ticks = popdw
+    ? "dissolve /" , over_ticks
+    IF bslot(ww).sprite THEN
+     'Start from tick 0, undissolved
+     DissolveSpriteSlice bslot(ww).sprite, dissolve_type, over_ticks, 0, NO, YES
+    END IF
+    bslot(ww).anim_dissolve = YES
+  CASE 31 'undissolve(who, dissolve_type, over_ticks, start_tick)
+    ww = popdw
+/'
+    bslot(ww).anim_dissolve_type = popdw
+    bslot(ww).anim_dissolve_over_ticks = popdw
+    bslot(ww).anim_dissolve_ticks = popdw
+    '/
+    DIM dissolve_type as integer = popdw
+    DIM over_ticks as integer = popdw
+    DIM start_tick as integer = popdw
+    ? "dissolve " & start_tick & "/" & over_ticks
+
+    IF bslot(ww).sprite THEN
+     'Can start from a partial state
+     DissolveSpriteSlice bslot(ww).sprite, dissolve_type, over_ticks, start_tick, YES, YES
+    END IF
+    bslot(ww).anim_dissolve = YES
+    '/
+  CASE 32 'pausedissolve(who)
+    ? "pausedissolve "
+
+    ww = popdw
+    IF bslot(ww).sprite THEN
+     bslot(ww).sprite->SpriteData->d_auto = NO
+    END IF
+    'Leave .anim_dissolve and SpriteData->dissolving true, leaving the sprite partially dissolved
+
 
   END SELECT
  LOOP UNTIL bat.wait_frames <> 0 ORELSE bat.atk.id = -1
@@ -1616,20 +1684,32 @@ SUB update_battlesprite_slices(bat as BattleState, bslot() as BattleSprite)
     IF is_enemy(i) andalso .appeartype >= 0 andalso .dissolve_appear <= .appeartime then
      'TODO: switch to auto-animating dissolve instead of manually setting the current tick
      '(but make sure to preserve the one tick delay at start of battle before appear starts)
+
+     'IF dissolve_appear <= .appeartime THEN
      DissolveSpriteSlice .sprite, .appeartype, .appeartime, .appeartime - .dissolve_appear, , NO
+     .anim_dissolve = NO 
     ELSEIF is_enemy(i) andalso .dissolve > 0 andalso .fleeing = NO then
      DissolveSpriteSlice .sprite, .deathtype, .deathtime, .deathtime - .dissolve, , NO
+     .anim_dissolve = NO
+    ELSEIF .anim_dissolve THEN
+     'If it's auto animating (not just partially visible), then
+     IF SpriteSliceIsDissolving(.sprite) = NO THEN .anim_dissolve = NO
+     'Do nothing (this is the case that does use normal automatic dissolves
     ELSE
+     'Clear death and appear dissolves
      CancelSpriteSliceDissolve .sprite
+    END IF
+
+    'A hidden battler is either totally invisible or just partially dissolved.
+    'But whenever a totally invisible enemy is doing a death or appear dissolve we don't show it at all,
+    'so there's no pop to visibility. (If it's partially visible they'll be a pop between the dissolve types.
+    IF .hidden ANDALSO .anim_dissolve = NO THEN
+     .sl->Visible = NO
     END IF
 
     'Like slAutoSortBottomY, but break ties according to the order in bslot()
     .sl->Sorter = (.sl->Y + .sl->Height) * 1000 + i
    ELSE
-    .sl->Visible = NO
-   END IF
-
-   IF .hidden THEN
     .sl->Visible = NO
    END IF
   END WITH
@@ -3183,15 +3263,46 @@ SUB anim_setframe(byval who as integer, byval frame as integer)
  pushdw 7: pushdw who: pushdw frame
 END SUB
 
-' Wait for all BattleSprite .sl and .sprite slices to stop moving
+' Wait for all BattleSprite .sl and .sprite slices to stop moving and dissolves to finish
 ' Causes a 1 tick wait even if nothing is moving
 SUB anim_waitforall()
  pushdw 9
 END SUB
 
-' Wait for a BattleSprite's .sl and .sprite slices to stop moving
-SUB anim_waitformove(byval who as integer)
+' Wait for a BattleSprite's .sl and .sprite slices to stop moving and dissolve to finish
+SUB anim_waitforone(byval who as integer)
  pushdw 29: pushdw who
+END SUB
+
+' Start a dissolve animation on a BattleSprite's .sprite slice.
+' The dissolve runs for params.ticks ticks, which may be less than the full dissolve length,
+' accomplished by waiting and then pausing!
+SUB anim_dissolve(byval who as integer, byref params as AttackDissolveParams)
+ IF params.ticks = -1 THEN params.ticks = params.length
+
+ pushdw 30: pushdw who: pushdw params.dtype: pushdw params.length ' : pushdw params.ticks
+
+ IF params.ticks < params.length THEN
+  anim_wait params.ticks
+  anim_pausedissolve who
+ END IF
+END SUB
+
+' Start an undissolve (reverse dissolve) animation on a BattleSprite's .sprite slice.
+' The undissolve runs for params.ticks ticks, which may be less than the full dissolve length.
+SUB anim_undissolve(byval who as integer, byref params as AttackDissolveParams)
+ IF params.ticks = -1 THEN params.ticks = params.length
+
+ pushdw 31: pushdw who: pushdw params.dtype: pushdw params.length: pushdw params.ticks
+
+ IF params.ticks < params.length THEN
+  anim_wait params.ticks
+  anim_pausedissolve who
+ END IF
+END SUB
+
+SUB anim_pausedissolve(byval who as integer)
+ pushdw 32: pushdw who
 END SUB
 
 SUB anim_walktoggle(byval who as integer)
@@ -3238,7 +3349,7 @@ SUB anim_flinchstart(byval who as integer, bslot() as BattleSprite, byref attack
  IF bslot(who).never_flinch = NO AND attack.targ_does_not_flinch = NO THEN
   'Starting a new flinch while a movement is in progress would result in not returning to the intended position.
   'Currently that never happens, this is future proofing for more customisable animations.
-  anim_waitformove who
+  anim_waitforone who
 
   'Move 6 pixels in 3 ticks
   DIM xvelocity as integer = IIF(is_enemy(who), -2, 2)
@@ -4321,6 +4432,7 @@ SUB start_attack(byref attack as AttackData, byref bat as BattleState, bslot() a
  IF bslot(bat.acting).consume_item >= 0 THEN
   IF inventory(bslot(bat.acting).consume_item).used = 0 THEN
    '--abort if item is gone
+   'FIXME: if there is another stack of the item, use that instead of cancelling!
    bat.atk.id = -1
    EXIT SUB
   END IF

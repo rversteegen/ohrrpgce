@@ -3250,7 +3250,16 @@ SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
   .money_cost = buf(10)
   .extra_damage = buf(11)
   .attacker_anim = buf(14)
-  .attack_anim = buf(15)
+   WITH .attacker_anim_dissolve
+    .dtype = buf(356)
+    .length = buf(357)
+    .ticks = buf(358) - 1
+    .dissolved_advance = xreadbit(buf(), 37, 65)
+    .dissolved_retreat = xreadbit(buf(), 38, 65)
+    .dissolved_attack  = xreadbit(buf(), 39, 65)
+    .dissolved_after   = xreadbit(buf(), 40, 65)
+   END WITH
+   .attack_anim = buf(15)
   .attack_delay = buf(16)
   .turn_delay = buf(319)
   .dramatic_pause = buf(320)
@@ -3403,7 +3412,7 @@ SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
   .ignore_damage_cap              = xreadbit(buf(), 34, 65)
   .replace_store_targ             = xreadbit(buf(), 35, 65)
   .always_hide_attacker           = xreadbit(buf(), 36, 65)
-
+  'bits 37-39 are loaded in .attacker_anim_dissolve
 
   ' If didn't do a full upgrade, then these aren't initialised
   IF getfixbit(fixAttackMultipliers) = 0 THEN

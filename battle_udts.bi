@@ -105,12 +105,16 @@ TYPE BattleSprite
   under_player_control as bool
   turncoat_attacker as bool
   defector_target as bool
-  '--misc
+  '--Animations
   dissolve as integer      'Ticks left in death dissolving animation (enemies only).
   dissolve_appear as integer 'Counts ticks *up* to appeartime while enemy appears
   fleeing as bool          'Sprite is animating running away (not to be confused with BattleState.flee)
   flinch_anim as integer   'Flinch animation ticks left to play (initially 6, reverse direction at 3, 0 for none)
-  attack_succeeded as bool
+  anim_dissolve as bool    'anim_dissolve/undissolve have been used and sprite dissolve state should be left alone.
+  ' anim_dissolve_ticks as integer 'Ticks left in attacker animation dissolve (0 for none)
+  ' anim_dissolve_type as integer
+  ' anim_dissolve_over_ticks as integer
+
   walk as integer 'used by heroes when animating walking
   anim_pattern as integer 'used by attack sprites
   anim_index as integer 'used by attack sprites
@@ -120,7 +124,9 @@ TYPE BattleSprite
   appeartype as integer '-1 means appear instantly, >= 0 is dissolve animation type
   _appeartime as integer '0 = default, otherwise is time
   DECLARE FUNCTION appeartime() as integer  '_appeartime with default
+  '--Misc
   death_sfx as integer '0 = default, -1 = none, >0 = sfx ID + 1
+  attack_succeeded as bool
   revengeharm as integer 'The last damage dealt TO this hero or enemy
   thankvengecure as integer 'The cure damage undealt TO this hero or enemy (as a positive number!)
   repeatharm as integer 'The last damage dealt BY this hero or enemy

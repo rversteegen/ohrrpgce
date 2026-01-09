@@ -790,6 +790,20 @@ Type TransmogData
 	rewards_rule as integer  ' 0 (don't give) or 1 (give)
 End Type
 
+Type AttackDissolveParams
+	dtype as integer          '0 to dissolveTypeMax
+	length as integer         '0 to disable dissolve. Otherwise ticks In ticks
+	ticks as integer          'Number of ticks to play before stopping, -1 means = length
+	'Control which parts of the attack movement are while dissolved
+	dissolved_advance as bool 'Attacker is dissolved during advance
+                                  'Used only by Teleport, Dash In
+	dissolved_retreat as bool 'Dissolved during retreat
+	                          'Used only by Teleport, Dash In and Land
+	dissolved_attack as bool  'Dissolved between advance and retreat (during attack)
+                                  'For Strike, Cast, SpinStrike, (and Standing versions), Teleport, Dash In and Land
+	dissolved_after as bool   'Dissolved after the end of the attack
+End Type
+
 Type AttackData
 	id as integer 'should only be set when loaded!
 	name as string
@@ -812,6 +826,7 @@ Type AttackData
 	money_cost as integer
 	extra_damage as integer
 	attacker_anim as AttackerAnimation
+	attacker_anim_dissolve as AttackDissolveParams  'Dissolve used during the attack
 	attack_anim as AttackAnimation
 	attack_delay as integer   'In active-battle mode: ticks to delay (non-negative)
 	                          'In turn-based mode: number of attack queue slots (attacks) to delay,

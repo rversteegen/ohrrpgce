@@ -1463,43 +1463,75 @@ SUB anim_advance (byval who as integer, attack as AttackData, bslot() as BattleS
   anim_unhide who
  END IF
 
- SELECT CASE attack.attacker_anim
- CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike, atkrAnimJump
-  IF is_hero(who) THEN
-   ' Walk forward 20 pixels
-   anim_walktoggle who
-   anim_velocity who, -4, 0, 5
-   anim_waitforall
-  END IF
+ WITH attack.attacker_anim_dissolve
 
- CASE atkrAnimDashIn
-  ' Don't backstab yourself.
-  IF t(0) = who THEN EXIT SUB
-  anim_walktoggle who
-  IF is_enemy(who) THEN
-   anim_absmove who, target->x - bslot(who).w, target->y + target->h - bslot(who).h + 2, 6
-  ELSE
-   anim_absmove who, target->x + target->w, target->y + target->h - bslot(who).h + 2, 6
-  END IF
-  anim_waitforall
- 
- CASE atkrAnimTeleport
-  ' Don't backstab yourself.
-  IF t(0) = who THEN EXIT SUB
-  IF is_enemy(who) THEN
-   anim_setpos who, target->x - bslot(who).w, target->y + target->h - bslot(who).h, 0
-  ELSE
-   anim_setpos who, target->x + target->w, target->y + target->h - bslot(who).h, 0
-  END IF
+  'Dissolve at start of advance if dissolved_advance (for Teleport, Dash In)
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimDashIn, atkrAnimTeleport
+    IF .length <> 0 AND .dissolved_advance THEN
+     anim_dissolve who, attack.attacker_anim_dissolve
+     anim_waitforall
+    END IF
+   END SELECT
 
- CASE atkrAnimLand, atkrAnimNull, atkrAnimStandingCast, atkrAnimStandingStrike, _
-      atkrAnimStandingSpinStrike, atkrAnimRunAndHide, atkrAnimRunInUnHide
-  ' Do nothing
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike, atkrAnimJump
+    IF is_hero(who) THEN
+     ' Walk forward 20 pixels
+     anim_walktoggle who
+     anim_velocity who, -4, 0, 5
+     anim_waitforall
+    END IF
 
- END SELECT
+   CASE atkrAnimDashIn
+    ' Don't backstab yourself.
+    IF t(0) = who THEN EXIT SUB
+    anim_walktoggle who
+    IF is_enemy(who) THEN
+     anim_absmove who, target->x - bslot(who).w, target->y + target->h - bslot(who).h + 2, 6
+    ELSE
+     anim_absmove who, target->x + target->w, target->y + target->h - bslot(who).h + 2, 6
+    END IF
+    anim_waitforall
+
+   CASE atkrAnimTeleport
+    ' Don't backstab yourself.
+    IF t(0) = who THEN EXIT SUB
+    IF is_enemy(who) THEN
+     anim_setpos who, target->x - bslot(who).w, target->y + target->h - bslot(who).h, 0
+    ELSE
+     anim_setpos who, target->x + target->w, target->y + target->h - bslot(who).h, 0
+    END IF
+
+   CASE atkrAnimLand, atkrAnimNull, atkrAnimStandingCast, atkrAnimStandingStrike, _
+        atkrAnimStandingSpinStrike, atkrAnimRunAndHide, atkrAnimRunInUnHide
+    ' Do nothing
+
+   END SELECT
+
+   'At end of advance: undissolve if dissolved_advance, or dissolve if dissolved_attack
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimDashIn, atkrAnimTeleport
+    IF .length <> 0 AND .dissolved_advance THEN
+     anim_undissolve who, attack.attacker_anim_dissolve
+     anim_waitforall
+    END IF
+   END SELECT
+
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike, atkrAnimStandingCast, _
+        atkrAnimStandingStrike, atkrAnimStandingSpinStrike, atkrAnimDashIn, _
+        atkrAnimTeleport, atkrAnimLand
+    IF .length <> 0 AND .dissolved_attack THEN
+     anim_dissolve who, attack.attacker_anim_dissolve
+     anim_waitforall
+    END IF
+   END SELECT
+
+ END WITH
 END SUB
 
-'Generate attacker animation when hero attacks (excludes
+'Generate attacker animation for each of a hero's hits (excludes
 'anim_advance and anim_retreat parts of the animation)
 SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSprite, t() as integer)
 
@@ -1546,6 +1578,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
    NEXT ii
 
   CASE atkrAnimJump
+   'If this is a multihit attack, only the first hit causes a visible jump
    anim_setframe who, frameJUMP
    anim_relmove who, -26, 0, 13
    anim_zvelocity who, 18, 13
@@ -1554,6 +1587,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
    anim_setframe who, frameSTAND
 
   CASE atkrAnimLand
+   'If this is a multihit attack, they fall from the sky repeatedly!
    anim_setz who, 200
    anim_setframe who, frameLAND
    anim_unhide who
@@ -1587,7 +1621,7 @@ SUB anim_hero (byval who as integer, attack as AttackData, bslot() as BattleSpri
 
 END SUB
 
-'Generate attacker animation when an enemy attacks (excludes
+'Generate attacker animation for one of each an enemy attacks (excludes
 'anim_advance and anim_retreat parts of the animation)
 SUB anim_enemy (byval who as integer, attack as AttackData, bslot() as BattleSprite, t() as integer)
 
@@ -1634,37 +1668,78 @@ END SUB
 ' Undoes anim_advance
 SUB anim_retreat (byval who as integer, attack as AttackData, bslot() as BattleSprite)
 
- IF is_enemy(who) THEN
-  IF attack.attacker_anim = atkrAnimDashIn OR attack.attacker_anim = atkrAnimLand THEN
-   anim_setz who, 0
-   anim_absmove who, bslot(who).x, bslot(who).y, 6
+ WITH attack.attacker_anim_dissolve
+
+  'At start of retreat: undissolve if dissolved_attack, or dissolve if dissolved_retreat
+  SELECT CASE attack.attacker_anim
+  CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike, atkrAnimStandingCast, _
+       atkrAnimStandingStrike, atkrAnimStandingSpinStrike, atkrAnimDashIn, _
+       atkrAnimTeleport, atkrAnimLand
+   IF .length <> 0 AND .dissolved_attack THEN
+    anim_undissolve who, attack.attacker_anim_dissolve
+    anim_waitforall
+   END IF
+  END SELECT
+
+  SELECT CASE attack.attacker_anim
+  CASE atkrAnimDashIn, atkrAnimTeleport, atkrAnimLand
+   IF .length <> 0 AND .dissolved_retreat THEN
+    anim_dissolve who, attack.attacker_anim_dissolve
+    anim_waitforall
+   END IF
+  END SELECT
+
+  IF is_enemy(who) THEN
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimDashIn, atkrAnimLand
+    anim_setz who, 0
+    anim_absmove who, bslot(who).x, bslot(who).y, 6
+    anim_waitforall
+   CASE atkrAnimTeleport
+    (bslot(who).pos) = bslot(who).basepos
+   END SELECT
+  END IF
+
+  IF is_hero(who) THEN
+   SELECT CASE attack.attacker_anim
+   CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike
+    ' Walk back 20 pixels
+    anim_walktoggle who
+    ' SpinStrike: step back faster, a compromise with the old teleport back to start
+    DIM ticks as integer = IIF(attack.attacker_anim = atkrAnimSpinStrike, 3, 5)
+    anim_relmove who, 20, 0, ticks
+    anim_waitforall
+    anim_setframe who, frameSTAND
+   CASE atkrAnimDashIn, atkrAnimLand
+    anim_setframe who, frameSTAND
+    anim_walktoggle who
+    anim_setz who, 0
+    anim_absmove who, bslot(who).x, bslot(who).y, 6
+    anim_waitforall
+    anim_setframe who, frameSTAND
+   CASE atkrAnimTeleport
+    (bslot(who).pos) = bslot(who).basepos
+   CASE atkrAnimStandingCast, atkrAnimStandingStrike, atkrAnimStandingSpinStrike
+    anim_setframe who, frameSTAND
+   CASE atkrAnimNull, atkrAnimJump, atkrAnimRunAndHide, atkrAnimRunInUnHide
+   ' Do nothing
+   END SELECT
+  END IF
+
+  'At end of retreat: undissolve if dissolved_retreat
+  SELECT CASE attack.attacker_anim
+  CASE atkrAnimDashIn, atkrAnimTeleport, atkrAnimLand
+   IF .length <> 0 AND .dissolved_retreat AND .dissolved_after = NO THEN
+    anim_undissolve who, attack.attacker_anim_dissolve
+    anim_waitforall
+   END IF
+  END SELECT
+  IF .length <> 0 AND .dissolved_after THEN
+   anim_dissolve who, attack.attacker_anim_dissolve
    anim_waitforall
   END IF
- END IF
 
- IF is_hero(who) THEN
-  SELECT CASE attack.attacker_anim
-  CASE atkrAnimStrike, atkrAnimCast, atkrAnimSpinStrike
-   ' Walk back 20 pixels
-   anim_walktoggle who
-   ' SpinStrike: step back faster, a compromise with the old teleport back to start
-   DIM ticks as integer = IIF(attack.attacker_anim = atkrAnimSpinStrike, 3, 5)
-   anim_relmove who, 20, 0, ticks
-   anim_waitforall
-   anim_setframe who, frameSTAND
-  CASE atkrAnimDashIn, atkrAnimLand
-   anim_setframe who, frameSTAND
-   anim_walktoggle who
-   anim_setz who, 0
-   anim_absmove who, bslot(who).x, bslot(who).y, 6
-   anim_waitforall
-   anim_setframe who, frameSTAND
-  CASE atkrAnimStandingCast, atkrAnimStandingStrike, atkrAnimStandingSpinStrike
-   anim_setframe who, frameSTAND
-  CASE atkrAnimNull, atkrAnimJump, atkrAnimTeleport, atkrAnimRunAndHide, atkrAnimRunInUnHide
-  ' Do nothing
-  END SELECT
- END IF
+ END WITH
 
  IF attack.always_hide_attacker THEN
   anim_hide who
@@ -2330,6 +2405,10 @@ FUNCTION describe_bslot(byval slot as integer, bat as BattleState, bslot() as Ba
   'DIM blockedturns as integer = total_blocking_turn_delay(slot)
   'IF blockedturns THEN info &= " Blocked `" & blockedturns & " turns`"
   IF .attack THEN info &= !"\nAttack:`" & .attack - 1 & " " & readattackname(.attack - 1) & "`"
+
+  IF .anim_dissolve THEN info &= " ANIM_DISSOLVE"
+  IF SpriteSliceIsDissolving(.sprite) THEN info &= " autodissolving"
+  IF SpriteSliceIsDissolving(.sprite, NO) THEN info &= " dissolving"
 
   IF has_queued_attacks(slot) THEN
    info &= !"\nAtkQueue>"
