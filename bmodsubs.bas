@@ -1314,7 +1314,7 @@ SUB get_valid_targs(tmask() as bool, byval who as integer, byref atk as AttackDa
  CASE 4 'ally-including-dead
   FOR i = 0 TO 11
    IF foe(i) = NO THEN
-    tmask(i) = (bslot(i).vis ORELSE (is_hero(i) ANDALSO gam.hero(i).id >= 0))
+    tmask(i) = (bslot(i).vis ORELSE bslot(i).not_empty)
    END IF
   NEXT i
 
@@ -1378,7 +1378,7 @@ SUB get_valid_targs(tmask() as bool, byval who as integer, byref atk as AttackDa
 
  CASE 14 'all-including-dead
   FOR i = 0 TO 11
-   IF bslot(i).vis ORELSE (is_hero(i) ANDALSO gam.hero(i).id >= 0) THEN tmask(i) = YES
+   IF bslot(i).vis ORELSE bslot(i).not_empty THEN tmask(i) = YES
   NEXT i
 
  CASE 15 'dead foe (heroes only)
@@ -1391,7 +1391,7 @@ SUB get_valid_targs(tmask() as bool, byval who as integer, byref atk as AttackDa
  CASE 16 'foe-including-dead
   FOR i = 0 TO 11
    IF foe(i) THEN
-    IF bslot(i).vis ORELSE (is_hero(i) ANDALSO gam.hero(i).id >= 0) THEN tmask(i) = YES
+    IF bslot(i).vis ORELSE bslot(i).not_empty THEN tmask(i) = YES
    END IF
   NEXT i
  

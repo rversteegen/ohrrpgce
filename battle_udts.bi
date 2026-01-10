@@ -47,8 +47,9 @@ TYPE HarmText 'FIXME: when battle display is converted to slices, this can go aw
 END TYPE
 
 TYPE BattleSprite
+  DECLARE FUNCTION not_empty() as bool
   name as string
-  index as integer 'Set in battle_init()
+  index as integer 'bslot index, set in battle_init()
   ' We don't have any swapping of bslot() but if we ever did, it would be important to update this after swapping
 
   '--Sprites/slices
