@@ -2883,6 +2883,11 @@ FOR i = 0 TO size
      datatext &= " (" & speed_estimate(dat) & ")"
     END IF
    END IF
+  CASE 9000 TO 9999 '--bool stored as bit: 9000+bitnum from menuoff
+   DIM wordnum as integer = menuoff(nowdat(i)) \ 16
+   DIM bitnum as integer = menuoff(nowdat(i)) MOD 16
+   DIM thebit as integer = readbit(datablock(), wordnum, bitnum)
+   datatext = yesorno(thebit)
 
  END SELECT
  IF replacestr(nowmenu(i), "$$", datatext) = 0 THEN

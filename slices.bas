@@ -2576,6 +2576,14 @@ Sub CancelSpriteSliceDissolve(sl as Slice ptr)
  end with
 end sub
 
+Sub SetSpriteSliceAutoDissolve(sl as Slice ptr, auto_animate as bool=YES)
+ if sl = 0 then debug "CancelSpriteSliceDissolve null ptr" : exit sub
+ ASSERT_SLTYPE(sl, slSprite)
+ with *sl->SpriteData
+  .d_auto = auto_animate
+ end with
+end sub
+
 Function SpriteSliceIsDissolving(byval sl as Slice ptr, byval only_auto as bool=YES) as bool
  if sl = 0 then debug "SpriteSliceIsDissolving null ptr" : return NO
  if sl->SliceType <> slSprite then return NO  'Not an error
