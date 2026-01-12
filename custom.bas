@@ -1556,7 +1556,7 @@ SUB resolution_menu ()
   menu(5) = "Console TV safe margin %: " & GetChildNodeStr(console, "safe_margin", "Default")  'This is an integer
   selectable(6) = NO
   selectable(7) = NO
-  menu(7) = fgtag(uilook(eduiHeading), " Experimental options")
+  menu(7) = headingtag(" Experimental options")
   menu(8) = "Game horizontal resolution: " & gen(genResolutionX) & " pixels"
   menu(9) = "Game vertical resolution: " & gen(genResolutionY) & " pixels"
   clearpage vpage

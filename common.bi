@@ -256,6 +256,7 @@ DECLARE FUNCTION hilite (what as string, col as integer = -1) as string
 DECLARE FUNCTION ticklite(what as string, col as integer = -1) as string
 DECLARE FUNCTION fgtag(col as integer, text as string = "") as string
 DECLARE FUNCTION bgtag(col as integer, text as string = "") as string
+DECLARE FUNCTION headingtag(text as string = "") as string
 
 DECLARE FUNCTION basic_textbox (msg as zstring ptr, col as integer = -1, page as integer, ypos as RelPos = pCentered, width as RelPos = -1, shrink as bool = NO, suppress_borders as bool = NO, fontnum as integer = fontEdged) as integer
 DECLARE FUNCTION notification (msg as zstring ptr, shrink as bool = NO) as KBScancode

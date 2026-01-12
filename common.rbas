@@ -701,6 +701,10 @@ FUNCTION bgtag(col as integer, text as string = "") as string
  END IF
 END FUNCTION
 
+FUNCTION headingtag(text as string = "") as string
+ RETURN fgtag(uilook(eduiHeading), text)
+END FUNCTION
+
 '==========================================================================================
 '                                      notification
 '==========================================================================================

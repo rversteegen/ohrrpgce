@@ -1126,13 +1126,13 @@ menulimits(AtkElseChainVal2) = AtkLimElseChainVal2
 menu(AtkElseChainBits) = "  Option bitsets..."
 menutype(AtkElseChainBits) = 1
 
-menu(AtkChainHeader) = "[Regular Chain]"
+menu(AtkChainHeader) = headingtag("[Regular Chain]")
 menutype(AtkChainHeader) = 18'skipper
 
-menu(AtkElseChainHeader) = "[Else-Chain]"
+menu(AtkElseChainHeader) = headingtag("[Else-Chain]")
 menutype(AtkElseChainHeader) = 18'skipper
 
-menu(AtkInsteadChainHeader) = "[Instead-Chain]"
+menu(AtkInsteadChainHeader) = headingtag("[Instead-Chain]")
 menutype(AtkInsteadChainHeader) = 18'skipper
 
 menu(AtkInsteadChainTo) = "  Attack:"

@@ -1449,8 +1449,8 @@ SUB general_scripts_menu ()
   END IF
 
   menu(0) = "Previous Menu"
-  menu(2) = fgtag(uilook(eduiHeading)) + " Global script triggers"
-  menu(11) = fgtag(uilook(eduiHeading)) + " Map default scripts"
+  menu(2) = headingtag(" Global script triggers")
+  menu(11) = headingtag(" Map default scripts")
   FOR i as integer = 1 TO menusize
    IF scriptgenoff(i) THEN
     menu(i) = trigger_names(i) + ": " + scriptname(gen(scriptgenoff(i)))

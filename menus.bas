@@ -1978,7 +1978,7 @@ SUB ModularMenu.add_item(itemtype as integer = 0, id as integer = -1, text as st
  a_append itemtypes(), itemtype
  a_append itemids(), id
  IF heading THEN
-  a_append menu(), fgtag(uilook(eduiHeading)) & text
+  a_append menu(), headingtag & text
  ELSE
   a_append menu(), text
  END IF
