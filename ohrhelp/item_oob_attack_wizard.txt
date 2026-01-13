@@ -1,0 +1,7 @@
+This wizard creates a new attack that cures or increases a stat by a fixed amount when used out of battle.
+
+Select the stat to modify (HP, MP, etc.) and the amount to increase it by, then select "Create Attack" to create the attack and assign it to this item.
+
+For HP and MP, you can also choose whether the cure can exceed the target's maximum stat value.
+
+The created attack uses Pure Damage with no randomization, and has appropriate bitsets set. You can edit it further in the Attack Editor if needed.

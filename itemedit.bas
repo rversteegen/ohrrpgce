@@ -93,6 +93,10 @@ TYPE ItemEditor EXTENDS EditorKit
  STATIC clipboard_item as ItemDef ptr  'For copy/pasting, NULL if nothing copied
  undo_item as ItemDef ptr  'Just to undo pasting. NULL if nothing
  can_copy_and_paste as bool
+ 'Wizard for creating cure/stat change attacks
+ wizard_stat as integer     'Target stat (0=HP, 1=MP, etc.)
+ wizard_amount as integer   'Amount to cure/increase
+ wizard_exceed_max as bool  'Allow cure to exceed maximum (HP/MP only)
 END TYPE
 DIM ItemEditor.clipboard_item as ItemDef ptr
 
@@ -166,6 +170,33 @@ SUB ItemEditor.define_items()
    set_caption item.stat_bonuses.sta(i) & " [stat capped to " & cap & "]"
   END IF
  NEXT
+
+ '----------------------------
+ ELSEIF submenu = "oob_attack_wizard" THEN
+
+ exit_submenu_text = "Cancel"
+ helpkey = "item_oob_attack_wizard"
+
+ defitem "Stat to modify:"
+ edit_as_stat wizard_stat
+
+ defint "Amount to increase:", wizard_amount, 1, 32767
+
+ 'Only show "Allow exceed max" for HP (0) and MP (1)
+ IF wizard_stat = statHP ORELSE wizard_stat = statMP THEN
+  defitem "Allow cure to exceed max:"
+  edit_bool wizard_exceed_max
+ ELSE
+  wizard_exceed_max = NO
+ END IF
+
+ IF defitem_act("Create Attack") THEN
+  item.oob_attack = create_cure_attack(wizard_stat, wizard_amount, wizard_exceed_max)
+  wizard_stat = 0
+  wizard_amount = 50
+  wizard_exceed_max = NO
+  exit_menu
+ END IF
 
  '----------------------------
  ELSE '--main menu
@@ -276,6 +307,15 @@ SUB ItemEditor.define_items()
   IF value = -1 THEN set_caption "NOTHING"
  END IF
  set_tooltip THINGGRABBER_TOOLTIP
+
+ 'Wizard to create a cure/stat change attack (only shown when no OOB attack and not disabled)
+ IF item.oob_attack < 0 ANDALSO item.text_box < 0 ANDALSO item.teach_spell < 0 THEN
+  IF defitem_act("  Cure/stat change attack...") THEN
+   wizard_stat = 0
+   wizard_amount = 50
+   enter_submenu "oob_attack_wizard"
+  END IF
+ END IF
 
  defitem "Text Box:"
  IF item.oob_attack >= 0 ORELSE item.teach_spell >= 0 THEN

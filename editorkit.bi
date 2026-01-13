@@ -417,6 +417,10 @@ type EditorKit extends ModularMenu
 	declare sub as_textbox(byref id as integer, or_none_flag as EKFlags = 0)
 	declare function edit_as_textbox(byref id as integer, or_none_flag as EKFlags = 0) as bool
 
+	' Stats (HP, MP, etc.)
+	declare sub as_stat(byref id as integer)
+	declare function edit_as_stat(byref id as integer) as bool
+
 	' Extra data vectors
 	declare sub edit_extra_data_vector(byref extravec as integer vector)
 

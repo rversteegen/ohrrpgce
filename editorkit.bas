@@ -1952,6 +1952,17 @@ function EditorKit.edit_as_textbox(byref datum as integer, or_none_flag as EKFla
 	return edited
 end function
 
+'----------------------------------- Stats -----------------------------------
+
+' Stats (HP, MP, Atk, etc.)
+sub EditorKit.as_stat(byref datum as integer)
+	val_int_enum datum, statnames(), "stat"
+end sub
+
+function EditorKit.edit_as_stat(byref id as integer) as bool
+	return edit_int_enum(id, statnames(), "stat")
+end function
+
 '------------------------------ Extra data vectors -----------------------------
 
 'Adds a set of menu items for editing an extra data vector

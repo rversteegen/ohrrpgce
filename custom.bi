@@ -24,6 +24,7 @@ DECLARE FUNCTION enemy_picker_or_none (recindex as integer = -1) as integer
 DECLARE FUNCTION attack_editor (recindex as integer = -1) as integer
 DECLARE FUNCTION attack_picker (recindex as integer = -1) as integer
 DECLARE FUNCTION attack_picker_or_none (recindex as integer = -1) as integer
+DECLARE FUNCTION create_cure_attack(stat_num as integer, amount as integer, allow_exceed_max as bool = NO) as integer
 DECLARE FUNCTION hero_picker (recindex as integer = -1) as integer
 DECLARE FUNCTION hero_picker_or_none (recindex as integer = -1) as integer
 DECLARE FUNCTION text_box_editor (whichbox as integer = -1) as integer
