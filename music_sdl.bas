@@ -19,6 +19,11 @@
 #include "util.bi"
 #include "common.bi"
 #include "backendinfo.bi"
+
+#ifdef SDL_MIXER2
+	#define XMP_NO_INCLIB
+	#include "xmp.bi"
+#endif
 'warning: due to a FB bug, overloaded functions must be declared before SDL.bi is included
 
 #ifdef __FB_UNIX__
@@ -87,6 +92,38 @@ end extern
 declare function next_free_slot() as integer
 declare function sfx_slot_info (byval slot as integer) as string
 declare sub enable_modplug_looping()
+declare sub music_cleanup_finished()
+declare function music_play_internal overload(filename as string, byval fmt as MusicFormatEnum, byval fade_in_ms as integer = 0) as bool
+declare function music_play_internal overload(byval songlump as Lump ptr, byval fmt as MusicFormatEnum) as bool
+
+#ifdef SDL_MIXER2
+	declare function xmp_load_library() as bool
+	declare function xmp_using_music_slot() as bool
+	declare function xmp_frame_gain() as double
+	declare sub xmp_update_fade_state()
+	declare sub xmp_emit_events(byval fi as xmp_frame_info ptr)
+	declare sub xmp_stop_playback()
+	declare function xmp_start_playback overload(filename as string) as bool
+	declare function xmp_start_playback overload(byval songlump as Lump ptr) as bool
+	declare function xmp_seek(byval pos_s as double) as bool
+	declare sub xmp_fill_chunk cdecl(byval channel as integer, byval stream as any ptr, byval len_ as integer, byval udata as any ptr)
+#endif
+
+'------------ Sound effects --------------
+
+DECLARE sub SDL_done_playing cdecl(byval channel as int32)
+
+' The SDL_Mixer channel number is equal to the SoundEffectSlot index
+TYPE SoundEffectSlot EXTENDS SFXCommonData
+	used as bool        'whether this slot is free
+
+	playing as bool     'Set to false by a callback when the channel finishes
+
+	buf as Mix_Chunk ptr
+END TYPE
+
+'music_sdl has an arbitrary limit of 16 sound effects playing at once:
+dim shared sfx_slots(15) as SoundEffectSlot
 
 enum MusicStatusEnum
   musicError = -1  ' Don't try again
@@ -107,6 +144,42 @@ dim shared music_song as Mix_Music ptr = NULL
 dim shared music_song_rw as SDL_RWops ptr = NULL
 dim shared orig_vol as integer = -1
 dim shared nonmidi_playing as bool = NO
+dim shared module_event_hook as MusicModuleEventHook
+dim shared module_event_hook_userdata as any ptr
+
+#ifdef SDL_MIXER2
+	dim shared xmp_ctx as xmp_context
+	dim shared xmp_handle as any ptr
+	dim shared xmp_music_slot as integer = -1
+	dim shared xmp_music_channels as integer = 2
+	dim shared xmp_music_frequency as integer = 44100
+	dim shared xmp_music_chunk_bytes as integer = 0
+	dim shared xmp_mixbuf as ubyte ptr
+	dim shared xmp_mixbuf_size as integer
+	dim shared xmp_mixbuf_used as integer
+	dim shared xmp_mixbuf_pos as integer
+	dim shared xmp_fade_state as FadeState = NO_MUSIC
+	dim shared xmp_fade_start_gain as double = 1.0
+	dim shared xmp_fade_end_gain as double = 1.0
+	dim shared xmp_fade_start_time as double
+	dim shared xmp_fade_duration_ms as integer
+	dim shared xmp_last_order as integer = -1
+	dim shared xmp_last_pattern as integer = -1
+	dim shared xmp_last_row as integer = -1
+	dim shared xmp_last_frame as integer = -1
+	dim shared _xmp_create_context as function () as xmp_context
+	dim shared _xmp_load_module as function (byval as xmp_context, byval as zstring ptr) as long
+	dim shared _xmp_load_module_from_memory as function (byval as xmp_context, byval as any ptr, byval as clong) as long
+	dim shared _xmp_release_module as sub (byval as xmp_context)
+	dim shared _xmp_start_player as function (byval as xmp_context, byval as long, byval as long) as long
+	dim shared _xmp_play_frame as function (byval as xmp_context) as long
+	dim shared _xmp_get_frame_info as sub (byval as xmp_context, byval as xmp_frame_info ptr)
+	dim shared _xmp_end_player as sub (byval as xmp_context)
+	dim shared _xmp_stop_module as sub (byval as xmp_context)
+	dim shared _xmp_restart_module as sub (byval as xmp_context)
+	dim shared _xmp_seek_time as function (byval as xmp_context, byval as long) as long
+	dim shared _xmp_free_context as sub (byval as xmp_context)
+#endif
 
 'The music module needs to manage a list of temporary files to delete when closed
 dim shared tempfiles() as string
@@ -325,6 +398,11 @@ sub music_init()
 		#endif
 		audio_format = MIX_DEFAULT_FORMAT
 		audio_channels = 2
+		#ifdef SDL_MIXER2
+			xmp_music_frequency = audio_rate
+			xmp_music_channels = audio_channels
+			xmp_music_chunk_bytes = audio_buffers * audio_channels * sizeof(short)
+		#endif
 
 		if SDL_WasInit(0) = 0 then
 			if SDL_Init(SDL_INIT_AUDIO) then
@@ -375,6 +453,7 @@ end sub
 
 sub music_close()
 	if music_status = musicOn then
+		music_stop()
 		if orig_vol > 0 then
 			'restore original volume
 			Mix_VolumeMusic(orig_vol)
@@ -383,7 +462,6 @@ sub music_close()
 			Mix_VolumeMusic(0.5 * MIX_MAX_VOLUME)
 		end if
 
-		music_stop()
 		Mix_CloseAudio()
 		quit_sdl_audio()
 
@@ -398,10 +476,14 @@ sub music_close()
 end sub
 
 sub music_play(byval lump as Lump ptr, byval fmt as MusicFormatEnum)
-
+	music_play_internal(lump, fmt)
 end sub
 
 sub music_play(filename as string, byval fmt as MusicFormatEnum)
+	music_play_internal(filename, fmt)
+end sub
+
+function music_play_internal overload(filename as string, byval fmt as MusicFormatEnum, byval fade_in_ms as integer = 0) as bool
 	if music_status = musicOn then
 		dim songname as string = filename
 		if fmt = FORMAT_BAM then
@@ -420,6 +502,27 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			songname = midname
 			fmt = FORMAT_MIDI
 		end if
+
+		#ifdef SDL_MIXER2
+			if (fmt and FORMAT_MODULES) then
+				music_stop
+				if xmp_start_playback(songname) then
+			if fade_in_ms > 0 then
+				xmp_fade_state = FADE_IN
+				xmp_fade_start_gain = 0.0
+				xmp_fade_end_gain = 1.0
+				xmp_fade_start_time = TIMER
+				xmp_fade_duration_ms = fade_in_ms
+			else
+				xmp_fade_state = PLAYING
+			end if
+					nonmidi_playing = YES
+					music_paused = NO
+					return YES
+				end if
+				return NO
+			end if
+		#endif
 
 		music_stop
 
@@ -456,16 +559,22 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 			music_song = Mix_LoadMUS_RW(music_song_rw)
 		#endif
 
-		if music_song = 0 then
-			debug "Could not load song " + songname + " : " & *Mix_GetError
-			exit sub
-		end if
+			if music_song = 0 then
+				debug "Could not load song " + songname + " : " & *Mix_GetError
+				return NO
+			end if
 
 		music_paused = NO
-		if Mix_PlayMusic(music_song, -1) then
+		if fade_in_ms > 0 then
+			if Mix_FadeInMusic(music_song, -1, fade_in_ms) then
+				debug "Could not Mix_FadeInMusic " + songname + " : " & *Mix_GetError
+				music_stop
+				return NO
+			end if
+		elseif Mix_PlayMusic(music_song, -1) then
 			debug "Could not Mix_PlayMusic " + songname + " : " & *Mix_GetError
 			music_stop
-			exit sub
+			return NO
 		end if
 
 		'not really working when songs are being faded in.
@@ -495,13 +604,35 @@ sub music_play(filename as string, byval fmt as MusicFormatEnum)
 		else
 			nonmidi_playing = NO
 		end if
+		return YES
 	end if
-end sub
+	return NO
+end function
+
+function music_play_internal overload(byval songlump as Lump ptr, byval fmt as MusicFormatEnum) as bool
+	if music_status = musicOn then
+		#ifdef SDL_MIXER2
+			if (fmt and FORMAT_MODULES) then
+				music_stop
+				if xmp_start_playback(songlump) then
+					nonmidi_playing = YES
+					music_paused = NO
+					return YES
+				end if
+			end if
+		#endif
+	end if
+	return NO
+end function
 
 sub music_pause()
 	'Pause is broken in SDL_Mixer, so just stop.
 	'A look at the source indicates that it won't work for MIDI
 	if music_status = musicOn then
+		if xmp_using_music_slot() then
+			xmp_stop_playback()
+			exit sub
+		end if
 		if music_song <> 0 then
 			Mix_HaltMusic
 			nonmidi_playing = NO
@@ -519,7 +650,9 @@ sub music_resume()
 end sub
 
 sub music_stop()
+	xmp_stop_playback()
 	if music_song <> 0 then
+		Mix_HaltMusic
 		Mix_FreeMusic(music_song)
 		music_song = 0
 		music_paused = NO
@@ -575,11 +708,106 @@ end sub
 
 ' Volume fading: see r2283
 
+sub music_setmoduleeventhook(byval hook as MusicModuleEventHook, byval userdata as any ptr = NULL)
+	module_event_hook = hook
+	module_event_hook_userdata = userdata
+end sub
+
+sub music_cleanup_finished()
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then
+			if xmp_music_slot >= 0 andalso Mix_Playing(xmp_music_slot) = 0 then
+				xmp_stop_playback()
+			end if
+		end if
+	#endif
+	if music_song <> 0 andalso Mix_PlayingMusic() = 0 then
+		Mix_FreeMusic(music_song)
+		music_song = 0
+		nonmidi_playing = NO
+		music_paused = NO
+	end if
+end sub
+
+function music_state() as FadeState
+	music_cleanup_finished()
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then return xmp_fade_state
+	#endif
+	if music_song = 0 then return NO_MUSIC
+	select case Mix_FadingMusic()
+		case MIX_FADING_IN
+			return FADE_IN
+		case MIX_FADING_OUT
+			return FADE_OUT
+	end select
+	return PLAYING
+end function
+
+sub music_fadeout(filename as string, fade_out_ms as integer)
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then
+			if fade_out_ms <= 0 then
+				xmp_stop_playback()
+			else
+				xmp_fade_state = FADE_OUT
+				xmp_fade_start_gain = xmp_frame_gain()
+				xmp_fade_end_gain = 0.0
+				xmp_fade_start_time = TIMER
+				xmp_fade_duration_ms = fade_out_ms
+			end if
+			return
+		end if
+	#endif
+	if music_song then
+		if fade_out_ms <= 0 then
+			music_stop()
+		else
+			Mix_FadeOutMusic(fade_out_ms)
+		end if
+	end if
+end sub
+
+sub music_fadein(filename as string, fade_out_ms as integer, fade_in_ms as integer)
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then
+			if fade_out_ms <= 0 then
+				xmp_stop_playback()
+			else
+				xmp_fade_state = FADE_OUT
+				xmp_fade_start_gain = xmp_frame_gain()
+				xmp_fade_end_gain = 0.0
+				xmp_fade_start_time = TIMER
+				xmp_fade_duration_ms = fade_out_ms
+				while xmp_using_music_slot()
+					Sleep 1
+				wend
+			end if
+			music_play_internal(filename, getmusictype(filename), fade_in_ms)
+			return
+		end if
+	#endif
+	if music_song andalso fade_out_ms > 0 then
+		Mix_FadeOutMusic(fade_out_ms)
+		while Mix_FadingMusic() = MIX_FADING_OUT
+			Sleep 1
+		wend
+		music_cleanup_finished()
+	else
+		music_stop()
+	end if
+	music_play_internal(filename, getmusictype(filename), fade_in_ms)
+end sub
+
 sub music_setvolume(byval vol as single)
 	'SDL_mixer (unfortunately) internally clamps to MIX_MAX_VOLUME, so we don't need to
 	music_vol = large(vol, 0.)
 	if music_status = musicOn then
+		music_cleanup_finished()
 		Mix_VolumeMusic(music_vol * MIX_MAX_VOLUME)
+		#ifdef SDL_MIXER2
+			if xmp_using_music_slot() then Mix_Volume(xmp_music_slot, music_vol * MIX_MAX_VOLUME)
+		#endif
 	end if
 end sub
 
@@ -589,6 +817,9 @@ function music_getvolume() as single
 end function
 
 function music_seekable() as bool
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then return YES
+	#endif
 	if music_song = NULL then return NO
 	#ifdef __FB_WIN32__
 		dim mus_type as Mix_MusicType = Mix_GetMusicType(NULL)
@@ -599,6 +830,15 @@ function music_seekable() as bool
 end function
 
 function music_gettime() as double
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then
+			if xmp_ctx then
+				dim fi as xmp_frame_info
+				_xmp_get_frame_info(xmp_ctx, @fi)
+				return fi.time / 1000.0
+			end if
+		end if
+	#endif
 	if _Mix_GetMusicPosition then
 		return _Mix_GetMusicPosition(NULL)
 	end if
@@ -606,6 +846,9 @@ function music_gettime() as double
 end function
 
 function music_settime(byval pos_s as double) as bool
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then return xmp_seek(pos_s)
+	#endif
 	'Note: when using mikmod in SDL_mixer 1.2 positions seem to be off by a factor of 100 or so:
 	'1.0-3.0 might be the end of the song.
 	'In SDL_mixer 2.0 with xmp, seeking seems to go to the beginning of the pattern containing that
@@ -614,27 +857,351 @@ function music_settime(byval pos_s as double) as bool
 end function
 
 function music_getlength() as double
+	#ifdef SDL_MIXER2
+		if xmp_using_music_slot() then
+			if xmp_ctx then
+				dim fi as xmp_frame_info
+				_xmp_get_frame_info(xmp_ctx, @fi)
+				return fi.total_time / 1000.0
+			end if
+		end if
+	#endif
 	if _Mix_MusicDuration then
 		return _Mix_MusicDuration(NULL)
 	end if
 	return -1.0
 end function
 
-'------------ Sound effects --------------
+#ifdef SDL_MIXER2
 
-DECLARE sub SDL_done_playing cdecl(byval channel as int32)
+function xmp_load_library() as bool
+	if _xmp_create_context then return YES
+	#ifdef __FB_WIN32__
+		dim candidates(...) as string = {"xmp", "libxmp", "xmp-lite", "libxmp-lite"}
+	#elseif defined(__FB_DARWIN__)
+		dim candidates(...) as string = {"xmp.framework/xmp", "libxmp.dylib", "libxmp-lite.dylib", "xmp", "xmp-lite"}
+	#else
+		dim candidates(...) as string = {"libxmp-lite.so.4", "libxmp-lite.so", "libxmp.so.4", "libxmp.so", "xmp-lite", "xmp"}
+	#endif
+	for i as integer = 0 to ubound(candidates)
+		xmp_handle = dylibload(candidates(i))
+		if xmp_handle then exit for
+	next
+	if xmp_handle = NULL then
+		debug "Couldn't load libxmp/libxmp-lite"
+		return NO
+	end if
+	#define LOAD_XMP_PROC(proc) _##proc = dylibsymbol(xmp_handle, #proc) : if _##proc = NULL then debug "Missing libxmp symbol " & #proc : return NO
+	LOAD_XMP_PROC(xmp_create_context)
+	LOAD_XMP_PROC(xmp_load_module)
+	LOAD_XMP_PROC(xmp_load_module_from_memory)
+	LOAD_XMP_PROC(xmp_release_module)
+	LOAD_XMP_PROC(xmp_start_player)
+	LOAD_XMP_PROC(xmp_play_frame)
+	LOAD_XMP_PROC(xmp_get_frame_info)
+	LOAD_XMP_PROC(xmp_end_player)
+	LOAD_XMP_PROC(xmp_stop_module)
+	LOAD_XMP_PROC(xmp_restart_module)
+	LOAD_XMP_PROC(xmp_seek_time)
+	LOAD_XMP_PROC(xmp_free_context)
+	#undef LOAD_XMP_PROC
+	return YES
+end function
 
-' The SDL_Mixer channel number is equal to the SoundEffectSlot index
-TYPE SoundEffectSlot EXTENDS SFXCommonData
-	used as bool        'whether this slot is free
+function xmp_using_music_slot() as bool
+	return xmp_music_slot >= 0
+end function
 
-	playing as bool     'Set to false by a callback when the channel finishes
+function xmp_frame_gain() as double
+	if xmp_fade_state = FADE_IN orelse xmp_fade_state = FADE_OUT then
+		dim elapsed_ms as double = (TIMER - xmp_fade_start_time) * 1000.0
+		if xmp_fade_duration_ms <= 0 orelse elapsed_ms >= xmp_fade_duration_ms then return xmp_fade_end_gain
+		return xmp_fade_start_gain + (xmp_fade_end_gain - xmp_fade_start_gain) * elapsed_ms / xmp_fade_duration_ms
+	end if
+	return 1.0
+end function
 
-	buf as Mix_Chunk ptr
-END TYPE
+sub xmp_update_fade_state()
+	if xmp_fade_state <> FADE_IN andalso xmp_fade_state <> FADE_OUT then exit sub
+	if xmp_fade_duration_ms <= 0 then
+		if xmp_fade_state = FADE_OUT then
+			xmp_stop_playback()
+		else
+			xmp_fade_state = PLAYING
+		end if
+		exit sub
+	end if
+	if (TIMER - xmp_fade_start_time) * 1000.0 >= xmp_fade_duration_ms then
+		if xmp_fade_state = FADE_OUT then
+			xmp_stop_playback()
+		else
+			xmp_fade_state = PLAYING
+		end if
+	end if
+end sub
 
-'music_sdl has an arbitrary limit of 16 sound effects playing at once:
-dim shared sfx_slots(15) as SoundEffectSlot
+sub xmp_emit_events(byval fi as xmp_frame_info ptr)
+	'if module_event_hook = NULL orelse fi = NULL then exit sub
+	if fi->pos = xmp_last_order andalso fi->pattern = xmp_last_pattern andalso fi->row = xmp_last_row andalso fi->frame = xmp_last_frame then exit sub
+	xmp_last_order = fi->pos
+	xmp_last_pattern = fi->pattern
+	xmp_last_row = fi->row
+	xmp_last_frame = fi->frame
+	for ch as integer = 0 to XMP_MAX_CHANNELS - 1
+		with fi->channel_info(ch).event
+			if .note = 0 then continue for
+			?" EVENT pos " & fi->pos & " pattern " & fi->pattern & " row " & fi->row & " frame " & fi->frame & " ch " & ch & " note " &  .note  & " ins " & .ins & " fxt " & .fxt
+			'module_event_hook(module_event_hook_userdata, fi->pos, fi->pattern, fi->row, fi->frame, ch, .note, .ins, .vol, .fxt, .fxp, .f2t, .f2p)
+		end with
+	next
+end sub
+
+sub xmp_stop_playback()
+	if xmp_music_slot >= 0 then
+		Mix_UnregisterAllEffects(xmp_music_slot)
+		Mix_HaltChannel(xmp_music_slot)
+		with sfx_slots(xmp_music_slot)
+			if .used then
+				if .buf then Mix_FreeChunk(.buf)
+				if .buf then .buf = NULL
+				if xmp_mixbuf then deallocate(xmp_mixbuf)
+				.used = NO
+				.playing = NO
+				.effectID = 0
+				.original_volume = 0
+			end if
+		end with
+		xmp_music_slot = -1
+	end if
+	if xmp_ctx then
+		_xmp_stop_module(xmp_ctx)
+		_xmp_end_player(xmp_ctx)
+		_xmp_release_module(xmp_ctx)
+		_xmp_free_context(xmp_ctx)
+		xmp_ctx = NULL
+	end if
+	xmp_mixbuf = NULL
+	xmp_mixbuf_size = 0
+	xmp_mixbuf_used = 0
+	xmp_mixbuf_pos = 0
+	xmp_last_order = -1
+	xmp_last_pattern = -1
+	xmp_last_row = -1
+	xmp_last_frame = -1
+	xmp_fade_state = NO_MUSIC
+	xmp_fade_duration_ms = 0
+	nonmidi_playing = NO
+	music_paused = NO
+end sub
+
+function xmp_start_playback overload(filename as string) as bool
+	if xmp_load_library() = NO then return NO
+	dim ctx as xmp_context = _xmp_create_context()
+	if ctx = NULL then
+		debug "xmp_create_context failed"
+		return NO
+	end if
+	if _xmp_load_module(ctx, filename) <> 0 then
+		debug "xmp_load_module failed for " & filename
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	if _xmp_start_player(ctx, xmp_music_frequency, 0) <> 0 then
+		debug "xmp_start_player failed for " & filename
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_stop_playback()
+	dim slot as integer = next_free_slot()
+	if slot < 0 then
+		debug "No free SDL_mixer channel available for xmp playback"
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_mixbuf_size = xmp_music_chunk_bytes * 4
+	xmp_mixbuf = callocate(xmp_mixbuf_size)
+	if xmp_mixbuf = NULL then
+		debug "Out of memory allocating xmp audio buffer"
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	dim chunk as Mix_Chunk ptr = Mix_QuickLoad_RAW(xmp_mixbuf, xmp_music_chunk_bytes)
+	if chunk = NULL then
+		debug "Mix_QuickLoad_RAW failed: " & *Mix_GetError
+		deallocate(xmp_mixbuf)
+		xmp_mixbuf = NULL
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_ctx = ctx
+	xmp_music_slot = slot
+	xmp_fade_state = PLAYING
+	with sfx_slots(slot)
+		.used = YES
+		.playing = YES
+		.effectID = -1
+		.original_volume = 1.0
+		.buf = chunk
+	end with
+	Mix_Volume(slot, cint(music_vol * MIX_MAX_VOLUME))
+	if Mix_RegisterEffect(slot, @xmp_fill_chunk, NULL, NULL) = 0 then
+		debug "Mix_RegisterEffect failed: " & *Mix_GetError
+		xmp_stop_playback()
+		return NO
+	end if
+	if Mix_PlayChannel(slot, chunk, -1) = -1 then
+		debug "Mix_PlayChannel failed for xmp music: " & *Mix_GetError
+		xmp_stop_playback()
+		return NO
+	end if
+	return YES
+end function
+
+function xmp_start_playback overload(byval songlump as Lump ptr) as bool
+	if songlump = NULL then return NO
+	if xmp_load_library() = NO then return NO
+	dim mem as any ptr = allocate(songlump->length)
+	if mem = NULL then
+		debug "Out of memory loading module lump"
+		return NO
+	end if
+	if Lump_read(*songlump, 0, mem, songlump->length) <> songlump->length then
+		debug "Failed reading module lump"
+		deallocate(mem)
+		return NO
+	end if
+	dim ctx as xmp_context = _xmp_create_context()
+	if ctx = NULL then
+		deallocate(mem)
+		debug "xmp_create_context failed"
+		return NO
+	end if
+	if _xmp_load_module_from_memory(ctx, mem, songlump->length) <> 0 then
+		debug "xmp_load_module_from_memory failed"
+		_xmp_free_context(ctx)
+		deallocate(mem)
+		return NO
+	end if
+	deallocate(mem)
+	if _xmp_start_player(ctx, xmp_music_frequency, 0) <> 0 then
+		debug "xmp_start_player failed for lump"
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_stop_playback()
+	dim slot as integer = next_free_slot()
+	if slot < 0 then
+		debug "No free SDL_mixer channel available for xmp playback"
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_mixbuf_size = xmp_music_chunk_bytes * 4
+	xmp_mixbuf = callocate(xmp_mixbuf_size)
+	if xmp_mixbuf = NULL then
+		debug "Out of memory allocating xmp audio buffer"
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	dim chunk as Mix_Chunk ptr = Mix_QuickLoad_RAW(xmp_mixbuf, xmp_music_chunk_bytes)
+	if chunk = NULL then
+		debug "Mix_QuickLoad_RAW failed: " & *Mix_GetError
+		deallocate(xmp_mixbuf)
+		xmp_mixbuf = NULL
+		_xmp_release_module(ctx)
+		_xmp_free_context(ctx)
+		return NO
+	end if
+	xmp_ctx = ctx
+	xmp_music_slot = slot
+	xmp_fade_state = PLAYING
+	with sfx_slots(slot)
+		.used = YES
+		.playing = YES
+		.effectID = -1
+		.original_volume = 1.0
+		.buf = chunk
+	end with
+	Mix_Volume(slot, cint(music_vol * MIX_MAX_VOLUME))
+	if Mix_RegisterEffect(slot, @xmp_fill_chunk, NULL, NULL) = 0 then
+		debug "Mix_RegisterEffect failed: " & *Mix_GetError
+		xmp_stop_playback()
+		return NO
+	end if
+	if Mix_PlayChannel(slot, chunk, -1) = -1 then
+		debug "Mix_PlayChannel failed for xmp music: " & *Mix_GetError
+		xmp_stop_playback()
+		return NO
+	end if
+	return YES
+end function
+
+function xmp_seek(byval pos_s as double) as bool
+	if xmp_ctx = NULL then return NO
+	xmp_mixbuf_used = 0
+	xmp_mixbuf_pos = 0
+	return _xmp_seek_time(xmp_ctx, cint(pos_s * 1000.0)) = 0
+end function
+
+sub xmp_fill_chunk cdecl(byval channel as integer, byval stream as any ptr, byval len_ as integer, byval udata as any ptr)
+	if channel <> xmp_music_slot orelse xmp_ctx = NULL then
+		memset(stream, 0, len_)
+		exit sub
+	end if
+	xmp_update_fade_state()
+	if xmp_ctx = NULL then
+		memset(stream, 0, len_)
+		exit sub
+	end if
+	dim dst as ubyte ptr = stream
+	dim remaining as integer = len_
+	while remaining > 0
+		if xmp_mixbuf_pos >= xmp_mixbuf_used then
+			dim ret as integer = _xmp_play_frame(xmp_ctx)
+			if ret <> 0 then
+				if ret = -XMP_END then
+					_xmp_restart_module(xmp_ctx)
+					ret = _xmp_play_frame(xmp_ctx)
+				end if
+				if ret <> 0 then
+					memset(dst, 0, remaining)
+					xmp_stop_playback()
+					exit sub
+				end if
+			end if
+			dim fi as xmp_frame_info
+			_xmp_get_frame_info(xmp_ctx, @fi)
+			xmp_emit_events(@fi)
+			xmp_mixbuf_used = fi.buffer_size
+			xmp_mixbuf_pos = 0
+			if xmp_mixbuf_used > xmp_mixbuf_size then xmp_mixbuf_used = xmp_mixbuf_size
+			memcpy(xmp_mixbuf, fi.buffer, xmp_mixbuf_used)
+		end if
+		dim available as integer = xmp_mixbuf_used - xmp_mixbuf_pos
+		if available <= 0 then exit while
+		dim amount as integer = iif(available < remaining, available, remaining)
+		memcpy(dst, xmp_mixbuf + xmp_mixbuf_pos, amount)
+		xmp_mixbuf_pos += amount
+		dst += amount
+		remaining -= amount
+	wend
+	if remaining > 0 then memset(dst, 0, remaining)
+	if xmp_fade_state = FADE_IN orelse xmp_fade_state = FADE_OUT then
+		dim gain as double = xmp_frame_gain()
+		dim samples as short ptr = stream
+		for i as integer = 0 to (len_ \ sizeof(short)) - 1
+			samples[i] = cint(samples[i] * gain)
+		next
+	end if
+end sub
+
+#endif
 
 dim shared sound_inited as bool
 

@@ -31,6 +31,23 @@ declare sub music_pause()
 declare sub music_resume()
 declare sub music_stop()
 
+'NEW API
+'Start playing a new track, first fade out the old music if any, then fade in the new one.
+declare sub music_fadein(filename as string, fade_out_ms as integer, fade_in_ms as integer)
+'Stop playing music if any
+declare sub music_fadeout(filename as string, fade_out_ms as integer)
+enum FadeState
+  NO_MUSIC
+  PLAYING
+  FADE_IN
+  FADE_OUT
+end enum
+'Fade state
+declare function music_state() as FadeState
+
+type MusicModuleEventHook as sub cdecl(byval userdata as any ptr, byval order as integer, byval pattern as integer, byval row as integer, byval frame as integer, byval channel as integer, byval note as integer, byval instrument as integer, byval volume as integer, byval effect as integer, byval effect_param as integer, byval effect2 as integer, byval effect2_param as integer)
+declare sub music_setmoduleeventhook(byval hook as MusicModuleEventHook, byval userdata as any ptr = NULL)
+
 declare sub music_setvolume(byval vol as single)
 declare function music_getvolume() as single
 
