@@ -2677,8 +2677,13 @@ END SUB
 SUB loadmap_gmap(byval mapnum as integer)
  lump_reloading.gmap.dirty = NO
  lump_reloading.gmap.changed = NO
- loadrecord gmap(), game & ".map", getbinsize(binMAP) \ 2, mapnum
- gmap_updates
+ IF map_source_uses_ohrmap(mapnum) THEN
+  DIM ignored as string
+  LoadOhrmapGeneral gmap(), ignored, ohrmap_filename(mapnum)
+ ELSE
+  loadrecord gmap(), game & ".map", getbinsize(binMAP) \ 2, mapnum
+ END IF
+  gmap_updates
 END SUB
 
 SUB loadmap_npcl(byval mapnum as integer)
@@ -2723,10 +2728,11 @@ END SUB
 SUB loadmap_tilemap(byval mapnum as integer)
  lump_reloading.maptiles.dirty = NO
  lump_reloading.maptiles.changed = NO
- lump_reloading.maptiles.hash = file_hash64(maplumpname(mapnum, "t"))
- LoadTileMaps maptiles(), maplumpname(mapnum, "t")
- mapsizetiles = maptiles(0).size
- update_map_slices_for_new_tilemap
+ DIM filename as string = IIF(map_source_uses_ohrmap(mapnum), ohrmap_filename(mapnum), maplumpname(mapnum, "t"))
+ lump_reloading.maptiles.hash = file_hash64(filename)
+ LoadTileMaps maptiles(), filename
+  mapsizetiles = maptiles(0).size
+  update_map_slices_for_new_tilemap
 
  '--as soon as we know the dimensions of the map, enforce hero position boundaries
  cropposition herox(0), heroy(0), 20

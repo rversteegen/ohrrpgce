@@ -30,6 +30,14 @@ declare sub cleaninventory(invent() as inventslot)
 
 '' Maps
 declare function maplumpname (byval map as integer, oldext as string) as string
+declare function ohrmap_filename (byval map as integer) as string
+declare function map_source_uses_ohrmap (byval map as integer) as bool
+declare function LoadOhrmapGeneral(gmap() as integer, byref mapname as string, filename as string, allowfail as bool = NO) as bool
+declare function LoadOhrmapTilemap(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
+declare function LoadOhrmapTilemapMeta(gmap() as integer, filename as string, allowfail as bool = NO) as bool
+declare function LoadOhrmapMap(gmap() as integer, byref mapname as string, tmaps() as TileMap, passmap as TileMap, foemap as TileMap, zmap as ZoneMap, filename as string, allowfail as bool = NO) as bool
+declare sub SaveOhrmap(gmap() as integer, mapname as string, tmaps() as TileMap, filename as string, tilemap_only as bool = NO)
+declare sub SaveOhrmapMap(gmap() as integer, mapname as string, tmaps() as TileMap, passmap as TileMap, foemap as TileMap, zmap as ZoneMap, filename as string, include_zonemap as bool = YES)
 declare function read_map_layer_name(gmap() as integer, layernum as integer) as string
 declare sub write_map_layer_name(gmap() as integer, layernum as integer, newname as string)
 

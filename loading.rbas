@@ -650,17 +650,22 @@ END DESTRUCTOR
 'Only loads what is needed in order to generate a minimap of a map
 SUB MapData.load_for_minimap(map_id as integer)
   id = map_id
-  'gmap is needed for the tilesets
-  loadrecord gmap(), game & ".map", getbinsize(binMAP) \ 2, id
+  IF map_source_uses_ohrmap(id) THEN
+    LoadOhrmapGeneral gmap(), name, ohrmap_filename(id)
+    LoadOhrmapTilemap tiles(), ohrmap_filename(id)
+  ELSE
+    'gmap is needed for the tilesets
+    loadrecord gmap(), game & ".map", getbinsize(binMAP) \ 2, id
+    name = getmapname(id)
+    LoadTilemaps tiles(), maplumpname(id, "t")
+  END IF
   IF gmap(31) = 0 THEN gmap(31) = 2  'Num layers below walkabouts layer
-  LoadTilemaps tiles(), maplumpname(id, "t")
   size = tiles(0).size
   LoadTilemap pass, maplumpname(id, "p")
 END SUB
 
 SUB MapData.load(map_id as integer)
   load_for_minimap(map_id)
-  name = getmapname(id)
   LoadTilemap foemap, maplumpname(id, "e")
   IF isfile(maplumpname(id, "z")) THEN
     LoadZoneMap zmap, maplumpname(id, "z")
@@ -682,6 +687,319 @@ FUNCTION maplumpname (byval map_id as integer, oldext as string) as string
   return workingdir & SLASH & map_id & "." & oldext
  END IF
 END FUNCTION
+
+FUNCTION ohrmap_filename (byval map_id as integer) as string
+ IF map_id < 0 THEN showbug "ohrmap_filename: Bad map " & map_id
+ RETURN workingdir & SLASH & "map" & map_id & ".ohrmap"
+END FUNCTION
+
+FUNCTION map_source_uses_ohrmap (byval map_id as integer) as bool
+ DIM ohrmap as string = ohrmap_filename(map_id)
+ IF real_isfile(ohrmap) = NO THEN RETURN NO
+
+ IF map_id < 100 THEN
+  DIM newest_old as double = 0.0
+  newest_old = large(newest_old, FILEDATETIME(game & ".map"))
+  newest_old = large(newest_old, FILEDATETIME(game & ".mn"))
+  newest_old = large(newest_old, FILEDATETIME(maplumpname(map_id, "t")))
+  RETURN FILEDATETIME(ohrmap) >= newest_old
+ END IF
+
+ RETURN YES
+END FUNCTION
+
+CONST OHRMAP_VERSION = 0
+CONST OHRMAP_TILE_DATA_FORMAT_8BIT = 0
+
+LOCAL SUB set_ohrmap_setting_node(settings as NodePtr, nodename as string, value as integer)
+ DIM node as NodePtr = AppendChildNode(settings, nodename)
+ SetContent node, value
+END SUB
+
+LOCAL SUB save_ohrmap_settings_node(root as NodePtr, gmap() as integer)
+ DIM settings as NodePtr = AppendChildNode(root, "settings")
+  set_ohrmap_setting_node settings, "ambient_music", gmap(1)
+  set_ohrmap_setting_node settings, "minimap_available", gmap(2)
+  set_ohrmap_setting_node settings, "save_anywhere", gmap(3)
+  set_ohrmap_setting_node settings, "name_display_ticks", gmap(4)
+  set_ohrmap_setting_node settings, "harm_tile_damage", gmap(9)
+  set_ohrmap_setting_node settings, "harm_tile_flash", gmap(10)
+  set_ohrmap_setting_node settings, "foot_offset", gmap(11)
+  set_ohrmap_setting_node settings, "hero_npc_draw_order", gmap(16)
+  set_ohrmap_setting_node settings, "npc_state_persistence", gmap(17)
+  set_ohrmap_setting_node settings, "tile_state_persistence", gmap(18)
+  set_ohrmap_setting_node settings, "save_offset_x", gmap(20)
+ set_ohrmap_setting_node settings, "save_offset_y", gmap(21)
+ set_ohrmap_setting_node settings, "npc_instance_count", gmap(25)
+ set_ohrmap_setting_node settings, "default_npc_movement_zone", gmap(32)
+  set_ohrmap_setting_node settings, "default_npc_avoidance_zone", gmap(33)
+  set_ohrmap_setting_node settings, "default_npc_obstruction_rule", gmap(378)
+  set_ohrmap_setting_node settings, "menu_disabled", gmap(379)
+
+  DIM scripts as NodePtr = AppendChildNode(settings, "scripts")
+  DIM autorun as NodePtr = AppendChildNode(scripts, "autorun", gmap(7))
+  AppendChildNode autorun, "arg", gmap(8)
+  AppendChildNode scripts, "after_battle", gmap(12)
+  AppendChildNode scripts, "instead_of_battle", gmap(13)
+  AppendChildNode scripts, "each_step", gmap(14)
+  AppendChildNode scripts, "on_keypress", gmap(15)
+END SUB
+
+LOCAL SUB load_ohrmap_settings_node(gmap() as integer, settings as NodePtr)
+ IF settings = NULL THEN EXIT SUB
+ gmap(1) = GetChildNodeInt(settings, "ambient_music", gmap(1))
+ gmap(2) = GetChildNodeInt(settings, "minimap_available", gmap(2))
+ gmap(3) = GetChildNodeInt(settings, "save_anywhere", gmap(3))
+ gmap(4) = GetChildNodeInt(settings, "name_display_ticks", gmap(4))
+ gmap(9) = GetChildNodeInt(settings, "harm_tile_damage", gmap(9))
+ gmap(10) = GetChildNodeInt(settings, "harm_tile_flash", gmap(10))
+ gmap(11) = GetChildNodeInt(settings, "foot_offset", gmap(11))
+ gmap(16) = GetChildNodeInt(settings, "hero_npc_draw_order", gmap(16))
+ gmap(17) = GetChildNodeInt(settings, "npc_state_persistence", gmap(17))
+ gmap(18) = GetChildNodeInt(settings, "tile_state_persistence", gmap(18))
+ gmap(20) = GetChildNodeInt(settings, "save_offset_x", gmap(20))
+ gmap(21) = GetChildNodeInt(settings, "save_offset_y", gmap(21))
+ gmap(25) = GetChildNodeInt(settings, "npc_instance_count", gmap(25))
+ gmap(32) = GetChildNodeInt(settings, "default_npc_movement_zone", gmap(32))
+ gmap(33) = GetChildNodeInt(settings, "default_npc_avoidance_zone", gmap(33))
+ gmap(378) = GetChildNodeInt(settings, "default_npc_obstruction_rule", gmap(378))
+ gmap(379) = GetChildNodeInt(settings, "menu_disabled", gmap(379))
+
+ DIM scripts as NodePtr = GetChildByName(settings, "scripts")
+ IF scripts THEN
+  DIM autorun as NodePtr = GetChildByName(scripts, "autorun")
+  IF autorun THEN
+   gmap(7) = GetInteger(autorun)
+   gmap(8) = GetChildNodeInt(autorun, "arg", gmap(8))
+  END IF
+  gmap(12) = GetChildNodeInt(scripts, "after_battle", gmap(12))
+  gmap(13) = GetChildNodeInt(scripts, "instead_of_battle", gmap(13))
+  gmap(14) = GetChildNodeInt(scripts, "each_step", gmap(14))
+  gmap(15) = GetChildNodeInt(scripts, "on_keypress", gmap(15))
+ END IF
+END SUB
+
+LOCAL SUB save_ohrmap_general_node(root as NodePtr, gmap() as integer, mapname as string)
+ AppendChildNode root, "name", LEFT(mapname, 39)
+ save_ohrmap_settings_node root, gmap()
+END SUB
+
+LOCAL FUNCTION load_ohrmap_general_node(gmap() as integer, byref mapname as string, root as NodePtr, filename as string) as bool
+ IF NodeName(root) <> "ohrmap" THEN
+  IF NodeName(root) <> "tilemap" THEN reporterr filename & " is not an ohrmap document", serrError
+  RETURN NO
+ END IF
+
+ mapname = LEFT(GetChildNodeStr(root, "name"), 39)
+
+ load_ohrmap_settings_node gmap(), GetChildByName(root, "settings")
+ RETURN YES
+END FUNCTION
+
+LOCAL FUNCTION get_ohrmap_tilemap_node(root as NodePtr) as NodePtr
+ IF root = NULL THEN RETURN NULL
+ IF NodeName(root) = "tilemap" THEN RETURN root
+ IF NodeName(root) = "ohrmap" THEN RETURN GetChildByName(root, "tilemap")
+ RETURN NULL
+END FUNCTION
+
+LOCAL FUNCTION get_ohrmap_named_node(root as NodePtr, seekname as string) as NodePtr
+ IF root = NULL THEN RETURN NULL
+ IF NodeName(root) = seekname THEN RETURN root
+ IF NodeName(root) = "ohrmap" THEN RETURN GetChildByName(root, seekname)
+ RETURN NULL
+END FUNCTION
+
+LOCAL SUB save_ohrmap_tilemap_node_minimal(tilemap as NodePtr, tmaps() as TileMap)
+ AppendChildNode tilemap, "version", OHRMAP_VERSION
+ AppendChildNode tilemap, "tile_data_format", OHRMAP_TILE_DATA_FORMAT_8BIT
+ AppendChildNode tilemap, "w", tmaps(0).wide
+ AppendChildNode tilemap, "h", tmaps(0).high
+ AppendChildNode tilemap, "default_tileset", 0
+ AppendChildNode tilemap, "walkabout_layer", 1
+
+ DIM border as NodePtr = AppendChildNode(tilemap, "tile_border")
+ AppendChildNode border, "mode", mapEdgeCrop
+ AppendChildNode border, "default_edge_tile", 0
+
+ DIM layers as NodePtr = AppendChildNode(tilemap, "layers")
+ FOR i as integer = 0 TO UBOUND(tmaps)
+  DIM layer as NodePtr = AppendChildNode(layers, "layer")
+  AppendChildNode layer, "tileset", 0
+  AppendChildNodeBool layer, "enabled", IIF(i = 0, YES, NO)
+  AppendChildNode layer, "name", ""
+  DIM data as NodePtr = AppendChildNode(layer, "data")
+  SetContent(data, cast(zstring ptr, tmaps(i).data), tmaps(i).wide * tmaps(i).high)
+ NEXT
+END SUB
+
+LOCAL SUB save_ohrmap_tilemap_node(tilemap as NodePtr, gmap() as integer, tmaps() as TileMap)
+ AppendChildNode tilemap, "version", OHRMAP_VERSION
+ AppendChildNode tilemap, "tile_data_format", OHRMAP_TILE_DATA_FORMAT_8BIT
+ AppendChildNode tilemap, "w", tmaps(0).wide
+ AppendChildNode tilemap, "h", tmaps(0).high
+ AppendChildNode tilemap, "default_tileset", gmap(0)
+ AppendChildNode tilemap, "walkabout_layer", bound(gmap(31) - 1, 0, UBOUND(tmaps))
+
+ DIM border as NodePtr = AppendChildNode(tilemap, "tile_border")
+ AppendChildNode border, "mode", gmap(5)
+ AppendChildNode border, "default_edge_tile", gmap(6)
+
+ DIM layers as NodePtr = AppendChildNode(tilemap, "layers")
+ FOR i as integer = 0 TO UBOUND(tmaps)
+  DIM layer as NodePtr = AppendChildNode(layers, "layer")
+  AppendChildNode layer, "tileset", gmap(layer_tileset_index(i))
+  AppendChildNodeBool layer, "enabled", IIF(i = 0, YES, xreadbit(gmap(), i - 1, 19))
+  AppendChildNode layer, "name", read_map_layer_name(gmap(), i)
+  DIM data as NodePtr = AppendChildNode(layer, "data")
+  SetContent(data, cast(zstring ptr, tmaps(i).data), tmaps(i).wide * tmaps(i).high)
+ NEXT
+END SUB
+
+LOCAL FUNCTION check_ohrmap_tilemap_node(tilemap as NodePtr, byref wide as integer, byref high as integer, byref count as integer, allowfail as bool, filename as string) as bool
+ IF tilemap = NULL OR NodeName(tilemap) <> "tilemap" THEN
+  IF allowfail = NO THEN reporterr filename & " is missing a tilemap node", serrError
+  RETURN NO
+ END IF
+
+ DIM tile_data_format as integer = GetChildNodeInt(tilemap, "tile_data_format", OHRMAP_TILE_DATA_FORMAT_8BIT)
+ IF tile_data_format <> OHRMAP_TILE_DATA_FORMAT_8BIT THEN
+  IF allowfail = NO THEN reporterr filename & ": unsupported tile_data_format " & tile_data_format, serrError
+  RETURN NO
+ END IF
+
+ wide = GetChildNodeInt(tilemap, "w")
+ high = GetChildNodeInt(tilemap, "h")
+ IF in_bound(wide, 16, 32678) = NO ORELSE in_bound(high, 10, 32678) = NO THEN
+  IF allowfail = NO THEN reporterr filename & ": bad tilemap size " & XY(wide, high).wh, serrError
+  RETURN NO
+ END IF
+
+ DIM layers_node as NodePtr = GetChildByName(tilemap, "layers")
+ IF layers_node = NULL THEN
+  IF allowfail = NO THEN reporterr filename & ": missing tilemap/layers", serrError
+  RETURN NO
+ END IF
+
+ count = CountChildren(layers_node, "layer")
+ IF count < 1 THEN
+  IF allowfail = NO THEN reporterr filename & ": bad layer count " & count, serrError
+  RETURN NO
+ END IF
+ count = small(count, maplayerMax + 1)
+ RETURN YES
+END FUNCTION
+
+LOCAL FUNCTION load_ohrmap_tilemap_meta(gmap() as integer, tilemap as NodePtr, allowfail as bool, filename as string) as bool
+ DIM wide as integer, high as integer, count as integer
+ IF check_ohrmap_tilemap_node(tilemap, wide, high, count, allowfail, filename) = NO THEN RETURN NO
+
+ gmap(0) = GetChildNodeInt(tilemap, "default_tileset", gmap(0))
+ gmap(31) = bound(GetChildNodeInt(tilemap, "walkabout_layer", gmap(31) - 1) + 1, 1, maplayerMax + 1)
+
+ DIM border as NodePtr = GetChildByName(tilemap, "tile_border")
+ IF border THEN
+  gmap(5) = GetChildNodeInt(border, "mode", gmap(5))
+  gmap(6) = GetChildNodeInt(border, "default_edge_tile", gmap(6))
+ END IF
+
+ DIM node as NodePtr = FirstChild(GetChildByName(tilemap, "layers"), "layer")
+ DIM idx as integer = 0
+ WHILE node
+  IF idx >= count THEN EXIT WHILE
+  gmap(layer_tileset_index(idx)) = GetChildNodeInt(node, "tileset", gmap(layer_tileset_index(idx)))
+  setbit gmap(), 19, idx, GetChildNodeBool(node, "enabled", idx = 0)
+  write_map_layer_name(gmap(), idx, GetChildNodeStr(node, "name"))
+  idx += 1
+  node = NextSibling(node, "layer")
+ WEND
+ RETURN YES
+END FUNCTION
+
+LOCAL FUNCTION load_ohrmap_tilemap_layers(layers() as TileMap, tilemap as NodePtr, allowfail as bool, filename as string) as bool
+ DIM wide as integer, high as integer, count as integer
+ IF check_ohrmap_tilemap_node(tilemap, wide, high, count, allowfail, filename) = NO THEN RETURN NO
+
+ CleanTilemaps layers(), wide, high, count
+
+ DIM node as NodePtr = FirstChild(GetChildByName(tilemap, "layers"), "layer")
+ DIM idx as integer = 0
+ WHILE node
+  IF idx >= count THEN EXIT WHILE
+
+  DIM data as NodePtr = GetChildByName(node, "data")
+  IF data = NULL ORELSE GetZStringSize(data) <> wide * high THEN
+   IF allowfail = NO THEN reporterr filename & ": bad tile data length for layer " & idx, serrError
+   UnloadTilemaps layers()
+   RETURN NO
+  END IF
+  memcpy(layers(idx).data, GetZString(data), wide * high)
+  idx += 1
+  node = NextSibling(node, "layer")
+ WEND
+
+ IF idx < count THEN
+  IF allowfail = NO THEN reporterr filename & ": missing layer data", serrError
+  UnloadTilemaps layers()
+  RETURN NO
+ END IF
+ RETURN YES
+END FUNCTION
+
+FUNCTION LoadOhrmapTilemapMeta(gmap() as integer, filename as string, allowfail as bool = NO) as bool
+ DIM doc as DocPtr = LoadDocument(filename, optNoDelay)
+ IF doc = NULL THEN
+  IF allowfail = NO THEN reporterr "Couldn't open tilemap file " & filename, serrError
+  RETURN NO
+ END IF
+
+ DIM ret as bool = load_ohrmap_tilemap_meta(gmap(), get_ohrmap_tilemap_node(DocumentRoot(doc)), allowfail, filename)
+ FreeDocument doc
+ RETURN ret
+END FUNCTION
+
+FUNCTION LoadOhrmapGeneral(gmap() as integer, byref mapname as string, filename as string, allowfail as bool = NO) as bool
+ DIM doc as DocPtr = LoadDocument(filename, optNoDelay)
+ IF doc = NULL THEN
+  IF allowfail = NO THEN reporterr "Couldn't open ohrmap file " & filename, serrError
+  RETURN NO
+ END IF
+
+ DIM ret as bool = load_ohrmap_general_node(gmap(), mapname, DocumentRoot(doc), filename)
+ FreeDocument doc
+ RETURN ret
+END FUNCTION
+
+FUNCTION LoadOhrmapTilemap(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
+ DIM doc as DocPtr = LoadDocument(filename, optNoDelay)
+ IF doc = NULL THEN
+  IF allowfail = NO THEN reporterr "Couldn't open tilemap file " & filename, serrError
+  RETURN NO
+ END IF
+
+ DIM ret as bool = load_ohrmap_tilemap_layers(layers(), get_ohrmap_tilemap_node(DocumentRoot(doc)), allowfail, filename)
+ FreeDocument doc
+ RETURN ret
+END FUNCTION
+
+SUB SaveOhrmap(gmap() as integer, mapname as string, tmaps() as TileMap, filename as string, tilemap_only as bool = NO)
+ DIM doc as DocPtr = CreateDocument()
+ DIM root as NodePtr
+ IF tilemap_only THEN
+  root = CreateNode(doc, "tilemap")
+  SetRootNode doc, root
+  save_ohrmap_tilemap_node root, gmap(), tmaps()
+ ELSE
+  root = CreateNode(doc, "ohrmap")
+  SetRootNode doc, root
+  AppendChildNode root, "version", OHRMAP_VERSION
+  save_ohrmap_general_node root, gmap(), mapname
+  DIM tilemap as NodePtr = AppendChildNode(root, "tilemap")
+  save_ohrmap_tilemap_node tilemap, gmap(), tmaps()
+ END IF
+ SerializeBin filename, doc
+ FreeDocument doc
+END SUB
 
 FUNCTION read_map_layer_name(gmap() as integer, layernum as integer) as string
  IF layernum > 15 THEN
@@ -724,6 +1042,25 @@ END SUB
 'Get size of a tilemap file; returns false if badly formed
 FUNCTION GetTilemapInfo(filename as string, info as TilemapInfo) as bool
   info.err = ""
+  DIM file_ext as string = LCASE(justextension(filename))
+  IF file_ext = "ohrmap" ORELSE file_ext = "tilemap" THEN
+    DIM doc as DocPtr = LoadDocument(filename, optNoDelay)
+    IF doc = NULL THEN
+      info.seterr filename, "Couldn't open file"
+      RETURN NO
+    END IF
+    DIM tilemap as NodePtr = get_ohrmap_tilemap_node(DocumentRoot(doc))
+    DIM count as integer
+    IF check_ohrmap_tilemap_node(tilemap, info.wide, info.high, count, YES, filename) = NO THEN
+      info.seterr filename, "Bad ohrmap tilemap"
+      FreeDocument doc
+      RETURN NO
+    END IF
+    info.layers = count
+    FreeDocument doc
+    RETURN YES
+  END IF
+
   DIM as integer fh
   IF OPENFILE(filename, FOR_BINARY + ACCESS_READ, fh) <> 0 THEN
     info.seterr filename, "Couldn't open file"
@@ -756,6 +1093,18 @@ FUNCTION GetTilemapInfo(filename as string, info as TilemapInfo) as bool
 END FUNCTION
 
 SUB LoadTilemap(map as TileMap, filename as string)
+  DIM file_ext as string = LCASE(justextension(filename))
+  IF file_ext = "ohrmap" ORELSE file_ext = "tilemap" THEN
+    REDIM layers(0) as TileMap
+    IF LoadOhrmapTilemap(layers(), filename) THEN
+      CopyTilemap map, layers(0)
+      map.layernum = 0
+      UnloadTilemaps layers()
+      EXIT SUB
+    END IF
+    UnloadTilemaps layers()
+  END IF
+
   IF map.data THEN DEALLOCATE map.data
   map.data = NULL
 
@@ -781,6 +1130,11 @@ END SUB
 FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool = NO) as bool
   DIM as integer fh, numlayers, i, wide, high
   UnloadTilemaps layers()
+
+  DIM file_ext as string = LCASE(justextension(filename))
+  IF file_ext = "ohrmap" ORELSE file_ext = "tilemap" THEN
+    RETURN LoadOhrmapTilemap(layers(), filename, allowfail)
+  END IF
 
   IF OPENFILE(filename, FOR_BINARY + ACCESS_READ, fh) THEN
     IF allowfail = NO THEN showerror "Couldn't open tilemaps file " & filename
@@ -813,6 +1167,46 @@ FUNCTION LoadTilemaps(layers() as TileMap, filename as string, allowfail as bool
   NEXT
   CLOSE #fh
   RETURN YES
+END FUNCTION
+
+LOCAL SUB save_ohrmap_simple_map_node(node as NodePtr, nodename as string, tmap as TileMap)
+ DIM root as NodePtr = AppendChildNode(node, nodename)
+ AppendChildNode root, "version", OHRMAP_VERSION
+ AppendChildNode root, "tile_data_format", OHRMAP_TILE_DATA_FORMAT_8BIT
+ AppendChildNode root, "w", tmap.wide
+ AppendChildNode root, "h", tmap.high
+ DIM layers as NodePtr = AppendChildNode(root, "layers")
+ DIM layer as NodePtr = AppendChildNode(layers, "layer", 0)
+ DIM data as NodePtr = AppendChildNode(layer, "data")
+ SetContent(data, cast(zstring ptr, tmap.data), tmap.wide * tmap.high)
+END SUB
+
+LOCAL SUB save_ohrmap_passmap_node(node as NodePtr, tmap as TileMap)
+ save_ohrmap_simple_map_node node, "passmap", tmap
+END SUB
+
+LOCAL SUB save_ohrmap_foemap_node(node as NodePtr, tmap as TileMap)
+ save_ohrmap_simple_map_node node, "foemap", tmap
+END SUB
+
+LOCAL FUNCTION load_ohrmap_simple_map_node(tmap as TileMap, root as NodePtr, nodename as string, allowfail as bool, filename as string) as bool
+ DIM mapnode as NodePtr = get_ohrmap_named_node(root, nodename)
+ IF mapnode = NULL THEN
+  IF allowfail = NO THEN reporterr filename & " is missing a " & nodename & " node", serrError
+  RETURN NO
+ END IF
+
+ DIM layers(0) as TileMap
+ IF load_ohrmap_tilemap_layers(layers(), mapnode, allowfail, filename) = NO THEN RETURN NO
+ IF UBOUND(layers) <> 0 THEN
+  IF allowfail = NO THEN reporterr filename & ": " & nodename & " currently supports only one layer", serrError
+  UnloadTilemaps layers()
+  RETURN NO
+ END IF
+ CopyTilemap tmap, layers(0)
+ tmap.layernum = 0
+ UnloadTilemaps layers()
+ RETURN YES
 END FUNCTION
 
 SUB SaveTilemap(tmap as TileMap, filename as string)
@@ -1515,6 +1909,95 @@ SUB LoadZoneMap(zmap as ZoneMap, filename as string)
     'debug "LoadZoneMap " & trimpath(filename) & " in " & (TIMER - t) * 1000 & "ms, " & .numzones & " zones"
   END WITH
   FreeDocument doc
+END SUB
+
+LOCAL SUB save_ohrmap_zonemap_node(node as NodePtr, zmap as ZoneMap)
+ DIM root as NodePtr = AppendChildNode(node, "zonemap")
+ WITH zmap
+  AppendChildNode root, "w", .wide
+  AppendChildNode root, "h", .high
+  DIM zonesnode as NodePtr = AppendChildNode(root, "zones")
+  FOR i as integer = 0 TO .numzones - 1
+   DIM zone as NodePtr = AppendChildNode(zonesnode, "zone", .zones[i].id)
+   IF LEN(.zones[i].name) THEN AppendChildNode zone, "name", .zones[i].name
+   IF .zones[i].extravec THEN SaveExtraVector zone, @"extravec", .zones[i].extravec
+  NEXT
+  SerializeZoneTiles zmap, root, TYPE<RectType>(0, 0, .wide, .high)
+ END WITH
+END SUB
+
+LOCAL FUNCTION load_ohrmap_zonemap_node(zmap as ZoneMap, root as NodePtr, allowfail as bool, filename as string) as bool
+ DIM zonenode as NodePtr = get_ohrmap_named_node(root, "zonemap")
+ IF zonenode = NULL THEN RETURN NO
+
+ DIM w as integer = GetChildNodeInt(zonenode, "w")
+ DIM h as integer = GetChildNodeInt(zonenode, "h")
+ IF w <= 0 OR h <= 0 THEN
+  IF allowfail = NO THEN reporterr filename & ": bad zonemap size", serrError
+  RETURN NO
+ END IF
+
+ DIM zonesnode as NodePtr = GetChildByName(zonenode, "zones")
+ IF zonesnode = NULL THEN
+  IF allowfail = NO THEN reporterr filename & ": missing zonemap/zones", serrError
+  RETURN NO
+ END IF
+
+ CleanZoneMap zmap, w, h
+ zmap.numzones = 0
+ DIM node as NodePtr = FirstChild(zonesnode)
+ WHILE node
+  IF NodeName(node) = "zone" THEN
+   DIM info as ZoneInfo ptr = ZoneMapAddZoneInfo(zmap)
+   info->id = GetInteger(node)
+   info->name = GetChildNodeStr(node, "name")
+   DIM extra_node as NodePtr = node."extravec".ptr
+   IF extra_node THEN
+    LoadExtraVector extra_node, info->extravec, filename
+   ELSE
+    LoadExtraKeyValueNodes node, info->extravec, filename
+   END IF
+  END IF
+  node = NextSibling(node)
+ WEND
+ DeserializeZoneTiles zmap, zonenode
+ RETURN YES
+END FUNCTION
+
+FUNCTION LoadOhrmapMap(gmap() as integer, byref mapname as string, tmaps() as TileMap, passmap as TileMap, foemap as TileMap, zmap as ZoneMap, filename as string, allowfail as bool = NO) as bool
+ DIM doc as DocPtr = LoadDocument(filename, optNoDelay)
+ IF doc = NULL THEN
+  IF allowfail = NO THEN reporterr "Couldn't open ohrmap file " & filename, serrError
+  RETURN NO
+ END IF
+
+ DIM root as NodePtr = DocumentRoot(doc)
+ DIM ret as bool = load_ohrmap_general_node(gmap(), mapname, root, filename)
+ IF ret THEN ret = load_ohrmap_tilemap_meta(gmap(), get_ohrmap_tilemap_node(root), allowfail, filename)
+ IF ret THEN ret = load_ohrmap_tilemap_layers(tmaps(), get_ohrmap_tilemap_node(root), allowfail, filename)
+ IF ret THEN ret = load_ohrmap_simple_map_node(passmap, root, "passmap", allowfail, filename)
+ IF ret THEN ret = load_ohrmap_simple_map_node(foemap, root, "foemap", allowfail, filename)
+ IF ret THEN
+  IF load_ohrmap_zonemap_node(zmap, root, YES, filename) = NO THEN
+   CleanZoneMap zmap, tmaps(0).wide, tmaps(0).high
+  END IF
+ END IF
+ FreeDocument doc
+ RETURN ret
+END FUNCTION
+
+SUB SaveOhrmapMap(gmap() as integer, mapname as string, tmaps() as TileMap, passmap as TileMap, foemap as TileMap, zmap as ZoneMap, filename as string, include_zonemap as bool = YES)
+ DIM doc as DocPtr = CreateDocument()
+ DIM root as NodePtr = CreateNode(doc, "ohrmap")
+ SetRootNode doc, root
+ AppendChildNode root, "version", OHRMAP_VERSION
+ save_ohrmap_general_node root, gmap(), mapname
+ save_ohrmap_tilemap_node AppendChildNode(root, "tilemap"), gmap(), tmaps()
+ save_ohrmap_passmap_node root, passmap
+ save_ohrmap_foemap_node root, foemap
+ IF include_zonemap THEN save_ohrmap_zonemap_node root, zmap
+ SerializeBin filename, doc
+ FreeDocument doc
 END SUB
 
 

@@ -305,8 +305,9 @@ CONST fixCheckForBrokenTBChains = 30 'Ran check_for_broken_textbox_after_chains(
 CONST fixCheckTryingToMoveDirection = 31 'Checked whether "trying to move direction" script exists
 CONST fixExtendedTileAnims = 32  'Initialised .TAP record fields at indices 20+
 CONST fixInitItemsReld = 33      'Load all ITM records and save them as items.reld
+CONST fixInitOhrmaps = 34        'Create map#.ohrmap files from .map/.mn/.t lumps
 
-CONST sizeFixBits = 34 ' *** Update this when adding fix bits (last bit + 1) ***
+CONST sizeFixBits = 35 ' *** Update this when adding fix bits (last bit + 1) ***
 
 '---Sizes (replaceable with variables when suitable)
 CONST max_onetime = 15999 'The last available onetime use flag. (The first is 2.)

@@ -659,13 +659,20 @@ SUB browse_add_files(wildcard as string, byval filetype as integer, byref br as 
    END IF
    '--.tilemaps
    IF br.filetype = browseTilemap THEN
-    DIM info as TilemapInfo
-    IF GetTilemapInfo(filepath, info) = NO THEN
-     .about = info.err
-     .kind = bkUnselectable
+     DIM info as TilemapInfo
+     IF GetTilemapInfo(filepath, info) = NO THEN
+      .about = info.err
+      .kind = bkUnselectable
+     END IF
+     .about = "Size " & info.size.wh & " tilemap with " & info.layers & " layers"
+     IF LCASE(justextension(filepath)) = "ohrmap" THEN
+      DIM gmaptmp(dimbinsize(binMAP)) as integer
+      DIM mapname as string
+      IF LoadOhrmapGeneral(gmaptmp(), mapname, filepath, YES) ANDALSO LEN(mapname) THEN
+       .about = !"Map \"" & mapname & !"\". " & .about
+      END IF
+     END IF
     END IF
-    .about = "Size " & info.size.wh & " tilemap with " & info.layers & " layers"
-   END IF
   END WITH
   draw_browse_meter br
  NEXT
@@ -893,6 +900,7 @@ SUB build_listing(tree() as BrowseMenuEntry, byref br as BrowseMenuState)
      browse_add_files "*.rgfx",    fileTypeFile, br, tree()
     CASE browseTilemap
      browse_add_files "*.tilemap", fileTypeFile, br, tree()
+     browse_add_files "*.ohrmap", fileTypeFile, br, tree()
     CASE browseScripts
      browse_add_files "*.hs",      fileTypeFile, br, tree()
      browse_add_files "*.hsp",     fileTypeFile, br, tree()

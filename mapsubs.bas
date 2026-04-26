@@ -162,6 +162,7 @@ DECLARE SUB mapedit_load_tilesets (st as MapEditState)
 DECLARE SUB mapedit_savemap (st as MapEditState)
 DECLARE SUB new_blank_map (st as MapEditState)
 DECLARE SUB mapedit_addmap()
+DECLARE SUB mapedit_import_map()
 DECLARE SUB mapedit_resize(st as MapEditState)
 DECLARE SUB mapedit_delete_menu(st as MapEditState)
 DECLARE SUB link_one_door(st as MapEditState, linknum as integer)
@@ -184,6 +185,7 @@ DECLARE SUB mapedit_draw_icon(st as MapEditState, icon as string, x as RelPos, y
 DECLARE SUB mapedit_list_npcs_by_tile (st as MapEditState, pos as XYPair)
 
 DECLARE SUB mapedit_import_export(st as MapEditState)
+DECLARE SUB mapedit_export_map(st as MapEditState)
 
 DECLARE FUNCTION find_last_used_doorlink(link() as DoorLink) as integer
 DECLARE FUNCTION find_door_at_spot (tilepos as XYPair, doors() as Door) as integer
@@ -324,6 +326,7 @@ SUB make_map_picker_menu(topmenu() as string, state as MenuState)
   a_append topmenu(), "Map " & i & ": " + getmapname(i)
  NEXT
  a_append topmenu(), "Add a New Map"
+ a_append topmenu(), "Import Map"
  a_append topmenu(), "Edit Global NPCs"
 
  state.last = UBOUND(topmenu)
@@ -368,8 +371,10 @@ SUB map_picker ()
     switch_to_8bit_vpages
     mapeditor map_id
     switch_to_32bit_vpages
-   ELSEIF state.pt = state.last - 1 THEN
+   ELSEIF state.pt = state.last - 2 THEN
     mapedit_addmap
+   ELSEIF state.pt = state.last - 1 THEN
+    mapedit_import_map
    ELSEIF state.pt = state.last THEN
     global_npcdef_editor
    END IF
@@ -4139,6 +4144,7 @@ SUB mapedit_sanity_check_npc_instances (st as MapEditState)
 END SUB
 
 SUB mapedit_savemap (st as MapEditState)
+ SaveOhrmapMap st.map.gmap(), st.map.name, st.map.tiles(), st.map.pass, st.map.foemap, st.map.zmap, ohrmap_filename(st.map.id), YES
  storerecord st.map.gmap(), game & ".map", getbinsize(binMAP) \ 2, st.map.id
  savetilemaps st.map.tiles(), maplumpname(st.map.id, "t")
  savetilemap st.map.pass, maplumpname(st.map.id, "p")
@@ -4501,10 +4507,81 @@ END FUNCTION
 
 SUB mapedit_export_tilemaps(st as MapEditState)
  DIM outfile as string
- outfile = inputfilename("Export tilemap to which file?", ".tilemap", "", "input_file_export_tilemap")
+ outfile = inputfilename("Export tilemap to which file?", ".ohrmap", "", "input_file_export_tilemap")
  IF LEN(outfile) THEN
-  copyfile maplumpname(st.map.id, "t"), outfile + ".tilemap"
+  SaveOhrmap st.map.gmap(), "", st.map.tiles(), outfile + ".ohrmap", YES
+  IF yesno("Also export used tilesets as PNG files?", NO, YES) THEN
+   DIM exported_tilesets(gen(genMaxTile)) as bool
+   FOR layer as integer = 0 TO UBOUND(st.map.tiles)
+    DIM tileset as integer = st.map.gmap(layer_tileset_index(layer))
+    IF tileset = 0 THEN
+     tileset = st.map.gmap(0)
+    ELSE
+     tileset -= 1
+    END IF
+    IF tileset < 0 ORELSE exported_tilesets(tileset) THEN CONTINUE FOR
+    DIM fr as Frame ptr = frame_load(sprTypeTilesetStrip, tileset)
+    IF fr THEN
+     frame_export_image fr, outfile + "_tileset" & tileset & ".png", master()
+     frame_unload @fr
+     exported_tilesets(tileset) = YES
+    END IF
+   NEXT
+  END IF
+  END IF
+END SUB
+
+SUB mapedit_export_map(st as MapEditState)
+ DIM outfile as string
+ outfile = inputfilename("Export map to which file?", ".ohrmap", "", "input_file_export_map")
+ IF LEN(outfile) THEN
+  SaveOhrmapMap st.map.gmap(), st.map.name, st.map.tiles(), st.map.pass, st.map.foemap, st.map.zmap, outfile + ".ohrmap", YES
+  show_overlay_message "Saved as " & trimpath(outfile + ".ohrmap")
  END IF
+END SUB
+
+LOCAL SUB warn_about_missing_import_tilesets(gmap() as integer, imported_file as string)
+ DIM bad_tilesets() as integer
+ REDIM bad_tilesets(-1 TO -1)
+ FOR layer as integer = 0 TO 15
+  IF layer > 0 ANDALSO layerisenabled(gmap(), layer) = NO THEN CONTINUE FOR
+  DIM tileset as integer
+  IF layer = 0 THEN
+   tileset = gmap(0)
+  ELSE
+   tileset = gmap(layer_tileset_index(layer))
+   IF tileset > 0 THEN tileset -= 1 ELSE tileset = gmap(0)
+  END IF
+  IF tileset > gen(genMaxTile) ANDALSO a_find(bad_tilesets(), tileset) = -1 THEN a_append bad_tilesets(), tileset
+ NEXT
+ IF UBOUND(bad_tilesets) = -1 THEN EXIT SUB
+ DIM msg as string = "Imported map references missing tilesets:"
+ DIM has_sidecars as bool = NO
+ FOR i as integer = 0 TO UBOUND(bad_tilesets)
+  msg &= IIF(i = 0, " ", ", ") & bad_tilesets(i)
+  has_sidecars OR= isfile(trimextension(imported_file) & "_tileset" & bad_tilesets(i) & ".png")
+ NEXT
+ IF has_sidecars THEN
+  msg &= !"\nSidecar tileset PNGs were found next to the .ohrmap, but you will need to import them manually."
+ END IF
+ pop_warning msg
+END SUB
+
+SUB mapedit_import_map()
+ DIM infile as string = browse(browseTilemap, , "*.ohrmap", "browse_maps")
+ IF LEN(infile) = 0 THEN EXIT SUB
+
+ DIM st as MapEditState
+ new_blank_map st
+ st.map.id = gen(genMaxMap) + 1
+ IF LoadOhrmapMap(st.map.gmap(), st.map.name, st.map.tiles(), st.map.pass, st.map.foemap, st.map.zmap, infile, YES) = NO THEN
+  pop_warning "Bad file; could not load " & decode_filename(infile)
+  EXIT SUB
+ END IF
+ warn_about_missing_import_tilesets st.map.gmap(), infile
+ gen(genMaxMap) += 1
+ mapedit_savemap st
+ SaveZoneMap st.map.zmap, maplumpname(st.map.id, "z")
 END SUB
 
 'Copy each imported tilemap to a new tilemap, assuming they are not necessarily
@@ -4538,6 +4615,7 @@ END SUB
 'appending: true if appending, false if replacing all existing
 SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
  DIM infile as string
+ DIM imported_gmap(dimbinsize(binMAP)) as integer
  infile = browse(browseTilemap, , , "browse_tilemaps")
  IF LEN(infile) = 0 THEN EXIT SUB
 
@@ -4546,6 +4624,7 @@ SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
   pop_warning "Bad file; could not load " & decode_filename(infile)
   EXIT SUB
  END IF
+ LoadOhrmapTilemapMeta imported_gmap(), infile, YES
 
  '--- First we check whether there are too many map layers
 
@@ -4618,7 +4697,21 @@ SUB mapedit_import_tilemaps(st as MapEditState, appending as bool)
  END IF
 
  mapedit_append_imported_tilemaps st, newlayers(), appending
- notification "Imported " & num_new_layers & " layers"
+ DIM dest_layer as integer = IIF(appending, UBOUND(st.map.tiles) - UBOUND(newlayers), 0)
+ IF imported_gmap(31) <> 0 THEN
+  st.map.gmap(0) = imported_gmap(0)
+  st.map.gmap(5) = imported_gmap(5)
+  st.map.gmap(6) = imported_gmap(6)
+  st.map.gmap(31) = imported_gmap(31)
+  FOR i as integer = 0 TO UBOUND(newlayers)
+   DIM layer as integer = dest_layer + i
+   st.map.gmap(layer_tileset_index(layer)) = imported_gmap(layer_tileset_index(i))
+   setlayerenabled st.map.gmap(), layer, IIF(layer = 0, YES, layerisenabled(imported_gmap(), i))
+   write_map_layer_name st.map.gmap(), layer, read_map_layer_name(imported_gmap(), i)
+  NEXT
+  mapedit_load_tilesets st
+ END IF
+  notification "Imported " & num_new_layers & " layers"
 
  UnloadTilemaps newlayers()
 END SUB
@@ -4777,14 +4870,15 @@ SUB mapedit_export_map_image(st as MapEditState)
 END SUB
 
 SUB mapedit_import_export(st as MapEditState)
- DIM menu(6) as string
+ DIM menu(7) as string
  menu(0) = "Previous menu"
  menu(1) = "Export tilemap"
  menu(2) = "Import tilemap, overwriting existing"
  menu(3) = "Import tilemap, as new layers"
- menu(4) = "Export map layer as pixel-a-tile image"
- menu(5) = "Import pixel-a-tile image as map layer"
- menu(6) = "Export full map image"
+ menu(4) = "Export map"
+ menu(5) = "Export map layer as pixel-a-tile image"
+ menu(6) = "Import pixel-a-tile image as map layer"
+ menu(7) = "Export full map image"
 
  DIM state as menustate
  state.top = 0
@@ -4802,26 +4896,29 @@ SUB mapedit_import_export(st as MapEditState)
   usemenu state
   IF enter_space_click(state) THEN
    IF state.pt = 0 THEN EXIT DO
-   IF state.pt = 1 THEN
-    mapedit_export_tilemaps st
-   END IF
-   IF state.pt = 2 THEN
-    IF yesno("Are you sure you want to DELETE your current map layers and import new ones?") THEN
-     mapedit_import_tilemaps st, NO
+    IF state.pt = 1 THEN
+     mapedit_export_tilemaps st
     END IF
-   END IF
-   IF state.pt = 3 THEN
-    mapedit_import_tilemaps st, YES
-   END IF
-   IF state.pt = 4 THEN
-    mapedit_export_tilemap_image st
-   END IF
-   IF state.pt = 5 THEN
-    mapedit_import_tilemap_image st
-   END IF
-   IF state.pt = 6 THEN
-    mapedit_export_map_image st
-   END IF
+    IF state.pt = 2 THEN
+     IF yesno("Are you sure you want to DELETE your current map layers and import new ones?") THEN
+      mapedit_import_tilemaps st, NO
+     END IF
+    END IF
+    IF state.pt = 3 THEN
+     mapedit_import_tilemaps st, YES
+    END IF
+    IF state.pt = 4 THEN
+     mapedit_export_map st
+    END IF
+    IF state.pt = 5 THEN
+     mapedit_export_tilemap_image st
+    END IF
+    IF state.pt = 6 THEN
+     mapedit_import_tilemap_image st
+    END IF
+    IF state.pt = 7 THEN
+     mapedit_export_map_image st
+    END IF
   END IF
 
   clearpage vpage

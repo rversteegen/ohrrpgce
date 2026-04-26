@@ -1175,8 +1175,14 @@ END FUNCTION
 'Load enough of a map's data to display it
 SUB teleporttool_load_map (map as integer, maptiles2() as TileMap, pass2 as TileMap, tilesets2() as TilesetData ptr)
  DIM gmap2(dimbinsize(binMAP)) as integer
- loadrecord gmap2(), game + ".map", getbinsize(binMAP) \ 2, map
- loadtilemaps maptiles2(), maplumpname(map, "t")
+ IF map_source_uses_ohrmap(map) THEN
+  DIM ignored as string
+  LoadOhrmapGeneral gmap2(), ignored, ohrmap_filename(map)
+  loadtilemaps maptiles2(), ohrmap_filename(map)
+ ELSE
+  loadrecord gmap2(), game + ".map", getbinsize(binMAP) \ 2, map
+  loadtilemaps maptiles2(), maplumpname(map, "t")
+ END IF
  loadmaptilesets tilesets2(), gmap2()
  loadtilemap pass2, maplumpname(map, "p")
 END SUB

@@ -1972,9 +1972,14 @@ FUNCTION readitemdescription (byval index as integer) as string
 END FUNCTION
 
 FUNCTION getmapname (byval mapnum as integer) as string
- DIM nameread(39) as integer
- ' Ignore a missing .mn file, but allow partially missing records...
- IF loadrecord(nameread(), game + ".mn", 40, mapnum, NO, YES) THEN
+  IF map_source_uses_ohrmap(mapnum) THEN
+   DIM gmaptmp(dimbinsize(binMAP)) as integer
+   DIM mapname as string
+   IF LoadOhrmapGeneral(gmaptmp(), mapname, ohrmap_filename(mapnum), YES) THEN RETURN mapname
+  END IF
+  DIM nameread(39) as integer
+  ' Ignore a missing .mn file, but allow partially missing records...
+  IF loadrecord(nameread(), game + ".mn", 40, mapnum, NO, YES) THEN
   ' ...because the size of the record is twice the max size of the map name, which is a mistake.
   DIM a as string = STRING(small((nameread(0) AND 255), 39), " ")
   array2str nameread(), 1, a
@@ -5447,6 +5452,22 @@ IF full_upgrade ANDALSO getfixbit(fixInitItemsReld) = 0 THEN
   save_item_as_reload item, id, doc
   '--load again to run debug_compare_items sanity check
   loaditemdata item, id
+ NEXT
+END IF
+
+IF full_upgrade ANDALSO getfixbit(fixInitOhrmaps) = 0 THEN
+ upgrade_message "Initializing map#.ohrmap lumps..."
+ setfixbit(fixInitOhrmaps, 1)
+ DIM mapname as string
+ DIM gmaptmp(dimbinsize(binMAP)) as integer
+ REDIM tmaps(0) as TileMap
+ FOR id as integer = 0 TO gen(genMaxMap)
+  loadrecord gmaptmp(), game & ".map", getbinsize(binMAP) \ 2, id
+  mapname = getmapname(id)
+  IF LoadTilemaps(tmaps(), maplumpname(id, "t"), YES) THEN
+   SaveOhrmap gmaptmp(), mapname, tmaps(), ohrmap_filename(id)
+   UnloadTilemaps tmaps()
+  END IF
  NEXT
 END IF
 
