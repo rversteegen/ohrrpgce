@@ -1978,30 +1978,23 @@ END FUNCTION
 'Create a cure/stat change attack with specified stat and amount.
 'Returns the ID of the newly created attack.
 FUNCTION create_cure_attack(stat_num as integer, amount as integer, allow_exceed_max as bool = NO) as integer
-  DIM recbuf(40 + dimbinsize(binATTACK)) as integer
-  initattackdata recbuf()
-  'Set up as a cure attack with Pure Damage and no randomization
-  recbuf(5) = 3                          'damage_math = Pure Damage
-  recbuf(18) = stat_num                  'targ_stat
-  recbuf(11) = amount - 100              'extra_damage (% modifier)
-  recbuf(337) = 0                        'randomization = 0 (none)
-  setbit recbuf(), 20, 0, YES            'cure_instead_of_harm
-  setbit recbuf(), 20, 49, YES           'ignore_extra_hits
-  setbit recbuf(), 20, 61, YES           'do_not_randomize (obsolete but set for compatibility)
-  setbit recbuf(), 20, 62, YES           'damage_can_be_zero
-  setbit recbuf(), 65, 34, YES           'ignore_damage_cap
-  IF allow_exceed_max THEN
-    setbit recbuf(), 20, 58, YES         'allow_cure_to_exceed_maximum
-  END IF
-  'Set a descriptive name and description
-  DIM attack_name as string = "+" & amount & " " & LEFT(statnames(stat_num), 5)
-  writebadbinstring attack_name, recbuf(), 24, 10, 1
-  DIM attack_desc as string = "Restore " & amount & " " & statnames(stat_num)
-  writebinstring attack_desc, recbuf(), 73, 38
-  'Save the new attack
+  DIM atk as AttackData
+  initattackdata atk
+  atk.name = "+" & amount & " " & LEFT(statnames(stat_num), 5)
+  atk.description = "Restore " & amount & " " & statnames(stat_num)
+  atk.damage_math = 3                    'Pure Damage
+  atk.targ_stat = stat_num
+  atk.extra_damage = amount - 100        '% modifier
+  atk.randomization = 0
+  atk.cure_instead_of_harm = YES
+  atk.ignore_extra_hits = YES
+  atk.do_not_randomize = YES             'Obsolete but set for compatibility
+  atk.damage_can_be_zero = YES
+  atk.ignore_damage_cap = YES
+  atk.allow_cure_to_exceed_maximum = allow_exceed_max
   gen(genMaxAttack) += 1
   DIM new_atk_id as integer = gen(genMaxAttack)
-  saveattackdata recbuf(), new_atk_id
+  saveattackdata atk, new_atk_id
   RETURN new_atk_id
 END FUNCTION
 

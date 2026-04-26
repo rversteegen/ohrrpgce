@@ -135,7 +135,9 @@ DECLARE SUB loadattackdata OVERLOAD (byref atkdat as AttackData, byval index as 
 DECLARE SUB SerAttackElementCond (cond as AttackElementCondition, buf() as integer, byval index as integer)
 DECLARE SUB DeSerAttackElementCond (byref cond as AttackElementCondition, buf() as integer, byval index as integer)
 DECLARE SUB convertattackdata(buf() as integer, byref atkdat as AttackData)
-DECLARE SUB saveattackdata (array() as integer, byval index as integer)
+DECLARE SUB unconvertattackdata(buf() as integer, byref atkdat as AttackData)
+DECLARE SUB saveattackdata OVERLOAD (array() as integer, byval index as integer)
+DECLARE SUB saveattackdata OVERLOAD (byref atkdat as AttackData, byval index as integer)
 
 DECLARE SUB load_tile_anims (byval tileset_num as integer, tanim() as TileAnimPattern)
 DECLARE SUB save_tile_anims (byval tileset_num as integer, tanim() as TileAnimPattern)

@@ -3427,6 +3427,189 @@ SUB saveattackdata (array() as integer, byval index as integer)
  savenewattackdata buf(), index
 END SUB
 
+LOCAL SUB saveattackchain (byref ch as AttackDataChain, buf() as integer, byval id_offset as integer, byval rate_offset as integer, byval mode_offset as integer, byval val1_offset as integer, byval val2_offset as integer, byval bits_offset as integer)
+ buf(id_offset) = ch.atk_id
+ buf(rate_offset) = ch.rate
+ buf(mode_offset) = ch.mode
+ buf(val1_offset) = ch.val1
+ buf(val2_offset) = ch.val2
+ setbit buf(), bits_offset, 0, ch.must_know
+ setbit buf(), bits_offset, 1, ch.no_delay
+ setbit buf(), bits_offset, 2, ch.nonblocking
+ setbit buf(), bits_offset, 3, ch.dont_retarget
+ setbit buf(), bits_offset, 4, ch.invert_condition
+END SUB
+
+'Convert an AttackData to a buffer for saving
+SUB unconvertattackdata(buf() as integer, byref atkdat as AttackData)
+ WITH atkdat
+  writebadbinstring .name, buf(), 24, 10, 1
+  writebinstring .description, buf(), 73, 38
+  buf(0) = .picture
+  buf(1) = .pal
+  buf(2) = .anim_pattern
+  buf(3) = .targ_class
+  buf(4) = .targ_set
+  buf(5) = .damage_math
+  buf(6) = .aim_math
+  buf(7) = .base_atk_stat
+  buf(58) = .base_def_stat
+  buf(8) = .mp_cost
+  buf(9) = .hp_cost
+  buf(10) = .money_cost
+  buf(11) = .extra_damage
+  buf(14) = .attacker_anim
+  buf(15) = .attack_anim
+  buf(16) = .attack_delay
+  buf(319) = .turn_delay
+  buf(320) = .dramatic_pause
+  buf(17) = .hits
+  buf(18) = .targ_stat
+  buf(19) = .prefer_targ
+  buf(100) = .prefer_targ_stat
+  buf(36) = .caption_time
+  writebinstring .caption, buf(), 37, 38
+  buf(57) = .caption_delay
+  FOR i as integer = 0 TO 1
+   WITH .tagset(i)
+    buf(59 + i*3) = .tag
+    buf(60 + i*3) = .condition
+    buf(61 + i*3) = .tagcheck
+   END WITH
+  NEXT i
+  FOR i as integer = 0 TO 2
+   WITH .item(i)
+    buf(93 + i*2) = .id
+    buf(94 + i*2) = .number
+   END WITH
+  NEXT i
+  FOR i as integer = 0 TO gen(genNumElements) - 1
+   SerAttackElementCond .elemental_fail_conds(i), buf(), 121 + i * 3
+  NEXT
+  buf(99) = .sound_effect
+  buf(117) = .learn_sound_effect
+  buf(118) = .transmog.enemy + 1
+  buf(119) = .transmog.hp_rule
+  buf(120) = .transmog.other_stats_rule
+  buf(339) = .transmog.rewards_rule
+  IF .override_wep_pic THEN
+   buf(313) = .wep_picture + 1
+   buf(314) = .wep_pal
+   FOR i as integer = 0 TO 1
+    buf(315 + i * 2) = .wep_handle(i).x
+    buf(316 + i * 2) = .wep_handle(i).y
+   NEXT i
+  ELSE
+   buf(313) = 0
+  END IF
+  buf(323) = .base_acc_stat
+  buf(324) = .base_dog_stat
+  SerSingle buf(), 325, .acc_mult
+  SerSingle buf(), 327, .dog_mult
+  SerSingle buf(), 329, .atk_mult
+  SerSingle buf(), 331, .def_mult
+  SerSingle buf(), 333, .aim_extra
+  SerSingle buf(), 335, .absorb_rate
+  buf(337) = .randomization
+  buf(338) = .damage_color
+  buf(340) = .counterattack_provoke
+  buf(344) = .targ_offset_x
+  buf(345) = .targ_offset_y
+  buf(346) = .targ_halign
+  buf(347) = .targ_valign
+  buf(348) = .change_control
+  buf(349) = .change_turncoat
+  buf(350) = .change_defector
+  buf(351) = .change_flipped
+  buf(352) = .spawn_enemy
+  buf(353) = .extra(0)
+  buf(354) = .extra(1)
+  buf(355) = .extra(2)
+  '----Chaining----
+  saveattackchain .chain, buf(), 12, 13, 101, 102, 103, 104
+  saveattackchain .elsechain, buf(), 105, 107, 106, 108, 109, 110
+  saveattackchain .instead, buf(), 111, 113, 112, 114, 115, 116
+  '----Bitsets----
+  setbit buf(), 20, 0, .cure_instead_of_harm
+  setbit buf(), 20, 1, .divide_spread_damage
+  setbit buf(), 20, 2, .absorb_damage
+  setbit buf(), 20, 3, .unreversable_picture
+  setbit buf(), 20, 4, .can_steal_item
+  FOR i as integer = 0 TO small(15, gen(genNumElements) - 1)
+   setbit buf(), 20, 5+i, .elemental_damage(i)
+  NEXT
+  FOR i as integer = 16 TO gen(genNumElements) - 1
+   setbit buf(), 65, 80+(i-16), .elemental_damage(i)
+  NEXT
+  FOR i as integer = 0 TO 7
+   setbit buf(), 20, 37+i, .cannot_target_enemy_slot(i)
+  NEXT i
+  FOR i as integer = 0 TO 3
+   setbit buf(), 20, 45+i, .cannot_target_hero_slot(i)
+  NEXT i
+  setbit buf(), 20, 49, .ignore_extra_hits
+  setbit buf(), 20, 50, .erase_rewards
+  setbit buf(), 20, 51, .show_damage_without_inflicting
+  setbit buf(), 20, 52, .add_store_targ
+  setbit buf(), 20, 53, .delete_stored_targs
+  setbit buf(), 20, 54, .automatic_targ
+  setbit buf(), 20, 55, .show_name
+  setbit buf(), 20, 56, .dont_display_damage
+  setbit buf(), 20, 57, .reset_targ_stat_before_hit
+  setbit buf(), 20, 58, .allow_cure_to_exceed_maximum
+  setbit buf(), 20, 59, .useable_outside_battle
+  setbit buf(), 20, 60, .obsolete_damage_mp
+  setbit buf(), 20, 61, .do_not_randomize
+  setbit buf(), 20, 62, .damage_can_be_zero
+  setbit buf(), 20, 63, .force_run
+  setbit buf(), 65, 0, .mutable
+  setbit buf(), 65, 1, .fail_if_targ_poison
+  setbit buf(), 65, 2, .fail_if_targ_regen
+  setbit buf(), 65, 3, .fail_if_targ_stun
+  setbit buf(), 65, 4, .fail_if_targ_mute
+  setbit buf(), 65, 5, .percent_damage_not_set
+  setbit buf(), 65, 6, .check_costs_as_weapon
+  setbit buf(), 65, 7, .no_chain_on_failure
+  setbit buf(), 65, 8, .reset_poison
+  setbit buf(), 65, 9, .reset_regen
+  setbit buf(), 65, 10, .reset_stun
+  setbit buf(), 65, 11, .reset_mute
+  setbit buf(), 65, 12, .cancel_targets_attack
+  setbit buf(), 65, 13, .not_cancellable_by_attacks
+  setbit buf(), 65, 14, .no_spawn_on_attack
+  setbit buf(), 65, 15, .no_spawn_on_kill
+  setbit buf(), 65, 16, .check_costs_as_item
+  setbit buf(), 65, 17, .recheck_costs_after_delay
+  setbit buf(), 65, 18, .targ_does_not_flinch
+  setbit buf(), 65, 19, .do_not_exceed_targ_stat
+  setbit buf(), 65, 20, .nonblocking
+  setbit buf(), 65, 21, .force_victory
+  setbit buf(), 65, 22, .force_battle_exit
+  setbit buf(), 65, 23, .never_trigger_elemental_counterattacks
+  setbit buf(), 65, 24, .poison_is_negative_regen
+  setbit buf(), 65, 25, NOT .useable_inside_battle
+  setbit buf(), 65, 26, .dont_display_miss
+  setbit buf(), 65, 27, .dont_display_fail
+  'bit 28 was the old broken always_hide_attacker
+  setbit buf(), 65, 29, .always_unhide_attacker
+  setbit buf(), 65, 30, .blocking_counterattack
+  setbit buf(), 65, 31, .empty_target_ready_meter
+  setbit buf(), 65, 32, .fill_target_ready_meter
+  setbit buf(), 65, 33, .exclude_from_hero_auto_battle
+  setbit buf(), 65, 34, .ignore_damage_cap
+  setbit buf(), 65, 35, .replace_store_targ
+  setbit buf(), 65, 36, .always_hide_attacker
+ END WITH
+END SUB
+
+'Save an AttackData to a file
+SUB saveattackdata (byref atkdat as AttackData, byval index as integer)
+ DIM buf(40 + dimbinsize(binATTACK)) as integer
+ initattackdata buf()
+ unconvertattackdata buf(), atkdat
+ saveattackdata buf(), index
+END SUB
+
 
 '==========================================================================================
 '                                  Tile animation patterns
