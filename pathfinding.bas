@@ -319,7 +319,7 @@ Function xypair_wrapped_distance(v1 as XYPair, v2 as XYPair, byref squared_dist 
  dim diff as XYPair = v2 - v1
  diff.x = abs(diff.x)
  diff.y = abs(diff.y)
- if gmap(5) = mapEdgeWrap then
+ if gmap.edge_mode = mapEdgeWrap then
   'This is a wrapping map
   if diff.x > mapsizetiles.x \ 2 then
    diff.x = mapsizetiles.x - diff.x

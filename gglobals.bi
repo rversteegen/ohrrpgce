@@ -41,7 +41,7 @@ EXTERN onetime() as integer
 EXTERN vstate as VehicleState
 
 'Map state globals
-EXTERN gmap() as integer
+EXTERN gmap as GenMapData
 EXTERN maptiles() as TileMap
 EXTERN pass as TileMap
 EXTERN foemap as TileMap

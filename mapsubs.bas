@@ -132,11 +132,11 @@ DECLARE_VECTOR_OF_TYPE(LayerMenuItem, LayerMenuItem)
 DEFINE_VECTOR_OF_CLASS(LayerMenuItem, LayerMenuItem)
 
 DECLARE FUNCTION LayerIsVisible(vis() as integer, byval l as integer) as bool
-DECLARE FUNCTION LayerIsEnabled(gmap() as integer, byval l as integer) as bool
+DECLARE FUNCTION LayerIsEnabled(gmap as GenMapData, byval l as integer) as bool
 DECLARE SUB SetLayerVisible(vis() as integer, byval l as integer, byval v as bool)
-DECLARE SUB SetLayerEnabled(gmap() as integer, byval l as integer, byval v as bool)
+DECLARE SUB SetLayerEnabled(byref gmap as GenMapData, byval l as integer, byval v as bool)
 DECLARE SUB ToggleLayerVisible(vis() as integer, byval l as integer)
-DECLARE SUB ToggleLayerEnabled(vis() as integer, byval l as integer)
+DECLARE SUB ToggleLayerEnabled(byref gmap as GenMapData, byval l as integer)
 DECLARE FUNCTION should_draw_layer(st as MapEditState, l as integer) as bool
 DECLARE SUB set_layer(st as MapEditState, layer as integer)
 DECLARE FUNCTION next_prev_layer_keys(st as MapEditState, Ctrl_L_message as bool = NO) as bool
@@ -263,7 +263,7 @@ SUB MapPreviewer.load_map(map_id as integer)
  IF loaded THEN EXIT SUB
  'DIM ttt as double = TIMER
  map.load_for_minimap(map_id)
- loadmaptilesets tilesets(), map.gmap()
+ loadmaptilesets tilesets(), map.gmap
  'debuginfo "loaded in " & cint((timer - ttt)*1e6)
  loaded = YES
 END SUB
@@ -1150,7 +1150,7 @@ DO
      DIM keynum as integer = scF1 + i
      IF keyval(keynum) > 1 THEN
       clearkey(keynum)
-      IF layerisenabled(st.map.gmap(), i) THEN togglelayervisible(st.visible(), i)
+      IF layerisenabled(st.map.gmap, i) THEN togglelayervisible(st.visible(), i)
      END IF
     NEXT
    END IF
@@ -1161,8 +1161,8 @@ DO
     DIM num_key as integer = sc1 + ((i - 1) MOD 10)
     IF keyval(scAlt) > 0 AND shift_ok AND keyval(num_key) > 1 THEN
      clearkey(num_key)
-     togglelayerenabled(st.map.gmap(), i)
-     IF layerisenabled(st.map.gmap(), i) THEN
+     togglelayerenabled(st.map.gmap, i)
+     IF layerisenabled(st.map.gmap, i) THEN
       IF i > UBOUND(st.map.tiles) THEN
        DIM howmany as integer
        howmany = i - UBOUND(st.map.tiles)
@@ -1174,7 +1174,7 @@ DO
       END IF
      ELSE
       IF st.layer = i THEN
-       DO UNTIL layerisenabled(st.map.gmap(), st.layer)
+       DO UNTIL layerisenabled(st.map.gmap, st.layer)
         set_layer st, st.layer - 1
        LOOP
       END IF
@@ -1893,7 +1893,7 @@ DO
   END IF
 
   'Possibly draw NPCs
-  IF draw_npcs_between_layers ANDALSO i = bound(st.map.gmap(31) - 1, 0, UBOUND(st.map.tiles)) THEN
+  IF draw_npcs_between_layers ANDALSO i = bound(st.map.gmap.walkabout_layer - 1, 0, UBOUND(st.map.tiles)) THEN
    mapedit_draw_npcs st, , draw_conditional_npcs, dpage
   END IF
  NEXT
@@ -2069,15 +2069,15 @@ DO
    WITH npcdef_by_pool(st, st.map.npc(npci).pool, st.map.npc(npci).id - 1)
     IF .defaultzone = -1 THEN
      st.cur_npc_zone = 0
-    ELSEIF .defaultzone = 0 THEN
-     st.cur_npc_zone = st.map.gmap(32)
+     ELSEIF .defaultzone = 0 THEN
+      st.cur_npc_zone = st.map.gmap.default_npc_move_zone
     ELSE
      st.cur_npc_zone = .defaultzone
     END IF
     IF .defaultwallzone = -1 THEN
      st.cur_npc_wall_zone = 0
-    ELSEIF .defaultwallzone = 0 THEN
-     st.cur_npc_wall_zone = st.map.gmap(33)
+     ELSEIF .defaultwallzone = 0 THEN
+      st.cur_npc_wall_zone = st.map.gmap.default_npc_avoid_zone
     ELSE
      st.cur_npc_wall_zone = .defaultwallzone
     END IF
@@ -2320,7 +2320,7 @@ DO
   DIM layername as string
   layername = "Layer " & st.layer
   IF layerisvisible(st.visible(), st.layer) = NO THEN layername &= " (invisible)"
-  layername &= " " & read_map_layer_name(st.map.gmap(), st.layer)
+  layername &= " " & read_map_layer_name(st.map.gmap, st.layer)
   layername = RIGHT(layername, 40)
   edgeprint layername, 0, st.viewport_p2.y - 20, col, dpage
  END IF
@@ -2732,7 +2732,7 @@ SUB mapedit_create_npc_slice (st as MapEditState, parent as Slice ptr, npcid as 
   spritepos = map_to_screen(st, mappos)  'Position in pixels of the tile the NPC is standing on
  END IF
  spritepos.x += tilew \ 2 - spr->w \ 2
- spritepos.y += tileh - spr->h + st.map.gmap(11)
+ spritepos.y += tileh - spr->h + st.map.gmap.foot_offset
  IF drawing_whole_map ORELSE rect_collide_rect(st.viewport, XY_WH(spritepos, spr->size)) THEN  'Just a speed-up
   DIM sl as Slice ptr = NewSliceOfType(slSprite)
   WITH npcdef_by_pool(st, poolid, npcid)
@@ -2750,7 +2750,7 @@ FUNCTION mapedit_draw_walkabout (st as MapEditState, img as GraphicPair, frameid
  DIM spritepos as XYPair = screenpos
  'Align to bottom-center of tile
  spritepos.x += tilew \ 2 - img.sprite->w \ 2
- spritepos.y += tileh - img.sprite->h + st.map.gmap(11)
+ spritepos.y += tileh - img.sprite->h + st.map.gmap.foot_offset
  IF rect_collide_rect(st.viewport, XY_WH(spritepos, img.sprite->size)) THEN
   DIM framenum as integer = large(0, frameid_to_frame(img.sprite, frameid))
   frame_draw img.sprite + framenum, img.pal, spritepos.x, spritepos.y, , dpage
@@ -2798,7 +2798,7 @@ SUB mapedit_draw_npcs(st as MapEditState, drawing_whole_map as bool = NO, includ
    mapedit_create_npc_slice st, npclayer, .id - 1, .pool, fr, frameid, .pos, drawing_whole_map
   END WITH
  NEXT
- IF st.map.gmap(16) = 2 THEN ' Heroes and NPCs Together
+ IF st.map.gmap.hero_npc_draw_order = 2 THEN ' Heroes and NPCs Together
   EdgeYSortChildSlices npclayer, alignBottom
   'Otherwise NPCs are ordered by reference number
  END IF
@@ -3314,15 +3314,15 @@ END SUB
 'Whether the user should have the option to pick an edge tile.
 'Also true if the map is smaller than the screen and the camera is set to crop.
 FUNCTION need_default_edge_tile(map as MapData) as bool
- IF map.gmap(5) = mapEdgeDefaultTile THEN RETURN YES
- IF map.gmap(5) = mapEdgeCrop THEN
+ IF map.gmap.edge_mode = mapEdgeDefaultTile THEN RETURN YES
+ IF map.gmap.edge_mode = mapEdgeCrop THEN
   IF gen(genResolutionX) > map.wide * 20 ORELSE gen(genResolutionY) > map.high * 20 THEN RETURN YES
  END IF
  RETURN NO
 END FUNCTION
 
-'st.map.gmap() is passed as gmap(), for convenience.
-SUB mapedit_gmapdata_buildmenu(st as MapEditState, byref menu as SimpleMenuItem vector, gmap() as integer, gdidx() as integer, midx() as integer, script_defaults() as integer)
+'st.map.gmap is passed as gmap, for convenience.
+SUB mapedit_gmapdata_buildmenu(st as MapEditState, byref menu as SimpleMenuItem vector, gmap as GenMapData, gdidx() as integer, midx() as integer, script_defaults() as integer)
 
  v_new menu
  REDIM gdidx(32)
@@ -3372,25 +3372,25 @@ SUB mapedit_gmapdata_buildmenu(st as MapEditState, byref menu as SimpleMenuItem 
  invert_permutation gdidx(), midx()
 
  ' Music
- IF gmap(1) = 0 THEN
+ IF gmap.ambient_music = 0 THEN
   menu[midx(1)].text &= "-silence-"
- ELSEIF gmap(1) = -1 THEN
+ ELSEIF gmap.ambient_music = -1 THEN
   menu[midx(1)].text &= "-same as previous map-"
  ELSE
-  menu[midx(1)].text &= (gmap(1) - 1) & " " & getsongname(gmap(1) - 1)
+  menu[midx(1)].text &= (gmap.ambient_music - 1) & " " & getsongname(gmap.ambient_music - 1)
  END IF
  ' Menu menu available, minimap available, save anywhere
- menu[midx(379)].text &= yesorno(gmap(379) XOR 1)
- menu[midx(2)].text &= yesorno(gmap(2))
- menu[midx(3)].text &= yesorno(gmap(3))
+ menu[midx(379)].text &= yesorno(NOT gmap.menu_disabled)
+ menu[midx(2)].text &= yesorno(gmap.minimap_available)
+ menu[midx(3)].text &= yesorno(gmap.save_anywhere)
  ' Show map name
- IF gmap(4) = 0 THEN
+ IF gmap.name_display_ticks = 0 THEN
   menu[midx(4)].text &= "NO"
  ELSE
-  menu[midx(4)].text &= gmap(4) & " ticks"
+  menu[midx(4)].text &= gmap.name_display_ticks & " ticks"
  END IF
  ' Map edge mode
- SELECT CASE gmap(5)
+ SELECT CASE gmap.edge_mode
   CASE mapEdgeCrop
    menu[midx(5)].text &= "Crop"
   CASE mapEdgeWrap
@@ -3400,42 +3400,42 @@ SUB mapedit_gmapdata_buildmenu(st as MapEditState, byref menu as SimpleMenuItem 
  END SELECT
  ' Default edge tile
  IF need_default_edge_tile(st.map) THEN
-  menu[midx(6)].text &= gmap(6)
+  menu[midx(6)].text &= gmap.default_edge_tile
  ELSE
   menu[midx(6)].text &= "N/A"
  END IF
 
  ' Scripts
- menu[midx(7)].text  &= scriptname_default(gmap(7), script_defaults(7))
+ menu[midx(7)].text  &= scriptname_default(gmap.autorun_script, script_defaults(7))
  FOR i as integer = 12 TO 15
-  menu[midx(i)].text &= scriptname_default(gmap(i), script_defaults(i))
+  menu[midx(i)].text &= scriptname_default(gmap.getidx(i), script_defaults(i))
  NEXT
  ' Autorun script argument
- IF trigger_or_default(gmap(7), gen(genDefMapAutorunScript)) = 0 THEN
+ IF trigger_or_default(gmap.autorun_script, gen(genDefMapAutorunScript)) = 0 THEN
   menu[midx(8)].text &= "N/A"
  ELSE
-  menu[midx(8)].text &= gmap(8)
+  menu[midx(8)].text &= gmap.autorun_argument
  END IF
 
  ' Harm tile damage
- menu[midx(9)].text &= gmap(9)
+ menu[midx(9)].text &= gmap.harm_tile_damage
  ' Harm tile flash
- IF gmap(10) = 0 THEN
+ IF gmap.harm_tile_flash = 0 THEN
   menu[midx(10)].text &= "None"
  ELSE
-  menu[midx(10)].text &= gmap(10)
+  menu[midx(10)].text &= gmap.harm_tile_flash
  END IF
  ' Foot offset
- SELECT CASE gmap(11)
+ SELECT CASE gmap.foot_offset
   CASE 0
    menu[midx(11)].text &= "none"
   CASE IS < 0
-   menu[midx(11)].text &= "up " & ABS(gmap(11)) & " pixels"
+   menu[midx(11)].text &= "up " & ABS(gmap.foot_offset) & " pixels"
   CASE IS > 0
-   menu[midx(11)].text &= "down " & gmap(11) & " pixels"
+   menu[midx(11)].text &= "down " & gmap.foot_offset & " pixels"
  END SELECT
  ' Hero/npc draw order
- SELECT CASE gmap(16)
+ SELECT CASE gmap.hero_npc_draw_order
   CASE 0: menu[midx(16)].text &= "Heroes over NPCs"
   CASE 1: menu[midx(16)].text &= "NPCs over Heroes"
   CASE 2: menu[midx(16)].text &= "Together (recommended)"
@@ -3462,7 +3462,7 @@ SUB mapedit_gmapdata_buildmenu(st as MapEditState, byref menu as SimpleMenuItem 
   END IF
  NEXT
  ' Default Pathfinding rules
- SELECT CASE gmap(378) 
+ SELECT CASE gmap.pathfinding_obstruction_mode
   CASE 0: menu[midx(378)].text &= "Default (NPCs Obstruct)"
   CASE 1: menu[midx(378)].text &= "NPCs Obstruct"
   CASE 2: menu[midx(378)].text &= "Ignore NPCs"
@@ -3485,7 +3485,7 @@ SUB mapedit_gmapdata(st as MapEditState)
  'Maps gmap() index to menu() index
  DIM midx(dimbinsize(binMAP)) as integer
 
- mapedit_gmapdata_buildmenu st, menu, map.gmap(), gdidx(), midx(), script_defaults()
+ mapedit_gmapdata_buildmenu st, menu, map.gmap, gdidx(), midx(), script_defaults()
 
  'These are indexed by *gmap index*, not by menu item index!
  DIM gdmax(dimbinsize(binMAP)) as integer
@@ -3579,7 +3579,7 @@ SUB mapedit_gmapdata(st as MapEditState)
   END SELECT
 
   IF state.need_update THEN
-   mapedit_gmapdata_buildmenu st, menu, st.map.gmap(), gdidx(), midx(), script_defaults()
+   mapedit_gmapdata_buildmenu st, menu, st.map.gmap, gdidx(), midx(), script_defaults()
    state.need_update = NO
   END IF
 
@@ -3591,13 +3591,13 @@ SUB mapedit_gmapdata(st as MapEditState)
   clearpage dpage
   highlight_menu_typing_selection cast(BasicMenuItem vector, menu), cast(BasicMenuItem vector, menu_display), selectst, state
   standardmenu cast(BasicMenuItem vector, menu_display), state, 4, 4, dpage, menuopts
-  IF map.gmap(10) THEN
+  IF map.gmap.harm_tile_flash THEN
    'Harm tile flash color preview
-   rectangle 4 + 8 * LEN(menu[midx(10)].text), 4 + 10 * (midx(10) - state.top), 8, 8, map.gmap(10), dpage
+   rectangle 4 + 8 * LEN(menu[midx(10)].text), 4 + 10 * (midx(10) - state.top), 8, 8, map.gmap.harm_tile_flash, dpage
   END IF
   IF need_default_edge_tile(st.map) THEN
    'Show default edge tile (possibly animated)
-   writeblock sampmap, 0, 0, map.gmap(6)
+   writeblock sampmap, 0, 0, map.gmap.default_edge_tile
    animatetilesets st.tilesets()
    DIM tilepos as XYPair = (12 + 8 * LEN(menu[midx(6)].text), 4 + 10 * (midx(6) - state.top))
    DIM tileview as Frame ptr
@@ -3630,7 +3630,7 @@ FUNCTION mapedit_pick_layer(st as MapEditState, message as string, other_option 
  DIM options(UBOUND(st.map.tiles) + offset) as string
  IF LEN(other_option) > 0 THEN options(0) = other_option
  FOR layerno as integer = 0 TO UBOUND(st.map.tiles)
-  options(offset + layerno) = "Layer " & layerno & " " & read_map_layer_name(st.map.gmap(), layerno)
+  options(offset + layerno) = "Layer " & layerno & " " & read_map_layer_name(st.map.gmap, layerno)
  NEXT
  DIM ret as integer
  ret = multichoice(message, options(), 0, -2)
@@ -3670,7 +3670,7 @@ SUB mapedit_layers (st as MapEditState)
 
   layerno = menu[state.pt].layernum
   fakelayerno = layerno
-  IF fakelayerno >= map.gmap(31) THEN fakelayerno += 1
+  IF fakelayerno >= map.gmap.walkabout_layer THEN fakelayerno += 1
   'Warning: gen(31) (#layers below heroes/npcs) might be larger than the number of layers
 
   IF keyval(ccCancel) > 1 THEN EXIT DO
@@ -3688,7 +3688,7 @@ SUB mapedit_layers (st as MapEditState)
     ELSE
      'Insert after.
      'When gmap(31) is greater than actual number of layers we are "filling up" to old default of 2 under
-     IF layerno < map.gmap(31) AND UBOUND(map.tiles) + 1 >= map.gmap(31) THEN map.gmap(31) += 1
+     IF layerno < map.gmap.walkabout_layer AND UBOUND(map.tiles) + 1 >= map.gmap.walkabout_layer THEN map.gmap.walkabout_layer += 1
      IF layer_to_copy > layerno THEN layer_to_copy += 1
      mapedit_insert_new_layer st, layerno + 1
      layerno += 1
@@ -3700,10 +3700,10 @@ SUB mapedit_layers (st as MapEditState)
   END IF
   IF (keyval(scDelete) > 1 OR keyval(scMinus) > 1 OR keyval(scNumpadMinus) > 1) ANDALSO UBOUND(map.tiles) > 0 ANDALSO layerno >= 0 THEN
    DIM layername as string
-   layername = read_map_layer_name(map.gmap(), layerno)
+   layername = read_map_layer_name(map.gmap, layerno)
    IF LEN(layername) THEN layername = " " & layername
    IF yesno("Really delete layer " & layerno & layername & "?", NO) THEN
-    IF layerno < map.gmap(31) THEN map.gmap(31) = large(map.gmap(31) - 1, 1)
+    IF layerno < map.gmap.walkabout_layer THEN map.gmap.walkabout_layer = large(map.gmap.walkabout_layer - 1, 1)
     mapedit_delete_layer st, layerno
     st.layer = small(st.layer, UBOUND(map.tiles))
     layerno = small(layerno, UBOUND(map.tiles))
@@ -3716,9 +3716,9 @@ SUB mapedit_layers (st as MapEditState)
    'in mapedit_makelayermenu with resetpt = YES
 
    IF keyval(ccUp) > 1 AND fakelayerno > 0 THEN
-    IF fakelayerno = map.gmap(31) + 1 THEN
+    IF fakelayerno = map.gmap.walkabout_layer + 1 THEN
      'swapping with NPC/Hero layers
-     map.gmap(31) += 1
+     map.gmap.walkabout_layer += 1
     ELSE
      mapedit_swap_layers st, layerno, layerno - 1
      layerno -= 1
@@ -3735,9 +3735,9 @@ SUB mapedit_layers (st as MapEditState)
      resetpt = YES
      state.need_update = YES
     ELSEIF layerno > 0 THEN
-     IF layerno = small(map.gmap(31) - 1, UBOUND(map.tiles)) THEN  'gmap(31) may be larger
+     IF layerno = small(walkabout_layer - 1, UBOUND(map.tiles)) THEN  'gmap(31) may be larger
       'swapping with NPC/Hero layers
-      map.gmap(31) = layerno
+      walkabout_layer = layerno
      ELSEIF layerno < UBOUND(map.tiles) THEN
       mapedit_swap_layers st, layerno, layerno + 1
       layerno += 1
@@ -3768,11 +3768,11 @@ SUB mapedit_layers (st as MapEditState)
      END IF
     CASE ltLayerName
      DIM tempname as string
-     tempname = read_map_layer_name(map.gmap(), layerno)
+     tempname = read_map_layer_name(map.gmap, layerno)
      IF strgrabber(tempname, 40) THEN
       state.need_update = YES
      END IF
-     write_map_layer_name(map.gmap(), layerno, tempname)
+     write_map_layer_name(map.gmap, layerno, tempname)
     CASE ltLayerTileset
      IF zintgrabber(map.gmap(menu[state.pt].gmapindex), -1, gen(genMaxTile)) THEN
       tileset = map.gmap(menu[state.pt].gmapindex) - 1
@@ -3782,10 +3782,10 @@ SUB mapedit_layers (st as MapEditState)
      END IF
     CASE ltLayerEnabled
      IF enter_space_click(state) THEN
-      ToggleLayerEnabled(map.gmap(), layerno)
+      ToggleLayerEnabled(map.gmap, layerno)
       state.need_update = YES
      END IF
-     IF layerisenabled(map.gmap(), layerno) AND (keyval(ccLeft) > 1 OR keyval(ccRight) > 1) THEN
+     IF layerisenabled(map.gmap, layerno) AND (keyval(ccLeft) > 1 OR keyval(ccRight) > 1) THEN
       ToggleLayerVisible(st.visible(), layerno)
       state.need_update = YES
      END IF
@@ -3832,7 +3832,7 @@ SUB mapedit_layers (st as MapEditState)
  LOOP
  setkeys
  mapedit_load_tilesets st  'Reload default passability
- IF layerisenabled(map.gmap(), st.layer) = 0 THEN st.layer = 0
+ IF layerisenabled(map.gmap, st.layer) = 0 THEN st.layer = 0
  v_free menu
  frame_unload @layerpreview
 
@@ -3843,11 +3843,11 @@ SUB mapedit_makelayermenu_layer(st as MapEditState, byref menu as LayerMenuItem 
 
  menu[slot].role = ltLayerName
  'menu[slot].unselectable = YES
- menu[slot].text = "Tile layer " & layer & " " & read_map_layer_name(st.map.gmap(), layer)
+ menu[slot].text = "Tile layer " & layer & " " & read_map_layer_name(st.map.gmap, layer)
  menu[slot].layernum = layer
  slot += 1
 
- IF layerisenabled(st.map.gmap(), layer) THEN
+ IF layerisenabled(st.map.gmap, layer) THEN
   IF layerisvisible(st.visible(), layer) THEN
    menu[slot].text = " Enabled (" & CHR(27) & "Visible in editor" & CHR(26) & ")"
    menu[slot - 1].col = uilook(uiDescription)
@@ -3888,7 +3888,7 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
 
  v_free menu
  'Yuck, FIXME: append menu items normally instead
- v_new menu, 1 + 3 * (UBOUND(st.map.tiles) + 1) + 2 + IIF(st.map.gmap(16) = 2, 1, 2)
+ v_new menu, 1 + 3 * (UBOUND(st.map.tiles) + 1) + 2 + IIF(st.map.gmap.hero_npc_draw_order = 2, 1, 2)
  state.last = v_len(menu) - 1
  FOR i as integer = 0 TO v_len(menu) - 1
   menu[i].unselectable = NO
@@ -3904,11 +3904,11 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
  DIM needdefault as bool = NO
  
  DIM slot as integer = 2
- FOR i as integer = 0 TO small(UBOUND(st.map.tiles), st.map.gmap(31) - 1)
+ FOR i as integer = 0 TO small(UBOUND(st.map.tiles), st.map.gmap.walkabout_layer - 1)
   mapedit_makelayermenu_layer st, menu, slot, i, needdefault
  NEXT
 
- IF st.map.gmap(16) = 2 THEN '--keep heroes and NPCs together
+ IF st.map.gmap.hero_npc_draw_order = 2 THEN '--keep heroes and NPCs together
   menu[slot].unselectable = YES
   menu[slot].col = uilook(uiText)
   menu[slot].text = "Heroes & NPCs layer"
@@ -3920,7 +3920,7 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
   menu[slot].unselectable = YES
   menu[slot].col = uilook(uiText)
   slot += 1
-  IF st.map.gmap(16) = 0 THEN
+  IF st.map.gmap.hero_npc_draw_order = 0 THEN
    menu[slot - 2].text = "NPCs layer"
    menu[slot - 1].text = "Heroes layer"
   ELSE
@@ -3929,7 +3929,7 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
   END IF
  END IF
 
- FOR i as integer = st.map.gmap(31) TO UBOUND(st.map.tiles)
+ FOR i as integer = st.map.gmap.walkabout_layer TO UBOUND(st.map.tiles)
   mapedit_makelayermenu_layer st, menu, slot, i, needdefault
  NEXT
 
@@ -3939,7 +3939,7 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
  slot += 1
  
  IF needdefault THEN
-  menu[1].text += STR(st.map.gmap(0))
+  menu[1].text += STR(st.map.gmap.default_tileset)
  ELSE
   menu[1].text += "(Not used)"
   menu[1].unselectable = YES
@@ -3968,7 +3968,7 @@ SUB mapedit_makelayermenu(st as MapEditState, byref menu as LayerMenuItem vector
 
   DIM wanttileset as integer = -1
   IF state.pt = 1 THEN
-   wanttileset = st.map.gmap(0)
+   wanttileset = st.map.gmap.default_tileset
   ELSEIF menu[state.pt].gmapindex > -1 THEN
    wanttileset = st.map.gmap(menu[state.pt].gmapindex) - 1
    IF wanttileset = -1 THEN wanttileset = st.map.gmap(0)
@@ -4074,9 +4074,9 @@ SUB new_blank_map (st as MapEditState)
  cleantilemap st.map.pass, 64, 64
  cleantilemap st.map.foemap, 64, 64
  CleanZoneMap st.map.zmap, 64, 64
- flusharray st.map.gmap(), -1, 0
- st.map.gmap(16) = 2 'Walkabout Layering: Together
- st.map.gmap(31) = 1 'Walkabout layer above map layer 0
+ ClearGenMapData st.map.gmap, 1
+ st.map.gmap.hero_npc_draw_order = 2 'Walkabout Layering: Together
+ st.map.gmap.walkabout_layer = 1 'Walkabout layer above map layer 0
  CleanNPCL st.map.npc()
  REDIM st.map.npc_def(0)
  cleandoors st.map.door()
@@ -4160,7 +4160,7 @@ SUB mapedit_savemap (st as MapEditState)
 END SUB
 
 SUB mapedit_load_tilesets(st as MapEditState)
- loadmaptilesets st.tilesets(), st.map.gmap()
+ loadmaptilesets st.tilesets(), st.map.gmap
  v_new st.defaultwalls, UBOUND(st.map.tiles) + 1
  FOR i as integer = 0 TO UBOUND(st.map.tiles)
   loadpasdefaults st.defaultwalls[i], st.tilesets(i)->num
@@ -4239,9 +4239,9 @@ END SUB
 
 'Reset all layer settings for one layer, but not the tilemap itself
 SUB mapedit_wipe_layer_settings(st as MapEditState, layernum as integer, reset_tilesets as bool = YES)
- SetLayerEnabled(st.map.gmap(), layernum, YES)
+ SetLayerEnabled(st.map.gmap, layernum, YES)
  SetLayerVisible(st.visible(), layernum, YES)
- write_map_layer_name(st.map.gmap(), layernum, "")
+ write_map_layer_name(st.map.gmap, layernum, "")
  IF reset_tilesets THEN
   st.map.gmap(layer_tileset_index(layernum)) = 0  'Tileset = default
  END IF
@@ -4297,16 +4297,15 @@ FUNCTION LayerIsVisible(vis() as integer, byval l as integer) as bool
 END FUNCTION
 
 'Whether a map layer is visible in-game
-FUNCTION LayerIsEnabled(gmap() as integer, byval l as integer) as bool
+FUNCTION LayerIsEnabled(gmap as GenMapData, byval l as integer) as bool
  BUG_IF(l < 0 ORELSE l > maplayerMax, "Bad map layer " & l, NO)
  IF l = 0 THEN RETURN YES
- 'debug "layer #" & l & " is: " & readbit(gmap(), 19, l-1)
- RETURN xreadbit(gmap(), l - 1, 19)
+ RETURN gmap.layers(l).enabled
 END FUNCTION
 
 'This layer is drawn, while editing.
 FUNCTION should_draw_layer(st as MapEditState, l as integer) as bool
- RETURN layerisvisible(st.visible(), l) AND layerisenabled(st.map.gmap(), l)
+ RETURN layerisvisible(st.visible(), l) AND layerisenabled(st.map.gmap, l)
 END FUNCTION
 
 SUB SetLayerVisible(vis() as integer, byval l as integer, byval v as bool)
@@ -4325,10 +4324,10 @@ SUB ToggleLayerVisible(vis() as integer, byval l as integer)
  setbit(vis(), 0, l, readbit(vis(), 0, l) XOR 1)
 END SUB
 
-SUB ToggleLayerEnabled(gmap() as integer, byval l as integer)
+SUB ToggleLayerEnabled(byref gmap as GenMapData, byval l as integer)
  BUG_IF(l < 0 ORELSE l > maplayerMax, "Bad map layer " & l)
  IF l = 0 THEN EXIT SUB
- setbit(gmap(), 19, l - 1, readbit(gmap(), 19, l - 1) XOR 1)
+ gmap.layers(l).enabled XOR= YES
 END SUB
 
 
@@ -4365,7 +4364,7 @@ SUB mapedit_delete_menu(st as MapEditState)
    CleanNPCL st.map.npc()
    CleanDoors st.map.door()
    CleanDoorlinks st.map.doorlink()
-   st.map.gmap(31) = 1 'Walkabout layer above map layer 0
+   st.map.gmap.walkabout_layer = 1 'Walkabout layer above map layer 0
    mapedit_throw_away_history st
   ELSEIF choice = 3 THEN
    CleanNPCL st.map.npc()
@@ -4477,7 +4476,7 @@ FUNCTION next_prev_layer_keys(st as MapEditState, Ctrl_L_message as bool = NO) a
    st.message_ticks = 15
   END IF
   FOR i as integer = st.layer + 1 TO UBOUND(st.map.tiles)
-   IF layerisenabled(st.map.gmap(), i) THEN
+   IF layerisenabled(st.map.gmap, i) THEN
     set_layer st, i
     RETURN YES
    END IF
@@ -4485,7 +4484,7 @@ FUNCTION next_prev_layer_keys(st as MapEditState, Ctrl_L_message as bool = NO) a
  END IF
  IF keyval(scPageDown) > 1 ORELSE (keyval(scCTRL) > 0 ANDALSO keyval(scComma) > 1) THEN
   FOR i as integer = st.layer - 1 TO 0 STEP -1
-   IF layerisenabled(st.map.gmap(), i) THEN
+   IF layerisenabled(st.map.gmap, i) THEN
     set_layer st, i
     RETURN YES
    END IF
@@ -4721,14 +4720,14 @@ SUB mapedit_export_tilemap_image(st as MapEditState)
  REDIM menu_choices(0) as string
  menu_choices(0) = "Cancel"
  FOR layer as integer = 0 TO UBOUND(st.map.tiles)
-  a_append menu_choices(), "Export map layer " & layer & " " & read_map_layer_name(st.map.gmap(), layer)
+  a_append menu_choices(), "Export map layer " & layer & " " & read_map_layer_name(st.map.gmap, layer)
  NEXT
  DIM choice as integer
  choice = multichoice(menu_caption, menu_choices(), 1, 0)
  IF choice = 0 THEN EXIT SUB
  DIM outfile as string
  DIM defaultname as string
- defaultname = game_fname & " map " & st.map.id & " layer " & (choice - 1) & " " & read_map_layer_name(st.map.gmap(), choice - 1)
+ defaultname = game_fname & " map " & st.map.id & " layer " & (choice - 1) & " " & read_map_layer_name(st.map.gmap, choice - 1)
  defaultname = TRIM(defaultname)  'If no layer name
  DIM extension as string = "." & pick_graphics_export_format()
  outfile = inputfilename("Export tilemap to which file?", extension, "", "input_file_export_tilemap_image", defaultname)
@@ -4756,16 +4755,16 @@ SUB mapedit_export_map_image(st as MapEditState)
  animatetilesets st.tilesets()
 
  FOR layer as integer = 0 TO UBOUND(st.map.tiles)
-  IF LayerIsEnabled(st.map.gmap(), layer) THEN
+  IF LayerIsEnabled(st.map.gmap, layer) THEN
    drawmap st.map.tiles(layer), 0, 0, st.tilesets(layer), page, _
            layer > 0, IIF(layer > 0, 0, 1), @st.map.pass
   END IF
   'Draw NPCs?
-  IF layer = bound(st.map.gmap(31) - 1, 0, UBOUND(st.map.tiles)) THEN
+  IF layer = bound(st.map.gmap.walkabout_layer - 1, 0, UBOUND(st.map.tiles)) THEN
    IF npc_choice < 2 THEN mapedit_draw_npcs st, YES, (npc_choice = 1), page
   END IF
  NEXT
- IF LayerIsEnabled(st.map.gmap(), 0) THEN
+ IF LayerIsEnabled(st.map.gmap, 0) THEN
    drawmap st.map.tiles(0), 0, 0, st.tilesets(0), page, _
            NO, 2, @st.map.pass
  END IF
@@ -5068,13 +5067,13 @@ SUB DrawDoorPreview(map as MapData, tilesets() as TilesetData ptr, doornum as in
   DIM viewport_center as XYPair = door_mappos + tilesize \ 2
   viewport.topleft = camera_position_centered_on(viewport_center, viewport.size, map)
 
-  set_map_edge_draw_mode map.gmap()
+  set_map_edge_draw_mode map.gmap
   FOR i as integer = 0 TO UBOUND(map.tiles)
-   IF LayerIsEnabled(map.gmap(), i) THEN
+   IF LayerIsEnabled(map.gmap, i) THEN
     drawmap map.tiles(i), viewport.x, viewport.y, tilesets(i), page, i <> 0, , , starty, viewport.high
    END IF
   NEXT i
-  IF LayerIsEnabled(map.gmap(), 0) THEN
+  IF LayerIsEnabled(map.gmap, 0) THEN
    drawmap map.tiles(0), viewport.x, viewport.y, tilesets(0), page, 0, 2, @map.pass, starty, viewport.high
   END IF
   ' Position of the door on the screen
@@ -5113,7 +5112,7 @@ SUB DrawDoorPair(st as MapEditState, linknum as integer, page as integer)
   deserdoors game + ".dox", destmap.door(), destmap.id
   LoadTilemaps destmap.tiles(), maplumpname(destmap.id, "t")
   LoadTilemap destmap.pass, maplumpname(destmap.id, "p")
-  loadmaptilesets dest_tilesets(), destmap.gmap()
+  loadmaptilesets dest_tilesets(), destmap.gmap
   destmap.wide = destmap.pass.wide
   destmap.high = destmap.pass.high
 
@@ -6097,7 +6096,7 @@ FUNCTION create_changelist(st as MapEditState, rect as RectType) as MapEditUndoT
    IF NOT in_bound(y, 0, st.map.high - 1) THEN CONTINUE FOR
 
    FOR layer as integer = 0 TO UBOUND(st.map.tiles)
-    IF LayerIsEnabled(st.map.gmap(), layer) AND LayerIsVisible(st.visible(), layer) THEN
+    IF LayerIsEnabled(st.map.gmap, layer) AND LayerIsVisible(st.visible(), layer) THEN
      IF readblock(st.map.tiles(layer), x, y) THEN
       add_change_step changelist, xoff, yoff, readblock(st.map.tiles(layer), x, y), mapIDLayer + layer
      END IF
@@ -6145,7 +6144,7 @@ SUB apply_changelist(st as MapEditState, byref changelist as MapEditUndoTile vec
     'Clear visible tiles, walls, foemap, zones,
     'but not doors or NPCs
     FOR layer as integer = 0 TO UBOUND(st.map.tiles)
-     IF LayerIsEnabled(st.map.gmap(), layer) AND LayerIsVisible(st.visible(), layer) THEN
+     IF LayerIsEnabled(st.map.gmap, layer) AND LayerIsVisible(st.visible(), layer) THEN
       tilebrush st, x, y, 0, layer
      END IF
     NEXT
@@ -6318,7 +6317,7 @@ END SUB
 FUNCTION camera_position_centered_on(viewport_center as XYPair, viewport_size as XYPair, map as MapData) as XYPair
  DIM center as XYPair = viewport_center
 
- SELECT CASE map.gmap(5)
+ SELECT CASE map.gmap.edge_mode
   CASE mapEdgeWrap
    'Easy: no clipping required
   CASE mapEdgeCrop, mapEdgeDefaultTile
@@ -6327,13 +6326,13 @@ FUNCTION camera_position_centered_on(viewport_center as XYPair, viewport_size as
    'does not move in that dimension, remaining centered
    IF viewport_size.w > mapsize.w THEN
     center.x = mapsize.w \ 2
-   ELSEIF map.gmap(5) = mapEdgeCrop THEN
+   ELSEIF map.gmap.edge_mode = mapEdgeCrop THEN
     'Clamp the rect to the map
     center.x = bound(center.x, viewport_size.w \ 2, mapsize.w - viewport_size.w \ 2)
    END IF
    IF viewport_size.h > mapsize.h THEN
     center.y = mapsize.h \ 2
-   ELSEIF map.gmap(5) = mapEdgeCrop THEN
+   ELSEIF map.gmap.edge_mode = mapEdgeCrop THEN
     center.y = bound(center.y, viewport_size.h \ 2, mapsize.h - viewport_size.h \ 2)
    END IF
  END SELECT
@@ -6407,7 +6406,7 @@ FUNCTION npcdef_by_pool(st as MapEditState, byval pool_id as integer, byval id a
  RETURN st.map.npc_def(0)  'Have to return something to avoid a null ptr deref
 END FUNCTION
 
-SUB update_edit_npc (npcdata as NPCType, ed as NPCEditState, gmap() as integer, zmap as ZoneMap)
+SUB update_edit_npc (npcdata as NPCType, ed as NPCEditState, map as GenMapData)
  v_new ed.menu
 
  ed.menu_append -1, "Previous Menu"
@@ -6421,7 +6420,7 @@ SUB update_edit_npc (npcdata as NPCType, ed as NPCEditState, gmap() as integer, 
   DIM obs_caption as string
   SELECT CASE npcdata.pathfinding_obstruction_mode
    CASE 0: obs_caption = "Default for the map"
-    SELECT CASE gmap(378)
+    SELECT CASE map.gmap.pathfinding_obstruction_mode
      CASE 0, 1: obs_caption &= " (NPCs Obstruct)"
      CASE 2: obs_caption &= " (Ignore NPCs)"
     END SELECT
@@ -6431,8 +6430,8 @@ SUB update_edit_npc (npcdata as NPCType, ed as NPCEditState, gmap() as integer, 
   ed.menu_append 18, " Pathfinding rule: " & obs_caption
  END IF
  ed.menu_append  3, "Move Speed " & npcdata.speed
- ed.menu_append 15, "Movement Zone:" & editnpc_zone_caption(npcdata.defaultzone, gmap(32), zmap)
- ed.menu_append 16, "Avoidance Zone:" & editnpc_zone_caption(npcdata.defaultwallzone, gmap(33), zmap)
+ ed.menu_append 15, "Movement Zone:" & editnpc_zone_caption(npcdata.defaultzone, map.gmap.default_npc_move_zone, map.zmap)
+ ed.menu_append 16, "Avoidance Zone:" & editnpc_zone_caption(npcdata.defaultwallzone, map.gmap.default_npc_avoid_zone, map.zmap)
  ed.menu_append 17, "Ignore Passmap: " & yesorno(npcdata.ignore_passmap)
  ed.menu_append  7, "Pushability " & safe_caption(npc_pushtypes(), npcdata.pushtype, "pushtype")
 
@@ -6461,7 +6460,7 @@ END SUB
 
 ' Editor for a single NPC definition
 ' npcdata is modified but not saved to file.
-SUB edit_npc (npcdata as NPCType, gmap() as integer, zmap as ZoneMap)
+SUB edit_npc (npcdata as NPCType, map as MapData)
  DIM ed as NPCEditState
  DIM menu_display as BasicMenuItem vector
 
@@ -6486,7 +6485,7 @@ SUB edit_npc (npcdata as NPCType, gmap() as integer, zmap as ZoneMap)
  ed.scrname = scriptname(npcdata.script)
  ed.vehiclename = load_vehicle_name(npcdata.vehicle - 1)
 
- update_edit_npc npcdata, ed, gmap(), zmap
+ update_edit_npc npcdata, ed, map
 
  STATIC remember_itemid as integer = -1  'Previously selected menu item (default to 'Previous Menu')
  FOR pt as integer = 0 TO v_len(ed.menu) - 1
@@ -6597,7 +6596,7 @@ SUB edit_npc (npcdata as NPCType, gmap() as integer, zmap as ZoneMap)
     IF enter_space_click(ed.state) THEN EXIT DO
   END SELECT
 
-  update_edit_npc npcdata, ed, gmap(), zmap
+  update_edit_npc npcdata, ed, map
 
   IF select_by_typing(selectst, NO) THEN
    select_on_word_boundary cast(BasicMenuItem vector, ed.menu), selectst, ed.state
@@ -6644,7 +6643,7 @@ SUB mapedit_edit_npcdef (st as MapEditState, npcdata as NPCType, pool_id as inte
  'one-time-use tag searching. Global NPCs are always already saved.
  SaveNPCD maplumpname(st.map.id, "n"), st.map.npc_def()
 
- edit_npc npcdata, st.map.gmap(), st.map.zmap
+ edit_npc npcdata, st.map
 
  'Global NPCs must be saved after editing. The map editor doesn't do so when quitting.
  'Local NPCs don't need to be (it's preferable not to save NPCs separately from other map data)
@@ -6663,7 +6662,7 @@ END SUB
 SUB mapedit_edit_npcdef (map as MapData, npc_def() as NPCType, npcdef_filename as string, npc_img() as GraphicPair, npcdata as NPCType)
  'First save NPCs so that we can correctly search for unused one-time use tags (see onetimetog)
  SaveNPCD npcdef_filename, npc_def()
- edit_npc npcdata, map.gmap(), map.zmap
+ edit_npc npcdata, map
  load_npc_graphics npc_def(), npc_img()
 END SUB
 

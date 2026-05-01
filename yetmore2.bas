@@ -672,9 +672,9 @@ SUB reloadmap_gmap_no_tilesets()
  'Delete saved gmap state to prevent regressions
  safekill mapstatetemp(gam.map.id, "map") + "_map.tmp" 
 
- IF gmap(1) > 0 THEN
-  wrappedsong gmap(1) - 1
- ELSEIF gmap(1) = 0 THEN
+ IF gmap.ambient_music > 0 THEN
+  wrappedsong gmap.ambient_music - 1
+ ELSEIF gmap.ambient_music = 0 THEN
   stopsong
  END IF
 END SUB
@@ -752,7 +752,7 @@ SUB reloadmap_tilemap_and_tilesets(merge as bool)
   'layer visibility (gmap(19)) and position of walkabout layer (gmap(31))
   update_map_slices_for_new_tilemap
 
-  loadmaptilesets tilesets(), gmap()
+  loadmaptilesets tilesets(), gmap
   refresh_map_slice_tilesets
  END IF
 END SUB
@@ -829,7 +829,7 @@ SUB debug_npcs ()
     DIM npcinfo as string
     npcinfo = " " & i & ": ID=" & (ABS(.id) - 1) & IIF(.id < 0, " (hidden)", "") & " pos=" & .pos
     DIM where as XYPair
-    IF framewalkabout(npc(i).pos + XY(0, gmap(11)), where, mapsizetiles * 20, gmap(5), 0) THEN
+    IF framewalkabout(npc(i).pos + XY(0, gmap.foot_offset), where, mapsizetiles * 20, gmap.edge_mode, 0) THEN
      npcinfo &= " screenpos=" & where
     END IF
     debug npcinfo
@@ -953,7 +953,7 @@ SUB npc_debug_display (draw_walls as bool)
    IF .id <> 0 THEN
     DIM where as XYPair
     ' Use a margin of 20 pixels, for one extra tile
-    IF framewalkabout(npc(i).pos + XY(0, gmap(11)), where, mapsizetiles * 20, gmap(5), 20) THEN
+    IF framewalkabout(npc(i).pos + XY(0, gmap.foot_offset), where, mapsizetiles * 20, gmap.edge_mode, 20) THEN
      IF draw_walls THEN
       ' Draw the neighbouring obstructions for each NPC.
       ' Draw tile edges which the NPC can't pass
@@ -995,7 +995,7 @@ END SUB
 
 SUB drawants_for_tile(tile as XYPair, byval direction as DirNum)
  DIM where as XYPair
- IF framewalkabout(tile * 20, where, mapsizetiles * 20, gmap(5), 0) THEN
+ IF framewalkabout(tile * 20, where, mapsizetiles * 20, gmap.edge_mode, 0) THEN
   SELECT CASE direction
    CASE dirNorth: drawants vpages(dpage), where.x       , where.y       , 20, 1
    CASE dirEast:  drawants vpages(dpage), where.x + 20-1, where.y       , 1, 20
@@ -1169,7 +1169,7 @@ SUB limitcamera (byref x as integer, byref y as integer)
  ' The slice the map is drawn "onto"
  DIM mapview as Slice ptr
  mapview = SliceTable.Root
- IF gmap(5) = mapEdgeCrop THEN
+ IF gmap.edge_mode = mapEdgeCrop THEN
   ' When cropping the camera to the map, stop camera movements that attempt to go over the edge
   DIM oldmapx as integer = x
   DIM oldmapy as integer = y
@@ -1188,7 +1188,7 @@ SUB limitcamera (byref x as integer, byref y as integer)
    IF gen(genCameraMode) = pancam THEN gen(genCameraMode) = stopcam
   END IF
  END IF
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   ' Wrapping map. Wrap the camera according to the center, not the top-left
   x += mapview->Width \ 2
   y += mapview->Height \ 2
@@ -2056,7 +2056,7 @@ SUB try_to_reload_lumps_onmap ()
    handled = YES
 
   ELSEIF extn = "tap" THEN                                                '.TAP
-   reloadtileanimations tilesets(), gmap()
+   reloadtileanimations tilesets(), gmap
    handled = YES
 
   ELSEIF extn = "dt1" THEN                                                '.DT1

@@ -389,7 +389,7 @@ SUB trigger_onkeypress_script ()
  END IF
 
  IF doit THEN
-  DIM trigger as integer = trigger_or_default(gmap(15), gen(genDefOnKeypressScript))
+  DIM trigger as integer = trigger_or_default(gmap.on_keypress_script, gen(genDefOnKeypressScript))
   IF trigger THEN
    trigger_script trigger, 1, YES, "on-key", "", mainFibreGroup
   END IF
@@ -719,11 +719,11 @@ SUB script_commands(byval cmdid as integer)
    IF get_optional_arg(1, -1) < 0 THEN
     IF retvals(0) < 0 THEN
      'Reload all layers back to tilesets defined in gmap(), try to preserve animation states
-     loadmaptilesets tilesets(), gmap(), NO
+     loadmaptilesets tilesets(), gmap, NO
     ELSE
      'Change default tileset. Scan for layers set to use default.
      FOR i = 0 TO mapLayerMax
-      IF gmap(layer_tileset_index(i)) = 0 THEN loadtilesetdata tilesets(), i, retvals(0)
+      IF gmap.layers(i).tileset = 0 THEN loadtilesetdata tilesets(), i, retvals(0)
      NEXT
     END IF
    ELSEIF valid_map_layer(retvals(1), serrWarn) AND retvals(0) >= 0 THEN
@@ -742,15 +742,15 @@ SUB script_commands(byval cmdid as integer)
      'Does NOT reset changes made by "change tileset".
     ELSE
      'Change default tileset
-     gmap(0) = retvals(0)
+     gmap.default_tileset = retvals(0)
     END IF
    ELSEIF valid_map_layer(retvals(1), serrWarn) THEN
     'Change tileset for an individual layer (-1 changes it to default tilesets)
-    gmap(layer_tileset_index(retvals(1))) = large(0, retvals(0) + 1)
+    gmap.layers(retvals(1)).tileset = large(0, retvals(0) + 1)
    END IF
    lump_reloading.maptiles.dirty = YES  'Tilesets are treated as part of tilemap data, not gmap
    'load while trying to preserve animation states
-   loadmaptilesets tilesets(), gmap(), NO
+   loadmaptilesets tilesets(), gmap, NO
    refresh_map_slice_tilesets
   END IF
  CASE 151'--show mini map
@@ -1265,12 +1265,12 @@ SUB script_commands(byval cmdid as integer)
  CASE 178'--read gmap
   'Don't support reading most gmap indices
   IF allow_gmap_idx(retvals(0)) THEN
-   scriptret = gmap(retvals(0))
+   scriptret = gmap.getidx(retvals(0))
   END IF
  CASE 179'--write gmap
   'Don't support changing most gmap indices
   IF allow_gmap_idx(retvals(0)) THEN
-   gmap(retvals(0)) = retvals(1)
+   gmap.setidx retvals(0), retvals(1)
    IF retvals(0) = 2 OR retvals(0) = 3 THEN update_menu_items  'save and minimap menu options
    IF retvals(0) = 4 THEN gam.showtext_ticks = 0  'cancel map name display
    IF retvals(0) = 16 THEN refresh_walkabout_layer_sort()
@@ -5036,8 +5036,7 @@ SUB script_commands(byval cmdid as integer)
  CASE 723 '--last layer id
   scriptret = UBOUND(maptiles)
  CASE 724 '--layer id under walkabouts
-  'When gmap(31) = 0 then it defaults to 2, but that is enforced at loading time in gmap_updates()
-  scriptret = bound(gmap(31) - 1, 0, UBOUND(maptiles))
+  scriptret = bound(gmap.walkabout_layer - 1, 0, UBOUND(maptiles))
  CASE 725 '--get global sound volume
   scriptret = get_global_sfx_volume * 255
  CASE 726 '--set global sound volume (volume)
@@ -5572,7 +5571,7 @@ SUB script_commands(byval cmdid as integer)
  CASE 820'--get layer name (string id, layer id)
   IF valid_plotstr(retvals(0), serrBadOp) THEN
    IF valid_map_layer(retvals(1), serrIgnore) THEN
-    plotstr(retvals(0)).s = read_map_layer_name(gmap(), retvals(1))
+    plotstr(retvals(0)).s = read_map_layer_name(gmap, retvals(1))
    ELSE
     plotstr(retvals(0)).s = ""
    END IF
@@ -5582,7 +5581,7 @@ SUB script_commands(byval cmdid as integer)
   IF valid_plotstr(retvals(0), serrBadOp) THEN
    scriptret = -1
    FOR i as integer = 0 to UBOUND(maptiles)
-    IF plotstr(retvals(0)).s = read_map_layer_name(gmap(), i) THEN
+    IF plotstr(retvals(0)).s = read_map_layer_name(gmap, i) THEN
      scriptret = i
      EXIT FOR
     END IF
@@ -5596,7 +5595,7 @@ SUB script_commands(byval cmdid as integer)
   IF valid_plotstr(retvals(0), serrBadOp) THEN
    scriptret = 0
    FOR i as integer = 0 to UBOUND(maptiles)
-    IF plotstr(retvals(0)).s = read_map_layer_name(gmap(), i) THEN
+    IF plotstr(retvals(0)).s = read_map_layer_name(gmap, i) THEN
      scriptret = find_plotslice_handle(SliceTable.MapLayer(i))
      EXIT FOR
     END IF

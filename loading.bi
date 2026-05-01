@@ -43,7 +43,7 @@ declare function GetNPCD(npcdata as NPCType, intoffset as integer) as integer
 'Sprites are not loaded by these functions; can use CleanNPCInst to free them if you load them
 declare sub LoadNPCL(file as string, dat() as npcinst)
 declare sub SaveNPCL(file as string, dat() as npcinst)
-declare sub DeserNPCL(npc() as npcinst, byref z as integer, buffer() as integer, byval num as integer, byval xoffset as integer, byval yoffset as integer)
+declare sub DeserNPCL(npc() as npcinst, byref z as integer, buffer() as integer, byval num as integer, byval offset as XYPair)
 declare sub CleanNPCInst(inst as NPCInst)
 declare sub CleanNPCL(dat() as npcinst)
 

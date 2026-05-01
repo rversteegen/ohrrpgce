@@ -153,16 +153,16 @@ DECLARE FUNCTION createminimap OVERLOAD (layer as TileMap, tileset as TilesetDat
 
 DECLARE SUB animatetilesets (tilesets() as TilesetData ptr)
 DECLARE SUB animatetileset (tileset as TilesetData)
-DECLARE SUB reloadtileanimations (tilesets() as TilesetData ptr, gmap() as integer)
+DECLARE SUB reloadtileanimations (tilesets() as TilesetData ptr, gmap as GenMapData)
 DECLARE SUB reset_tile_anims (tileset as TilesetData)
 
 DECLARE SUB loadtilesetdata (tilesets() as TilesetData ptr, byval layer as integer, byval tilesetnum as integer)
 DECLARE SUB unloadtilesetdata (byref tileset as TilesetData ptr)
 DECLARE FUNCTION layer_tileset_index(byval layer as integer) as integer
 DECLARE FUNCTION gmap_index_affects_tiles(byval index as integer) as bool
-DECLARE SUB loadmaptilesets (tilesets() as TilesetData ptr, gmap() as integer, resetanimations as bool = YES)
+DECLARE SUB loadmaptilesets (tilesets() as TilesetData ptr, gmap as GenMapData, resetanimations as bool = YES)
 DECLARE SUB unloadmaptilesets (tilesets() as TilesetData ptr)
-DECLARE SUB set_map_edge_draw_mode(gmap() as integer, wrap_layers_over_edge_of_crop_maps as bool = NO)
+DECLARE SUB set_map_edge_draw_mode(gmap as GenMapData, wrap_layers_over_edge_of_crop_maps as bool = NO)
 
 DECLARE FUNCTION finddatafile(filename as string, error_if_missing as bool = YES) as string
 DECLARE FUNCTION finddatadir(dirname as string, error_if_missing as bool = YES) as string

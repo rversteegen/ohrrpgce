@@ -380,14 +380,14 @@ END SUB
 
 'Legacy (used in .SAV); not kept up to date with changes to NPCInst
 'num is always 300.
-SUB DeserNPCL(npc() as NPCInst, byref z as integer, buffer() as integer, byval num as integer, byval xoffset as integer, byval yoffset as integer)
+SUB DeserNPCL(npc() as NPCInst, byref z as integer, buffer() as integer, byval num as integer, byval offset as XYPair)
   DIM i as NPCIndex
   CleanNPCL npc()
   FOR i = 0 to num - 1
-    npc(i).x = buffer(z) + xoffset: z = z + 1
+    npc(i).x = buffer(z) + offset.x: z = z + 1
   NEXT
   FOR i = 0 to num - 1
-    npc(i).y = buffer(z) + yoffset: z = z + 1
+    npc(i).y = buffer(z) + offset.y: z = z + 1
   NEXT
   FOR i = 0 to num - 1
     npc(i).id = buffer(z): z = z + 1
@@ -635,7 +635,6 @@ END SUB
 
 
 CONSTRUCTOR MapData()
-  REDIM gmap(dimbinsize(binMAP))
   id = -1
 END CONSTRUCTOR
 

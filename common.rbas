@@ -7024,24 +7024,27 @@ FUNCTION gmap_index_affects_tiles(byval index as integer) as bool
 END FUNCTION
 
 'Tileset ID for a map layer.
-FUNCTION get_layer_tileset(layer as integer, gmap() as integer) as integer
- DIM as integer index = layer_tileset_index(layer)
- DIM as integer tileset = gmap(index)
+FUNCTION get_layer_tileset(byref gmap as GenMapData, layer as integer) as integer
+ IF layer > UBOUND(gmap.layers) THEN
+  'Possibly reloading a map and the number of layers changed?
+  RETURN gmap.default_tileset
+ END IF
+ DIM as integer tileset = gmap.layers(layer).tileset
  IF tileset > 0 THEN
   tileset -= 1
  ELSEIF tileset = 0 THEN
-  tileset = gmap(0)
+  tileset = gmap.default_tileset
  END IF
  IF tileset < 0 THEN
   showerror "Map corruption: a layer tileset set to " & tileset
-  gmap(index) = 0  'It was either already 0, or invalid
-  IF gmap(0) < 0 THEN gmap(0) = 0
+  gmap.layers(layer).tileset = 0  'It was either already 0, or invalid
+  IF gmap.default_tileset < 0 THEN gmap.default_tileset = 0
   tileset = 0
  END IF
  RETURN tileset
 END FUNCTION
 
-SUB loadmaptilesets (tilesets() as TilesetData ptr, gmap() as integer, resetanimations as bool = YES)
+SUB loadmaptilesets (tilesets() as TilesetData ptr, byref gmap as GenMapData, resetanimations as bool = YES)
 'tilesets() may contain already loaded tilesets. In this case, we can reuse them
 '(Actually, whether they get reused, and therefore whether the animation state is preserved, depends on
 'their order -- eww. But noone will ever notice)
@@ -7050,17 +7053,17 @@ SUB loadmaptilesets (tilesets() as TilesetData ptr, gmap() as integer, resetanim
  DIM tileset as integer
 
  FOR i as integer = 0 TO UBOUND(tilesets)
-  tileset = get_layer_tileset(i, gmap())
+  tileset = get_layer_tileset(gmap, i)
   loadtilesetdata tilesets(), i, tileset
   IF resetanimations THEN reset_tile_anims *tilesets(i)
  NEXT
 END SUB
 
-SUB reloadtileanimations (tilesets() as TilesetData ptr, gmap() as integer)
+SUB reloadtileanimations (tilesets() as TilesetData ptr, byref gmap as GenMapData)
  DIM tileset as integer
 
  FOR i as integer = 0 TO UBOUND(tilesets)
-  tileset = get_layer_tileset(i, gmap())
+  tileset = get_layer_tileset(gmap, i)
   load_tile_anims tileset, tilesets(i)->tanim()
   reset_tile_anims *tilesets(i)
  NEXT
@@ -7072,19 +7075,19 @@ SUB unloadmaptilesets (tilesets() as TilesetData ptr)
  NEXT
 END SUB
 
-SUB set_map_edge_draw_mode(gmap() as integer, wrap_layers_over_edge_of_crop_maps as bool = NO)
- SELECT CASE gmap(5)
+SUB set_map_edge_draw_mode(gmap as GenMapData, wrap_layers_over_edge_of_crop_maps as bool = NO)
+ SELECT CASE gmap.edge_mode
   CASE mapEdgeCrop
    IF wrap_layers_over_edge_of_crop_maps THEN
     setoutside -1
    ELSE
     'We set an edge tile on crop maps in case the map is smaller than the screen
-    setoutside gmap(6)
+    setoutside gmap.default_edge_tile
    END IF
   CASE mapEdgeWrap
    setoutside -1
   CASE mapEdgeDefaultTile
-   setoutside gmap(6)
+   setoutside gmap.default_edge_tile
  END SELECT
 END SUB
 

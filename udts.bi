@@ -658,7 +658,7 @@ TYPE MapData
   pass as TileMap
   foemap as TileMap
   zmap as ZoneMap
-  gmap(any) as integer
+  gmap as GenMapData
   door(maxDoorsPerMap) as Door
   doorlink(199) as DoorLink
   npc_def(any) as NPCType

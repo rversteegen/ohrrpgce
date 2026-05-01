@@ -1039,18 +1039,20 @@ SUB visit_scripts(byval visitor as FnScriptVisitor)
  NEXT i
  
  '--Map scripts and NPC scripts
- DIM gmaptmp(dimbinsize(binMAP)) as integer
+ DIM gmaptmp as GenMapData
  REDIM npctmp(0) as NPCType
  FOR i = 0 TO gen(genMaxMap)
   resave = NO
   loadrecord gmaptmp(), game & ".map", getbinsize(binMAP) \ 2, i
-  resave OR= visitor(gmaptmp(7), "map " & i & " autorun", "")
-  resave OR= visitor(gmaptmp(12), "map " & i & " after-battle", "")
-  resave OR= visitor(gmaptmp(13), "map " & i & " instead-of-battle", "")
-  resave OR= visitor(gmaptmp(14), "map " & i & " each-step", "")
-  resave OR= visitor(gmaptmp(15), "map " & i & " on-keypress", "")
+  'LoadGenMapData gmaptmp, game & ".map", i
+  resave OR= visitor(gmaptmp.autorun_script, "map " & i & " autorun", "")
+  resave OR= visitor(gmaptmp.after_battle_script, "map " & i & " after-battle", "")
+  resave OR= visitor(gmaptmp.instead_of_battle_script, "map " & i & " instead-of-battle", "")
+  resave OR= visitor(gmaptmp.each_step_script, "map " & i & " each-step", "")
+  resave OR= visitor(gmaptmp.on_keypress_script, "map " & i & " on-keypress", "")
   IF resave THEN
    storerecord gmaptmp(), game & ".map", getbinsize(binMAP) \ 2, i
+   'SaveGenMapData gmaptmp, game & ".map", i
   END IF
   'loop through NPC's
   LoadNPCD maplumpname(i, "n"), npctmp()

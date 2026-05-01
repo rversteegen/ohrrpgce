@@ -100,7 +100,7 @@ SUB create_walkabout_shadow (byval walkabout_cont as Slice Ptr)
   .AlignHoriz = alignCenter
   .AnchorVert = alignBottom
   .AlignVert = alignBottom
-  .Y = gmap(11) 'foot offset
+  .Y = gmap.foot_offset 'foot offset
   .Visible = NO
  END WITH
  ChangeEllipseSlice shadow, uilook(uiShadow), uilook(uiShadow)
@@ -186,13 +186,13 @@ SUB update_walkabout_pos (byval walkabout_cont as slice ptr, byval x as integer,
 
  DIM where as XYPair
  'Note that it's the sprite component, not the container slice, that's offset by foot offset
- framewalkabout XY(x, y), where, mapsizetiles * 20, gmap(5)
+ framewalkabout XY(x, y), where, mapsizetiles * 20, gmap.edge_mode
  walkabout_cont->Pos = where + XY(mapx, mapy)
 
  DIM sprsl as Slice Ptr
  sprsl = LookupSlice(SL_WALKABOUT_SPRITE_COMPONENT, walkabout_cont)
  BUG_IF(sprsl = NULL, "missing sprite component")
- sprsl->Y = gmap(11) - z
+ sprsl->Y = gmap.foot_offset - z
 END SUB
 
 
@@ -425,23 +425,23 @@ FUNCTION hero_layer(party_slot as integer) as Slice Ptr
  ' ELSEIF party_slot_to_rank(party_slot) > 0 ANDALSO caterpillar_enabled() = NO THEN
  '  '--Only the leader appears on the map, other heroes vanish
  '  layer = SliceTable.Reserve
- ELSEIF gmap(16) = 2 THEN ' heroes and NPCs together
+ ELSEIF gmap.hero_npc_draw_order = 2 THEN ' heroes and NPCs together
   layer = SliceTable.Walkabout
  ELSE ' heroes and NPCs on separate layers
   layer = SliceTable.HeroLayer
  END IF
- BUG_IF(layer = NULL, "NULL layer; gmap(16)=" & gmap(16), 0)
+ BUG_IF(layer = NULL, "NULL layer; hero_npc_draw_order=" & gmap.hero_npc_draw_order, 0)
  RETURN layer
 END FUNCTION
 
 FUNCTION npc_layer() as Slice Ptr
  DIM layer as Slice Ptr
- IF gmap(16) = 2 THEN ' heroes and NPCs together
+ IF gmap.hero_npc_draw_order = 2 THEN ' heroes and NPCs together
   layer = SliceTable.Walkabout
  ELSE ' heroes and NPCs on separate layers
   layer = SliceTable.NPCLayer
  END IF
- BUG_IF(layer = NULL, "NULL layer; gmap(16)=" & gmap(16), 0)
+ BUG_IF(layer = NULL, "NULL layer; hero_npc_draw_order=" & gmap.hero_npc_draw_order, 0)
  RETURN layer
 END FUNCTION
 
@@ -476,7 +476,7 @@ END SUB
 SUB refresh_walkabout_layer_sort()
  orphan_hero_slices
  orphan_npc_slices
- IF gmap(16) = 2 THEN ' Heroes and NPCs Together
+ IF gmap.hero_npc_draw_order = 2 THEN ' Heroes and NPCs Together
   DeleteSlice @SliceTable.HeroLayer
   DeleteSlice @SliceTable.NPCLayer
   SliceTable.Walkabout->AutoSort = slAutoSortY
@@ -496,7 +496,7 @@ SUB refresh_walkabout_layer_sort()
    SliceTable.NPCLayer->Protect = YES
    SliceTable.NPCLayer->AutoSort = slAutoSortCustom
   END IF
-  IF gmap(16) = 1 THEN
+  IF gmap.hero_npc_draw_order = 1 THEN
    SliceTable.HeroLayer->Sorter = 0
    SliceTable.NPCLayer->Sorter = 1
   ELSE
@@ -564,7 +564,7 @@ END SUB
 SUB wrapaheadxy (byref x as integer, byref y as integer, byval direction as DirNum, byval distance as integer, byval unitsize as integer)
  aheadxy x, y, direction, distance
  
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   wrapxy x, y, unitsize
  END IF
 END SUB
@@ -574,13 +574,13 @@ END SUB
 SUB wrapaheadxy (byref p as XYPair, byval direction as DirNum, byval distance as integer, byval unitsize as integer)
  aheadxy p, direction, distance
  
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   wrapxy p, unitsize
  END IF
 END SUB
 
 SUB cropposition (byref x as integer, byref y as integer, byval unitsize as integer)
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   wrapxy x, y, unitsize
  ELSE
   x = bound(x, 0, (mapsizetiles.x - 1) * unitsize)
@@ -591,7 +591,7 @@ END SUB
 FUNCTION cropmovement (byref pos as XYPair, byref xygo as XYPair) as bool
  'crops movement at edge of map, or wraps
  'returns true if ran into wall at edge (and sets xgo OR ygo to 0)
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   '--wrap walking
   wrapxy pos, 20
   RETURN NO
@@ -619,7 +619,7 @@ FUNCTION check_wall_edges(tilex as integer, tiley as integer, direction as DirNu
 
  'debug "check_wall_edges(" & tilex & "," & tiley & ", dir=" & direction & ", isveh=" & isveh & ", walls_over_edges=" & walls_over_edges & ", ignore_passmap=" & ignore_passmap & ")"
 
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   wrapxy tilex, tiley
  END IF
  IF ignore_passmap THEN    ' Check only for the map edge
@@ -863,7 +863,7 @@ FUNCTION wrapcollision (byval posa as XYPair, byval xygoa as XYPair, byval posb 
  dest1.y = (posa.y - bound(xygoa.y, -20, 20)) \ 20
  dest2.y = (posb.y - bound(xygob.y, -20, 20)) \ 20
 
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   RETURN (dest1 - dest2) MOD mapsizetiles = 0
  ELSE
   RETURN dest1 = dest2
@@ -872,7 +872,7 @@ END FUNCTION
 
 FUNCTION wraptouch (byval pos1 as XYPair, byval pos2 as XYPair, byval distance as integer) as bool
  'whether 2 walkabouts are within distance pixels horizontally + vertically
- IF gmap(5) = mapEdgeWrap THEN
+ IF gmap.edge_mode = mapEdgeWrap THEN
   IF ABS((pos1 - pos2) MOD (mapsizetiles * 20 - distance)) <= distance THEN RETURN YES
  ELSE
   IF ABS(pos1 - pos2) <= 20 THEN RETURN YES
@@ -921,7 +921,7 @@ FUNCTION xypair_direction_to (src_v as XYPair, dest_v as XYPair, default as DirN
  IF ABS(diff.x) = ABS(diff.y) THEN RETURN default 'Make no attempt to resolve diagonals
  IF ABS(diff.x) > ABS(diff.y) THEN
   'Horizontal
-  IF gmap(5) = mapEdgeWrap ANDALSO ABS(diff.x) > mapsizetiles.x / 2 THEN
+  IF gmap.edge_mode = mapEdgeWrap ANDALSO ABS(diff.x) > mapsizetiles.x / 2 THEN
    'Wraparound map
    IF diff.x < 0 THEN RETURN dirRight
    RETURN 3
@@ -930,7 +930,7 @@ FUNCTION xypair_direction_to (src_v as XYPair, dest_v as XYPair, default as DirN
   RETURN 1
  ELSE
   'Vertical
-  IF gmap(5) = mapEdgeWrap ANDALSO ABS(diff.y) > mapsizetiles.y / 2 THEN
+  IF gmap.edge_mode = mapEdgeWrap ANDALSO ABS(diff.y) > mapsizetiles.y / 2 THEN
    'Wraparound map
    IF diff.y < 0 THEN RETURN dirDown
    RETURN 0
@@ -1086,7 +1086,7 @@ LOCAL SUB vehicle_button_action(action as integer)
   CASE -2
    '-disabled
   CASE -1
-   IF gmap(379) <= 0 THEN 'Main menu available
+   IF gmap.menu_disabled = NO THEN
     add_menu 0
     menusound gen(genAcceptSFX)
    END IF
@@ -1276,7 +1276,7 @@ LOCAL FUNCTION vehscramble(byval target as XYPair) as bool
   IF ABS(target.y - scramy) > 0 AND herow(i).ygo = 0 THEN
    herow(i).ygo = 20 * SGN(scramy - target.y)
   END IF
-  IF gmap(5) = mapEdgeWrap THEN
+  IF gmap.edge_mode = mapEdgeWrap THEN
    '--this is a wrapping map
    IF ABS(scramx - target.x) > mapsizetiles.x * 20 / 2 THEN herow(i).xgo *= -1
    IF ABS(scramy - target.y) > mapsizetiles.y * 20 / 2 THEN herow(i).ygo *= -1
@@ -1364,7 +1364,7 @@ FUNCTION npc_at_pixel(pixelpos as XYPair, byval copynum as integer=0, allow_disa
  FOR i as integer = 0 TO UBOUND(npc)
   IF npc(i).id > 0 OR (allow_disabled ANDALSO npc(i).id <> 0) THEN
    DIM size as XYPair = (20, 20)
-   DIM diff as XYPair = pixelpos - XY(npc(i).x, npc(i).y + gmap(11))
+   DIM diff as XYPair = pixelpos - XY(npc(i).x, npc(i).y + gmap.foot_offset)
    IF diff.x >= 0 AND diff.x < size.w THEN
     IF diff.y >= 0 AND diff.y < size.h THEN
      IF found = copynum THEN
@@ -1387,7 +1387,7 @@ FUNCTION hero_at_pixel(pixelpos as XYPair) as integer
  'Returns -1 if not found
  FOR i as integer = 0 TO 3
   DIM size as XYPair = (20, 20)
-  DIM diff as XYPair = pixelpos - (heropos(i) + XY(0, gmap(11)))
+  DIM diff as XYPair = pixelpos - (heropos(i) + XY(0, gmap.foot_offset))
   IF diff.x >= 0 AND diff.x < size.w THEN
    IF diff.y >= 0 AND diff.y < size.h THEN
     RETURN i

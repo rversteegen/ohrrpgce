@@ -124,7 +124,7 @@ DIM mapy as integer
 DIM mapsizetiles as XYPair  'Size of the map in tiles
 
 'Map
-REDIM gmap(0) as integer  'sized later
+DIM gmap as GenMapData
 REDIM maptiles(0) as TileMap
 DIM pass as TileMap
 DIM foemap as TileMap
@@ -630,8 +630,6 @@ rpg_post_upgrade_sanity_checks
 set_music_volume 0.01 * gen(genMusicVolume)
 set_global_sfx_volume 0.01 * gen(genSFXVolume)
 
-REDIM gmap(dimbinsize(binMAP)) 'this must be sized here, after the binsize file exists!
-
 'Unload any default graphics (from data/defaultgfx) that might have been cached, load palettes
 sprite_empty_cache
 palette16_reload_cache
@@ -849,7 +847,7 @@ DO
 
  'Main menu controls
  'NOTE: while on a vehicle, menu and use keys are handled in vehicle_controls()
- IF normal_controls_disabled() = NO ANDALSO gmap(379) <= 0 ANDALSO vstate.active = NO THEN  'gmap(379): menu available
+ IF normal_controls_disabled() = NO ANDALSO gmap.menu_disabled = NO ANDALSO vstate.active = NO THEN  'gmap(379): menu available
   'Menu key/click/joy button is enabled (provided you're stationary)
   update_hero_pathfinding_menu_queue()
   IF (user_triggered_main_menu() ORELSE gam.hero_pathing(0).queued_menu) ANDALSO herow(0).xygo = 0 THEN
@@ -1250,7 +1248,7 @@ SUB displayall()
  ' 
  ' Map layers edge handling.
  ' (backcompat bit: 'Wrap map layers over edge of Crop maps')
- set_map_edge_draw_mode gmap(), prefbit(37)
+ set_map_edge_draw_mode gmap, prefbit(37)
 
  IF readbit(gen(), genSuspendBits, suspendoverlay) THEN
   ChangeMapSlice SliceTable.MapLayer(0), , , , 0   'draw all
@@ -1272,7 +1270,7 @@ SUB displayall()
  animatetilesets tilesets()
 
  IF harmtileflash = YES THEN
-  rectangle 0, 0, rWidth, rHeight, gmap(10), dpage
+  rectangle 0, 0, rWidth, rHeight, gmap.harm_tile_flash, dpage
   harmtileflash = NO
  END IF
 
@@ -1472,7 +1470,7 @@ END SUB
 
 LOCAL SUB apply_harmtile_to(hero as HeroState)
  WITH hero.stat
-  .cur.hp = large(.cur.hp - gmap(9), 0)
+  .cur.hp = large(.cur.hp - gmap.harm_tile_damage, 0)
   ' If "!Negative-damage harmtiles can cure above max HP" is off
   IF prefbit(46) THEN .cur.hp = small(.cur.hp, .max.hp)
  END WITH
@@ -1544,8 +1542,8 @@ SUB update_heroes(force_step_check as bool=NO)
    'Check zones, only after NPC obstruction testing. So that you can push or touch-activate an NPC
    'across a zone-barrier, unlike walls.
    DIM pixelpos as XYPair = herotpos(whoi) * 20
-   DIM movezone as integer = gmap(380)
-   DIM avoidzone as integer = gmap(381)
+   DIM movezone as integer = gmap.hero_move_zone
+   DIM avoidzone as integer = gmap.hero_avoid_zone
    IF (movezone > 0 ANDALSO wrapzonecheck(movezone, pixelpos, herow(whoi).xygo) = 0) ORELSE _
       (avoidzone > 0 ANDALSO wrapzonecheck(avoidzone, pixelpos, herow(whoi).xygo)) THEN
     herow(whoi).xygo = 0
@@ -1656,7 +1654,7 @@ SUB update_heroes(force_step_check as bool=NO)
      apply_harmtile_to gam.hero(rank_to_party_slot(whoi))
     END IF
 
-    IF gmap(10) THEN
+    IF gmap.harm_tile_flash > 0 THEN
      harmtileflash = YES
     END IF
     checkfatal = YES
@@ -1715,7 +1713,7 @@ SUB update_heroes(force_step_check as bool=NO)
      IF gam.random_battle_countdown <= 0 THEN
       gam.random_battle_countdown = range(100, 60)
       DIM battle_formation as integer = random_formation(battle_formation_set)
-      DIM trigger as integer = trigger_or_default(gmap(13), gen(genDefInsteadOfBattleScript))
+      DIM trigger as integer = trigger_or_default(gmap.instead_of_battle_script, gen(genDefInsteadOfBattleScript))
       IF trigger = 0 THEN 'if no random battle script is defined
        IF battle_formation >= 0 THEN 'and if the randomly selected battle is valid
         'trigger a normal random battle
@@ -1736,7 +1734,7 @@ SUB update_heroes(force_step_check as bool=NO)
   END IF
 
   'Each step trigger
-  DIM trigger as integer = trigger_or_default(gmap(14), gen(genDefEachStepScript))
+  DIM trigger as integer = trigger_or_default(gmap.each_step_script, gen(genDefEachStepScript))
   IF trigger THEN
    trigger_script trigger, 3, YES, "eachstep", "map " & gam.map.id, mainFibreGroup
    trigger_script_arg 0, herotx(0), "tile x"
@@ -1888,7 +1886,7 @@ SUB npcmove_meandering_chase(npci as NPCInst, byval avoid_instead as bool = NO)
   'Vertical movement
   IF heroy(0) < npci.y THEN d = dirUp
   IF heroy(0) > npci.y THEN d = dirDown
-  IF gmap(5) = mapEdgeWrap THEN
+  IF gmap.edge_mode = mapEdgeWrap THEN
    'Special handling for wraparound maps
    IF heroy(0) - mapsizetiles.y * 10 > npci.y THEN d = dirUp
    IF heroy(0) + mapsizetiles.y * 10 < npci.y THEN d = dirDown
@@ -1898,7 +1896,7 @@ SUB npcmove_meandering_chase(npci as NPCInst, byval avoid_instead as bool = NO)
   'Horizontal movement
   IF herox(0) < npci.x THEN d = dirLeft
   IF herox(0) > npci.x THEN d = dirRight
-  IF gmap(5) = mapEdgeWrap THEN
+  IF gmap.edge_mode = mapEdgeWrap THEN
    'Special handling for wraparound maps
    IF herox(0) - mapsizetiles.x * 10 > npci.x THEN d = dirLeft
    IF herox(0) + mapsizetiles.x * 10 < npci.x THEN d = dirRight
@@ -2153,7 +2151,7 @@ FUNCTION npc_pathfinding_collision_rule(npci as NPCInst) as PathfindingObstructi
  DIM obs_mode as PathfindingObstructionMode
  obs_mode = npool(npci.pool).npcs(npci.id - 1).pathfinding_obstruction_mode
  'Check to see if we should use the map default
- IF obs_mode = obmodeDefault THEN obs_mode = gmap(378)
+ IF obs_mode = obmodeDefault THEN obs_mode = gmap.pathfinding_obstruction_mode
  'Check to see if we should use the global default
  IF obs_mode = obmodeDefault THEN obs_mode = obmodeNPCsObstruct
  RETURN obs_mode
@@ -2372,14 +2370,14 @@ FUNCTION npc_collision_check(npci as NPCInst, npcdata as NPCType, byval xgo as i
   DIM pixelpos as XYPair = tilepos * 20
   DIM zone as integer = npcdata.defaultzone
   '(In future, want to give NPC instances their own zones)
-  IF zone = 0 THEN zone = gmap(32)  'fallback to default
+  IF zone = 0 THEN zone = gmap.default_npc_move_zone  'fallback to default
   IF zone > 0 ANDALSO wrapzonecheck(zone, pixelpos, XY(xgo, ygo)) = 0 THEN
    collision_type = collideMoveZone
    RETURN YES
   END IF
   '--Check for avoidance zones (treat as walls)
   zone = npcdata.defaultwallzone
-  IF zone = 0 THEN zone = gmap(33)  'fallback to default
+  IF zone = 0 THEN zone = gmap.default_npc_avoid_zone  'fallback to default
   IF zone > 0 ANDALSO wrapzonecheck(zone, pixelpos, XY(xgo, ygo)) THEN
    collision_type = collideAvoidZone
    RETURN YES
@@ -2449,13 +2447,13 @@ FUNCTION hero_collision_check(byval rank as integer, byval xgo as integer, byval
   END IF
   '--Check for movement zones (treat the edges as walls)
   DIM pixelpos as XYPair = tilepos * 20
-  DIM zone as integer = gmap(380)
+  DIM zone as integer = gmap.hero_move_zone
   IF zone > 0 ANDALSO wrapzonecheck(zone, pixelpos, XY(xgo, ygo)) = 0 THEN
    collision_type = collideMoveZone
    RETURN YES
   END IF
   '--Check for avoidance zones (treat as walls)
-  zone = gmap(381)
+  zone = gmap.hero_avoid_zone
   IF zone > 0 ANDALSO wrapzonecheck(zone, pixelpos, XY(xgo, ygo)) THEN
    collision_type = collideAvoidZone
    RETURN YES
@@ -2664,10 +2662,10 @@ END SUB
 
 'Call after loading gmap()
 SUB gmap_updates
- IF gmap(31) = 0 THEN gmap(31) = 2  'Number of layers beneath walkabouts.
+ IF gmap.walkabout_layer = 0 THEN gmap.walkabout_layer = 2  'Number of layers beneath walkabouts.
  refresh_map_slice  'Because map layer and walkabout sorting may have changed.
 
- loadmaptilesets tilesets(), gmap()
+ loadmaptilesets tilesets(), gmap
  refresh_map_slice_tilesets
 END SUB
 
@@ -3339,12 +3337,12 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  'save data from old map
  IF gam.map.lastmap > -1 THEN
   'NPC Data: Remember state when leaving
-  IF gmap(17) = 1 THEN
+  IF gmap.npc_state_persistence = PersistMode.Remember THEN
    savemapstate_npcd gam.map.lastmap, "map"
    savemapstate_npcl gam.map.lastmap, "map"
   END IF
   'Tile Data: Remember state when leaving
-  IF gmap(18) = 1 THEN
+  IF gmap.tile_state_persistence = PersistMode.Remember THEN
    savemapstate_tilemap gam.map.lastmap, "map"
    savemapstate_passmap gam.map.lastmap, "map"
    savemapstate_zonemap gam.map.lastmap, "map"
@@ -3450,13 +3448,13 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  END IF
 
  IF afterbat = NO THEN
-  DIM trigger as integer = trigger_or_default(gmap(7), gen(genDefMapAutorunScript))
+  DIM trigger as integer = trigger_or_default(gmap.autorun_script, gen(genDefMapAutorunScript))
   IF trigger THEN
    trigger_script trigger, 1, YES, "map autorun", "map " & gam.map.id, mainFibreGroup
-   trigger_script_arg 0, gmap(8), "arg"
+   trigger_script_arg 0, gmap.autorun_argument, "arg"
   END IF
  ELSE
-  DIM trigger as integer = trigger_or_default(gmap(12), gen(genDefAfterBattleScript))
+  DIM trigger as integer = trigger_or_default(gmap.after_battle_script, gen(genDefAfterBattleScript))
   IF trigger THEN
    trigger_script trigger, 1, NO, "afterbattle", "", mainFibreGroup
    '--afterbattle script gets one arg telling if you won or ran
@@ -4162,7 +4160,7 @@ SUB refresh_map_slice()
  DIM num_layers_under_walkabouts as integer
  '--It's possible for gmap(31) to be larger than the number of map layers
  '--(can't enforce this at gmap load time, since map layers not loaded)
- num_layers_under_walkabouts = bound(gmap(31), 1, UBOUND(maptiles) + 1)
+ num_layers_under_walkabouts = bound(gmap.walkabout_layer, 1, UBOUND(maptiles) + 1)
  FOR i as integer = 0 TO UBOUND(maptiles)
   IF SliceTable.Maplayer(i) = 0 THEN
    showbug "Null map layer " & i & " when sorting in refresh_map_slice"
@@ -5343,7 +5341,7 @@ SUB user_trigger_hero_pathfinding()
    END IF
   END IF
  ELSE
-  clickpos.y -= gmap(11) 'adjust for foot-offset
+  clickpos.y -= gmap.foot_offset 'adjust for foot-offset
   DIM clicktile as XYPair = clickpos \ 20
   IF xypair_manhattan_distance(clicktile, herotpos(0)) = 1 THEN
    (herodir(0)) = xypair_direction_to(herotpos(0), clicktile)
@@ -5551,14 +5549,14 @@ SUB update_hero_pathfinding_display(byval tile as XYpair, byval rank as integer)
   IF gam.hero_pathing(rank).mode = HeroPathingMode.NPC THEN
    IF npc(gam.hero_pathing(rank).dest_npc).sl <> null THEN
     sl->X = npc(gam.hero_pathing(rank).dest_npc).x + 10
-    sl->Y = npc(gam.hero_pathing(rank).dest_npc).y + 10 + gmap(11) 'foot offset
+    sl->Y = npc(gam.hero_pathing(rank).dest_npc).y + 10 + gmap.foot_offset 'foot offset
     EXIT SUB
    END IF
   END IF
   DIM destpos as XYPair
-  framewalkabout tile * 20 + 10, destpos, mapsizetiles * 20, gmap(5)
+  framewalkabout tile * 20 + 10, destpos, mapsizetiles * 20, gmap.edge_mode
   sl->X = mapx + destpos.x
-  sl->Y = mapy + destpos.y + gmap(11) 'foot offset
+  sl->Y = mapy + destpos.y + gmap.foot_offset 'foot offset
  END IF
 END SUB
 
