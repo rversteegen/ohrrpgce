@@ -100,7 +100,7 @@ SUB create_walkabout_shadow (byval walkabout_cont as Slice Ptr)
   .AlignHoriz = alignCenter
   .AnchorVert = alignBottom
   .AlignVert = alignBottom
-  .Y = gmap.foot_offset 'foot offset
+  .Y = gmap.foot_offset
   .Visible = NO
  END WITH
  ChangeEllipseSlice shadow, uilook(uiShadow), uilook(uiShadow)

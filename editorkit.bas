@@ -930,6 +930,17 @@ sub EditorKit.set_tooltip(text as zstring ptr)
 	if selected then base.tooltip = *text
 end sub
 
+function EditorKit.current_item_rect() as RectType
+	dim as string text, title = cur_item.title, caption = cur_item.caption
+	if len(caption) = 0 andalso ends_with(cur_item.title, ":") then
+		caption = form_default_caption()
+	end if
+	if len(title) > 0 then title &= " "
+	if cur_item.color then text = fgtag(ColorIndex(cur_item.color))
+	text &= title & caption
+	return standardmenu_item_rect(state, text, state.pt)
+end function
+
 ' Sets a combo key to activate the next defitem. If used with a single key, check keyval(key1) > 1.
 ' If used with two keys, the first is a modifier: keyval(key1) > 0 and keyval(key2) > 1.
 ' Note: unlike all other attributes this must precede the menu item! So that 'activate' can be set.
@@ -1833,6 +1844,28 @@ function EditorKit.edit_as_song(byref datum as integer, min as integer = -1, pre
 			music_stop
 		end if
 	end if
+	if edited then write_value
+	return edited
+end function
+
+sub EditorKit.as_script_trigger(byref datum as integer, default_trigger as integer = 0)
+	val_int datum
+	if refresh andalso len(cur_item.caption) = 0 then
+		set_caption scriptname_default(value, default_trigger)
+	end if
+end sub
+
+function EditorKit.edit_as_script_trigger(byref datum as integer, triggertype as integer, scrtype as zstring ptr, default_trigger as integer = 0, allow_default as bool = YES) as bool
+	as_script_trigger datum, default_trigger
+	if activate then
+		value = datum
+		scriptbrowse value, triggertype, *scrtype, allow_default, default_trigger
+		edited = (value <> datum)
+	elseif process then
+		scrintgrabber(value, iif(allow_default, -1, 0), 0, ccLeft, ccRight, 1, triggertype)
+		edited = (value <> datum)
+	end if
+	set_caption scriptname_default(value, default_trigger)
 	if edited then write_value
 	return edited
 end function

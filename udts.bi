@@ -587,11 +587,66 @@ TYPE TilemapInfo
   DECLARE SUB seterr(filename as string, errmsg as string)
 END TYPE
 
-ENUM MapEdgeModeEnum
+Type TileLayerInfo
+  tileset as integer   '0 means use GenMapData.default_tileset, x > 0 means tileset x - 1
+  enabled as bool
+  name as string
+End Type
+
+Enum MapEdgeModeEnum
   mapEdgeCrop = 0
   mapEdgeWrap = 1
   mapEdgeDefaultTile = 2
-END ENUM
+End Enum
+
+Enum PersistMode explicit
+ LoadOnly = 0       'Load if a save exists (probably saved by a script) but don't save
+ Remember = 1       'Save when leaving, and load saves
+ DontSaveOrLoad = 2 'Don't save, don't load saves
+End Enum
+
+Type GenMapData
+  default_tileset as integer
+  edge_mode as MapEdgeModeEnum
+  default_edge_tile as integer
+  hero_npc_draw_order as integer
+  walkabout_layer as integer  'One-based count of tile layers drawn below heroes/NPCs
+
+  ambient_music as integer  '-1 = same as last map, 0 = off, or music_num + 1
+  name_display_ticks as integer
+
+  harm_tile_damage as integer  'Negative heals only if the prefbit is set
+  harm_tile_flash as integer    'Flash colour, or 0 for none
+  foot_offset as integer        '+ve is downwards
+
+  menu_disabled as bool
+  minimap_available as bool
+  save_anywhere as bool
+
+  autorun_script as integer
+  autorun_argument as integer
+  after_battle_script as integer
+  instead_of_battle_script as integer
+  each_step_script as integer
+  on_keypress_script as integer
+
+  npc_state_persistence as PersistMode
+  tile_state_persistence as PersistMode
+  save_offset as XYPair
+  npc_instance_count as integer
+
+  default_npc_move_zone as integer
+  default_npc_avoid_zone as integer
+  pathfinding_obstruction_mode as PathfindingObstructionMode  'For NPCs set to default. If obmodeDefault, then obmodeNPCsObstruct
+  hero_move_zone as integer
+  hero_avoid_zone as integer
+
+  layers(any) as TileLayerInfo
+
+  declare constructor ()
+  declare function getidx(index as integer) as integer
+  declare sub setidx(index as integer, value as integer)
+End Type
 
 'WARNING: don't add strings to this
 Type ZoneHashedSegment

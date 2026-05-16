@@ -847,7 +847,7 @@ DO
 
  'Main menu controls
  'NOTE: while on a vehicle, menu and use keys are handled in vehicle_controls()
- IF normal_controls_disabled() = NO ANDALSO gmap.menu_disabled = NO ANDALSO vstate.active = NO THEN  'gmap(379): menu available
+ IF normal_controls_disabled() = NO ANDALSO gmap.menu_disabled = NO ANDALSO vstate.active = NO THEN
   'Menu key/click/joy button is enabled (provided you're stationary)
   update_hero_pathfinding_menu_queue()
   IF (user_triggered_main_menu() ORELSE gam.hero_pathing(0).queued_menu) ANDALSO herow(0).xygo = 0 THEN
@@ -2660,7 +2660,7 @@ END SUB
 '==========================================================================================
 
 
-'Call after loading gmap()
+'Call after loading gmap
 SUB gmap_updates
  IF gmap.walkabout_layer = 0 THEN gmap.walkabout_layer = 2  'Number of layers beneath walkabouts.
  refresh_map_slice  'Because map layer and walkabout sorting may have changed.
@@ -3263,8 +3263,8 @@ FUNCTION update_menu_item (mi as MenuDefItem) as bool
   END IF
   IF .t = mtypeSpecial THEN
    ' Minimap and Save may be disabled on this map
-   IF .sub_t = spMapMaybe ANDALSO gmap(2) = 0 THEN .disabled = YES
-   IF .sub_t = spSaveMaybe ANDALSO gmap(3) = 0 THEN .disabled = YES
+   IF .sub_t = spMapMaybe ANDALSO gmap.minimap_available = NO THEN .disabled = YES
+   IF .sub_t = spSaveMaybe ANDALSO gmap.save_anywhere = NO THEN .disabled = YES
    ' TV Safe Margin disabled on backends that don't support it
    IF .sub_t = spMargins ANDALSO NOT supports_safe_zone_margin() THEN .disabled = YES
    ' Purchases disabled on platforms that don't have a supported store
@@ -3359,25 +3359,24 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
 
  'Play map music
  IF readbit(gen(), genSuspendBits, suspendambientmusic) = 0 THEN
-  IF gmap(1) >= 0 THEN
-   queue_music_change gmap(1) - 1
-  ELSEIF gmap(1) = -1 AND afterbat = YES THEN
+  IF gmap.ambient_music >= 0 THEN
+   queue_music_change gmap.ambient_music - 1
+  ELSEIF gmap.ambient_music = -1 AND afterbat = YES THEN
    queue_music_change gam.remembermusic
   END IF
  END IF
 
  gam.map.name = getmapname(gam.map.id)
 
- IF gmap(18) < 2 THEN
-  'Tile Data: Don't save state when leaving or Remember state when leaving
-  loadmapstate_tilemap gam.map.id, "map"
-  loadmapstate_passmap gam.map.id, "map"
-  loadmapstate_zonemap gam.map.id, "map"
- ELSE
-  'Tile Data: Ignore saved state, load anew
+ IF gmap.tile_state_persistence = PersistMode.DontSaveOrLoad THEN
   loadmap_tilemap gam.map.id
   loadmap_passmap gam.map.id
   loadmap_zonemap gam.map.id
+ ELSE
+  'save+load or load only
+  loadmapstate_tilemap gam.map.id, "map"
+  loadmapstate_passmap gam.map.id, "map"
+  loadmapstate_zonemap gam.map.id, "map"
  END IF
  loadmap_foemap gam.map.id
 
@@ -3395,13 +3394,14 @@ SUB prepare_map (byval afterbat as bool=NO, byval afterload as bool=NO)
  IF afterbat = NO THEN
   gam.showtext = gam.map.name
   embedtext gam.showtext
-  gam.showtext_ticks = gmap(4)
-  IF gmap(17) < 2 THEN  '"load from state file if available" or "load+save state file when leaving"
-   loadmapstate_npcd gam.map.id, "map"
-   loadmapstate_npcl gam.map.id, "map"
-  ELSE  '"ignore state files"
+  gam.showtext_ticks = gmap.name_display_ticks
+
+  IF gmap.npc_state_persistence = PersistMode.DontSaveOrLoad THEN
    loadmap_npcd gam.map.id
    loadmap_npcl gam.map.id
+  ELSE
+   loadmapstate_npcd gam.map.id, "map"
+   loadmapstate_npcl gam.map.id, "map"
   END IF
  END IF
 
@@ -3727,9 +3727,9 @@ SUB advance_text_box ()
  END IF
  '---RESET MUSIC----
  IF txt.box.restore_music THEN
-  IF gmap(1) > 0 THEN
-   wrappedsong gmap(1) - 1
-  ELSEIF gmap(1) = 0 THEN
+  IF gmap.ambient_music > 0 THEN
+   wrappedsong gmap.ambient_music - 1
+  ELSEIF gmap.ambient_music = 0 THEN
    stopsong
   ELSE
    ' Map music is set to "same as previous map".
@@ -4142,8 +4142,13 @@ SUB refresh_map_slice()
    showbug "NULL SliceTable.MapLayer(" & i & ") when resetting tilesets in refresh_map_slice()"
   ELSE
    ChangeMapSlice SliceTable.MapLayer(i), @maptiles(i), @pass
-   SliceTable.MapLayer(i)->Visible = IIF(i = 0, YES, xreadbit(gmap(), i - 1, 19))
-  END IF
+   DIM vis as bool = NO
+   IF i = 0 THEN
+    vis = YES
+   ELSEIF i <= UBOUND(gmap.layers) THEN
+    vis = gmap.layers(i).enabled
+   END IF
+   SliceTable.MapLayer(i)->Visible = vis
  NEXT i
  FOR i as integer = UBOUND(maptiles) + 1 TO UBOUND(SliceTable.MapLayer)
   '--if slices exist for the unused layers that this map doesn't have
@@ -4158,9 +4163,11 @@ SUB refresh_map_slice()
 
  '--now fix up the order of the slices
  DIM num_layers_under_walkabouts as integer
- '--It's possible for gmap(31) to be larger than the number of map layers
+ '--It's possible for gmap.walkabout_layer to be larger than the number of map layers
  '--(can't enforce this at gmap load time, since map layers not loaded)
  num_layers_under_walkabouts = bound(gmap.walkabout_layer, 1, UBOUND(maptiles) + 1)
+ 'TODO: don't store layer data in gmap so this can't happen
+
  FOR i as integer = 0 TO UBOUND(maptiles)
   IF SliceTable.Maplayer(i) = 0 THEN
    showbug "Null map layer " & i & " when sorting in refresh_map_slice"
@@ -4875,7 +4882,13 @@ SUB debug_menu_functions(dbg as DebugMenuDef)
   gam.showtext_ticks = 50
  END IF
  IF dbg.def( , , "(Advanced) Manipulate gen() array") THEN patcharray gen(), "gen"
- IF dbg.def( , , "(Advanced) Manipulate gmap() array") THEN patcharray gmap(), "gmap"
+ IF dbg.def( , , "(Advanced) Manipulate gmap() array") THEN
+  DIM tempgmap(dimbinsize(binMAP)) as integer
+  GenMapDataToOldMapRecord gmap, tempgmap()
+  patcharray tempgmap(), "gmap"
+  OldMapRecordToGenMapData gmap, tempgmap(), UBOUND(maptiles) + 1
+  gmap_updates
+ END IF
  'IF dbg.def( , , "Test Slicified Spell Screen") THEN spell_screen onwho(readglobalstring(106, "Whose Spells?", 20), NO)
  #IFDEF __FB_ANDROID__
   IF dbg.def( , , "Email saved game") THEN
@@ -5549,14 +5562,14 @@ SUB update_hero_pathfinding_display(byval tile as XYpair, byval rank as integer)
   IF gam.hero_pathing(rank).mode = HeroPathingMode.NPC THEN
    IF npc(gam.hero_pathing(rank).dest_npc).sl <> null THEN
     sl->X = npc(gam.hero_pathing(rank).dest_npc).x + 10
-    sl->Y = npc(gam.hero_pathing(rank).dest_npc).y + 10 + gmap.foot_offset 'foot offset
+    sl->Y = npc(gam.hero_pathing(rank).dest_npc).y + 10 + gmap.foot_offset
     EXIT SUB
    END IF
   END IF
   DIM destpos as XYPair
   framewalkabout tile * 20 + 10, destpos, mapsizetiles * 20, gmap.edge_mode
   sl->X = mapx + destpos.x
-  sl->Y = mapy + destpos.y + gmap.foot_offset 'foot offset
+  sl->Y = mapy + destpos.y + gmap.foot_offset
  END IF
 END SUB
 

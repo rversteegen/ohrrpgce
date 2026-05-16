@@ -307,6 +307,7 @@ type EditorKit extends ModularMenu
 	declare sub set_tooltip(text as zstring ptr)
 	declare function multiline_editable() as bool
 	declare sub dont_write()
+	declare function current_item_rect() as RectType
 
 	declare sub default_effective_value(default_value as integer, effective_value as integer)
 
@@ -404,6 +405,8 @@ type EditorKit extends ModularMenu
 	declare function edit_as_song(byref datum as integer, min as integer = -1, preview_audio_flag as EKFlags = 0) as bool
 	declare sub as_sfx(byref datum as integer)
 	declare function edit_as_sfx(byref datum as integer, min as integer = -1, preview_audio_flag as EKFlags = 0) as bool
+	declare sub as_script_trigger(byref datum as integer, default_trigger as integer = 0)
+	declare function edit_as_script_trigger(byref datum as integer, triggertype as integer, scrtype as zstring ptr, default_trigger as integer = 0, allow_default as bool = YES) as bool
 
 	' Enemies
 	declare sub as_enemy(byref id as integer, or_none_flag as EKFlags = 0)

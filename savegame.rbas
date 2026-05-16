@@ -1542,7 +1542,7 @@ IF buffer(1) > gen(genMaxMap) THEN
  gam.map.id = 0
 END IF
 
-loadrecord gmaptmp(), game + ".map", getbinsize(binMAP) \ 2, gam.map.id
+LoadGenMapData gmaptmp, gam.map.id
 (herox(0)) = buffer(2) + gmaptmp.save_offset.x * 20
 (heroy(0)) = buffer(3) + gmaptmp.save_offset.y * 20
 (herodir(0)) = buffer(4)

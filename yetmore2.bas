@@ -420,8 +420,10 @@ END FUNCTION
 
 SUB savemapstate_gmap(mapnum as integer, prefix as string)
  DIM fh as integer
+ DIM tempgmap(dimbinsize(binMAP)) as integer
+ GenMapDataToOldMapRecord gmap, tempgmap()
  OPENFILE(mapstatetemp(mapnum, prefix) & "_map.tmp", FOR_BINARY + ACCESS_WRITE, fh)
- PUT #fh, , gmap()
+ PUT #fh, , tempgmap()
  CLOSE #fh
 END SUB
 
@@ -479,11 +481,13 @@ SUB loadmapstate_gmap (mapnum as integer, prefix as string, dontfallback as bool
  lump_reloading.gmap.dirty = NO  'Not correct, but too much trouble to do correctly
  lump_reloading.gmap.changed = NO
 
- OPENFILE(filebase & "_map.tmp", FOR_BINARY + ACCESS_READ, fh)
- GET #fh, , gmap()
- CLOSE #fh
+ DIM tempgmap(dimbinsize(binMAP)) as integer
+  OPENFILE(filebase & "_map.tmp", FOR_BINARY + ACCESS_READ, fh)
+ GET #fh, , tempgmap()
+  CLOSE #fh
+  OldMapRecordToGenMapData gmap, tempgmap(), UBOUND(maptiles) + 1
 
- gmap_updates
+  gmap_updates
 END SUB
 
 SUB loadmapstate_npcl (mapnum as integer, prefix as string, dontfallback as bool = NO)
@@ -658,11 +662,19 @@ SUB reloadmap_gmap_no_tilesets()
  lump_reloading.gmap.dirty = NO
  lump_reloading.gmap.changed = NO
 
- REDIM gmaptmp(dimbinsize(binMAP)) as integer
- loadrecord gmaptmp(), game + ".map", getbinsize(binMAP) \ 2, gam.map.id
+ DIM tempgmap as GenMapData
+ IF map_source_uses_ohrmap(gam.map.id) THEN
+  DIM ignored as string
+  LoadOhrmapGeneral tempgmap, ignored, ohrmap_filename(gam.map.id)
+  LoadOhrmapTilemapMeta tempgmap, ohrmap_filename(gam.map.id)
+ ELSE
+  REDIM gmaptmp(dimbinsize(binMAP)) as integer
+  loadrecord gmaptmp(), game + ".map", getbinsize(binMAP) \ 2, gam.map.id
+  OldMapRecordToGenMapData tempgmap, gmaptmp(), UBOUND(maptiles) + 1
+ END IF
 
- FOR i as integer = 0 TO UBOUND(gmap)
-  IF gmap_index_affects_tiles(i) = NO THEN gmap(i) = gmaptmp(i)
+ FOR i as integer = 0 TO dimbinsize(binMAP)
+  IF gmap_index_affects_tiles(i) = NO THEN gmap.setidx i, tempgmap.getidx(i)
  NEXT
 
  gmap_updates  'does actually reload tilesets, using those in the old gmap()
@@ -743,13 +755,15 @@ SUB reloadmap_tilemap_and_tilesets(merge as bool)
   'Now reload tileset and layering info
   REDIM gmaptmp(dimbinsize(binMAP)) as integer
   loadrecord gmaptmp(), game + ".map", getbinsize(binMAP) \ 2, gam.map.id
+  DIM tempgmap as GenMapData
+  OldMapRecordToGenMapData tempgmap, gmaptmp(), UBOUND(maptiles) + 1
 
-  FOR i as integer = 0 TO UBOUND(gmap)
-   IF gmap_index_affects_tiles(i) THEN gmap(i) = gmaptmp(i)
+  FOR i as integer = 0 TO dimbinsize(binMAP)
+   IF gmap_index_affects_tiles(i) THEN gmap.setidx i, tempgmap.getidx(i)
   NEXT
 
   'Calls refresh_map_slice, updating number of layers, tilemaps,
-  'layer visibility (gmap(19)) and position of walkabout layer (gmap(31))
+  'layer visibility and position of walkabout layer
   update_map_slices_for_new_tilemap
 
   loadmaptilesets tilesets(), gmap
@@ -1694,8 +1708,10 @@ SUB reload_MAP_lump()
   'we will need to reload .T## even if it hasn't changed
   REDIM gmaptmp(dimbinsize(binMAP)) as integer
   loadrecord gmaptmp(), game + ".map", getbinsize(binMAP) \ 2, gam.map.id
-  FOR i as integer = 0 TO UBOUND(gmap)
-   IF gmap(i) <> gmaptmp(i) ANDALSO gmap_index_affects_tiles(i) THEN
+  DIM tempgmap as GenMapData
+  OldMapRecordToGenMapData tempgmap, gmaptmp(), UBOUND(maptiles) + 1
+  FOR i as integer = 0 TO dimbinsize(binMAP)
+   IF gmap.getidx(i) <> tempgmap.getidx(i) ANDALSO gmap_index_affects_tiles(i) THEN
     debuginfo "reload_MAP_lump: layers changed"
     lump_reloading.maptiles.changed = YES
     EXIT FOR
