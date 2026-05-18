@@ -911,7 +911,7 @@ Sub EdgeYSortChildSlices(byval parent as Slice ptr, byval edge as AlignType)
  for j as integer = 1 to ubound(slice_list)
   temp = slice_list(j)
   for i = j - 1 to 0 step -1
-   if slice_list(i)->Y - SliceYAnchor(slice_list(i)) + SliceEdgeY(slice_list(i), edge) <= temp->Y - SliceYAnchor(temp) + SliceEdgeY(temp, edge) then exit for
+   if slice_list(i)->Y - SliceYAnchor(slice_list(i)) + SliceHeightFrac(slice_list(i), edge) <= temp->Y - SliceYAnchor(temp) + SliceHeightFrac(temp, edge) then exit for
    slice_list(i + 1) = slice_list(i)
   next i
   slice_list(i + 1) = temp
@@ -3843,8 +3843,8 @@ Sub CenterSlice(sl as Slice ptr)
  RealignSlice sl, alignCenter, alignCenter, alignCenter, alignCenter
 End Sub
 
-Function SliceEdgeX(byval sl as Slice Ptr, byval edge as AlignType) as integer
- if sl = 0 then debug "SliceEdgeX null ptr": Return 0
+Function SliceWidthFrac(byval sl as Slice Ptr, byval edge as AlignType) as integer
+ if sl = 0 then debug "SliceWidthFrac null ptr": Return 0
  SELECT CASE edge
   CASE alignLeft:   RETURN 0
   CASE alignMiddle: RETURN sl->Width \ 2
@@ -3852,8 +3852,8 @@ Function SliceEdgeX(byval sl as Slice Ptr, byval edge as AlignType) as integer
  END SELECT
 End Function
 
-Function SliceEdgeY(byval sl as Slice Ptr, byval edge as AlignType) as integer
- if sl = 0 then debug "SliceEdgeY null ptr": Return 0
+Function SliceHeightFrac(byval sl as Slice Ptr, byval edge as AlignType) as integer
+ if sl = 0 then debug "SliceHeightFrac null ptr": Return 0
  SELECT CASE edge
   CASE alignTop:    RETURN 0
   CASE alignMiddle: RETURN sl->Height \ 2

@@ -204,7 +204,7 @@ SUB edrun_position_new_widget(byref es as EditorState, byval sl as Slice Ptr)
   debuginfo "edrun_position_new_widget: sanity fail. no caption slice found": EXIT SUB
  END IF
 
- sl->y = after->y + SliceEdgeY(capsl, 2)
+ sl->y = after->y + SliceHeightFrac(capsl, alignBottom)
  debug "sl->y = " & sl->y
  
 
