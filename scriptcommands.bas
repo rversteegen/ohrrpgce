@@ -2790,14 +2790,14 @@ SUB script_commands(byval cmdid as integer)
   sl = get_arg_slice(0)
   IF sl THEN
    IF bound_arg(retvals(1), 0, 2, "edge") THEN
-    scriptret = sl->X - SliceXAnchor(sl) + SliceWidthFrac(sl, retvals(1))
+    scriptret = SliceEdgeX(sl, retvals(1))
    END IF
   END IF
  CASE 420 '--slice edge y
   sl = get_arg_slice(0)
   IF sl THEN
    IF bound_arg(retvals(1), 0, 2, "edge") THEN
-    scriptret = sl->Y - SliceYAnchor(sl) + SliceHeightFrac(sl, retvals(1))
+    scriptret = SliceEdgeY(sl, retvals(1))
    END IF
   END IF
  CASE 421 '--create text
@@ -3073,14 +3073,14 @@ SUB script_commands(byval cmdid as integer)
   sl = get_arg_slice(0)
   IF sl THEN
    IF bound_arg(retvals(1), 0, 2, "edge") THEN
-    sl->X = retvals(2) + SliceXAnchor(sl) - SliceWidthFrac(sl, retvals(1))
+    sl->X += retvals(2) - SliceEdgeX(sl, retvals(1))
    END IF
   END IF
  CASE 463 '--set slice edge y
   sl = get_arg_slice(0)
   IF sl THEN
    IF bound_arg(retvals(1), 0, 2, "edge") THEN
-    sl->Y = retvals(2) + SliceYAnchor(sl) - SliceHeightFrac(sl, retvals(1))
+    sl->Y += retvals(2) - SliceEdgeY(sl, retvals(1))
    END IF
   END IF
  CASE 464 '--get slice lookup
