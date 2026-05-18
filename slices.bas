@@ -911,7 +911,7 @@ Sub EdgeYSortChildSlices(byval parent as Slice ptr, byval edge as AlignType)
  for j as integer = 1 to ubound(slice_list)
   temp = slice_list(j)
   for i = j - 1 to 0 step -1
-   if slice_list(i)->Y - SliceYAnchor(slice_list(i)) + SliceHeightFrac(slice_list(i), edge) <= temp->Y - SliceYAnchor(temp) + SliceHeightFrac(temp, edge) then exit for
+   if SliceEdgeY(slice_list(i), edge) <= SliceEdgeY(temp, edge) then exit for
    slice_list(i + 1) = slice_list(i)
   next i
   slice_list(i + 1) = temp
@@ -3859,6 +3859,15 @@ Function SliceHeightFrac(byval sl as Slice Ptr, byval edge as AlignType) as inte
   CASE alignMiddle: RETURN sl->Height \ 2
   CASE alignBottom: RETURN sl->Height
  END SELECT
+End Function
+
+'Not screen position
+Function SliceEdgeX(byval sl as Slice Ptr, byval edge as AlignType) as integer
+ return sl->X - SliceXAnchor(sl) + SliceWidthFrac(sl, edge)
+End Function
+
+Function SliceEdgeY(byval sl as Slice Ptr, byval edge as AlignType) as integer
+ return sl->Y - SliceYAnchor(sl) + SliceHeightFrac(sl, edge)
 End Function
 
 'How wide/high does a parent slice have to be to cover a child slice with this position,

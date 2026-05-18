@@ -761,6 +761,8 @@ DECLARE Function SliceXAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceYAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceWidthFrac(byval sl as Slice Ptr, byval edge as AlignType) as integer
 DECLARE Function SliceHeightFrac(byval sl as Slice Ptr, byval edge as AlignType) as integer
+DECLARE FUNCTION SliceEdgeX(byval sl as Slice Ptr, byval edge as AlignType) as integer
+DECLARE FUNCTION SliceEdgeY(byval sl as Slice Ptr, byval edge as AlignType) as integer
 
 DECLARE Sub RealignSlice(sl as Slice ptr, halign as AlignType = alignINVALID, valign as AlignType = alignINVALID, hanchor as AlignType = alignINVALID, vanchor as AlignType = alignINVALID)
 DECLARE Sub CenterSlice(sl as Slice ptr)
