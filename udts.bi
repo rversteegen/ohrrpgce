@@ -1173,9 +1173,11 @@ TYPE TextBox
   opaque      as bool
   offset      as XYPair      ' Position relative to anchor point + 4px padding
   width       as integer = 312 ' -1 is auto
-  height      as integer = -1  ' -1 is auto
+  height      as integer = -1  ' -1 is new auto, -2 is old crappy auto
   align_horiz as AlignType = alignCenter  ' For align and anchor point
   align_vert  as AlignType
+  padding_horiz as integer = 4   ' Between box/text
+  padding_vert as integer = 3
   textcolor   as integer     ' 0=default
   boxstyle    as integer
   backdrop    as integer     ' +1, 0=none
