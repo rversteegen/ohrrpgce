@@ -327,7 +327,6 @@ CONST maxFormationSet = 255 ' The max formation set ID (the number can't be chan
 CONST sizeParty = 41 'The maximum size of the entire party (number of gam.hero() party slots)
 CONST sizeActiveParty = 4 'Maximum size of the active party (this is for CUSTOM, use active_party_slots() in GAME)
 CONST inventoryMax = 599 'last inventory slot num (divisible by 3 when you count the zero)
-CONST maxTextboxLines = 8 'Maximum number of lines in a text box
 CONST maxTextboxLength = 38*8 + 8 'Maximum length of a text box's text
 CONST maxPlayers = 4 'The number of players which can have separate controls/keymaps. Also limit on joysticks.
 CONST maplayerMax = 15 'The limit on the highest numbered map layer

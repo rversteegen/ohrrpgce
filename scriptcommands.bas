@@ -4525,7 +4525,7 @@ SUB script_commands(byval cmdid as integer)
      bound_arg(retvals(1), 0, gen(genMaxTextbox), "textbox", , serrBadOp) THEN
    DIM box as TextBox
    LoadTextBox box, retvals(1)
-   plotstr(retvals(0)).s = textbox_lines_to_string(box)
+   plotstr(retvals(0)).s = box.fulltext
    IF retvals(3) THEN plotstr(retvals(0)).s = trim(plotstr(retvals(0)).s)
    IF retvals(2) THEN embedtext plotstr(retvals(0)).s
   END IF

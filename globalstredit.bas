@@ -411,7 +411,7 @@ SUB write_translation_file_txt(fname as string, translations as StrHashTable)
   v_free items
 END SUB
 
-'This is a variant on textbox_lines_to_string()
+'This is a variant on textbox_update_fulltext_from_lines
 FUNCTION unwrap_textbox(box as TextBox) as string
   DIM ret as string
 

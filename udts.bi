@@ -1132,6 +1132,10 @@ END ENUM
 TYPE PortraitTypeEnum as integer
 
 TYPE TextBox
+  'fulltext contains newlines; length in SAY limited to maxTextboxLines chars.
+  'No limit on line length.
+  'text() is fulltext word-wrapped to .linelength() and split, no newlines.
+  fulltext as string
   text(any) as string
 
   'Conditionals

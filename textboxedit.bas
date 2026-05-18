@@ -941,6 +941,10 @@ SUB TextboxAppearanceEditor.define_items()
  defitem "Width:"
  edit_zint box.width, -1, gen(genResolutionX)  'Can only fill 304 with text
  IF value = -1 THEN set_caption "Auto"
+ IF edited THEN
+  'Update the wrapped lines cache
+  textbox_update_text box, box.fulltext
+ END IF
 
  IF show_style_height THEN
   defitem "Height:"
@@ -1134,79 +1138,13 @@ END SUB
 '============================ Textbox Text Editor =============================
 
 
-
-'Wrap and split up a string and stuff it into box.text, possibly editing 'text'
-'by trimming unneeded whitespace at the end if needed to meet the line limit.
-'(Opposite of textbox_lines_to_string.)
-'Returns true if it did fit, and does nothing and returns false if it didn't.
-FUNCTION textbox_string_to_lines(byref box as TextBox, byref text as string) as bool
- IF LEN(text) > maxTextboxLength THEN
-  'Try trimming whitespace past the end so that stuffing doesn't fail unnecessarily
-  IF TRIM(MID(text, maxTextboxLength + 1), ANY !" \n\t") = "" THEN
-   text = LEFT(text, maxTextboxLength)
-  ELSE
-   RETURN NO
-  END IF
- END IF
- split(text, box.text())
- RETURN YES
- /'
- DIM oldlines() as string
- a_copy box.text(), oldlines()
-
- DIM wrappedtext as string = wordwrap(text, box.linelength())
- split(wrappedtext, box.text())
-
- IF box.too_much_text() THEN
-  'Trim whitespace lines past the end so that stuffing doesn't fail unnecessarily
-  FOR idx as integer = UBOUND(box.text) TO 0 STEP -1
-   box.text(idx) = RTRIM(box.text(idx))
-   IF box.too_much_text() = NO THEN
-    'Also trim those extra lines from the input string.
-    DIM line_starts() as integer
-    split_line_positions text, box.text(), line_starts()
-    text = LEFT(text, line_starts(idx) - 1)
-    REDIM PRESERVE box.text(idx)
-    RETURN YES
-   END IF
-   IF LEN(box.text(idx)) THEN
-    'Can't trim more! Failure
-    a_copy oldlines(), box.text()
-    RETURN NO
-   END IF
-  NEXT
- END IF
- RETURN YES
-'/
-
- /'  FIXME: Maybe the old stuffing method was better?
- IF UBOUND(lines) + 1 > maxTextboxLines THEN
-  'Trim whitespace lines past the end so that stuffing doesn't fail unnecessarily
-  FOR idx as integer = maxTextboxLines TO UBOUND(lines)
-   IF LEN(TRIM(lines(idx))) > 0 THEN RETURN NO  'Can't trim! Failure
-  NEXT
-  '(Delay REDIM'ing lines(), split_line_positions doesn't like it)
-  'Also trim those extra lines from the input string.
-  DIM line_starts() as integer
-  split_line_positions text, lines(), line_starts()
-  text = LEFT(text, line_starts(maxTextboxLines) - 1)
-  'Now trim lines()
-  REDIM PRESERVE lines(maxTextboxLines - 1)
- END IF
- a_copy lines(), box.text()
- RETURN YES
- '/
-END FUNCTION
-
 SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
- DIM text as string = textbox_lines_to_string(box)
-
  DIM boxslice as Slice ptr = LookupSliceSafe(SL_TEXTBOX_BOX, st.rootsl)
  DIM textslice as Slice ptr = LookupSliceSafe(SL_TEXTBOX_TEXT, st.rootsl, slText)
  DIM txtdata as TextSliceData Ptr = textslice->TextData
  WITH *txtdata
   '.line_limit = maxTextboxLines  'No longer actually used?
-  .insert = LEN(text)  'End of text
+  .insert = LEN(box.fulltext)  'End of text
   .show_insert = YES
  END WITH
 
@@ -1217,22 +1155,17 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
   IF keyval(ccCancel) > 1 THEN EXIT DO
   IF keyval(scF1) > 1 THEN show_help "textbox_line_editor"
 
-  DIM newtext as string = text
+  DIM newtext as string = box.fulltext
   DIM newinsert as integer = txtdata->insert
   CONST max_visible_lines = 10  'TODO: set properly
   stredit(newtext, newinsert, maxTextboxLength, max_visible_lines, box.linelength())
-  IF textbox_string_to_lines(box, newtext) THEN
-   'Accepted: the new text did fit in the box
-   txtdata->insert = small(newinsert, LEN(newtext))  'May be past end if newtext got trimmed
-   IF newtext <> text THEN
-    text = newtext
-    ChangeTextSlice textslice, text
-    boxslice->Width = get_text_box_width(box)
-    boxslice->Height = get_text_box_height(box)
-    'The choicebox position would need updating too, but it's hidden
-   ELSE
-    show_overlay_message "Length limit reached", 0.5
-   END IF
+  txtdata->insert = small(newinsert, LEN(newtext))  'May be past end if newtext got trimmed
+  IF newtext <> box.fulltext THEN
+   textbox_update_text box, newtext
+   ChangeTextSlice textslice, newtext
+   boxslice->Width = get_text_box_width(box)
+   boxslice->Height = get_text_box_height(box)
+   'The choicebox position would need updating too, but it's hidden
   END IF
 
   clearpage dpage
@@ -1240,14 +1173,19 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
   textbox_edit_preview box, st, dpage, 4, YES
   textcolor uilook(uiText), 0
   printstr "Text Box " & st.id, 0, 100, dpage
-  printstr "${C0} = Leader's name", 0, 120, dpage
-  printstr "${C#} = Hero name at caterpillar slot #", 0, 128, dpage
-  printstr "${P#} = Hero name at party slot #", 0, 136, dpage
-  printstr "${H#} = Name of hero ID #", 0, 144, dpage
-  printstr "${V#} = Global Plotscript Variable ID #", 0, 152, dpage
-  printstr "${S#} = Insert String Variable with ID #", 0, 160, dpage
-  printstr "${B#} = Platform-specific button name #", 0, 168, dpage
-  printstr "CTRL+SPACE: choose an extended character", 0, 184, dpage
+
+  DIM help as string = _
+      "Text Box " & st.id & !"\n\n"
+      !"${C0} = Leader's name\n" _
+      !"${C#} = Hero name at caterpillar slot #\n" _
+      !"${P#} = Hero name at party slot #\n" _
+      !"${H#} = Name of hero ID #\n" _
+      !"${V#} = Global Plotscript Variable ID #\n" _
+      !"${S#} = Insert String Variable with ID #\n" _
+      !"${B#} = Platform-specific button name #\n" _
+      !"CTRL+SPACE: choose an extended character"
+  printstr help, 4, pInfoY, dpage
+
   SWAP vpage, dpage
   setvispage vpage
   dowait
@@ -1795,9 +1733,11 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
       debug "import_textboxes: line " & line_number & " too long (width limit " & box.linelength() & " ), will wrap: """ & s & """"
       'NOTE: wrapping will add a newline, which might increase the length over the limit
      END IF
+     IF LEN(box.fulltext) THEN box.fulltext &= !"\n"
+     box.fulltext &= s
      a_append box.text(), s
-     IF LEN(textbox_lines_to_string(box)) > maxTextboxLength THEN
-      import_textboxes_warn warn, "line " & line_number & ": too much text in box " & index & ". Overflowed with """ & s & """."
+     IF LEN(box.fulltext) > maxTextboxLength THEN
+      import_textboxes_warn warn, "line " & line_number & ": too much text in box " & index & " (limit " & maxTextboxLength & "). Overflowed with """ & s & """."
       CLOSE #fh
       RETURN NO
      END IF
