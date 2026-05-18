@@ -1216,7 +1216,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binMENUS      THEN RETURN 56  'menus.bin
  IF id = binMENUITEM   THEN RETURN 68  'menuitem.bin
  IF id = binUICOLORS   THEN RETURN 126 'uicolors.bin
- IF id = binSAY        THEN RETURN 436 '.say
+ IF id = binSAY        THEN RETURN 440 '.say
  IF id = binN          THEN RETURN 38  '.n##
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
@@ -5333,10 +5333,14 @@ IF fix_portrait OR fix_possize THEN
    DIM vertical_offset as integer = boxbuf(193)
    boxbuf(215) = vertical_offset * 4
    'box.width
-   boxbuf(216) = 312
+   boxbuf(216) = 304
    'box.height
    DIM shrink as integer = boxbuf(194)
-   boxbuf(217) = IIF(shrink = -1, -1, 88 - 4 * shrink)
+   boxbuf(217) = IIF(shrink = -1, -2, 88 - 4 * shrink)
+   'box.padding_horiz
+   boxbuf(218) = 4
+   'box.padding_vert
+   boxbuf(219) = 3
   END IF
   storerecord boxbuf(), fh, recsize, i
  NEXT i
@@ -9129,7 +9133,7 @@ FUNCTION text_box_last_line(byref box as TextBox) as integer
 END FUNCTION
 
 FUNCTION get_text_box_width(byref box as TextBox) as integer
- IF box.width >= 0 THEN RETURN box.width
+ IF box.width >= 0 THEN RETURN box.width + 2 * box.padding_horiz
  'Calculate autosize: max width of any line of text.  Does not try to cover the
  'portrait, because auto height doesn't, and it would be better done with Cover
  'Children. We might in future add a "auto size covers portrait" setting.
@@ -9137,21 +9141,36 @@ FUNCTION get_text_box_width(byref box as TextBox) as integer
  FOR i as integer = 0 TO UBOUND(box.text)
   maxwidth = large(maxwidth, 8 * LEN(box.text(i)))
  NEXT
- 'Add 8 for the box padding. Full width if no text
- RETURN IIF(maxwidth, maxwidth + 8, 312)
+ 'Add the box padding. Full width if no text
+ RETURN IIF(maxwidth, maxwidth, 304) + 2 * box.padding_horiz
 END FUNCTION
 
 FUNCTION get_text_box_height(byref box as TextBox) as integer
- IF box.height >= 0 THEN RETURN box.height
+ IF box.height >= 0 THEN RETURN box.height + 2 * box.padding_vert
  'What it used to be:
  'IF box.shrink >= 0 THEN RETURN 88 - box.shrink * 4
- 'Calculate autosize
  DIM lastline as integer = text_box_last_line(box)
- IF lastline = -1 THEN RETURN 88  'Instead of 90 for a full box, why?
- DIM vsize as integer = 20 + lastline * 10
- IF vsize < 32 AND vsize > 24 THEN RETURN 32
- IF vsize <= 24 THEN RETURN 16
- RETURN vsize
+ DIM ret as integer
+ IF box.height = -2 THEN
+  'Calculate weird old autosize (6 is 2*default padding)
+  IF lastline = -1 THEN
+   ret = 88 - 6  'Instead of 90 for a full box, why?
+  ELSE
+   DIM vsize as integer = 20 + lastline * 10
+   IF vsize < 32 AND vsize > 24 THEN
+    ret = 32 - 6
+   ELSEIF vsize <= 24 THEN
+    ret = 16 - 6
+   ELSE
+    ret = vsize - 6
+   END IF
+  END IF
+ ELSE  'height = -1
+  'Calculate autosize
+  ret = (lastline + 1) * 10 - 2  '2px line spacing
+ END IF
+ ret += 2 * box.padding_vert
+ RETURN ret
 END FUNCTION
 
 'Creates the slices for a textbox, returning them in the txtsl variable.
@@ -9196,10 +9215,10 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
   .Y = box.offset.y + alignment_padding(box.align_vert, 4)
   .Width = get_text_box_width(box)
   .Height = get_text_box_height(box)
-  .PaddingLeft = 4
-  .PaddingRight = 4
-  .PaddingTop = 3
-  .PaddingBottom = 3
+  .PaddingLeft = box.padding_horiz
+  .PaddingRight = box.padding_horiz
+  .PaddingTop = box.padding_vert
+  .PaddingBottom = box.padding_vert
   'Horizontal centering
   .AlignHoriz = box.align_horiz
   .AnchorHoriz = box.align_horiz
@@ -9314,14 +9333,14 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
    .AnchorVert = alignTop
    .AlignVert = alignTop
    '--set box size
-   .Width = 10 + large(LEN(box.choice(0)) * 8, LEN(box.choice(1)) * 8)
-   .Height = 24
+   .Width = large(LEN(box.choice(0)) * 8, LEN(box.choice(1)) * 8) + 2 * box.padding_horiz
+   .Height = (10 + 8) + 2 * box.padding_vert
    '--FIXME: This just reproduces the old method of positioning the choicebox.
    '--FIXME: eventually the game author should have control over this.
    '(Note that a variant on this is in textbox_edit_preview)
    RefreshSliceScreenPos text_box
-   .Y = SliceEdgeY(text_box, alignBottom) + 12
-   IF .Y + .Height + 4 > txtsl->Height THEN .Y = 32
+   .Y = SliceEdgeY(text_box, alignBottom) + large(12, box.padding_vert)
+   IF .Y + .Height > txtsl->Height - 4 THEN .Y = 32
   END WITH
   'The choicebox isn't affected by box.opaque or box.no_box
   ChangeRectangleSlice choice_box, box.boxstyle

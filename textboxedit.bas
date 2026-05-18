@@ -920,14 +920,18 @@ SUB TextboxAppearanceEditor.define_items()
  set_caption align_caption(box.align_vert, YES)
 
  defitem "Width:"
- edit_zint box.width, -1, gen(genResolutionX)  'Can only fill ~312 with text
+ edit_zint box.width, -1, gen(genResolutionX)  'Can only fill 304 with text
  IF value = -1 THEN set_caption "Auto"
 
  IF show_style_height THEN
   defitem "Height:"
-  edit_zint box.height, -1, gen(genResolutionY)  'Can only fill ~88 with text
+  edit_zint box.height, -2, gen(genResolutionY)  'Can only fill 80 with text
+  IF value = -2 THEN set_caption "Old Auto"
   IF value = -1 THEN set_caption "Auto"
  END IF
+
+ defint "Horiz Padding:", box.padding_horiz, 0, 100
+ defint "Vert Padding:", box.padding_vert, 0, 100
 
  section "Text"
  defint "Color:", box.textcolor, 0, 255
@@ -1577,7 +1581,9 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
          box.width = large(-1, VALINT(v))
         END IF
        CASE "height"
-        IF LCASE(v) = "auto" THEN
+        IF LCASE(v) = "old auto" THEN
+         box.height = -2
+        ELSEIF LCASE(v) = "auto" THEN
          box.height = -1
         ELSE
          box.height = large(-1, VALINT(v))
@@ -1938,7 +1944,9 @@ FUNCTION export_textboxes (filename as string, metadata() as bool) as bool
    ELSE
     PRINT #fh, "Width: " & box.width
    END IF
-   IF box.height = -1 THEN
+   IF box.height = -2 THEN
+    PRINT #fh, "Height: old auto"
+   ELSEIF box.height = -1 THEN
     PRINT #fh, "Height: auto"
    ELSE
     PRINT #fh, "Height: " & box.height

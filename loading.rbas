@@ -3006,6 +3006,8 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
   .offset.y        = boxbuf(215)
   .width           = boxbuf(216)
   .height          = boxbuf(217)
+  .padding_horiz   = boxbuf(218)
+  .padding_vert    = boxbuf(219)
  END WITH
 END SUB
 
@@ -3090,6 +3092,8 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
   boxbuf(215) = .offset.y
   boxbuf(216) = .width
   boxbuf(217) = .height
+  boxbuf(218) = .padding_horiz
+  boxbuf(219) = .padding_vert
   '--Save portrait data
   boxbuf(200) = .portrait_type
   boxbuf(201) = .portrait_id

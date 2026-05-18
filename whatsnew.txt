@@ -4,8 +4,9 @@ May 18 2026 [Magniloquent]
 
   *** New Features
     * Complete textbox size and position settings: X, Y, width, height,
-      horizontal and vertical align, replacing the old 4-pixel-multiple 'shrink'
-      and 'position' settings [Ralph]
+      horizontal and vertical align & padding, replacing the old
+      4-pixel-multiple 'shrink' and 'position' settings, and height 'Auto'
+      alternative to 'Old Auto' which added inconsistent padding [Ralph]
     * The "Change User Interface Colors" menu now has colors grouped into
       categories. [James]
     * You now have the option to browse for UI colors when picking a
