@@ -5,7 +5,7 @@
 #IFNDEF __CONST_BI__
 #DEFINE __CONST_BI__
 
-CONST CURRENT_RPG_VERSION = 23
+CONST CURRENT_RPG_VERSION = 24
 ' It is a good idea to increment this number each time a major feature
 ' has been added, if opening a new game in an old editor would cause data-loss
 ' Don't be afraid to increment this. Backcompat warnings are a good thing!
@@ -35,6 +35,7 @@ CONST CURRENT_RPG_VERSION = 23
 ' 22 - ichorescent switched to extra data vectors in .Z and slicetree_*.reld
 ' 23 - ichorescent made .TAP binsize-sized, extended them, and added new ops
 '      lexiphanic switched to items.reld. Forgot bump.
+' 24 - magniloquent changed text storage in SAY to newline-based (and added many settings)
 
 CONST CURRENT_RGFX_VERSION = 1
 ' Version number embedded in each .rgfx file.
@@ -327,6 +328,7 @@ CONST sizeParty = 41 'The maximum size of the entire party (number of gam.hero()
 CONST sizeActiveParty = 4 'Maximum size of the active party (this is for CUSTOM, use active_party_slots() in GAME)
 CONST inventoryMax = 599 'last inventory slot num (divisible by 3 when you count the zero)
 CONST maxTextboxLines = 8 'Maximum number of lines in a text box
+CONST maxTextboxLength = 38*8 + 8 'Maximum length of a text box's text
 CONST maxPlayers = 4 'The number of players which can have separate controls/keymaps. Also limit on joysticks.
 CONST maplayerMax = 15 'The limit on the highest numbered map layer
 CONST mapTilesMax = 1000000 'Maximum map size, in tiles (note also a limit of 32768 tiles wide or high)

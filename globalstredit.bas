@@ -441,7 +441,7 @@ FUNCTION unwrap_textbox(box as TextBox) as string
 
       debug "firstword " & MID(lin, 1 + indentation, firstwordlen)
 
-      IF LEN(RTRIM(box.text(idx - 1))) + 1 + firstwordlen > 38 - rightmargin - leeway THEN
+      IF LEN(RTRIM(box.text(idx - 1))) + 1 + firstwordlen > box.linelength() - rightmargin - leeway THEN
         'If leeway is 0, this word couldn't have fit on the previous line.
         'But all a little leeway because people often wrap their lines early.
         ret &= " "

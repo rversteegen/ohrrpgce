@@ -2924,12 +2924,28 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
  '--Populate TextBox object
  WITH box
   '--Load lines of text
-  REDIM .text(7)  'maxTextboxLines - 1
-  FOR i = 0 TO 7
-   .text(i) = STRING(38, 0)
-   array2str boxbuf(), i * 38, .text(i)
-   .text(i) = RTRIM(.text(i), CHR(0)) '--Trim off any trailing ASCII zeroes
-  NEXT i
+  IF boxbuf(448) = 0 THEN
+   'Original format: 8 lines of up to 38 bytes, NUL padded, no newlines
+   REDIM .text(7)  'maxTextboxLines - 1
+   FOR i = 0 TO 7
+    .text(i) = STRING(38, 0)
+    array2str boxbuf(), i * 38, .text(i)
+    .text(i) = RTRIM(.text(i), CHR(0)) '--Trim off any trailing ASCII zeroes
+   NEXT i
+  ELSEIF boxbuf(448) = 1 THEN
+   'New format: a string with newlines, first 38*8 bytes at offset 0, 8 more
+   'bytes at offset 450 as an overflow space, as newlines can increase space needs
+   DIM textbuf as string = STRING(38 * 8, 0)
+   DIM textbuf2 as string = STRING(8, 0)
+   array2str boxbuf(), 0, textbuf
+   array2str boxbuf(), 450, textbuf
+   '--Trim off any trailing ASCII zeroes
+   textbuf = RTRIM(textbuf, CHR(0)) + RTRIM(textbuf2, CHR(0))
+   split(textbuf, box.text())
+  ELSE
+   showerror "Corrupt or unsupported textbox, unknown format " & boxbuf(448)
+  END IF
+
   '--Gather conditional data
   '--transpose conditional data from its dumb-as-toast non-int-aligned location
   DIM condtemp as string
@@ -3015,6 +3031,15 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
  END WITH
 END SUB
 
+FUNCTION TextBox.linelength() as integer
+ IF this.width < 8 THEN
+  'Behave the same as a text slice, wrapping is ignored below width 8. Or auto width
+  RETURN 38  ' 304 \ 8
+ ELSE
+  RETURN this.width \ 8
+ END IF
+END FUNCTION
+
 SUB SaveTextBox (byref box as TextBox, byval record as integer)
  DIM boxbuf(dimbinsize(binSAY)) as integer
  IF record < 0 OR record > gen(genMaxTextBox) THEN debug "SaveTextBox: invalid record: " & record : EXIT SUB
@@ -3025,12 +3050,16 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
  DIM i as integer
 
  WITH box
-  '--Transcribe lines of text into the buffer
-  IF UBOUND(.text) > 7 THEN showbug "Can't save all textbox lines"
-  FOR i = 0 TO 7
-   DIM tline as string = IIF(i <= UBOUND(.text), .text(i), "")
-   str2array rpad(tline, CHR(0), 38, clipRight), boxbuf(), i * 38
-  NEXT i
+  '--Transcribe lines of text into the buffer, split into two pieces:
+  'The original 38*8 block, and an overflow block of 8 bytes because the switch
+  'to newlines can cause a worst case increase of 7 bytes.
+  DIM text as string = textbox_lines_to_string(box)
+  IF LEN(text) > maxTextboxLength THEN showbug "Can't save all lines of textbox " & record
+  'We don't need to pad lines with NULs, the buffer is zeroed.
+  str2array LEFT(text, 38 * 8), boxbuf(), 0
+  str2array MID(text, 38 * 8, 8), boxbuf(), 450
+  'Set the text encoding format
+  boxbuf(448) = 1
   '--Transcribe conditional data
   DIM condbuf(20) as integer
   condbuf(0) = .instead_tag
@@ -5973,7 +6002,7 @@ END SUB
 SUB textbox_translation_to_lines(box as TextBox, text as string)
  DIM lines() as string
  'TODO: wrap around portraits
- DIM wrappedtext as string = wordwrap(text, 38)
+ DIM wrappedtext as string = wordwrap(text, box.linelength())
  split(wrappedtext, lines())
  a_copy lines(), box.text()
 END SUB
