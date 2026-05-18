@@ -1113,15 +1113,40 @@ END SUB
 '============================ Textbox Text Editor =============================
 
 
+
 'Wrap and split up a string and stuff it into box.text, possibly editing 'text'
 'by trimming unneeded whitespace at the end if needed to meet the line limit.
 '(Opposite of textbox_lines_to_string.)
 'Returns true if it did fit, and does nothing and returns false if it didn't.
 FUNCTION textbox_string_to_lines(byref box as TextBox, byref text as string) as bool
- DIM lines() as string
- DIM wrappedtext as string = wordwrap(text, 38)
- split(wrappedtext, lines())
+ DIM oldlines() as string
+ a_copy box.text(), oldlines()
 
+ DIM wrappedtext as string = wordwrap(text, box.linelength())
+ split(wrappedtext, box.text())
+
+ IF box.too_much_text() THEN
+  'Trim whitespace lines past the end so that stuffing doesn't fail unnecessarily
+  FOR idx as integer = UBOUND(box.text) TO 0 STEP -1
+   box.text(idx) = RTRIM(box.text(idx))
+   IF box.too_much_text() = NO THEN
+    'Also trim those extra lines from the input string.
+    DIM line_starts() as integer
+    split_line_positions text, box.text(), line_starts()
+    text = LEFT(text, line_starts(idx) - 1)
+    REDIM PRESERVE box.text(idx)
+    RETURN YES
+   END IF
+   IF LEN(box.text(idx)) THEN
+    'Can't trim more! Failure
+    a_copy oldlines(), box.text()
+    RETURN NO
+   END IF
+  NEXT
+ END IF
+ RETURN YES
+
+ /'  FIXME: Maybe the old stuffing method was better?
  IF UBOUND(lines) + 1 > maxTextboxLines THEN
   'Trim whitespace lines past the end so that stuffing doesn't fail unnecessarily
   FOR idx as integer = maxTextboxLines TO UBOUND(lines)
@@ -1137,6 +1162,7 @@ FUNCTION textbox_string_to_lines(byref box as TextBox, byref text as string) as 
  END IF
  a_copy lines(), box.text()
  RETURN YES
+ '/
 END FUNCTION
 
 SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
@@ -1160,7 +1186,7 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
 
   DIM newtext as string = text
   DIM newinsert as integer = txtdata->insert
-  stredit(newtext, newinsert, 9999, maxTextboxLines, 38)
+  stredit(newtext, newinsert, 9999, maxTextboxLines, box.linelength)
   IF textbox_string_to_lines(box, newtext) THEN
    'Accepted: the new text did fit in the box
    txtdata->insert = small(newinsert, LEN(newtext))  'May be past end if newtext got trimmed
@@ -1170,6 +1196,8 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
     boxslice->Width = get_text_box_width(box)
     boxslice->Height = get_text_box_height(box)
     'The choicebox position would need updating too, but it's hidden
+   ELSE
+    show_overlay_message "Text too long (try reducing width)", 1.0
    END IF
   END IF
 
@@ -1525,6 +1553,7 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
   LINE INPUT #fh, s
   s = decode_backslash_codes(s, "Line " & line_number & ":", show_encoding_warnings)
   IF firstline THEN
+   'Note: still not using linelength here...
    IF RTRIM(s) <> STRING(38, "=") THEN
     import_textboxes_warn warn, decode_filename(filename) & " is not a valid text box file. Expected header row, found """ & s & """."
     CLOSE #fh
@@ -1732,10 +1761,11 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
       CLOSE #fh
       RETURN NO
      END IF
-     IF LEN(s) > 38 THEN '--this should be down here
+     IF LEN(s) > box.linelength() THEN
       warn_length += 1
-      debug "import_textboxes: line " & line_number & " too long: """ & s & """"
-      s = LEFT(s, 38)
+      debug "import_textboxes: line " & line_number & " too long (limit " & box.linelength() & " characters, determined by the Width): """ & s & """"
+      'This is crud, we should rewrap instead.
+      s = LEFT(s, box.linelength())
      END IF
      a_append box.text(), s
     END IF

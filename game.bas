@@ -3668,7 +3668,7 @@ SUB loadsay (byval box_id as integer)
  translate_textbox txt.box, box_id
 
  FOR j as integer = 0 TO UBOUND(txt.box.text)
-  embedtext txt.box.text(j), 38
+  embedtext txt.box.text(j), txt.box.linelength()
  NEXT j
 
  '-- set tags indicating the text box has been seen.

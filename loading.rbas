@@ -2923,13 +2923,6 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
 
  '--Populate TextBox object
  WITH box
-  '--Load lines of text
-  REDIM .text(7)  'maxTextboxLines - 1
-  FOR i = 0 TO 7
-   .text(i) = STRING(38, 0)
-   array2str boxbuf(), i * 38, .text(i)
-   .text(i) = RTRIM(.text(i), CHR(0)) '--Trim off any trailing ASCII zeroes
-  NEXT i
   '--Gather conditional data
   '--transpose conditional data from its dumb-as-toast non-int-aligned location
   DIM condtemp as string
@@ -3006,8 +2999,39 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
   .offset.y        = boxbuf(215)
   .width           = boxbuf(216)
   .height          = boxbuf(217)
+
+  '--Load lines of text once width is set so know linelength
+  ERASE .text
+  DIM linelen as integer = box.linelength()
+  DIM remaining as integer = 8 * 38  'Size of the data block
+  DIM linenum as integer = 0
+  WHILE remaining > 0
+   DIM linebuf as string = STRING(small(remaining, linelen), 0)
+   array2str boxbuf(), linenum * linelen, linebuf
+   remaining -= linelen
+   REDIM PRESERVE .text(linenum)
+   .text(linenum) = RTRIM(linebuf, CHR(0)) '--Trim off any trailing ASCII zeroes
+   linenum += 1
+  WEND
+
  END WITH
 END SUB
+
+FUNCTION TextBox.linelength() as integer
+ IF this.width < 8 THEN
+  'Behave the same as a text slice, wrapping is ignored below width 8. Or auto width
+  RETURN 38  ' 304 \ 8
+ ELSE
+  RETURN this.width \ 8
+ END IF
+END FUNCTION
+
+FUNCTION TextBox.too_much_text() as bool
+ DIM bytesneeded as integer = (UBOUND(text) + 1) * linelength() + LEN(text(UBOUND(text)))
+ ?"linelen " & linelength() & " lines "& (UBOUND(text) + 1) & " last " & LEN(text(UBOUND(text))) & " total " & bytesneeded
+ ? "'" &  text(UBOUND(text)) & "'"
+ RETURN bytesneeded > 8 * 38
+END FUNCTION
 
 SUB SaveTextBox (byref box as TextBox, byval record as integer)
  DIM boxbuf(dimbinsize(binSAY)) as integer
@@ -3020,10 +3044,12 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
 
  WITH box
   '--Transcribe lines of text into the buffer
-  IF UBOUND(.text) > 7 THEN showbug "Can't save all textbox lines"
-  FOR i = 0 TO 7
-   DIM tline as string = IIF(i <= UBOUND(.text), .text(i), "")
-   str2array rpad(tline, CHR(0), 38, clipRight), boxbuf(), i * 38
+  DIM linelen as integer = box.linelength()
+  IF box.too_much_text() THEN showbug "Can't save all lines of textbox " & record
+  'We don't need to pad lines with NULs, the buffer is zeroed.
+  FOR i = 0 TO UBOUND(.text)
+   IF LEN(.text(i)) > linelen THEN showbug "Can't save textbox " & record & ", line somehow too long"
+   str2array .text(i), boxbuf(), i * linelen
   NEXT i
   '--Transcribe conditional data
   DIM condbuf(20) as integer
@@ -5961,7 +5987,7 @@ END SUB
 SUB textbox_translation_to_lines(box as TextBox, text as string)
  DIM lines() as string
  'TODO: wrap around portraits
- DIM wrappedtext as string = wordwrap(text, 38)
+ DIM wrappedtext as string = wordwrap(text, box.linelength())
  split(wrappedtext, lines())
  a_copy lines(), box.text()
 END SUB
