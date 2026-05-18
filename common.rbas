@@ -9316,11 +9316,12 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
    '--set box size
    .Width = 10 + large(LEN(box.choice(0)) * 8, LEN(box.choice(1)) * 8)
    .Height = 24
-   '--FIXME: This hackyness just reproduces the old method of positioning the choicebox.
+   '--FIXME: This just reproduces the old method of positioning the choicebox.
    '--FIXME: eventually the game author should have control over this.
    '(Note that a variant on this is in textbox_edit_preview)
-   .Y = text_box->Y + text_box->Height + 12
-   IF .Y > txtsl->Height - (.Height + 4) THEN .Y = 32
+   RefreshSliceScreenPos text_box
+   .Y = SliceEdgeY(text_box, alignBottom) + 12
+   IF .Y + .Height + 4 > txtsl->Height THEN .Y = 32
   END WITH
   'The choicebox isn't affected by box.opaque or box.no_box
   ChangeRectangleSlice choice_box, box.boxstyle
