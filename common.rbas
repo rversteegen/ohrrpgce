@@ -2099,7 +2099,7 @@ FUNCTION accelerating_keydown(key as KBScancode, maxspeed as integer, startspeed
  CONST START_REPEAT_WAIT = 350    'Delay in ms before initial key repeat
  CONST START_REPEAT_RATE = 180    'Delay in ms between initial key repeats
 
- CONST STARTSPEEDMS = 1700  'Delay before repeat accelerates (to 1 every tick)
+ CONST STARTSPEEDMS = 1400  'Delay before repeat accelerates (to 1 every tick)
  CONST MAXSPEEDMS = 5000    'Time before maxspeed reached
 
  IF keyval(key) > 0 THEN
