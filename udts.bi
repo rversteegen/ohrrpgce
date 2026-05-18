@@ -1167,6 +1167,9 @@ TYPE TextBox
   choice_enabled as bool
   choice(1)   as string
   choice_tag(1) as integer
+  choice_offset as XYPair      ' Position relative to anchor point
+  choice_placement_horiz as AlignType = alignCenter  ' Opposite of align and anchor point
+  choice_placement_vert  as AlignType = alignBottom
 
   'Appearance
   no_box      as bool

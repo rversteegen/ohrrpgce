@@ -869,6 +869,7 @@ END SUB
 
 TYPE TextboxAppearanceEditor EXTENDS EditorKit
  DECLARE SUB define_items()
+ DECLARE SUB choicebox_items()
  DECLARE SUB load()
  DECLARE SUB save()
  DECLARE SUB draw_underlays()
@@ -904,8 +905,26 @@ SUB TextboxAppearanceEditor.draw_underlays()
  textbox_draw_with_background *boxp, *st, backdrop, vpage
 END SUB
 
+SUB TextboxAppearanceEditor.choicebox_items()
+ DIM byref box as TextBox = *boxp
+
+ defint "Horiz Placement:", box.choice_placement_horiz, alignLeft, alignRight
+ set_caption align_caption(box.choice_placement_horiz, NO)
+ defint "Vert Placement:", box.choice_placement_vert, alignTop, alignBottom
+ set_caption align_caption(box.choice_placement_vert, YES)
+
+ defint "Offset X:", box.choice_offset.x, -gen(genResolutionX), gen(genResolutionX) - 1
+ defint "Offset Y:", box.choice_offset.y, -gen(genResolutionY), gen(genResolutionY) - 1
+
+END SUB
+
 SUB TextboxAppearanceEditor.define_items()
  DIM byref box as TextBox = *boxp
+
+ IF submenu = "choicebox" THEN
+  choicebox_items
+  EXIT SUB
+ END IF
 
  'Box Style and Height affect the choicebox
  DIM show_style_height as bool = (box.no_box = NO ORELSE box.choice_enabled)
@@ -932,6 +951,8 @@ SUB TextboxAppearanceEditor.define_items()
 
  defint "Horiz Padding:", box.padding_horiz, 0, 100
  defint "Vert Padding:", box.padding_vert, 0, 100
+
+ IF defitem_act("Choicebox...") THEN enter_submenu "choicebox"
 
  section "Text"
  defint "Color:", box.textcolor, 0, 255

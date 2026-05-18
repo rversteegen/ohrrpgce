@@ -1216,7 +1216,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binMENUS      THEN RETURN 56  'menus.bin
  IF id = binMENUITEM   THEN RETURN 68  'menuitem.bin
  IF id = binUICOLORS   THEN RETURN 126 'uicolors.bin
- IF id = binSAY        THEN RETURN 440 '.say
+ IF id = binSAY        THEN RETURN 448 '.say
  IF id = binN          THEN RETURN 38  '.n##
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
@@ -5341,6 +5341,10 @@ IF fix_portrait OR fix_possize THEN
    boxbuf(218) = 4
    'box.padding_vert
    boxbuf(219) = 3
+   'box.choice_placement_horiz
+   boxbuf(222) = alignCenter
+   'box.choice_placement_vert
+   boxbuf(223) = alignBottom
   END IF
   storerecord boxbuf(), fh, recsize, i
  NEXT i
@@ -9327,20 +9331,28 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
   DIM choice_box as Slice Ptr
   choice_box = NewSliceOfType(slRectangle, txtsl, SL_TEXTBOX_CHOICE_BOX)
   WITH *choice_box
-   '--center the box
-   .AnchorHoriz = alignCenter
-   .AlignHoriz = alignCenter
-   .AnchorVert = alignTop
-   .AlignVert = alignTop
+   '--
+   .AnchorHoriz = 2 - box.choice_placement_horiz
+   .AnchorVert = 2 - box.choice_placement_vert
+   .AlignHoriz = box.align_horiz
+   .AlignVert = box.align_vert
    '--set box size
    .Width = large(LEN(box.choice(0)) * 8, LEN(box.choice(1)) * 8) + 2 * box.padding_horiz
    .Height = (10 + 8) + 2 * box.padding_vert
-   '--FIXME: This just reproduces the old method of positioning the choicebox.
    '--FIXME: eventually the game author should have control over this.
    '(Note that a variant on this is in textbox_edit_preview)
    RefreshSliceScreenPos text_box
-   .Y = SliceEdgeY(text_box, alignBottom) + large(12, box.padding_vert)
-   IF .Y + .Height > txtsl->Height - 4 THEN .Y = 32
+   RefreshSliceScreenPos choice_box
+   .X = SliceEdgeX(text_box, box.choice_placement_horiz) - alignment_padding(box.choice_placement_horiz, 4) - SliceWidthFrac(txtsl, .AlignHoriz)
+   .Y = SliceEdgeY(text_box, box.choice_placement_vert) - alignment_padding(box.choice_placement_vert, 4) - SliceHeightFrac(txtsl, .AlignVert)
+   '.Y = SliceEdgeY(text_box, box.choice_placement_vert) - alignment_padding(box.choice_placement_vert, 12)
+   '--Reproduces the old method of auto-positioning the choicebox.
+   'IF .Y + .Height > txtsl->Height - 4 THEN
+   IF SliceEdgeY(choice_box, alignBottom) > txtsl->Height - 4 THEN
+    .AlignVert = alignTop
+    .AnchorVert = alignTop
+    .Y = 32
+   END IF
   END WITH
   'The choicebox isn't affected by box.opaque or box.no_box
   ChangeRectangleSlice choice_box, box.boxstyle
