@@ -1771,6 +1771,17 @@ FUNCTION anchor_point(byval anchor as AlignType, byval size as integer) as integ
  END SELECT
 END FUNCTION
 
+FUNCTION alignment_padding(byval align as AlignType, padding as integer) as integer
+ SELECT CASE align
+  CASE alignLeft
+   RETURN padding
+  CASE alignMiddle
+   RETURN 0
+  CASE alignRight
+   RETURN -padding
+ END SELECT
+END FUNCTION
+
 'Number visible items -- menu.numitems is total number.
 FUNCTION count_visible_menu_items (menu as MenuDef) as integer
  DIM i as integer

@@ -1171,11 +1171,14 @@ TYPE TextBox
   'Appearance
   no_box      as bool
   opaque      as bool
-  vertical_offset as integer ' in 4-pixel increments
-  shrink      as integer = -1 ' in 4-pixel increments, -1 is "Auto"
+  offset      as XYPair      ' Position relative to anchor point + 4px padding
+  width       as integer = 312 ' -1 is auto
+  height      as integer = -1  ' -1 is auto
+  align_horiz as AlignType = alignCenter  ' For align and anchor point
+  align_vert  as AlignType
   textcolor   as integer     ' 0=default
   boxstyle    as integer
-  backdrop    as integer     ' +1
+  backdrop    as integer     ' +1, 0=none
   backdrop_trans as bool
 
   portrait_box  as integer

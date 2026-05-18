@@ -907,8 +907,30 @@ END SUB
 SUB TextboxAppearanceEditor.define_items()
  DIM byref box as TextBox = *boxp
 
- defint "Position:", box.vertical_offset, 0, gen(genResolutionX) \ 4 - 1
- defint "Text Color:", box.textcolor, 0, 255
+ 'Box Style and Height affect the choicebox
+ DIM show_style_height as bool = (box.no_box = NO ORELSE box.choice_enabled)
+
+ section "Position"
+ defint "X:", box.offset.x, -gen(genResolutionX), gen(genResolutionX) - 1
+ defint "Y:", box.offset.y, -gen(genResolutionY), gen(genResolutionY) - 1
+
+ defint "Horiz Align:", box.align_horiz, alignLeft, alignRight
+ set_caption align_caption(box.align_horiz, NO)
+ defint "Vert Align:", box.align_vert, alignTop, alignBottom
+ set_caption align_caption(box.align_vert, YES)
+
+ defitem "Width:"
+ edit_zint box.width, -1, gen(genResolutionX)  'Can only fill ~312 with text
+ IF value = -1 THEN set_caption "Auto"
+
+ IF show_style_height THEN
+  defitem "Height:"
+  edit_zint box.height, -1, gen(genResolutionY)  'Can only fill ~88 with text
+  IF value = -1 THEN set_caption "Auto"
+ END IF
+
+ section "Text"
+ defint "Color:", box.textcolor, 0, 255
  IF activate THEN
   value = color_browser_256(value)
   edited = YES
@@ -921,11 +943,8 @@ SUB TextboxAppearanceEditor.define_items()
   defitem "Translucent:"
   edit_bool invert_bool(box.opaque)
  END IF
- IF box.no_box = NO ORELSE box.choice_enabled THEN  'Box Style and shrink affect the choicebox
+ IF show_style_height THEN
   defint "Box Style:", box.boxstyle, 0, 14
-  defitem "Shrink:"
-  edit_zint box.shrink, -1, 21
-  IF value = -1 THEN set_caption "Auto"
  END IF
 
  section "Backdrop"
@@ -1063,8 +1082,8 @@ SUB textbox_copy_style_from_box (byval template_box_id as integer=0, byref box a
  WITH box
   .no_box          = boxcopier.no_box
   .opaque          = boxcopier.opaque
-  .vertical_offset = boxcopier.vertical_offset
-  .shrink          = boxcopier.shrink
+  '.vertical_offset = boxcopier.vertical_offset
+  '.shrink          = boxcopier.shrink
   .textcolor       = boxcopier.textcolor
   .boxstyle        = boxcopier.boxstyle
   'Copy backdrop as it's often used as a portrait
@@ -1144,6 +1163,7 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
    IF newtext <> text THEN
     text = newtext
     ChangeTextSlice textslice, text
+    boxslice->Width = get_text_box_width(box)
     boxslice->Height = get_text_box_height(box)
     'The choicebox position would need updating too, but it's hidden
    END IF
@@ -1470,6 +1490,16 @@ SUB import_save_textbox(box as TextBox, byref index as integer, byref warn_appen
  index += 1
 END SUB
 
+'The inverse of align_caption
+FUNCTION find_align_caption(cap as string) as AlignType
+ DIM ret as AlignType
+ ret = a_findcasei(HorizCaptions(), cap, alignINVALID)
+ IF ret = alignINVALID THEN
+  ret = a_findcasei(VertCaptions(), cap, alignINVALID)
+ END IF
+ RETURN ret
+END FUNCTION
+
 FUNCTION import_textboxes (filename as string, byref warn as string) as bool
  DIM fh as integer
  IF OPENFILE(filename, FOR_INPUT, fh) THEN
@@ -1540,14 +1570,46 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
       v = valline
       IF INSTR(v, " ") THEN v = MID(v, 1, INSTR(v, " ") - 1)
       SELECT CASE t
-       CASE "size"
+       CASE "width"
         IF LCASE(v) = "auto" THEN
-         box.shrink = -1
-        ELSEIF VALINT(v) > 21 THEN
-         debug "Box size too large, capping"
-         box.shrink = 0
+         box.width = -1
         ELSE
-         box.shrink = 21 - VALINT(v)
+         box.width = large(-1, VALINT(v))
+        END IF
+       CASE "height"
+        IF LCASE(v) = "auto" THEN
+         box.height = -1
+        ELSE
+         box.height = large(-1, VALINT(v))
+        END IF
+       CASE "size"
+        'Accept obsolete exported textboxes that included 21 - .shrink as "Size"
+        IF LCASE(v) = "auto" THEN
+         'box.shrink = -1
+         box.height = -1
+        ELSE
+         'Size > 21 used to be rejected. We don't have to
+         DIM shrink as integer = 21 - VALINT(v)
+         box.height = 88 - shrink * 4
+        END IF
+       CASE "x"
+        box.offset.X = VALINT(v)
+       CASE "y"
+        box.offset.Y = VALINT(v)
+       CASE "position"
+        'Accept obsolete exported textboxes that included .vertical_offset as "Position"
+        box.offset.Y = VALINT(v) * 4
+       CASE "x align"
+        box.align_horiz = find_align_caption(v)
+        IF box.align_horiz = alignINVALID THEN
+         debug "Invalid 'X Align' value"
+         box.align_horiz = alignCenter
+        END IF
+       CASE "y align"
+        box.align_vert = find_align_caption(v)
+        IF box.align_vert = alignINVALID THEN
+         debug "Invalid 'Y Align' value"
+         box.align_vert = alignTop
         END IF
        CASE "portrait box"
         box.portrait_box = str2bool(v, NO)
@@ -1625,8 +1687,6 @@ FUNCTION import_textboxes (filename as string, byref warn as string) as bool
         box.choice_tag(0) = VALINT(v)
        CASE "choice 2 tag"
         box.choice_tag(1) = VALINT(v)
-       CASE "position"
-        box.vertical_offset = VALINT(v)
        CASE "text color"
         box.textcolor = VALINT(v)
        CASE "box style", "border color"    'Obsolete name from previously exported files
@@ -1871,12 +1931,22 @@ FUNCTION export_textboxes (filename as string, metadata() as bool) as bool
   END IF
   
   IF metadata(3) THEN '--box appearance
-   IF box.shrink = -1 THEN
-    PRINT #fh, "Size: auto"
+   'Use to write (21 - box.shrink) as "Size" and box.vertical_offset as "Position"
+   'So do not reuse "Size" and "Position"!
+   IF box.width = -1 THEN
+    PRINT #fh, "Width: auto"
    ELSE
-    PRINT #fh, "Size: " & (21 - box.shrink)
+    PRINT #fh, "Width: " & box.width
    END IF
-   PRINT #fh, "Position: " & box.vertical_offset
+   IF box.height = -1 THEN
+    PRINT #fh, "Height: auto"
+   ELSE
+    PRINT #fh, "Height: " & box.height
+   END IF
+   PRINT #fh, "X: " & box.offset.X
+   PRINT #fh, "X Align: " & align_caption(box.align_horiz, NO)
+   PRINT #fh, "Y: " & box.offset.Y
+   PRINT #fh, "Y Align: " & align_caption(box.align_vert, YES)
    PRINT #fh, "Text Color: " & box.textcolor
    PRINT #fh, "Box Style: " & box.boxstyle  'Used to be exported as "Border Color"
    PRINT #fh, "Backdrop: " & box.backdrop

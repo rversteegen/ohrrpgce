@@ -3603,17 +3603,23 @@ SUB translate_textbox(box as TextBox, id as integer)
   IF trans THEN
    'Replace text. The number of lines of text might change, so also adjust size and position of the box
 
-   IF box.shrink <> -1 THEN
-    'Not auto-sized. Change to auto if it appears the box was correctly sized
+   IF box.height <> -1 THEN
+    'Not auto-sized. Change height to auto if it appears the box was correctly sized
     'as opposed to intentionally over/under-size
     IF ABS(get_text_box_height(box) - (20 + 10 * text_box_last_line(box))) < 10 THEN
-     box.shrink = -1
+     box.height = -1
     END IF
    END IF
 
    textbox_translation_to_lines box, trans->text
 
-   box.vertical_offset = small(box.vertical_offset, (get_resolution().y - 4 - get_text_box_height(box)) \ 4)
+   ' Shift up as needed to keep the box from going over the bottom edge (-4px) of the screen
+   DIM newheight as integer = get_text_box_height(box)
+   IF box.align_vert = alignTop THEN
+    box.offset.y = small(box.offset.y, get_resolution().y - 4 - newheight)
+   ELSEIF box.align_vert = alignCenter THEN
+    box.offset.y = small(box.offset.y, (get_resolution().y - 4 - newheight) \ 2)
+   END IF
   END IF
 
   IF box.choice_enabled THEN
