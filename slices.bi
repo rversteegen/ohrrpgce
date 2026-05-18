@@ -757,6 +757,7 @@ DECLARE Sub RefreshSliceTree(sl as Slice ptr, autosort as bool = NO, visibleonly
 DECLARE Function SliceLegalCoverModes(sl as Slice ptr) as CoverModes
 DECLARE Function SlicePossiblyResizable(sl as Slice ptr) as bool
 
+DECLARE Function DefaultSliceSupport(sl as Slice ptr, apply_padding as bool = YES) as RectType
 DECLARE Function SliceXAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceYAnchor(byval sl as Slice Ptr) as integer
 DECLARE Function SliceWidthFrac(byval sl as Slice Ptr, byval edge as AlignType) as integer

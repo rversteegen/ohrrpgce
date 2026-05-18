@@ -200,12 +200,22 @@ Sub NullChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex a
 Sub DefaultChildRefresh(byval par as Slice ptr, byval ch as Slice ptr, childindex as integer = -1, visibleonly as bool = YES)
  if ch = 0 then debug "DefaultChildRefresh null ptr": exit sub
  if visibleonly andalso ch->Visible = NO then exit sub  'Don't need to exclude template slices
- dim support as RectType = any
- support.xy = par->ScreenPos + XY(par->paddingLeft, par->paddingTop)
- support.wide = par->Width - par->paddingLeft - par->paddingRight
- support.high = par->Height - par->paddingTop - par->paddingBottom
+ dim support as RectType = DefaultSliceSupport(par)
  RefreshChild ch, support
 End Sub
+
+'The screen bounds of the slice, minus padding.
+'Note, some slice types use different logic.
+Function DefaultSliceSupport(sl as Slice ptr, apply_padding as bool = YES) as RectType
+ dim support as RectType = XY_WH(sl->ScreenPos, sl->Size)
+ if apply_padding then
+  support.x += sl->paddingLeft
+  support.y += sl->paddingTop
+  support.wide -= sl->paddingLeft + sl->paddingRight
+  support.high -= sl->paddingTop + sl->paddingBottom
+ end if
+ return support
+End Function
 
 'Support is the box (in screen coordinates) which the child is aligned relative to,
 'and which it would fill if ch->Fill is true.
@@ -216,11 +226,8 @@ Sub RefreshChild(ch as Slice ptr, support as RectType)
   .ScreenY = .Y + support.y + SliceYAlign(ch, support.high) - SliceYAnchor(ch)
   if .ClampHoriz <> alignNone orelse .ClampVert <> alignNone then
    if .ClampToScreen then
-    dim scr_rect as RectType = any
     dim root_sl as slice Ptr = FindRootSlice(ch)
-    scr_rect.xy = root_sl->ScreenPos + XY(root_sl->paddingLeft, root_sl->paddingTop)
-    scr_rect.wide = root_sl->Width - root_sl->paddingLeft - root_sl->paddingRight
-    scr_rect.high = root_sl->Height - root_sl->paddingTop - root_sl->paddingBottom
+    dim scr_rect as RectType = DefaultSliceSupport(root_sl)
     RefreshChildClamp ch, scr_rect
    else
     'Clamp to parent
@@ -3435,14 +3442,7 @@ Sub ScrollToChild(byval sl as Slice ptr, byval desc as Slice ptr, byval apply_pa
 
  RefreshSliceScreenPos desc
 
- dim support as RectType = XY_WH(sl->ScreenPos, sl->Size)
- if apply_padding then
-  support.x += sl->paddingLeft
-  support.y += sl->paddingTop
-  support.wide -= sl->paddingLeft + sl->paddingRight
-  support.high -= sl->paddingTop + sl->paddingBottom
- end if
-
+ dim support as RectType = DefaultSliceSupport(sl, apply_padding)
  dim xmove as integer = 0
  dim ymove as integer = 0
  dim diff as integer
