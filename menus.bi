@@ -96,6 +96,7 @@ DECLARE SUB draw_menu (menu as MenuDef, state as MenuState, byval page as intege
 DECLARE SUB update_menu_captions (menu as MenuDef)
 DECLARE FUNCTION menudef_item_rect (menu as MenuDef, state as MenuState, menutext as string, index as integer) as RectType
 DECLARE FUNCTION anchor_point(byval anchor as AlignType, byval size as integer) as integer
+DECLARE FUNCTION alignment_padding(byval align as AlignType, padding as integer) as integer
 DECLARE FUNCTION count_visible_menu_items (menu as MenuDef) as integer
 
 DECLARE FUNCTION get_menu_item_caption (mi as MenuDefItem, menu as MenuDef) as string

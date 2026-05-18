@@ -2982,21 +2982,30 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
    .choice_tag(i) = boxbuf(182 + (i * 9))
   NEXT i
   '--Get box appearance
-  .vertical_offset = boxbuf(193)
-  .shrink          = boxbuf(194)
+  '.vertical_offset = boxbuf(193)
+  '.shrink         = boxbuf(194)
+  'Note: we don't check fixTextBoxPosSize and fixTextBoxPortrait here,
+  'assuming upgrade() has run.
   .textcolor       = boxbuf(195) ' 0=default
   .boxstyle        = boxbuf(196)
   .backdrop        = boxbuf(197) ' +1
   .music           = boxbuf(198) ' +1
   .sound_effect    = boxbuf(205) ' +1
   .line_sound      = boxbuf(206) ' +1, 0=default, -1=none
-  '--Get portrait data
+  '--Portraits
   .portrait_type   = boxbuf(200)
   .portrait_id     = boxbuf(201)
   .portrait_pal    = boxbuf(202)
   .portrait_pos.x  = boxbuf(203)
   .portrait_pos.y  = boxbuf(204)
   .portrait_frameid = boxbuf(211)
+  '--Size/pos/align
+  .align_horiz     = boxbuf(212)
+  .align_vert      = boxbuf(213)
+  .offset.x        = boxbuf(214)
+  .offset.y        = boxbuf(215)
+  .width           = boxbuf(216)
+  .height          = boxbuf(217)
  END WITH
 END SUB
 
@@ -3065,14 +3074,22 @@ SUB SaveTextBox (byref box as TextBox, byval record as integer)
    boxbuf(182 + (i * 9)) = .choice_tag(i)
   NEXT i
   '--Save box appearance
-  boxbuf(193) = .vertical_offset
-  boxbuf(194) = .shrink
+  'boxbuf(193) = .vertical_offset
+  boxbuf(193) = .offset.y \ 4  'For compat with old tools, and for genVersion 0 upgrades
+  'boxbuf(194) = .shrink
+  boxbuf(194) = IIF(.height = -1, -1, (88 - .height) \ 4)  'For compat with old tools, and for genVersion 0 upgrades
   boxbuf(195) = .textcolor ' 0=default
   boxbuf(196) = .boxstyle
   boxbuf(197) = .backdrop  ' +1
   boxbuf(198) = .music     ' +1
   boxbuf(205) = .sound_effect ' +1
   boxbuf(206) = .line_sound ' +1, 0=default, -1=none
+  boxbuf(212) = .align_horiz
+  boxbuf(213) = .align_vert
+  boxbuf(214) = .offset.x
+  boxbuf(215) = .offset.y
+  boxbuf(216) = .width
+  boxbuf(217) = .height
   '--Save portrait data
   boxbuf(200) = .portrait_type
   boxbuf(201) = .portrait_id

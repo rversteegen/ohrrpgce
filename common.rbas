@@ -1216,7 +1216,7 @@ FUNCTION curbinsize (byval id as integer) as integer
  IF id = binMENUS      THEN RETURN 56  'menus.bin
  IF id = binMENUITEM   THEN RETURN 68  'menuitem.bin
  IF id = binUICOLORS   THEN RETURN 126 'uicolors.bin
- IF id = binSAY        THEN RETURN 424 '.say
+ IF id = binSAY        THEN RETURN 436 '.say
  IF id = binN          THEN RETURN 38  '.n##
  IF id = binDT0        THEN RETURN 858 '.dt0
  IF id = binDT1        THEN RETURN 744 '.dt1
@@ -4613,13 +4613,15 @@ IF gen(genVersion) = 0 THEN
    .game_save      = 0
    .game_load      = 0
    .menu_tag       = 0
-   .vertical_offset = 0
-   .shrink         = 0
+   .offset.y       = 0  'Sets obsolete .vertical_offset field to 0
+   .height         = 0  'Sets obsolete .shrink field to 0
    .textcolor      = 0
    .boxstyle       = 0
    .backdrop       = 0
    .music          = 0
    .menu           = 0
+   'Don't bother to add new fields here, they didn't exist
+   '(There are fixbits for new fields not defaulting to 0)
   END WITH
   SaveTextBox box, o
  NEXT o
@@ -5306,12 +5308,13 @@ IF getfixbit(fixHeroPortrait) = 0 OR getfixbit(fixHeroElementals) = 0 THEN
  NEXT i
 END IF
 
-'This fixbit was introduced at the same time as textbox portraits,
-'so if it's not on, then the game doesn't use portraits, so it doesn't
-'need to be fixed for Game.
-IF full_upgrade AND getfixbit(fixTextBoxPortrait) = 0 THEN
- upgrade_message "Initialize text box portrait data..."
+DIM fix_portrait as bool = (getfixbit(fixTextBoxPortrait) = 0)
+DIM fix_possize as bool = (getfixbit(fixTextBoxPosSize) = 0)
+IF fix_portrait OR fix_possize THEN
+ 'Note: this upgrade can't be skipped, as LoadTextBox does not check the fixbits.
+ upgrade_message "Initialize new text box data..."
  setfixbit(fixTextBoxPortrait, 1)
+ setfixbit(fixTextBoxPosSize, 1)
  'DIM box as TextBox
  DIM boxbuf(dimbinsize(binSAY)) as integer
  DIM recsize as integer = getbinsize(binSAY) \ 2
@@ -5322,7 +5325,19 @@ IF full_upgrade AND getfixbit(fixTextBoxPortrait) = 0 THEN
   'box.portrait_pal = -1 'Default palette
   'SaveTextBox box, i
   loadrecord boxbuf(), fh, recsize, i
-  boxbuf(202) = -1 'Default palette
+  IF fix_portrait THEN boxbuf(202) = -1 'Default palette
+  IF fix_possize THEN
+   'box.align_horiz
+   boxbuf(212) = alignCenter
+   'box.offset.y
+   DIM vertical_offset as integer = boxbuf(193)
+   boxbuf(215) = vertical_offset * 4
+   'box.width
+   boxbuf(216) = 312
+   'box.height
+   DIM shrink as integer = boxbuf(194)
+   boxbuf(217) = IIF(shrink = -1, -1, 88 - 4 * shrink)
+  END IF
   storerecord boxbuf(), fh, recsize, i
  NEXT i
  CLOSE #fh
@@ -9113,8 +9128,24 @@ FUNCTION text_box_last_line(byref box as TextBox) as integer
  RETURN -1
 END FUNCTION
 
+FUNCTION get_text_box_width(byref box as TextBox) as integer
+ IF box.width >= 0 THEN RETURN box.width
+ 'Calculate autosize: max width of any line of text.  Does not try to cover the
+ 'portrait, because auto height doesn't, and it would be better done with Cover
+ 'Children. We might in future add a "auto size covers portrait" setting.
+ DIM maxwidth as integer = 0
+ FOR i as integer = 0 TO UBOUND(box.text)
+  maxwidth = large(maxwidth, 8 * LEN(box.text(i)))
+ NEXT
+ 'Add 8 for the box padding. Full width if no text
+ RETURN IIF(maxwidth, maxwidth + 8, 312)
+END FUNCTION
+
 FUNCTION get_text_box_height(byref box as TextBox) as integer
- IF box.shrink >= 0 THEN RETURN 88 - box.shrink * 4
+ IF box.height >= 0 THEN RETURN box.height
+ 'What it used to be:
+ 'IF box.shrink >= 0 THEN RETURN 88 - box.shrink * 4
+ 'Calculate autosize
  DIM lastline as integer = text_box_last_line(box)
  IF lastline = -1 THEN RETURN 88  'Instead of 90 for a full box, why?
  DIM vsize as integer = 20 + lastline * 10
@@ -9124,6 +9155,7 @@ FUNCTION get_text_box_height(byref box as TextBox) as integer
 END FUNCTION
 
 'Creates the slices for a textbox, returning them in the txtsl variable.
+'parent: in-game, the SL_TEXTBOX_LAYER slice, which is SliceTable.TextBox.
 'revealed: if false, the text isn't revealed yet
 SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Slice ptr, revealed as bool)
  IF txtsl THEN
@@ -9157,19 +9189,22 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
 
  '--position and size the text box
  WITH *text_box
-  .X = 0
-  .Y = 4 + box.vertical_offset * 4
-  .Width = 312
+  'Add padding (if the box isn't centered), so that the default X/Y=0 looks
+  'better. This is equivalent to setting padding on the root, but we can't for
+  'backcompat.
+  .X = box.offset.x + alignment_padding(box.align_horiz, 4)
+  .Y = box.offset.y + alignment_padding(box.align_vert, 4)
+  .Width = get_text_box_width(box)
   .Height = get_text_box_height(box)
   .PaddingLeft = 4
   .PaddingRight = 4
   .PaddingTop = 3
   .PaddingBottom = 3
   'Horizontal centering
-  .AlignHoriz = alignCenter
-  .AnchorHoriz = alignCenter
-  .AnchorVert = alignTop
-  .AlignVert = alignTop
+  .AlignHoriz = box.align_horiz
+  .AnchorHoriz = box.align_horiz
+  .AnchorVert = box.align_vert
+  .AlignVert = box.align_vert
  END WITH
 
  '--Set up the actual text
@@ -9281,11 +9316,12 @@ SUB init_text_box_slices(byref txtsl as Slice ptr, box as TextBox, parent as Sli
    '--set box size
    .Width = 10 + large(LEN(box.choice(0)) * 8, LEN(box.choice(1)) * 8)
    .Height = 24
-   '--FIXME: This hackyness just reproduces the old method of positioning the choicebox.
+   '--FIXME: This just reproduces the old method of positioning the choicebox.
    '--FIXME: eventually the game author should have control over this.
    '(Note that a variant on this is in textbox_edit_preview)
-   .Y = text_box->Y + text_box->Height + 12
-   IF .Y > txtsl->Height - (.Height + 4) THEN .Y = 32
+   RefreshSliceScreenPos text_box
+   .Y = SliceEdgeY(text_box, alignBottom) + 12
+   IF .Y + .Height + 4 > txtsl->Height THEN .Y = 32
   END WITH
   'The choicebox isn't affected by box.opaque or box.no_box
   ChangeRectangleSlice choice_box, box.boxstyle

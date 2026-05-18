@@ -674,12 +674,13 @@ sub EditorKit.spacer()
 	cur_item_index += 1
 end sub
 
-' Add an unselectable, highlighted & offset section header line, preceded by spacer
+' Add an unselectable, highlighted & offset section header line, preceded by spacer (unless first real item)
 sub EditorKit.section(title as zstring ptr)
 	finish_defitem
 	' Doesn't count as an item
 	if refresh then base.header " " & *title
-	cur_item_index += 2
+	if cur_item_index > 0 then cur_item_index += 1
+	cur_item_index += 1
 end sub
 
 ' Add an unselectable highlighted subsection header. No spacer in front

@@ -868,7 +868,7 @@ END TYPE
 
 'Used for menu and slice anchor points and slice align points
 'Not to be confused with the rCenter, ancCenter, etc, constants!
-Type AlignType as ubyte
+Type AlignType as byte
 Enum 'AlignType
   alignLeft = 0
   alignTop = 0
@@ -878,7 +878,7 @@ Enum 'AlignType
   alignRight = 2
   alignBottom = 2
   alignBoth = 3   'Only used by slice clamp options
-  alignINVALID = 127
+  alignINVALID = -1
 End Enum
 
 CONST _rFactor = 10100000

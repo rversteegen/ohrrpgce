@@ -34,6 +34,7 @@ CONST CURRENT_RPG_VERSION = 23
 ' 21 - fufluns replaced all .PT# and .MXS with .rgfx
 ' 22 - ichorescent switched to extra data vectors in .Z and slicetree_*.reld
 ' 23 - ichorescent made .TAP binsize-sized, extended them, and added new ops
+'      lexiphanic switched to items.reld. Forgot bump.
 
 CONST CURRENT_RGFX_VERSION = 1
 ' Version number embedded in each .rgfx file.
@@ -305,8 +306,9 @@ CONST fixCheckForBrokenTBChains = 30 'Ran check_for_broken_textbox_after_chains(
 CONST fixCheckTryingToMoveDirection = 31 'Checked whether "trying to move direction" script exists
 CONST fixExtendedTileAnims = 32  'Initialised .TAP record fields at indices 20+
 CONST fixInitItemsReld = 33      'Load all ITM records and save them as items.reld
+CONST fixTextBoxPosSize = 34     'Initialise new .SAY position/size/align settings
 
-CONST sizeFixBits = 34 ' *** Update this when adding fix bits (last bit + 1) ***
+CONST sizeFixBits = 35 ' *** Update this when adding fix bits (last bit + 1) ***
 
 '---Sizes (replaceable with variables when suitable)
 CONST max_onetime = 15999 'The last available onetime use flag. (The first is 2.)

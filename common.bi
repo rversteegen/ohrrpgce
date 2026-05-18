@@ -326,6 +326,7 @@ DECLARE FUNCTION prefbit(bitnum as integer) as bool
 DECLARE SUB setprefbit(bitnum as integer, newval as bool = YES)
 
 DECLARE FUNCTION text_box_last_line(byref box as TextBox) as integer
+DECLARE FUNCTION get_text_box_width(byref box as TextBox) as integer
 DECLARE FUNCTION get_text_box_height(byref box as TextBox) as integer
 DECLARE FUNCTION last_inv_slot() as integer
 

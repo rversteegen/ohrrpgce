@@ -390,6 +390,7 @@ BlendAlgoCaptions(blendAlgoNoDither)   = "No dithering"
 
 '==============================================================================
 
+'The inverse of this is find_align_caption
 FUNCTION align_caption(align as AlignType, vertical as bool) as string
  IF vertical THEN RETURN VertCaptions(align) ELSE RETURN HorizCaptions(align)
 END FUNCTION
