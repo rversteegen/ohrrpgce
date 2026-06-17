@@ -9171,7 +9171,7 @@ FUNCTION get_text_box_height(byref box as TextBox) as integer
   END IF
  ELSE  'height = -1
   'Calculate autosize
-  ret = (lastline + 1) * 10 - 2  '2px line spacing
+  ret = (lastline + 1) * 10
  END IF
  ret += 2 * box.padding_vert
  RETURN ret

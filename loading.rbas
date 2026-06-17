@@ -3025,7 +3025,7 @@ SUB LoadTextBox (byref box as TextBox, byval record as integer)
    DIM textbuf as string = STRING(38 * 8, 0)
    DIM textbuf2 as string = STRING(8, 0)
    array2str boxbuf(), 0, textbuf
-   array2str boxbuf(), 450, textbuf
+   array2str boxbuf(), 450, textbuf2
    '--Trim off any trailing ASCII zeroes
    textbuf = RTRIM(textbuf, CHR(0)) + RTRIM(textbuf2, CHR(0))
    textbox_update_text box, textbuf
@@ -3152,7 +3152,8 @@ FUNCTION TextBox.linelength() as integer
  END IF
 END FUNCTION
 
-'Concatenate textbox .text() lines into .fulltext. Preserves all whitespace.
+'Concatenate textbox .text() lines into .fulltext. Trims trailing newlines,
+'preserves other whitespace.
 SUB textbox_update_fulltext_from_lines(byref box as TextBox)
  box.fulltext = ""
  FOR idx as integer = 0 TO text_box_last_line(box)
