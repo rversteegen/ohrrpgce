@@ -28,7 +28,7 @@ DECLARE FUNCTION box_conditional_is_enabled(byref box as TextBox, menuindex as i
 DECLARE SUB update_textbox_editor_main_menu (byref box as TextBox, menu() as string)
 DECLARE SUB textbox_edit_load (byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB textbox_edit_preview (byref box as TextBox, byref st as TextboxEditState, page as integer, override_y as integer=-1, for_editing as bool=NO)
-DECLARE SUB textbox_draw_with_background(byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr, page as integer)
+DECLARE SUB textbox_draw_with_background(byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr, showants as bool = NO, page as integer)
 DECLARE SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB update_textbox_appearance_editor_menu (byref menu as SimpleMenuItem vector, byref box as TextBox, byref st as TextboxEditState)
 DECLARE SUB textbox_position_portrait (byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr)
@@ -628,7 +628,17 @@ SUB textbox_edit_preview (byref box as TextBox, byref st as TextboxEditState, pa
  IF override_y >= 0 THEN
   DIM box_sl as Slice ptr = LookupSliceSafe(SL_TEXTBOX_BOX, st.rootsl)
   DIM choice_box_sl as Slice ptr = LookupSlice(SL_TEXTBOX_CHOICE_BOX, st.rootsl)
+  DIM as AlignType oldalignx = box_sl->AlignHoriz, oldaligny = box_sl->AlignVert, _
+      oldanchorx = box_sl->AnchorHoriz, oldanchory = box_sl->AnchorHoriz
+  box_sl->AlignHoriz = alignCenter
+  box_sl->AlignVert = alignTop
+  box_sl->AnchorHoriz = alignCenter
+  box_sl->AnchorVert = alignTop
   DrawSliceAt box_sl, 0, override_y, 320, 200, page, YES
+  box_sl->AlignHoriz = oldalignx
+  box_sl->AlignVert = oldaligny
+  box_sl->AnchorHoriz = oldanchorx
+  box_sl->AnchorVert = oldanchory
   IF choice_box_sl ANDALSO for_editing = NO THEN
    DrawSliceAt choice_box_sl, 0, override_y + box_sl->Height + 12, 320, 200, page, YES
   END IF
@@ -642,13 +652,20 @@ SUB textbox_edit_preview (byref box as TextBox, byref st as TextboxEditState, pa
 END SUB
 
 ' Preview the textbox as it will appear in-game, portraying it with in-game window size
-SUB textbox_draw_with_background(byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr, page as integer)
+SUB textbox_draw_with_background(byref box as TextBox, byref st as TextboxEditState, backdrop as Frame ptr, showants as bool = NO, page as integer)
  clearpage page
  draw_background vpages(page), uilook(uiBackground)
  ' Draw the textbox over a textured background
  draw_textured_background st.viewport_page
  IF backdrop THEN frame_draw backdrop, , 0, 0, box.backdrop_trans, st.viewport_page
  textbox_edit_preview box, st, st.viewport_page
+ IF showants THEN
+  'Display the available text area, rather than actual text slice
+  DIM sl as Slice ptr = LookupSliceSafe(SL_TEXTBOX_BOX, st.rootsl)
+  RefreshSliceScreenPos sl
+  DIM support as RectType = DefaultSliceSupport(sl)
+  drawants vpages(st.viewport_page), support.x, support.y, support.wide, support.high
+ END IF
  ' Draw it in the corner of the screen
  draw_viewport_page st.viewport_page, page
 END SUB
@@ -853,7 +870,7 @@ SUB textbox_position_portrait (byref box as TextBox, byref st as TextboxEditStat
   img_box->X = box.portrait_pos.x - 4  'Duplicated from init_text_box_slices
   img_box->Y = box.portrait_pos.y - 3
 
-  textbox_draw_with_background box, st, backdrop, dpage
+  textbox_draw_with_background box, st, backdrop, , dpage
   wrapprintbg "Arrow keys to move, space to confirm", 0, 0, uilook(uiText), dpage
   wrapprintbg "Offset " & box.portrait_pos, pLeft, pBottom, uilook(uiText), dpage
   SWAP vpage, dpage
@@ -869,13 +886,14 @@ END SUB
 
 TYPE TextboxAppearanceEditor EXTENDS EditorKit
  DECLARE SUB define_items()
- DECLARE SUB choicebox_items()
+ DECLARE SUB menu_items(box as TextBox)
  DECLARE SUB load()
  DECLARE SUB save()
  DECLARE SUB draw_underlays()
  backdrop as Frame ptr
  boxp as TextBox ptr
  st as TextboxEditState ptr
+ showants as bool
 END TYPE
 
 SUB textbox_appearance_editor (byref box as TextBox, byref st as TextboxEditState)
@@ -902,41 +920,58 @@ SUB TextboxAppearanceEditor.load()
 END SUB
 
 SUB TextboxAppearanceEditor.draw_underlays()
- textbox_draw_with_background *boxp, *st, backdrop, vpage
-END SUB
-
-SUB TextboxAppearanceEditor.choicebox_items()
- DIM byref box as TextBox = *boxp
-
- defint "Horiz Placement:", box.choice_placement_horiz, alignLeft, alignRight
- set_caption align_caption(box.choice_placement_horiz, NO)
- defint "Vert Placement:", box.choice_placement_vert, alignTop, alignBottom
- set_caption align_caption(box.choice_placement_vert, YES)
-
- defint "Offset X:", box.choice_offset.x, -gen(genResolutionX), gen(genResolutionX) - 1
- defint "Offset Y:", box.choice_offset.y, -gen(genResolutionY), gen(genResolutionY) - 1
-
+ textbox_draw_with_background *boxp, *st, backdrop, showants, vpage
 END SUB
 
 SUB TextboxAppearanceEditor.define_items()
  DIM byref box as TextBox = *boxp
 
+ showants = NO
+
+ menu_items(box)
+
+ 'Update textbox preview (refresh happens when state.need_update is true)
+ IF phase = Phases.Refreshing THEN
+  init_text_box_slices st->textbox_sl, box, st->rootsl, YES
+  frame_unload @backdrop
+  IF boxp->backdrop > 0 THEN
+   backdrop = frame_load(sprTypeBackdrop, boxp->backdrop - 1)
+  END IF
+ END IF
+END SUB
+
+SUB TextboxAppearanceEditor.menu_items(box as TextBox)
+ IF submenu = "alignment" THEN
+  showants = YES
+  defint "Horiz Align:", box.align_horiz, alignLeft, alignRight
+  set_caption align_caption(box.align_horiz, NO)
+  defint "Vert Align:", box.align_vert, alignTop, alignBottom
+  set_caption align_caption(box.align_vert, YES)
+
+  defint "Horiz Padding:", box.padding_horiz, -100, 100
+  defint "Vert Padding:", box.padding_vert, -100, 100
+  EXIT SUB
+ END IF
+
  IF submenu = "choicebox" THEN
-  choicebox_items
+  defint "Horiz Placement:", box.choice_placement_horiz, alignLeft, alignRight
+  set_caption align_caption(box.choice_placement_horiz, NO)
+  defint "Vert Placement:", box.choice_placement_vert, alignTop, alignBottom
+  set_caption align_caption(box.choice_placement_vert, YES)
+
+  defint "Offset X:", box.choice_offset.x, -gen(genResolutionX), gen(genResolutionX) - 1
+  defint "Offset Y:", box.choice_offset.y, -gen(genResolutionY), gen(genResolutionY) - 1
   EXIT SUB
  END IF
 
  'Box Style and Height affect the choicebox
+ 'But Height disappearing causes the cursor to annoyingly jump, so just
+ 'show it unconditionally.
  DIM show_style_height as bool = (box.no_box = NO ORELSE box.choice_enabled)
 
  section "Position"
  defint "X:", box.offset.x, -gen(genResolutionX), gen(genResolutionX) - 1
  defint "Y:", box.offset.y, -gen(genResolutionY), gen(genResolutionY) - 1
-
- defint "Horiz Align:", box.align_horiz, alignLeft, alignRight
- set_caption align_caption(box.align_horiz, NO)
- defint "Vert Align:", box.align_vert, alignTop, alignBottom
- set_caption align_caption(box.align_vert, YES)
 
  defitem "Width:"
  edit_zint box.width, -1, gen(genResolutionX)  'Can only fill 304 with text
@@ -945,17 +980,15 @@ SUB TextboxAppearanceEditor.define_items()
   'Update the wrapped lines cache
   textbox_update_text box, box.fulltext
  END IF
+ IF selected THEN showants = YES
 
- IF show_style_height THEN
-  defitem "Height:"
-  edit_zint box.height, -2, gen(genResolutionY)  'Can only fill 80 with text
-  IF value = -2 THEN set_caption "Old Auto"
-  IF value = -1 THEN set_caption "Auto"
- END IF
+ defitem "Height:"
+ edit_zint box.height, -2, gen(genResolutionY)  'Can only fill 80 with text
+ IF value = -2 THEN set_caption "Old Auto"
+ IF value = -1 THEN set_caption "Auto"
+ IF selected THEN showants = YES
 
- defint "Horiz Padding:", box.padding_horiz, 0, 100
- defint "Vert Padding:", box.padding_vert, 0, 100
-
+ IF defitem_act("Align & Padding...") THEN enter_submenu "alignment"
  IF defitem_act("Choicebox...") THEN enter_submenu "choicebox"
 
  section "Text"
@@ -1046,15 +1079,6 @@ SUB TextboxAppearanceEditor.define_items()
  default_effective_value -1, gen(genTextboxLine) - 1
  edit_as_sfx offset_int(-1, box.line_sound), -2, 'Preview_Audio
  IF value = -2 THEN set_caption "None"
-
- 'Update textbox preview (refresh happens when state.need_update is true)
- IF phase = Phases.Refreshing THEN
-  init_text_box_slices st->textbox_sl, box, st->rootsl, YES
-  frame_unload @backdrop
-  IF boxp->backdrop > 0 THEN
-   backdrop = frame_load(sprTypeBackdrop, boxp->backdrop - 1)
-  END IF
- END IF
 END SUB
 
 '==============================================================================
@@ -1170,12 +1194,10 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
 
   clearpage dpage
   'Display the textbox with the text raised above the portrait (not really sure if necessary)
-  textbox_edit_preview box, st, dpage, 4, YES
-  textcolor uilook(uiText), 0
-  printstr "Text Box " & st.id, 0, 100, dpage
+  textbox_edit_preview box, st, dpage, 8, YES
+  'edgeprint "Text Box " & st.id, 3, 3, uilook(uiText), dpage
 
   DIM help as string = _
-      "Text Box " & st.id & !"\n\n"
       !"${C0} = Leader's name\n" _
       !"${C#} = Hero name at caterpillar slot #\n" _
       !"${P#} = Hero name at party slot #\n" _
@@ -1184,7 +1206,7 @@ SUB textbox_line_editor (byref box as TextBox, byref st as TextboxEditState)
       !"${S#} = Insert String Variable with ID #\n" _
       !"${B#} = Platform-specific button name #\n" _
       !"CTRL+SPACE: choose an extended character"
-  printstr help, 4, pInfoY, dpage
+  wrapprint help, 4, pInfoY, uilook(uiText), dpage
 
   SWAP vpage, dpage
   setvispage vpage
