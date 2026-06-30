@@ -368,17 +368,8 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 
 		vfseek(vf, size + here, SEEK_SET)
 	else
-		for i as integer = 0 to ret->numChildren - 1
-			dim nod as NodePtr
-			nod = LoadNode(vf, doc, force_recursive)
-			if nod = null then
-				FreeNode(ret)
-				'debug "LoadNode: node @" & here & " child " & i & " node load failed"
-				return null
-			end if
-			ret->numChildren -= 1
-			AddChild(ret, nod)
-		next
+
+		loadChildren vf, doc, force_recursive, ret
 
 		if vftell(vf) - here <> size then
 			FreeNode(ret)
@@ -389,6 +380,20 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 	
 	return ret
 End Function
+
+Function LoadChildren(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool, byval ret as NodePtr)
+	for i as integer = 0 to ret->numChildren - 1
+		dim nod as NodePtr
+		nod = LoadNode(vf, doc, force_recursive)
+		if nod = null then
+			FreeNode(ret)
+			'debug "LoadNode: node @" & here & " child " & i & " node load failed"
+			return null
+		end if
+		ret->numChildren -= 1
+		AddChild(ret, nod)
+	next
+End Sub
 
 'This loads a node's children if loading has been delayed, either recursively or not, returning success
 'Note: won't do a recursive load if the node is loaded already but its child aren't, so you will have to

@@ -27,6 +27,7 @@
 
 Namespace Reload
 
+'On-disk types
 ENUM NodeInTypes
 	rliNull = 0
 	rliByte = 1
@@ -37,6 +38,7 @@ ENUM NodeInTypes
 	rliString = 6
 END ENUM
 
+'In-memory types
 ENUM NodeTypes
 	rltNull
 	rltInt
