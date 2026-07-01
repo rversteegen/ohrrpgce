@@ -830,6 +830,130 @@ startTest(freeDocumentDelay2)
 	passed
 endTest
 
+'Reload v2 annex tests
+startTest(annexBasic)
+	dim annDoc as DocPtr = CreateDocument()
+	if annDoc = null then fail
+	dim root as NodePtr = CreateNode(annDoc, "root")
+	if root = null then fail
+	SetRootNode(annDoc, root)
+
+	'Create a tree: root -> child1, child2 -> grandchild
+	dim child1 as NodePtr = AppendChildNode(root, "child1", 10)
+	dim child2 as NodePtr = AppendChildNode(root, "child2")
+	dim grandchild as NodePtr = AppendChildNode(child2, "grandchild", 20)
+
+	'Mark child2 as annex
+	SetNodeAnnex(child2, YES)
+	if IsNodeAnnex(child2) = NO then fail
+
+	'Save as v2
+	safekill "annex_test.rld"
+	SerializeBin("annex_test.rld", annDoc)
+
+	'Load with delay and verify
+	dim loadedDoc as DocPtr = LoadDocument("annex_test.rld")
+	if loadedDoc = null then fail
+
+	dim loadedRoot as NodePtr = DocumentRoot(loadedDoc)
+	if loadedRoot = null then fail
+	if NumChildren(loadedRoot) <> 2 then fail
+
+	dim lc1 as NodePtr = FirstChild(loadedRoot, "child1")
+	if lc1 = null then fail
+	if GetInteger(lc1) <> 10 then fail
+
+	dim lc2 as NodePtr = FirstChild(loadedRoot, "child2")
+	if lc2 = null then fail
+	'Access grandchild to trigger lazy load
+	if GetChildNodeInt(lc2, "grandchild") <> 20 then fail
+
+	FreeDocument(loadedDoc)
+	FreeDocument(annDoc)
+	passed
+endTest
+
+startTest(annexNoDelay)
+	dim annDoc2 as DocPtr = CreateDocument()
+	if annDoc2 = null then fail
+	dim root as NodePtr = CreateNode(annDoc2, "root")
+	SetRootNode(annDoc2, root)
+
+	dim child1 as NodePtr = AppendChildNode(root, "child1", 10)
+	dim child2 as NodePtr = AppendChildNode(root, "child2")
+	dim grandchild as NodePtr = AppendChildNode(child2, "grandchild", 20)
+
+	SetNodeAnnex(child2, YES)
+
+	safekill "annex_test2.rld"
+	SerializeBin("annex_test2.rld", annDoc2)
+
+	'Load without delay
+	dim loadedDoc as DocPtr = LoadDocument("annex_test2.rld", optNoDelay)
+	if loadedDoc = null then fail
+
+	if CompareNodes(DocumentRoot(annDoc2), DocumentRoot(loadedDoc), YES, YES) = NO then fail
+
+	FreeDocument(loadedDoc)
+	FreeDocument(annDoc2)
+	passed
+endTest
+
+startTest(annexForceV1)
+	dim annDoc3 as DocPtr = CreateDocument()
+	if annDoc3 = null then fail
+	dim root as NodePtr = CreateNode(annDoc3, "root")
+	SetRootNode(annDoc3, root)
+
+	dim child1 as NodePtr = AppendChildNode(root, "child1", 10)
+	dim child2 as NodePtr = AppendChildNode(root, "child2")
+	AppendChildNode(child2, "grandchild", 20)
+	SetNodeAnnex(child2, YES)
+
+	'Force v1: annex flag should be ignored, children written inline
+	safekill "annex_test_v1.rld"
+	SerializeBin("annex_test_v1.rld", annDoc3, YES)
+
+	dim loadedDoc as DocPtr = LoadDocument("annex_test_v1.rld", optNoDelay)
+	if loadedDoc = null then fail
+	if CompareNodes(DocumentRoot(annDoc3), DocumentRoot(loadedDoc), YES, YES) = NO then fail
+
+	FreeDocument(loadedDoc)
+	FreeDocument(annDoc3)
+	passed
+endTest
+
+startTest(annexSetOnDelayed)
+	'Create doc with annex, save, load with delay
+	dim annDoc4 as DocPtr = CreateDocument()
+	if annDoc4 = null then fail
+	dim root as NodePtr = CreateNode(annDoc4, "root")
+	SetRootNode(annDoc4, root)
+	dim child1 as NodePtr = AppendChildNode(root, "child1", 10)
+	dim child2 as NodePtr = AppendChildNode(root, "child2")
+	AppendChildNode(child2, "inner", 42)
+	SetNodeAnnex(child2, YES)
+
+	safekill "annex_test_delay.rld"
+	SerializeBin("annex_test_delay.rld", annDoc4)
+
+	dim loadedDoc as DocPtr = LoadDocument("annex_test_delay.rld")
+	if loadedDoc = null then fail
+
+	dim loadedRoot as NodePtr = DocumentRoot(loadedDoc)
+	'Load child2 lazily, then set annex should not crash
+	dim lc2 as NodePtr = FirstChild(loadedRoot, "child2")
+	if lc2 = null then fail
+	if IsNodeAnnex(lc2) = NO then fail
+	'Access inner to trigger load, then clear annex
+	SetNodeAnnex(lc2, NO)
+	if IsNodeAnnex(lc2) then fail
+	if GetChildNodeInt(lc2, "inner") <> 42 then fail
+
+	FreeDocument(loadedDoc)
+	FreeDocument(annDoc4)
+	passed
+endTest
 
 startTest(cleanup)
 	FreeDocument(doc)

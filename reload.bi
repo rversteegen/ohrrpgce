@@ -36,6 +36,7 @@ ENUM NodeInTypes
 	rliLong = 4
 	rliFloat = 5
 	rliString = 6
+	rliText = 6
 END ENUM
 
 'In-memory types
@@ -92,6 +93,7 @@ TYPE NodePtr as Node ptr
 	ENUM NodeFlags
 		nfNotLoaded = 1   'Children of this node haven't been loaded. NOTE: numChildren has real value!
 		nfProvisional = 2 'When saving, ignore this node if has no children
+		nfAnnex = 4       'When saving, write the children to an annex. Preserved when loading and resaving.
 	END ENUM
 	
 	TYPE Node
@@ -114,7 +116,10 @@ TYPE NodePtr as Node ptr
 		nextSib as NodePtr
 		prevSib as NodePtr
 		flags as integer
-		fileLoc as integer
+		fileLoc as integer  'File offset to where children should be loaded from.
+		                    'For non-annex nodes: offset of first inline child.
+		                    'For annex nodes (nfAnnex): absolute offset to the annex header.
+		                    'In both cases, seek here and read children (consuming annex header first if nfAnnex).
 	END TYPE
 #else
 	TYPE Doc
@@ -154,7 +159,7 @@ Declare sub SerializeXML overload (byval doc as DocPtr, byval fh as integer, byv
 Declare sub SerializeXML (byval nod as NodePtr, byval fh as integer, byval debugging as bool, byval shortform as bool, byval ind as integer = 0)
 Declare sub DumpNodeTree(byval nod as NodePtr)
 
-Declare sub SerializeBin overload (file as string, byval doc as DocPtr)
+Declare sub SerializeBin overload (file as string, byval doc as DocPtr, byval force_v1 as bool = NO)
 
 Declare Function GetString(byval node as nodeptr) as string
 Declare Function GetInteger(byval node as nodeptr) as longint
@@ -215,6 +220,9 @@ Declare function ReadVLI overload(byval f as integer) as longint
 Declare Sub WriteVLI overload(byval f as integer, byval v as longint)
 Declare Function ReadVLI(byval vf as VFile ptr) as longint
 Declare Sub WriteVLI(byval f as BufferedFile ptr, byval v as longint)
+
+Declare Function IsNodeAnnex(byval nod as NodePtr) as bool
+Declare Sub SetNodeAnnex(byval nod as NodePtr, byval annex as bool)
 
 Declare Function DocumentMemoryUsage(byval doc as DocPtr) as longint
 

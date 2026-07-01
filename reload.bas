@@ -21,6 +21,7 @@ Namespace Reload
 
 Declare Function AddStringToTable(name as zstring ptr, byval doc as DocPtr) as integer
 Declare Function FindStringInTable(interned_name as zstring ptr, byval doc as DocPtr) as integer
+Declare Sub LoadChildren(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool, byval ret as NodePtr)
 
 Declare Function CreateHashTable(doc as DocPtr, numbuckets as integer = 61) as HashPtr
 Declare Sub DestroyHashTable(byval h as HashPtr)
@@ -306,6 +307,7 @@ end sub
 'Loads a node from a binary file, into a document
 'If force_recurse is true, load recursively even if document marked for delayed loading.
 Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool) as NodePtr
+	'sie includes children except those in an annex
 	dim size as integer
 	vfread(@size, 4, 1, vf)
 
@@ -360,35 +362,56 @@ Function LoadNode(byval vf as VFile ptr, byval doc as DocPtr, byval force_recurs
 			return null
 	end select
 
-	ret->numChildren = ReadVLI(vf)
+	var numChild = ReadVLI(vf)
 
-	if doc->delayLoading and force_recursive = NO then
-		ret->fileLoc = vftell(vf)
-		ret->flags OR= nfNotLoaded
+	ret->numChildren = abs(numChild)
 
-		vfseek(vf, size + here, SEEK_SET)
+	if numChild < 0 then
+		'Annexed children: read 4-byte absolute offset to annex
+		vfread(@ret->fileLoc, 4, 1, vf)
+		ret->flags OR= nfAnnex
+
+		if doc->delayLoading and force_recursive = NO then
+			ret->flags OR= nfNotLoaded
+			vfseek(vf, size + here, SEEK_SET)
+		else
+			'Seek to annex, consume its header, load children
+			dim savedPos as integer = vftell(vf)
+			vfseek(vf, ret->fileLoc, SEEK_SET)
+			'Consume annex header: size + numChildren
+			dim annexSize as integer
+			vfread(@annexSize, 4, 1, vf)
+			dim annexNumChildren as integer = cint(ReadVLI(vf))
+			loadChildren vf, doc, force_recursive, ret
+			vfseek(vf, savedPos, SEEK_SET)
+		end if
 	else
+		if doc->delayLoading and force_recursive = NO then
+			ret->fileLoc = vftell(vf)
+			ret->flags OR= nfNotLoaded
 
-		loadChildren vf, doc, force_recursive, ret
+			vfseek(vf, size + here, SEEK_SET)
+		else
+			loadChildren vf, doc, force_recursive, ret
 
-		if vftell(vf) - here <> size then
-			FreeNode(ret)
-			reporterr doc->filename & " corrupt? GOSH-diddly-DARN-it! Why did we read " & (vftell(vf) - here) & " bytes instead of " & size, serrMajor
-			return null
+			if vftell(vf) - here <> size then
+				FreeNode(ret)
+				reporterr doc->filename & " corrupt? GOSH-diddly-DARN-it! Why did we read " & (vftell(vf) - here) & " bytes instead of " & size, serrMajor
+				return null
+			end if
 		end if
 	end if
 	
 	return ret
 End Function
 
-Function LoadChildren(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool, byval ret as NodePtr)
+Sub LoadChildren(byval vf as VFile ptr, byval doc as DocPtr, byval force_recursive as bool, byval ret as NodePtr)
 	for i as integer = 0 to ret->numChildren - 1
 		dim nod as NodePtr
 		nod = LoadNode(vf, doc, force_recursive)
 		if nod = null then
 			FreeNode(ret)
-			'debug "LoadNode: node @" & here & " child " & i & " node load failed"
-			return null
+			exit sub
 		end if
 		ret->numChildren -= 1
 		AddChild(ret, nod)
@@ -406,6 +429,13 @@ Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 
 	vfseek(vf, ret->fileLoc, SEEK_SET)
 
+	if ret->flags AND nfAnnex then
+		'Consume annex header: size + numChildren
+		dim annexSize as integer
+		vfread(@annexSize, 4, 1, vf)
+		dim annexNumChildren as integer = cint(ReadVLI(vf))
+	end if
+
 	for i as integer = 0 to ret->numChildren - 1
 		dim nod as NodePtr = LoadNode(vf, ret->doc, recursive)
 		if nod = null then
@@ -415,9 +445,9 @@ Function LoadNode(byval ret as NodePtr, byval recursive as bool = YES) as bool
 		ret->numChildren -= 1
 		AddChild(ret, nod)
 	next
-	
+
 	ret->flags AND= NOT nfNotLoaded
-	
+
 	return YES
 End Function
 
@@ -476,7 +506,7 @@ Function LoadDocument(fil as string, byval options as LoadOptions = optNone) as 
 	end if
 
 	dim as ubyte ver
-	dim as integer headSize, datSize
+	dim as integer headSize, datSize, rootOffset
 	ver = vfgetc(vf)
 
 	select case ver
@@ -488,6 +518,17 @@ Function LoadDocument(fil as string, byval options as LoadOptions = optNone) as 
 				return null
 			end if
 			vfread(@datSize, 4, 1, vf)
+			rootOffset = headSize  'v1: root follows header immediately
+
+		case 2
+			vfread(@headSize, 4, 1, vf)
+			if headSize <> 17 then
+				vfclose(vf)
+				reporterr fil & " corrupt: wrong header size " & headSize, serrMajor
+				return null
+			end if
+			vfread(@datSize, 4, 1, vf)
+			vfread(@rootOffset, 4, 1, vf)
 
 		case else ' dunno. Let's quit.
 			vfclose(vf)
@@ -513,9 +554,9 @@ Function LoadDocument(fil as string, byval options as LoadOptions = optNone) as 
 	
 	vfseek(vf, datSize, SEEK_SET)
 	LoadStringTable(vf, ret)
-	
-	vfseek(vf, headSize, SEEK_SET)
-	
+
+	vfseek(vf, rootOffset, SEEK_SET)
+
 	ret->root = LoadNode(vf, ret, NO)
 	
 	'Is it possible to serialize a null root? I mean, I don't know why you would want to, but...
@@ -646,67 +687,162 @@ sub BuildNameIndexTable(byval doc as DocPtr, nodenames() as RBNodeName, byval fu
 	next
 end sub
 
-Declare sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as DocPtr)
+Type AnnexEntry
+	node as NodePtr
+	offset as integer
+End Type
+
+Declare sub reloadSerializeNode(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as DocPtr, annexes() as AnnexEntry, byval useV2 as bool)
+Declare sub scanAnnexes(byval nod as NodePtr, byref useV2 as bool)
+
+'Collect all nfAnnex nodes and write their annexes at the current file position.
+'Post-order: children's annexes written before parents, so all offsets are known when writing each annex.
+Sub collectAnnexes(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as DocPtr, annexes() as AnnexEntry)
+	if nod = null then exit sub
+
+	if (nod->flags AND nfAnnex) = 0 then
+		dim n as NodePtr = nod->children
+		do while n <> null
+			collectAnnexes(n, f, doc, annexes())
+			n = n->nextSib
+		loop
+	else
+		dim n as NodePtr = nod->children
+		do while n <> null
+			collectAnnexes(n, f, doc, annexes())
+			n = n->nextSib
+		loop
+
+		dim annexStart as integer = Buffered_tell(f)
+		dim annexSize as integer = 0
+		Buffered_write(f, @annexSize, 4)
+		dim annexContentStart as integer = Buffered_tell(f)
+		WriteVLI(f, nod->numChildren)
+		n = nod->children
+		do while n <> null
+			reloadSerializeNode(n, f, doc, annexes(), YES)
+			n = n->nextSib
+		loop
+		dim annexContentEnd as integer = Buffered_tell(f)
+		annexSize = annexContentEnd - annexContentStart
+		Buffered_seek(f, annexStart)
+		Buffered_write(f, @annexSize, 4)
+		Buffered_seek(f, annexContentEnd)
+
+		dim idx as integer = 0
+		if ubound(annexes) >= lbound(annexes) then
+			idx = ubound(annexes) + 1
+		end if
+		redim preserve annexes(idx)
+		annexes(idx).node = nod
+		annexes(idx).offset = annexStart
+	end if
+end sub
+
+Function lookupAnnexOffset(byval nod as NodePtr, annexes() as AnnexEntry) as integer
+	for i as integer = lbound(annexes) to ubound(annexes)
+		if annexes(i).node = nod then return annexes(i).offset
+	next
+		showbug "annex offset not found for node"
+	return 0
+End Function
 
 'This serializes a document as a binary file. This is where the magic happens :)
-sub SerializeBin(file as string, byval doc as DocPtr)
+Sub SerializeBin(file as string, byval doc as DocPtr, byval force_v1 as bool = NO)
 	dim starttime as double = timer
 	BUG_IF(doc = NULL, "null doc")
 	BUG_IF(doc->root = NULL, "null root")
 
 	RemoveProvisionalNodes(doc->root)
-	'BuildStringTable(doc->root, doc)
 
-	'In case things go wrong, we serialize to a temporary file first
 	safekill file & ".tmp"
 
 	dim f as BufferedFile ptr
 	f = Buffered_open(file & ".tmp")
 	ERROR_IF(f = NULL, "Unable to open " & file & ".tmp")
 
+	dim annexes() as AnnexEntry
+
+	dim useV2 as bool = NO
+	if force_v1 = NO then
+		scanAnnexes(doc->root, useV2)
+	end if
+
 	dim i as uinteger
-	
-	Buffered_write(f, @"RELD", 4) 'magic signature
-	
-	Buffered_putc(f, 1) 'version
-	
-	i = 13 'the size of the header (i.e., offset to the data)
-	Buffered_write(f, @i, 4)
-	
-	i = 0 'we're going to fill this in later. it is the string table post relative to the beginning of the file.
-	Buffered_write(f, @i, 4)
-	
-	'write out the body
-	serializeBin(doc->root, f, doc)
-	
-	'this is the location of the string table (immediately after the data)
-	dim table_loc as integer
-	table_loc = Buffered_tell(f)
-	
-	Buffered_seek(f, 9)
-	Buffered_write(f, @table_loc, 4) 'filling in the string table position
-	
-	'jump back to the string table
-	Buffered_seek(f, table_loc)
-	
-	'first comes the number of strings
-	writeVLI(f, doc->numStrings - 1)
-	
-	'then, write out each string, size then body
-	for i = 1 to doc->numStrings - 1
-		dim zs as zstring ptr = doc->strings[i].str
-		dim zslen as integer = len(*zs)
-		writeVLI(f, zslen)
-		Buffered_write(f, zs, zslen)
-	next
+
+	Buffered_write(f, @"RELD", 4)
+
+	if useV2 then
+		Buffered_putc(f, 2)  'version 2
+
+		i = 17  'header: 4(magic) + 1(ver) + 4(headSize) + 4(datSize) + 4(rootOffset)
+		Buffered_write(f, @i, 4)
+
+		i = 0  'datSize placeholder
+		Buffered_write(f, @i, 4)
+
+		dim rootOffsetLoc as integer = Buffered_tell(f)
+		i = 0  'rootOffset placeholder
+		Buffered_write(f, @i, 4)
+
+		'Write all annexes first (post-order: children before parents)
+		collectAnnexes(doc->root, f, doc, annexes())
+
+		'Record root position
+		dim rootOffset as integer = Buffered_tell(f)
+
+		'Write main tree
+		reloadSerializeNode(doc->root, f, doc, annexes(), YES)
+
+		'Write string table
+		dim table_loc as integer = Buffered_tell(f)
+
+		'Fill in datSize
+		Buffered_seek(f, 9)
+		Buffered_write(f, @table_loc, 4)
+		'Fill in rootOffset
+		Buffered_seek(f, rootOffsetLoc)
+		Buffered_write(f, @rootOffset, 4)
+
+		'Write string table
+		Buffered_seek(f, table_loc)
+		writeVLI(f, doc->numStrings - 1)
+		for i = 1 to doc->numStrings - 1
+			dim zs as zstring ptr = doc->strings[i].str
+			dim zslen as integer = len(*zs)
+			writeVLI(f, zslen)
+			Buffered_write(f, zs, zslen)
+		next
+	else
+		Buffered_putc(f, 1)  'version 1
+
+		i = 13
+		Buffered_write(f, @i, 4)
+
+		i = 0  'datSize placeholder
+		Buffered_write(f, @i, 4)
+
+		reloadSerializeNode(doc->root, f, doc, annexes(), NO)
+
+		dim table_loc as integer
+		table_loc = Buffered_tell(f)
+
+		Buffered_seek(f, 9)
+		Buffered_write(f, @table_loc, 4)
+
+		Buffered_seek(f, table_loc)
+		writeVLI(f, doc->numStrings - 1)
+		for i = 1 to doc->numStrings - 1
+			dim zs as zstring ptr = doc->strings[i].str
+			dim zslen as integer = len(*zs)
+			writeVLI(f, zslen)
+			Buffered_write(f, zs, zslen)
+		next
+	end if
+
 	Buffered_close(f)
 
 	if doc->fileHandle then
-		'In the process of serializing the document, all nodes would have been loaded,
-		'therefore we can close the source file.
-		'Now it's very likely that we're writing back to the original file, which means
-		'that on Windows we have to close this file, otherwise we can't delete it!
-		'debuginfo "reload: closing file " & doc->fileName
 		vfclose(doc->fileHandle)
 		doc->fileHandle = NULL
 	end if
@@ -714,22 +850,34 @@ sub SerializeBin(file as string, byval doc as DocPtr)
 	safekill file
 	if renamefile(file & ".tmp", file) = NO then
 		showerror "SerializeBin: could not rename " & file & ".tmp to " & file
-		exit sub  'don't delete the data
+		exit sub
 	end if
 	debug_if_slow(starttime, 0.1, file)
 end sub
 
-sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as DocPtr)
+'Recursive helper to scan for nfAnnex flags in a subtree
+Sub scanAnnexes(byval nod as NodePtr, byref useV2 as bool)
+	if nod = null or useV2 then exit sub
+	if nod->flags AND nfAnnex then
+		useV2 = YES
+		exit sub
+	end if
+	dim n as NodePtr = nod->children
+	do while n <> null
+		scanAnnexes(n, useV2)
+		n = n->nextSib
+	loop
+End Sub
+
+sub reloadSerializeNode(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as DocPtr, annexes() as AnnexEntry, byval useV2 as bool)
 	BUG_IF(nod = NULL, "null node ptr")
 
-	'first, if a node isn't loaded, we need to do so.
 	if nod->flags AND nfNotLoaded then
 		LoadNode(nod, YES)
 	end if
 
 	dim as integer size_loc, content_start_loc = 0, content_end_loc
 	size_loc = Buffered_tell(f)
-	' Will fill this in later, this is the node content size
 	Buffered_write(f, @content_start_loc, 4)
 
 	content_start_loc = Buffered_tell(f)
@@ -739,10 +887,8 @@ sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as
 
 	select case nod->nodeType
 		case rltNull
-			'Nulls have no data, but convey information by existing or not existing.
-			'They can also have children.
 			Buffered_putc(f, rliNull)
-		case rltInt 'this is good enough, don't need VLI for this
+		case rltInt
 			if nod->num > 2147483647 or nod->num < -2147483648 then
 				Buffered_putc(f, rliLong)
 				Buffered_write(f, @(nod->num), 8)
@@ -767,12 +913,18 @@ sub serializeBin(byval nod as NodePtr, byval f as BufferedFile ptr, byval doc as
 			Buffered_write(f, nod->str, nod->strSize)
 	end select
 
-	WriteVLI(f, nod->numChildren)
-	dim n as NodePtr = nod->children
-	do while n <> null
-		serializeBin(n, f, doc)
-		n = n->nextSib
-	loop
+	if useV2 andalso (nod->flags AND nfAnnex) then
+		WriteVLI(f, -nod->numChildren)
+		dim annexOffset as integer = lookupAnnexOffset(nod, annexes())
+		Buffered_write(f, @annexOffset, 4)
+	else
+		WriteVLI(f, nod->numChildren)
+		dim n as NodePtr = nod->children
+		do while n <> null
+			reloadSerializeNode(n, f, doc, annexes(), useV2)
+			n = n->nextSib
+		loop
+	end if
 
 	content_end_loc = Buffered_tell(f)
 	dim size as long = content_end_loc - content_start_loc
@@ -809,6 +961,30 @@ sub MarkProvisional(byval nod as NodePtr)
 	BUG_IF(nod = NULL, "null node ptr")
 	nod->flags OR= nfProvisional
 end sub
+
+Function IsNodeAnnex(byval nod as NodePtr) as bool
+	if nod = null then return NO
+	return (nod->flags AND nfAnnex) <> 0
+End Function
+
+'Set or clear the nfAnnex flag on a node.
+'If setting annex on a delay-loaded node, the node must be loaded first,
+'because annex changes how fileLoc is interpreted (from inline offset to
+'annex offset), and leaving a stale fileLoc would corrupt the child load path.
+Sub SetNodeAnnex(byval nod as NodePtr, byval annex as bool)
+	if nod = null then exit sub
+	'Changing annex state on a delay-loaded node would corrupt fileLoc semantics:
+	'fileLoc points to annex data, but without nfAnnex the loader expects inline data.
+	'Load the node first so children are in memory and fileLoc is no longer needed.
+	if (nod->flags AND nfNotLoaded) then
+		LoadNode(nod, YES)
+	end if
+	if annex then
+		nod->flags OR= nfAnnex
+	else
+		nod->flags AND= NOT nfAnnex
+	end if
+End Sub
 
 'Whether a node has a particular ancestor. Returns YES if nod = possible_parent.
 Function NodeHasAncestor(byval nod as NodePtr, byval possible_parent as NodePtr) as bool
