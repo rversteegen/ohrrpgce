@@ -86,6 +86,7 @@ DIM option_nowait as bool  'Currently only used when importing scripts from the 
 DIM option_hsflags as string  'Used when importing scripts from the commandline: extra args to pass
 DIM option_check_update as bool '--update-check
 DIM export_translations_to as string
+DIM load_custom_translations_from as string
 
 DIM editing_a_game as bool
 DIM last_active_seconds as double
@@ -348,6 +349,11 @@ IF scriptfile <> "" THEN import_scripts_and_terminate scriptfile
 'Set by --export-trans
 IF export_translations_to <> "" THEN export_translations_and_terminate export_translations_to
 
+'Set by --load-trans-custom
+IF load_custom_translations_from <> "" THEN
+  load_custom_translations load_custom_translations_from
+END IF
+
 IF auto_distrib <> "" THEN
  auto_export_distribs auto_distrib
  cleanup_workingdir_on_exit = YES
@@ -400,6 +406,8 @@ SUB main_editor_menu()
   menu(19) = "Test Game"
   menu(20) = "Quit or Save"
  #ENDIF
+
+ tr_menu menu()
 
  DIM selectst as SelectTypeState
  DIM state as MenuState

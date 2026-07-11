@@ -300,4 +300,17 @@ DECLARE FUNCTION cropafter (index as integer, byref limit as integer, lump as st
 EXTERN translations as StrHashTable
 EXTERN rgfx_lumpnames() as string
 
+'--- Custom editor translations ---
+DECLARE SUB init_custom_translations()
+DECLARE SUB load_custom_translations(fname as string)
+DECLARE FUNCTION tr OVERLOAD (format as string) as string
+DECLARE FUNCTION tr OVERLOAD (format as string, arg1 as integer) as string
+DECLARE FUNCTION tr OVERLOAD (format as string, arg1 as string) as string
+DECLARE FUNCTION tr OVERLOAD (format as string, arg1 as integer, arg2 as integer) as string
+DECLARE FUNCTION tr OVERLOAD (format as string, arg1 as string, arg2 as string) as string
+DECLARE FUNCTION trv(format as string, args() as string) as string
+DECLARE FUNCTION trplural(format as string, count as integer) as string
+DECLARE SUB tr_menu(items() as string)
+EXTERN translations_custom as StrHashTable
+
 #ENDIF

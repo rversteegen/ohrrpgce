@@ -85,6 +85,7 @@ function global_setoption(opt as string, arg as string) as integer
 		help = help & "-hsflags            When importing scripts (ignored otherwise), extra arguments to pass to hspeak" & LINE_END
 		help = help & "                    which should be NOT preceded with -, e.g. ""--hsflags w"" to skip warnings" & LINE_END
 		help = help & "-export-trans file  Export translations to a file (experimental)" & LINE_END
+		help = help & "-load-trans-custom file  Load custom editor UI translations from a file" & LINE_END
 #ENDIF
 		help = help & "-rawexx             Don't catch -exx fatal errors, let gdbgame/gdbcustom.sh/bat catch them" & LINE_END
 		help = help & "-recordinput file   Record keyboard input to a file" & LINE_END

@@ -2637,6 +2637,13 @@ FUNCTION custom_setoption(opt as string, arg as string) as integer
   ELSE
    RETURN 1
   END IF
+ ELSEIF opt = "load-trans-custom" THEN
+  IF LEN(arg) THEN
+   load_custom_translations_from = arg
+   RETURN 2
+  ELSE
+   RETURN 1
+  END IF
  END IF
  RETURN 0
 END FUNCTION

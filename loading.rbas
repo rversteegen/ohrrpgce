@@ -6148,6 +6148,147 @@ END FUNCTION
 
 
 '==========================================================================================
+'                     Custom editor translation system
+
+DIM translations_custom as StrHashTable
+
+SUB init_custom_translations()
+  translations_custom.construct(64, type_table(string), YES)
+END SUB
+
+SUB load_custom_translations(fname as string)
+  IF translations_custom.tablesize = 0 THEN init_custom_translations()
+
+  DIM fh as integer
+  IF OPENFILE(fname, FOR_INPUT + OR_ERROR, fh) THEN EXIT SUB
+
+  DIM linenum as integer = 0
+  DO UNTIL EOF(fh)
+    DIM linein as string
+    LINE INPUT #fh, linein
+    linenum += 1
+    linein = TRIM(linein)
+    IF LEN(linein) = 0 ORELSE LEFT(linein, 1) = "#" THEN CONTINUE DO
+    DIM where as integer = INSTR(linein, "|")
+    IF where = 0 THEN
+      debug "load_custom_translations: line " & linenum & " missing '|'"
+      CONTINUE DO
+    END IF
+    DIM orig as string = LEFT(linein, where - 1)
+    DIM trans_text as string = MID(linein, where + 1)
+    translations_custom.add(orig, trans_text)
+  LOOP
+  CLOSE fh
+END SUB
+
+' Replace {} and {N} placeholders in text string with args.
+' args() is 0-based. {} is positional (consumed in order).
+' {1}, {2}, etc. are 1-based numbered references.
+LOCAL FUNCTION tr_replace(text as string, args() as string) as string
+  DIM result as string = text
+  DIM pos_arg as integer = 0
+  DIM i as integer = 1
+  DO WHILE i <= LEN(result)
+    IF result[i - 1] = ASC("{") THEN
+      DIM close_brace as integer = INSTR(i, result, "}")
+      IF close_brace = 0 THEN EXIT DO
+      DIM placeholder as string = MID(result, i + 1, close_brace - i - 1)
+      DIM replacement as string
+      IF LEN(placeholder) = 0 THEN
+        ' Positional: {}
+        IF pos_arg <= UBOUND(args) THEN
+          replacement = args(pos_arg)
+        ELSE
+          replacement = "{}"
+        END IF
+        pos_arg += 1
+      ELSEIF LEN(placeholder) <= 2 ANDALSO placeholder[0] >= ASC("0") ANDALSO placeholder[0] <= ASC("9") THEN
+        DIM idx as integer = VALINT(placeholder) - 1
+        IF idx >= 0 ANDALSO idx <= UBOUND(args) THEN
+          replacement = args(idx)
+        ELSE
+          replacement = "{" & placeholder & "}"
+        END IF
+      ELSE
+        i = close_brace + 1
+        CONTINUE DO
+      END IF
+      result = LEFT(result, i - 1) & replacement & MID(result, close_brace + 1)
+      i += LEN(replacement)
+    ELSE
+      i += 1
+    END IF
+  LOOP
+  RETURN result
+END FUNCTION
+
+FUNCTION tr (text as string) as string
+  IF translations_custom.tablesize = 0 THEN RETURN text
+  DIM trans as string = translations_custom.get_str(text)
+  IF LEN(trans) THEN RETURN trans
+  RETURN text
+END FUNCTION
+
+FUNCTION tr (text as string, arg1 as integer) as string
+  DIM args(0) as string
+  args(0) = LTRIM(STR(arg1))
+  RETURN tr_replace(tr(text), args())
+END FUNCTION
+
+FUNCTION tr (text as string, arg1 as string) as string
+  DIM args(0) as string
+  args(0) = arg1
+  RETURN tr_replace(tr(text), args())
+END FUNCTION
+
+FUNCTION tr (text as string, arg1 as integer, arg2 as integer) as string
+  DIM args(1) as string
+  args(0) = LTRIM(STR(arg1))
+  args(1) = LTRIM(STR(arg2))
+  RETURN tr_replace(tr(text), args())
+END FUNCTION
+
+FUNCTION tr (text as string, arg1 as string, arg2 as string) as string
+  DIM args(1) as string
+  args(0) = arg1
+  args(1) = arg2
+  RETURN tr_replace(tr(text), args())
+END FUNCTION
+
+FUNCTION trv(text as string, args() as string) as string
+  RETURN tr_replace(tr(text), args())
+END FUNCTION
+
+' Translate text Handles plural force [text] convention: if count is 1, remove bracketed text entirely;
+' otherwise strip brackets only (keep the text inside)
+FUNCTION trplural(text as string, count as integer) as string
+  DIM result as string = tr(text, count)
+  IF count = 1 THEN
+    DIM i as integer = 1
+    DO
+      DIM open_b as integer = INSTR(i, result, "[")
+      IF open_b = 0 THEN EXIT DO
+      DIM close_b as integer = INSTR(open_b, result, "]")
+      IF close_b = 0 THEN EXIT DO
+      result = LEFT(result, open_b - 1) & MID(result, close_b + 1)
+      i = open_b
+    LOOP
+    RETURN result
+  ELSE
+    replacestr result, "[", ""
+    replacestr result, "]", ""
+    RETURN result
+  END IF
+END FUNCTION
+
+SUB tr_menu(items() as string)
+  FOR i as integer = 0 TO UBOUND(items)
+    items(i) = tr(items(i))
+  NEXT i
+END SUB
+
+
+'==========================================================================================
 
 
 SUB load_non_elemental_elements (elem() as bool)
